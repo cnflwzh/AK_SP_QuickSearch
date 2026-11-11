@@ -79,18 +79,6 @@ python -m http.server 8000
 
 特质文本约定：`<进入休整期时>` 这样的尖括号表示触发时机，`【乌萨斯】` 这样的方括号表示盟约名，页面会自动上色；数字会自动加粗。
 
-## 部署（Cloudflare Workers 静态资源）
-
-线上地址：<https://sp.enjoyacg.com>。Workers 项目 `ak-sp-quicksearch` 连接本仓库，推送到 `main` 由 Workers Builds 自动构建发布。配置在 Cloudflare 后台的项目构建设置中维护。
-
-- 构建命令：`python scripts/build.py`（重新生成 `sw.js`，再把网站文件复制到 `dist/`）
-- 项目根目录：`/`；发布目录：`dist`
-- 部署命令：`npx wrangler@4.160.0 deploy --assets ./dist --name ak-sp-quicksearch --compatibility-date 2026-11-10`
-- `--assets ./dist` 显式指定发布目录；省略时自动识别可能选中仓库根目录，把构建脚本、依赖和嵌套的 `dist/` 一并上传
-- 部署时会自动重新生成 `sw.js`；本地预览离线缓存时仍需手动运行 `python scripts/build_sw.py`
-- `_headers` 已配置：页面、脚本、样式、数据每次向服务器确认新版本；图片长期缓存；带内容哈希的 WOFF2 字体缓存一年
-- Workers 静态资源会把 `/guide.html` 重定向到 `/guide`，Service Worker 已兼容两种路径
-- 自定义域名绑定到该 Worker 的 production 环境；Cloudflare 跳转规则将 `sp.enjoyacg.com` 的 HTTP 请求以 301 跳转到 HTTPS，保留路径和查询参数
 
 ## 代码约定
 
@@ -135,18 +123,3 @@ python -m http.server 8000
 - **数据**（`data/` 目录）：整理自 PRTS 等 Wiki，按 [CC BY-NC-SA 3.0](data/LICENSE.md) 发布
 - **游戏图片、名称与文本**：© 上海鹰角网络科技有限公司，本项目仅作攻略用途
 - **视频攻略**：版权归各 UP 主
-
-## 2026-11-11 数据核对
-
-价格、练度、分模式调度中心、回合及认证已按 [ArknightsGameData](https://github.com/Kengxxiao/ArknightsGameData/blob/master/zh_CN/gamedata/excel/activity_table.json) 的 `act3autochess.V3_1` 核对；作战时限使用 `gamedata/levels/activities/act3autochess` 关卡的 `options.maxPlayTime`。精锐奖励按 [PRTS 基础操作](https://prts.wiki/w/卫戍协议/帮助) 的当前中心高一阶规则计算。
-
-联合模拟均为14回合，险境以上可追加隐秘核心；极速模拟9回合。调度模拟器的模式选择同时切换升级费用和栏位表。模拟器记录累计净花费，支持招募、晋升奖励、冻结补位、出售与海沫售价成长。
-
-离线图片缓存按图片内容单独计算版本，文字更新复用已有图片；首次预取最多4个图片请求并发。教程中的持续脚本动画仅在可见且未开启减少动态效果时运行。
-
-
-## 本地字体
-
-三款字体保持原样：Noto Sans SC、Saira Condensed、ZCOOL QingKe HuangYou（站酷庆科黄油体）。原版 WOFF2 分片随站点发布，保留原字重、Unicode 范围和 `font-display: swap`；浏览器按页面所需字符下载，页面加载不再连接 Google Fonts。
-
-`assets/css/fonts.css` 由 `python scripts/vendor_fonts.py` 生成，通常构建直接使用已提交的资源，无需联网下载字体。更新字体时手动运行该脚本，再运行构建并提交生成文件。文件名包含内容哈希，可长期缓存；字体仅按需写入离线缓存，避免预取全字库。各字体的 OFL 许可证和原始资源映射位于 `assets/fonts/`。
