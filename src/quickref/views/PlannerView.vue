@@ -117,12 +117,11 @@ const imageBusy = ref(false);
 async function saveImage(): Promise<void> {
   imageBusy.value = true;
   try {
-    const blob = await planImage(plan.value, code.value);
+    const blob = await planImage(plan.value, link.value);
     if (!blob) return;
-    const file = new File([blob], `${plan.value.name || '阵容'}.png`, { type: 'image/png' });
-    if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: plan.value.name }).catch(() => {}); return; }
+    // 直接保存到本地，不弹系统分享
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = file.name; a.click();
+    a.href = URL.createObjectURL(blob); a.download = `${plan.value.name || '阵容'}.png`; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   } finally { imageBusy.value = false; }
 }
@@ -179,7 +178,7 @@ onUnmounted(() => window.removeEventListener('hashchange', readHash));
     <section v-if="panel === 'share'" class="pl-panel">
       <div class="pl-code"><span class="k">分享码</span><code>{{ code }}</code><button type="button" @click="copy(code, 'code')">{{ copied === 'code' ? '已复制' : '复制' }}</button></div>
       <div class="pl-code"><span class="k">链接</span><code>{{ link }}</code><button type="button" @click="copy(link, 'link')">{{ copied === 'link' ? '已复制' : '复制' }}</button></div>
-      <div class="pl-code"><span class="k">图片</span><span class="hint">干员、装备、策略、盟约和分享码</span><button type="button" :disabled="imageBusy || !ops.length" @click="saveImage">{{ imageBusy ? '生成中…' : '生成图片' }}</button></div>
+      <div class="pl-code"><span class="k">图片</span><span class="hint">干员、装备、盟约，附二维码，扫码即导入</span><button type="button" :disabled="imageBusy || !ops.length" @click="saveImage">{{ imageBusy ? '生成中…' : '生成图片' }}</button></div>
     </section>
 
     <!-- 导入 -->

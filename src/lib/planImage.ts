@@ -1,12 +1,14 @@
 /**
- * 阵容分享图：干员头像、装备、策略、盟约进度和分享码画到一张 PNG 上。
+ * 阵容分享图：干员头像、装备、策略、盟约进度和分享链接二维码画到一张 PNG 上。
  * 图片都在同源 assets/ 下，canvas 不会被污染，可以直接导出。
  */
 import { OPERATOR, STRATEGY, covenantColor } from '../../data/index.ts';
 import { avatarSrc, equipIconSrc, portraitSrc } from './assets.ts';
 import { covenantStats, planCost, type Plan } from './planner.ts';
 
-const W = 720, PAD = 24, CELL = 84;
+const W = 720, PAD = 24, CELL = 84, QR = 168;
+/** 盟约区（和二维码）的起点：标题 44 + 干员 102 + 策略 40 */
+const SECTION = PAD + 26 + 18 + CELL + 18 + 40;
 const TIER = ['#7a8b88', '#434343', '#626654', '#445760', '#615B74', '#6C5E41', '#5d341e'];
 const FONT = '"Noto Sans SC","Microsoft YaHei",sans-serif';
 const INK = '#122220', INK3 = '#7a8b88', LINE = '#cdd8d6', ACCENT = '#b46a07', TEAL = '#0f766c';
@@ -23,11 +25,14 @@ function round(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h
   ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
 }
 
-export async function planImage(plan: Plan, code: string): Promise<Blob | null> {
+/** link：分享链接（#p=分享码），画成二维码 */
+export async function planImage(plan: Plan, link: string): Promise<Blob | null> {
   const stats = covenantStats(plan.ops, 0);
   const cost = planCost(plan.ops);
   const rows = Math.max(1, stats.length);
-  const H = PAD + 46 + CELL + 40 + 28 + rows * 26 + 20 + 58 + PAD;
+  const { default: qrcode } = await import('qrcode-generator');
+  const qr = qrcode(0, 'M'); qr.addData(link); qr.make();
+  const H = SECTION + Math.max(rows * 26, QR + 44) + 6 + PAD;
   const scale = 2;
   const canvas = document.createElement('canvas');
   canvas.width = W * scale; canvas.height = H * scale;
@@ -100,14 +105,16 @@ export async function planImage(plan: Plan, code: string): Promise<Blob | null> 
     y += 26;
   }
   if (!stats.length) { ctx.fillStyle = INK3; ctx.fillText('—', PAD, y + 12); y += 26; }
-  y += 20;
 
-  // 分享码
-  ctx.fillStyle = '#f4f7f6'; round(ctx, PAD, y - 6, W - PAD * 2, 34, 6); ctx.fill();
-  ctx.fillStyle = INK; ctx.font = `12px ui-monospace,Consolas,monospace`;
-  ctx.fillText(code.length > 88 ? code.slice(0, 88) + '…' : code, PAD + 10, y + 15);
-  ctx.fillStyle = ACCENT; ctx.font = `700 12px ${FONT}`; ctx.textAlign = 'right';
-  ctx.fillText('卫戍速查 · 阵容规划 · 在「规划」里导入分享码', W - PAD, y + 48);
+  // 二维码：盟约右侧，扫码即打开分享链接
+  const qx = W - PAD - QR, qy = SECTION;
+  ctx.fillStyle = '#fff'; ctx.strokeStyle = LINE; round(ctx, qx, qy, QR, QR, 8); ctx.fill(); ctx.stroke();
+  const n = qr.getModuleCount(), cell = Math.floor((QR - 16) * scale / n) / scale, off = (QR - cell * n) / 2;
+  ctx.fillStyle = INK;
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) ctx.fillRect(qx + off + c * cell, qy + off + r * cell, cell, cell);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = INK; ctx.font = `700 13px ${FONT}`; ctx.fillText('扫码导入阵容', qx + QR / 2, qy + QR + 20);
+  ctx.fillStyle = ACCENT; ctx.font = `700 11px ${FONT}`; ctx.fillText('卫戍速查 · 阵容规划', qx + QR / 2, qy + QR + 37);
   ctx.textAlign = 'left';
 
   return new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
