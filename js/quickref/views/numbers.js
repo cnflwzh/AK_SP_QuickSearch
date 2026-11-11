@@ -7,28 +7,26 @@ import { esc, html, range, wan } from '../../lib/dom.js';
 import { state } from '../state.js';
 import { segmented } from '../chips.js';
 
-const FACTS = [
-  ['8', '部署上限'], ['9', '人事部文档'], ['10+5', '整备区'],
-  ['3→1', '合成精锐'], ['2 / 3 / 4', 'Ⅰ / Ⅱ–Ⅳ / Ⅴ–Ⅵ阶价格'], ['1', '真理 / 至简'],
-];
-
 /** 每回合作战时限柱状图；联合模拟 14 回合，险境及以上可追加隐秘核心 */
 function roundTimeline(modeIndex) {
   const mode = MODES[modeIndex];
   const standard = mode === '标准';
   const rounds = 14;
+  const maxSeconds = Math.max(...ROUND_TIME);
   const columns = range(rounds, 1).map(r => {
     const leader = r === rounds;
-    const seconds = leader ? 120 : ROUND_TIME[r - 1];
+    const seconds = ROUND_TIME[r - 1];
     const kind = leader ? 'ld' : DECISION_ROUNDS[mode].includes(r) ? 'dec' : '';
     return html`<div class="${kind}">
-      <span class="s">${seconds}</span>
-      <i class="b" style="height:${seconds / 120 * 100}%;animation-delay:${r * .03}s"></i>
-      <span>${leader ? '领袖' : 'R' + r}</span>
+      <div class="rt-bar" style="height:${seconds / maxSeconds * 100}%">
+        <span class="s">${seconds}</span>
+        <i class="b" style="animation-delay:${r * .03}s"></i>
+      </div>
+      <span class="r">${leader ? '领袖' : 'R' + r}</span>
     </div>`;
   });
   if (!standard) {
-    columns.push('<div class="hid"><span class="s">??</span><i class="b" style="height:100%"></i><span>核心</span></div>');
+    columns.push('<div class="hid"><div class="rt-bar" style="height:100%"><span class="s">??</span><i class="b"></i></div><span class="r">核心</span></div>');
   }
   return columns.join('');
 }
@@ -92,10 +90,7 @@ export default {
 
   render() {
     const modeTabs = segmented(MODES, state.mode, 'nud');
-    return html`<div class="facts" style="margin-bottom:14px">
-      ${FACTS.map(([value, label]) => `<div><b>${value}</b><span>${label}</span></div>`)}
-    </div>
-    <div class="ng">
+    return html`<div class="ng">
       <div class="nc">
         <h4>回合时限（秒）${modeTabs}</h4>
         <div class="rtl">${roundTimeline(state.mode)}</div>
