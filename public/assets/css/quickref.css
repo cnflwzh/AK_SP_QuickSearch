@@ -2465,8 +2465,27 @@ mark {
 .lwm .map-back { fill: var(--surface2); }
 .lwm .tile-side { fill: color-mix(in srgb, var(--ink3) 32%, var(--surface2)); }
 .lwm .tile-top { fill: var(--surface); stroke: var(--line); stroke-width: 1; }
-.lwm .map-tile.no .tile-top, .lwm .map-tile.platform .tile-top { fill: color-mix(in srgb, var(--ink3) 12%, var(--surface2)); }
-.lwm .map-tile.no .tile-side, .lwm .map-tile.platform .tile-side { fill: color-mix(in srgb, var(--ink3) 24%, var(--surface2)); }
+.lwm .map-tile.no .tile-top { fill: #4c6264; stroke: #405454; }
+.lwm .map-tile.platform .tile-top { fill: color-mix(in srgb, var(--ink3) 12%, var(--surface2)); }
+.lwm .map-tile.barrier .tile-top { fill: #a8b7b5; stroke: #778e8b; }
+.lwm .map-tile.barrier .tile-side, .lwm .map-tile.no .tile-side { fill: #405351; }
+.lwm .barrier-ridge { fill: none; stroke: #677e7b; stroke-width: 3; }
+.lwm .map-tile.reserve { opacity: .55; }
+.lwm .map-tile.reserve .tile-top { fill: color-mix(in srgb, var(--ink3) 15%, var(--surface2)); }
+.lwm .reserve-mark { fill: none; stroke: var(--ink3); stroke-width: 1; opacity: .4; }
+.lwm .reserve-label { font-size: 12px; fill: var(--ink2); paint-order: stroke; stroke: var(--surface2); stroke-width: 5px; }
+.lwm .map-crate .crate-side { fill: #755229; }
+.lwm .map-crate .crate-top { fill: #b77b2a; stroke: #8f632e; stroke-width: 1; }
+.lwm .map-crate path { fill: none; stroke: #f1d09c; stroke-width: 3; }
+.map-terrain-key { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 12px; margin: 0 0 8px; color: var(--ink3); font-size: 11px; }
+.map-terrain-key b { color: var(--ink2); margin-right: auto; font-weight: 600; }
+.map-terrain-key span { display: inline-flex; align-items: center; gap: 4px; }
+.map-terrain-key i { width: 11px; height: 11px; border-radius: 2px; display: inline-block; border: 1px solid var(--line); }
+.map-terrain-key .terrain-road { background: var(--surface); }
+.map-terrain-key .terrain-barrier { background: #a8b7b5; border-color: #778e8b; }
+.map-terrain-key .terrain-crate { background: #b77b2a; border-color: #8f632e; }
+.map-terrain-key .terrain-wall { background: #4c6264; border-color: #405454; }
+.lwm .map-tile.platform .tile-side { fill: color-mix(in srgb, var(--ink3) 24%, var(--surface2)); }
 .lwm .map-tile.far { opacity: .45; }
 .lwm .hatch { fill: none; stroke: var(--ink3); stroke-width: .8; opacity: .17; }
 .lwm .map-tile.spawn .tile-top { fill: color-mix(in srgb, var(--red) 14%, var(--surface)); }
@@ -2479,7 +2498,7 @@ mark {
 .lwm .portal path { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
 .lwm .spawn-icon path { fill: none; stroke: var(--red); stroke-width: 2; stroke-linejoin: round; }
 .lwm .route { fill: none; stroke-linejoin: round; stroke-linecap: round; stroke-width: 2; }
-.lwm .route.ground { stroke: var(--ink3); stroke-dasharray: 5 5; }
+.lwm .route.ground { stroke: var(--accent); stroke-width: 2.5; stroke-dasharray: 5 5; }
 .lwm .route.flying { stroke: var(--teal); stroke-dasharray: 2 5; }
 .lwm .route.quiet { opacity: .22; }
 .lwm .route.boss { stroke: var(--red); stroke-width: 2.6; }
@@ -2487,7 +2506,7 @@ mark {
 .lwm .danger { fill: color-mix(in srgb, var(--danger) 15%, transparent); stroke: var(--danger); stroke-width: 1.7; stroke-dasharray: 5 3; }
 .lwm .danger-path { fill: none; stroke: var(--danger); stroke-width: 5; stroke-opacity: .65; stroke-linejoin: round; stroke-linecap: round; }
 .lwm .arrow-fill { fill: var(--danger); }
-.lwm .moving-ground { fill: var(--ink3); }
+.lwm .moving-ground { fill: var(--accent); }
 .lwm .moving-flying { fill: var(--teal); }
 .lwm .portrait-ring { fill: #172321; stroke: var(--red); stroke-width: 2.5; }
 .lwm .part-icon { fill: var(--hc); stroke: var(--surface); stroke-width: 2; }
@@ -2522,7 +2541,7 @@ mark {
 .lwlg i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; }
 .lwlg .b { width: 10px; height: 10px; border-radius: 50%; background: #120b0b; box-shadow: 0 0 0 2px var(--red); }
 .lwlg .pt { background: var(--red); }
-.lwlg .w { background: repeating-linear-gradient(90deg, var(--ink3) 0 5px, transparent 5px 8px); }
+.lwlg .w { background: repeating-linear-gradient(90deg, var(--accent) 0 5px, transparent 5px 8px); }
 .lwlg .f { background: repeating-linear-gradient(90deg, var(--teal) 0 2px, transparent 2px 5px); }
 .lwlg .u { width: 9px; height: 9px; border-radius: 1px; background: var(--hc); transform: rotate(45deg); }
 .lwlg .s { width: 9px; height: 9px; background: var(--red); }

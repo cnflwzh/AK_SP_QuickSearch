@@ -1,21 +1,24 @@
 <script setup lang="ts">
 import { computed, useId } from 'vue';
 import { LEADER_MAP, type LayoutZone, type LeaderLayout, type LeaderStage, type MapPos, type OpRole, type ZoneShape } from '../../../data/index.ts';
+import { groundRoute } from '../../lib/leader-map.ts';
 import { prefersReducedMotion } from '../../lib/dom.ts';
 
 /**
  * 左侧阵地及领袖区域。scene 只更新技能覆盖层，避免切换时重新挂载地图。
- * 路线来自关卡；bossAt 是巡逻领袖进入阵地后发动技能的演示位置。
+ * 关卡检查点按真实地形连接；bossAt 是领袖发动技能的演示位置。
  */
 const props = defineProps<{ stage: LeaderStage; layout?: LeaderLayout | null; scene?: LayoutZone; portrait: string }>();
 const uid = useId();
-const C = 48, W = 10.9 * C, H = 6.2 * C;
+const C = 48, W = 10.9 * C, H = 6.55 * C;
 const center = ([x, y]: MapPos): [number, number] => [(x + .5) * C, (y + .5) * C];
 const path = (points: readonly MapPos[]): string => points.map((p, i) => `${i ? 'L' : 'M'}${center(p).join(',')}`).join(' ');
 const plan = computed(() => !!props.layout);
 const animate = computed(() => !prefersReducedMotion && !plan.value);
-const tiles = LEADER_MAP.grid.flatMap((row, y) => [...row].map((ch, x) => ({ x, y, ch }))).filter(t => t.x <= 10);
-const KIND: Record<string, string> = { '#': 'no', '.': 'ok', _: 'platform', o: 'portal-out', S: 'spawn', E: 'exit', i: 'portal-in' };
+const tiles = LEADER_MAP.grid.flatMap((row, y) => [...row].map((ch, x) => ({ x, y, ch }))).filter(t => t.x <= 10 && t.y > 0 && !(t.ch === '#' && (t.x === 0 || t.y === 5)));
+const KIND: Record<string, string> = { '#': 'no', '.': 'ok', _: 'platform', B: 'barrier', b: 'reserve', o: 'portal-out', S: 'spawn', E: 'exit', i: 'portal-in' };
+const crates = LEADER_MAP.crates.filter(([x]) => x <= 10);
+const TILE_LABEL: Record<string, string> = { '#': '禁行地形', '.': '可部署地面', B: '地形障碍 · 可部署', b: '整备区', _: '联合通道 · 不可部署', o: '传送出口', E: '蓝门', i: '传送入口' };
 const ROLE: Record<OpRole, { name: string; tone: string }> = {
   坦: { name: '阻挡', tone: 'tk' },
   输: { name: '输出', tone: 'dp' },
@@ -34,9 +37,11 @@ const marks = computed(() => {
     const n = positions.get(key) ?? 0; positions.set(key, n + 1);
     const [cx, cy] = center(at);
     const points = m.path ?? [];
+    const flying = props.stage.escorts.some(e => e.fly && e.name.replace(/[“”]/g, '') === m.name.replace(/[“”]/g, ''));
+    const route = (p: readonly MapPos[]): string => path(flying ? p : groundRoute(p));
     return { ...m, cx, cy: cy + n * C * .58,
-      route: points.length ? path([m.at, ...points, ...(m.loop ? [points[0]] : [])]) : '',
-      motion: points.length ? path(m.loop ? [...points, points[0]] : [m.at, ...points]) : '',
+      route: points.length ? route([m.at, ...points, ...(m.loop ? [points[0]] : [])]) : '',
+      motion: points.length ? route(m.loop ? [...points, points[0]] : [m.at, ...points]) : '',
     };
   });
 });
@@ -49,12 +54,16 @@ function boxes(s: ZoneShape): Box[] {
     ? [s.at, [s.at[0] - 1, s.at[1]], [s.at[0] + 1, s.at[1]], [s.at[0], s.at[1] - 1], [s.at[0], s.at[1] + 1]] : [];
   return positions.map(([x, y]) => ({ x, y, w: 1, h: 1 }));
 }
-const walk = path(LEADER_MAP.walk), fly = path(LEADER_MAP.fly);
+const walk = path(groundRoute(LEADER_MAP.walk)), fly = path(LEADER_MAP.fly);
+// Only movement paths follow terrain; laser links and airborne skill trajectories remain straight.
+const linePath = (points: readonly MapPos[]): string => path(
+  props.scene?.label === '巡逻路线' || props.scene?.label === '末日布道' ? groundRoute(points) : points,
+);
 </script>
 
 <template>
-  <svg :class="['lwm', { plan }, scene?.tone]" :viewBox="`0 0 ${W} ${H}`" role="img" :aria-label="plan ? `部署站位：${scene?.label ?? ''}` : '领袖关卡与敌人路线'">
-    <title>{{ plan ? scene?.hint : '左侧阵地、领袖出发位置及敌人行进路线' }}</title>
+  <svg :class="['lwm', { plan }, scene?.tone]" :viewBox="`0 0 ${W} ${H}`" role="img" :aria-label="plan ? `部署站位：${scene?.label ?? ''}` : `${LEADER_MAP.name} · 领袖关卡与敌人路线`">
+    <title>{{ LEADER_MAP.name }} · {{ plan ? scene?.hint : '左侧阵地、领袖出发位置及敌人行进路线' }}</title>
     <defs>
       <clipPath :id="`${uid}-portrait`"><circle r="20"/></clipPath>
       <pattern :id="`${uid}-hatch`" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M-2 2L2-2M0 8L8 0M6 10L10 6" class="hatch"/></pattern>
@@ -62,18 +71,27 @@ const walk = path(LEADER_MAP.walk), fly = path(LEADER_MAP.fly);
     </defs>
     <rect class="map-back" x="0" y="0" :width="W" :height="H" rx="9"/>
     <g v-for="t in tiles" :key="`${t.x},${t.y}`" :class="['map-tile', KIND[t.ch], { far: t.x === 10 }]">
+      <title>{{ TILE_LABEL[t.ch] }}</title>
       <rect class="tile-side" :x="t.x * C + 2" :y="t.y * C + 5" :width="C - 4" :height="C - 5" rx="2"/>
       <rect class="tile-top" :x="t.x * C + 2" :y="t.y * C + 2" :width="C - 4" :height="C - 6" rx="2"/>
-      <rect v-if="t.ch === '#' || t.ch === '_'" :x="t.x * C + 2" :y="t.y * C + 2" :width="C - 4" :height="C - 6" :fill="`url(#${uid}-hatch)`"/>
+      <rect v-if="t.ch === '#'" :x="t.x * C + 2" :y="t.y * C + 2" :width="C - 4" :height="C - 6" :fill="`url(#${uid}-hatch)`"/>
+      <path v-if="t.ch === 'B'" class="barrier-ridge" :d="`M${t.x * C + 8} ${t.y * C + 12}h32m-32 17h32`"/>
+      <path v-if="t.ch === 'b'" class="reserve-mark" :d="`M${t.x * C + 17} ${t.y * C + 22}h14m-7-7v14`"/>
     </g>
-    <text class="map-heading" :x="1.1 * C" :y=".65 * C">左侧阵地</text>
-    <text class="map-heading muted" :x="7.25 * C" :y=".65 * C">领袖区域</text>
+    <g v-for="([x, y], i) in crates" :key="`crate-${i}`" class="map-crate" :transform="`translate(${x * C},${y * C})`">
+      <title>阻隔工事 · 初始位置</title><rect class="crate-side" x="6" y="11" width="36" height="30" rx="2"/>
+      <rect class="crate-top" x="6" y="5" width="36" height="30" rx="2"/><path d="M10 9L38 31M38 9L10 31"/>
+    </g>
+    <text class="map-heading" :x="1.1 * C" :y=".65 * C">01 · 左侧阵地</text>
+    <text class="map-heading muted" :x="7.25 * C" :y=".65 * C">联合区域</text>
     <text class="gate-label" :x=".5 * C" :y="4.58 * C" text-anchor="middle">蓝门</text>
     <g class="portal" :transform="`translate(${center(LEADER_MAP.transfer).join(',')})`"><path d="M-9-5H9L3-11M9-5L3 1M9 6H-9L-3 12M-9 6L-3 0"/></g>
-    <text class="portal-label" :x="2.1 * C" :y="5.61 * C">转移入口</text>
+    <text class="portal-label" :x="1.5 * C" :y="6.35 * C" text-anchor="middle">传送入口</text>
+    <text class="reserve-label" :x="4.5 * C" :y="5.62 * C" text-anchor="middle">整备区</text>
+    <g class="portal" :transform="`translate(${center([8, 1]).join(',')})`"><path d="M-9-5H9L3-11M9-5L3 1M9 6H-9L-3 12M-9 6L-3 0"/><title>跨场传送出口</title></g>
     <g class="spawn-icon" :transform="`translate(${center(LEADER_MAP.spawn).join(',')})`"><path d="M-10-10H10V10H-10ZM-5-5L5 0L-5 5Z"/></g>
 
-    <path v-if="!plan" class="route ground" :d="walk" :marker-end="`url(#${uid}-arrow)`"/>
+    <path v-if="!plan" class="route ground" :d="walk"/>
     <path v-if="!plan" class="route flying" :d="fly"/>
     <path v-if="plan" class="route ground quiet" :d="walk"/>
     <template v-if="!plan">
@@ -86,7 +104,7 @@ const walk = path(LEADER_MAP.walk), fly = path(LEADER_MAP.fly);
           <rect class="danger" :x="b.x * C + 1" :y="b.y * C + 1" :width="b.w * C - 2" :height="b.h * C - 2" rx="2"/>
         </template>
         <circle v-if="s.kind === 'circle'" class="danger" :cx="center(s.at)[0]" :cy="center(s.at)[1]" :r="s.radius * C"/>
-        <path v-if="s.kind === 'line'" class="danger-path" :d="path(s.path)" :marker-end="`url(#${uid}-arrow)`"/>
+        <path v-if="s.kind === 'line'" class="danger-path" :d="linePath(s.path)" :marker-end="`url(#${uid}-arrow)`"/>
       </template>
     </g>
 

@@ -49,7 +49,12 @@ export const WIKIS: readonly WikiSource[] = [
   {
     name: 'ArknightsGameData', page: 'levels/activities/act3autochess · 2026-11-11',
     url: 'https://github.com/Kengxxiao/ArknightsGameData/tree/master/zh_CN/gamedata/levels/activities/act3autochess',
-    used: '领袖与隐秘核心关卡的地图、巡逻路线、联合全场随行数量，以及关卡覆盖的阻挡数、减伤和技能计时',
+    used: '领袖与隐秘核心的巡逻检查点、联合全场随行数量，以及关卡覆盖的阻挡数、减伤和技能计时',
+  },
+  {
+    name: 'ArknightsGameData', page: '标准场地 01 · 联合战场',
+    url: 'https://github.com/Kengxxiao/ArknightsGameData/blob/master/zh_CN/gamedata/levels/activities/act3autochess/level_act3autochess_m01/level_act3autochess_m01_sub_03.json',
+    used: '站位图的地形、可部署格、阻隔工事初始位置、蓝门与传送口',
   },
   {
     name: 'ArknightsGameData', page: 'levels/enemydata/enemy_database · 2026-11-11',
