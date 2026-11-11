@@ -242,7 +242,6 @@ onUnmounted(() => {
       <input v-model="importText" class="pl-paste" placeholder="粘贴分享码或链接" aria-label="分享码">
       <template v-if="imported">
         <PlanSummary :ops="imported.plan.ops" :strategy="imported.plan.strategy" :note="imported.plan.note" :layers="imported.plan.layers" :title="imported.plan.name || '导入的阵容'"/>
-        <p v-if="imported.missing" class="pl-warn">{{ imported.missing }} 名干员本赛季没有，已略过</p>
         <div class="pl-row"><button type="button" class="pri" @click="acceptImport">存为我的方案</button></div>
       </template>
       <p v-else-if="importText.trim()" class="pl-warn">认不出这个分享码</p>
