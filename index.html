@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>规程局内速查</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#edf1f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a1214" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="assets/icons/favicon-48.png" sizes="48x48" type="image/png">
+<link rel="apple-touch-icon" href="assets/icons/apple-180.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="规程速查">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=Saira+Condensed:wght@500;600;700&family=ZCOOL+QingKe+HuangYou&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/base.css">
+<link rel="stylesheet" href="assets/css/quickref.css">
+</head>
+<body>
+
+<header class="wrap qhead">
+  <div>
+    <div class="kicker">ARKNIGHTS · STRONGHOLD PROTOCOL</div>
+    <h1>规程速查<small>卫戍协议·规程</small></h1>
+    <div class="qkpi" id="qkpi"></div>
+  </div>
+  <a class="guide" href="guide.html">
+    <svg viewBox="0 0 72 72" aria-hidden="true"><circle class="ring" cx="36" cy="36" r="26"/><circle class="nd" cx="36" cy="10" r="6"/><circle class="nd" cx="58.5" cy="49" r="6"/><circle class="nd" cx="13.5" cy="49" r="6"/><circle class="mv" r="4"><animateMotion id="gmv" dur="5s" repeatCount="indefinite" path="M36,10 A26,26 0 1 1 35.9,10"/></circle></svg>
+    <div>
+      <div class="k">GUIDE</div>
+      <b>图解教程</b>
+      <div class="qsteps"><span><i>01</i>入门</span><span><i>02</i>招募升本</span><span><i>03</i>刷怪</span><span><i>04</i>盟约</span><span><i>05</i>流派</span></div>
+    </div>
+    <span class="go">▸</span>
+  </a>
+</header>
+
+<div class="qbar" id="qbar">
+  <div class="wrap">
+    <label class="search" id="sbox">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input type="search" id="q" placeholder="干员 / 装备 / 策略 / 盟约 / 特质，支持拼音" autocomplete="off" aria-label="搜索">
+      <kbd>/</kbd>
+      <button type="button" class="x" id="qx" aria-label="清空">✕</button>
+    </label>
+    <div class="tabs" id="tabs" role="tablist"></div>
+  </div>
+</div>
+
+<main class="wrap" id="view"></main>
+
+<dialog class="sheet" id="sheet"></dialog>
+
+<footer class="wrap">数据：PRTS · 可露希尔 Wiki · BWIKI　<button type="button" class="foot-about" data-about>关于本项目 · 数据来源 · 许可 ▸</button></footer>
+
+<script type="module" src="js/quickref/main.js"></script>
+</body>
+</html>

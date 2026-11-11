@@ -1,0 +1,14 @@
+{
+  "name": "weishu-quickref",
+  "private": true,
+  "description": "明日方舟 卫戍协议·规程 局内速查与图解教程（纯静态，无构建步骤）",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "pinyin": "node scripts/gen_pinyin.mjs",
+    "sw": "python scripts/build_sw.py"
+  },
+  "devDependencies": {
+    "pinyin-pro": "3.29.5"
+  }
+}

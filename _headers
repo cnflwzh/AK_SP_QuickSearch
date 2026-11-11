@@ -1,0 +1,26 @@
+# Cloudflare Pages 响应头
+# 页面、脚本、样式、数据每次都向服务器确认是否有新版本；图片长期缓存。
+
+/sw.js
+  Cache-Control: no-cache
+/manifest.webmanifest
+  Content-Type: application/manifest+json
+  Cache-Control: no-cache
+/
+  Cache-Control: no-cache
+/*.html
+  Cache-Control: no-cache
+/index
+  Cache-Control: no-cache
+/guide
+  Cache-Control: no-cache
+/js/*
+  Cache-Control: no-cache
+/data/*
+  Cache-Control: no-cache
+/assets/css/*
+  Cache-Control: no-cache
+/assets/img/*
+  Cache-Control: public, max-age=2592000
+/assets/icons/*
+  Cache-Control: public, max-age=604800
