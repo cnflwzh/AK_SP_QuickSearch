@@ -49,6 +49,7 @@
 │   └── icons/              PWA 图标
 │
 └── scripts/
+    ├── build.py            部署构建：生成 sw.js 并输出到 dist/
     ├── build_sw.py         生成 sw.js 的预缓存清单与版本号
     ├── gen_pinyin.mjs      生成 data/pinyin.js
     └── sw.template.js      sw.js 模板
@@ -80,8 +81,11 @@ python -m http.server 8000
 
 ## 部署（Cloudflare Pages）
 
-- 构建命令：留空
-- 输出目录：项目根目录
+线上地址：<https://sp.enjoyacg.com>。Pages 项目连接本仓库，推送到 `main` 自动构建发布，其他分支和 PR 生成预览地址。
+
+- 构建命令：`python scripts/build.py`（重新生成 `sw.js`，再把网站文件复制到 `dist/`）
+- 输出目录：`dist`
+- 部署时会自动重新生成 `sw.js`；本地预览离线缓存时仍需手动运行 `python scripts/build_sw.py`
 - `_headers` 已配置：页面、脚本、样式、数据每次向服务器确认新版本，图片长期缓存
 - Cloudflare Pages 会把 `/guide.html` 重定向到 `/guide`，Service Worker 已兼容两种路径
 
