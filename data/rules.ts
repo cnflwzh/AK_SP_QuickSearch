@@ -1,4 +1,4 @@
-import type { Bounty, Difficulty, DispatchLevel, Leader, Operator, OwnOperatorBonus, SoloLevel, TierStats, TrainingType } from './types.ts';
+import type { Bounty, Difficulty, DispatchLevel, Operator, OwnOperatorBonus, SoloLevel, TierStats, TrainingType } from './types.ts';
 
 /** 罗马数字等阶标记，下标即等阶（0 留空） */
 export const TIER_LABELS: readonly string[] = ['', 'Ⅰ', 'Ⅱ', 'Ⅲ', 'Ⅳ', 'Ⅴ', 'Ⅵ'];
@@ -55,7 +55,7 @@ export const DIFFICULTIES: readonly Difficulty[] = [
   { name: '终极模拟', efficiency: 150, strength: 20, note: '绝境通关 3 次' },
 ];
 
-/** 有进度的四档难度简称，顺序与 LEADERS[].hp 一致 */
+/** 有进度的四档难度简称，顺序与 LEADERS[].hp 一致（data/leaders.ts） */
 export const MODES: readonly string[] = ['标准', '险境', '绝境', '终极'];
 
 /** 各难度的机变 / 悬赏决策回合（该回合结束后） */
@@ -89,24 +89,6 @@ export const SOLO_LEVELS: readonly SoloLevel[] = [
   { level: 18, efficiency: 150, strength: 17, note: '' },
   { level: 19, efficiency: 150, strength: 18, note: '' },
   { level: 20, efficiency: 150, strength: 19, note: '' },
-];
-
-/**
- * 领袖生命值
- * hp          [标准, 险境, 绝境, 终极]
- * hiddenCore  隐秘核心 [险境, 绝境, 终极]；null = 无
- */
-export const LEADERS: readonly Leader[] = [
-  { name: '假想敌：胄', hp: [283680, 945600, 2364000, 3940000], hiddenCore: [1641600, 4104000, 6840000] },
-  { name: '假想敌：铳', hp: [162000, 540000, 1350000, 2250000], hiddenCore: [1435200, 3588000, 5980000] },
-  { name: '假想敌：管', hp: [302400, 1008000, 2520000, 4200000], hiddenCore: [1732800, 4332000, 7220000] },
-  { name: '盐风主教昆图斯', hp: [314640, 1048800, 2622000, 4370000], hiddenCore: null },
-  { name: '阿利斯泰尔，帝国余晖', hp: [266400, 888000, 2220000, 3700000], hiddenCore: null },
-  { name: '“萨米的意志”', hp: [290880, 969600, 2424000, 4040000], hiddenCore: null },
-  { name: '假想敌：械', hp: [239400, 798000, 1995000, 3325000], hiddenCore: [1254000, 3135000, 5225000] },
-  { name: '假想敌：茧', hp: [298800, 996000, 2490000, 4150000], hiddenCore: [1892400, 4731000, 7885000] },
-  { name: '假想敌：鳍', hp: [151200, 504000, 1260000, 2100000], hiddenCore: [1482000, 3705000, 6175000] },
-  { name: '矩兽', hp: [140400, 468000, 1170000, 1950000], hiddenCore: null },
 ];
 
 /** 战术特训敌人类型，每局随机 3 类 */

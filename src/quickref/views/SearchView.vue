@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { ALL_COVENANTS, OPERATORS, EQUIPMENT, STRATEGIES, BUILD_NAMES } from '../../../data/index.ts';
+import { ALL_COVENANTS, OPERATORS, EQUIPMENT, STRATEGIES, LEADERS, BUILD_NAMES } from '../../../data/index.ts';
 import { normalize, nameScore } from '../../lib/match.ts';
+import { state } from '../state.ts';
 import Chip from '../components/Chip.vue';
+import LeaderRow from '../components/LeaderRow.vue';
 import OperatorCard from '../components/OperatorCard.vue';
 import EquipmentCard from '../components/EquipmentCard.vue';
 import StrategyCard from '../components/StrategyCard.vue';
@@ -16,12 +18,13 @@ const normalizedQuery = computed(() => normalize(props.query));
 const results = computed(() => {
   const q = normalizedQuery.value;
   // Punctuation-only queries retain the original blank search pane.
-  if (!q) return { covenants: [], builds: [], operators: [], equipment: [], strategies: [] };
+  if (!q) return { covenants: [], builds: [], operators: [], equipment: [], strategies: [], leaders: [] };
   return {
     covenants: rankBy(ALL_COVENANTS, q, c => c), builds: rankBy(BUILD_NAMES, q, b => b),
     operators: rankBy(OPERATORS, q, o => o.name, o => o.covenants.join('/') + o.trait + o.elite, (a, b) => a.tier - b.tier),
     equipment: rankBy(EQUIPMENT, q, e => e.name, e => (e.covenant || '') + e.effect + (e.advanced || '')),
     strategies: rankBy(STRATEGIES, q, s => s.name, s => s.skill + '|' + s.effect + s.category),
+    leaders: rankBy(LEADERS, q, l => l.name, l => [...l.abilities, ...l.hiddenAbilities, ...l.counters.map(c => ({ skill: c.tag, text: c.text }))].map(a => (a.skill ?? '') + a.text).join('|')),
   };
 });
 const empty = computed(() => !!normalizedQuery.value && Object.values(results.value).every(list => !list.length));
@@ -32,4 +35,5 @@ const empty = computed(() => !!normalizedQuery.value && Object.values(results.va
   <template v-if="results.operators.length"><div class="sec" data-key="heading:干员">干员<span class="n">{{ results.operators.length }}</span></div><div class="qg" data-key="operators"><OperatorCard v-for="operator in results.operators.slice(0, 60)" :key="operator.name" :operator="operator"/></div></template>
   <template v-if="results.equipment.length"><div class="sec" data-key="heading:装备">装备<span class="n">{{ results.equipment.length }}</span></div><div class="qg" data-key="equipment"><EquipmentCard v-for="item in results.equipment" :key="item.name" :item="item"/></div></template>
   <template v-if="results.strategies.length"><div class="sec" data-key="heading:策略">策略<span class="n">{{ results.strategies.length }}</span></div><div class="qg" data-key="strategies"><StrategyCard v-for="strategy in results.strategies" :key="strategy.name" :strategy="strategy"/></div></template>
+  <template v-if="results.leaders.length"><div class="sec" data-key="heading:领袖">领袖<span class="n">{{ results.leaders.length }}</span></div><div class="lwl" data-key="leaders"><LeaderRow v-for="leader in results.leaders" :key="leader.id" :leader="leader" :mode="state.mode"/></div></template>
 </template>

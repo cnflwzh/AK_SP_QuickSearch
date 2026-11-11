@@ -3,7 +3,7 @@
 《明日方舟》卫戍协议·规程（序列Ⅰ）的局内速查与图解教程。使用 Vue 3 + TypeScript + Vite，构建为静态网页，可安装为 PWA 离线使用。
 
 
-- **速查**（`index.html`）：盟约、干员、装备、策略、流派、数值六个标签页，支持全局搜索、详情与悬停 / 长按速览；数值页提供盟约层数计算器
+- **速查**（`index.html`）：盟约、干员、装备、策略、领袖、流派、数值七个标签页，支持全局搜索、详情与悬停 / 长按速览；领袖页从列表点进详情：各难度生命与所需秒伤、对策、站位图（地图、领袖巡逻、敌人路线）、随行敌人与技能；数值页提供盟约层数计算器
 - **图解教程**（`guide.html`）：入门、招募与升本、刷怪、盟约进阶、流派、图鉴六章，含调度中心模拟器、站位示意、回合图表等交互
 - **离线使用**：页面、图片和字体按访问缓存，已加载的内容可离线查看
 
@@ -29,7 +29,8 @@
 │   ├── equipment.ts        装备与组合装备
 │   ├── strategies.ts       策略（开局指挥）
 │   ├── builds.ts           流派推荐
-│   ├── rules.ts            调度中心、回合时限、领袖生命、悬赏等规则数值
+│   ├── leaders.ts          领袖：生命、能力、隐秘核心、关卡地图与对策
+│   ├── rules.ts            调度中心、回合时限、悬赏等规则数值
 │   ├── credits.ts          项目说明与数据来源（「关于」弹窗的内容）
 │   ├── pinyin.ts           名称拼音，由 scripts/gen_pinyin.mjs 生成
 │   ├── LICENSE.md          数据许可：CC BY-NC-SA 3.0
@@ -57,7 +58,7 @@
 │   └── assets/
 │       ├── css/           共用、速查、教程与字体样式
 │       ├── fonts/         本地字体与许可
-│       ├── img/           avatars/ 干员头像 · equipment/ 装备图标 · strategies/ 策略头像
+│       ├── img/           avatars/ 干员头像 · equipment/ 装备图标 · strategies/ 策略头像 · leaders/ 领袖头像
 │       └── icons/         PWA 图标
 │
 ├── scripts/
@@ -106,8 +107,8 @@ GitHub Actions 会在 PR 和 `main` 更新时执行依赖安装、类型检查�
 ## 修改数据
 
 1. 编辑 `data/` 下对应的 `.ts` 文件。字段说明见 `data/types.ts` 与各文件开头的注释。
-2. 新干员 / 装备 / 策略的图片放进 `public/assets/img/` 对应目录，文件名写进数据的 `avatar` / `icon` / `portrait` 字段。
-3. 新增或改名了干员 / 装备 / 策略 / 盟约 / 流派时，重新生成拼音表：
+2. 新干员 / 装备 / 策略 / 领袖的图片放进 `public/assets/img/` 对应目录，文件名写进数据的 `avatar` / `icon` / `portrait` 字段；领袖头像以 `id` 命名（`leaders/<id>.webp`）。
+3. 新增或改名了干员 / 装备 / 策略 / 盟约 / 流派 / 领袖时，重新生成拼音表：
 
    ```bash
    npm run pinyin
@@ -136,7 +137,10 @@ GitHub Actions 会在 PR 和 `main` 更新时执行依赖安装、类型检查�
 
 | 来源 | 页面 | 取用内容 |
 |---|---|---|
-| [ArknightsGameData](https://github.com/Kengxxiao/ArknightsGameData) | [规程 V3_1 游戏数据](https://github.com/Kengxxiao/ArknightsGameData/blob/master/zh_CN/gamedata/excel/activity_table.json) | 招募价格、练度、各模式升级费用与栏位、回合配置、基础认证；关卡文件核对作战时限 |
+| [ArknightsGameData](https://github.com/Kengxxiao/ArknightsGameData) | [规程 V3_1 游戏数据](https://github.com/Kengxxiao/ArknightsGameData/blob/master/zh_CN/gamedata/excel/activity_table.json) | 招募价格、练度、各模式升级费用与栏位、回合配置、基础认证、领袖名单与隐秘核心形态；关卡文件核对作战时限 |
+| ArknightsGameData | [enemy_handbook_table](https://github.com/Kengxxiao/ArknightsGameData/blob/master/zh_CN/gamedata/excel/enemy_handbook_table.json) | 领袖、隐秘核心与随行敌人的能力描述 |
+| ArknightsGameData | [act3autochess 关卡文件](https://github.com/Kengxxiao/ArknightsGameData/tree/master/zh_CN/gamedata/levels/activities/act3autochess) | 领袖与隐秘核心回合的地图、领袖位置与巡逻路线、随行敌人 |
+| PRTS | [敌人一览](https://prts.wiki/w/%E6%95%8C%E4%BA%BA%E4%B8%80%E8%A7%88) | 领袖头像 |
 | [PRTS](https://prts.wiki/) | [卫戍协议·规程](https://prts.wiki/w/%E5%8D%AB%E6%88%8D%E5%8D%8F%E8%AE%AE%C2%B7%E8%A7%84%E7%A8%8B) | 赛季规则、规程等级与难度、模式 |
 | PRTS | [卫戍协议·规程/PRTS盟约记录](https://prts.wiki/w/%E5%8D%AB%E6%88%8D%E5%8D%8F%E8%AE%AE%C2%B7%E8%A7%84%E7%A8%8B/PRTS%E7%9B%9F%E7%BA%A6%E8%AE%B0%E5%BD%95) | 干员盟约、特质与精锐特质，盟约效果，装备，策略效果与策略头像 |
 | PRTS | [卫戍协议/帮助](https://prts.wiki/w/%E5%8D%AB%E6%88%8D%E5%8D%8F%E8%AE%AE/%E5%B8%AE%E5%8A%A9) | 资金、调度中心、合成精锐、领袖与悬赏等基础机制 |
