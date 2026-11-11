@@ -6,9 +6,7 @@ import { OPERATOR, STRATEGY, covenantColor } from '../../data/index.ts';
 import { avatarSrc, equipIconSrc, portraitSrc } from './assets.ts';
 import { covenantStats, planCost, type Plan } from './planner.ts';
 
-const W = 720, PAD = 24, CELL = 84, QR = 168;
-/** 盟约区（和二维码）的起点：标题 44 + 干员 102 + 策略 40 */
-const SECTION = PAD + 26 + 18 + CELL + 18 + 40;
+const W = 720, PAD = 24, CELL = 84, QR = 168, NOTE_LINE = 20, ALT = 20;
 const TIER = ['#7a8b88', '#434343', '#626654', '#445760', '#615B74', '#6C5E41', '#5d341e'];
 const FONT = '"Noto Sans SC","Microsoft YaHei",sans-serif';
 const INK = '#122220', INK3 = '#7a8b88', LINE = '#cdd8d6', ACCENT = '#b46a07', TEAL = '#0f766c';
@@ -24,6 +22,16 @@ function load(src: string): Promise<HTMLImageElement | null> {
 function round(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
   ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
 }
+/** 按宽度逐字折行（中文没有空格可断） */
+function wrap(ctx: CanvasRenderingContext2D, text: string, max: number): string[] {
+  const lines: string[] = [];
+  let line = '';
+  for (const ch of text) {
+    if (ctx.measureText(line + ch).width > max && line) { lines.push(line); line = ch; } else line += ch;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
 
 /** link：分享链接（#p=分享码），画成二维码 */
 export async function planImage(plan: Plan, link: string): Promise<Blob | null> {
@@ -32,12 +40,17 @@ export async function planImage(plan: Plan, link: string): Promise<Blob | null> 
   const rows = Math.max(1, stats.length);
   const { default: qrcode } = await import('qrcode-generator');
   const qr = qrcode(0, 'M'); qr.addData(link); qr.make();
-  const H = SECTION + Math.max(rows * 26, QR + 44) + 6 + PAD;
-  const scale = 2;
   const canvas = document.createElement('canvas');
-  canvas.width = W * scale; canvas.height = H * scale;
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
+  ctx.font = `13px ${FONT}`;
+  const noteLines = plan.note.trim() ? wrap(ctx, plan.note.trim(), W - PAD * 2) : [];
+  const hasAlt = plan.ops.some(o => o.alt.length);
+  /** 盟约区（和二维码）的起点：标题 44 + 说明 + 干员 102（+ 备选 26）+ 策略 40 */
+  const SECTION = PAD + 26 + 18 + (noteLines.length ? noteLines.length * NOTE_LINE + 6 : 0) + CELL + 18 + (hasAlt ? ALT + 6 : 0) + 40;
+  const H = SECTION + Math.max(rows * 26, QR + 44) + 6 + PAD;
+  const scale = 2;
+  canvas.width = W * scale; canvas.height = H * scale;
   ctx.scale(scale, scale);
   ctx.fillStyle = '#edf1f0'; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = '#fff'; round(ctx, 10, 10, W - 20, H - 20, 12); ctx.fill();
@@ -52,9 +65,18 @@ export async function planImage(plan: Plan, link: string): Promise<Blob | null> 
   ctx.textAlign = 'left';
   y += 18;
 
+  // 流派说明
+  if (noteLines.length) {
+    ctx.fillStyle = ACCENT; ctx.fillRect(PAD, y - 2, 3, noteLines.length * NOTE_LINE);
+    ctx.fillStyle = INK; ctx.font = `13px ${FONT}`;
+    noteLines.forEach((line, k) => ctx.fillText(line, PAD + 10, y + 12 + k * NOTE_LINE));
+    y += noteLines.length * NOTE_LINE + 6;
+  }
+
   // 干员
   const images = await Promise.all(plan.ops.map(o => load(avatarSrc(o.name))));
   const eqImages = await Promise.all(plan.ops.map(o => Promise.all(o.eq.map(e => load(equipIconSrc(e))))));
+  const altImages = await Promise.all(plan.ops.map(o => Promise.all(o.alt.map(a => load(avatarSrc(a))))));
   plan.ops.forEach((slot, i) => {
     const x = PAD + i * CELL, tier = OPERATOR[slot.name]?.tier ?? 0;
     ctx.fillStyle = TIER[tier]; round(ctx, x, y, 72, 72, 6); ctx.fill();
@@ -72,8 +94,22 @@ export async function planImage(plan: Plan, link: string): Promise<Blob | null> 
     ctx.fillStyle = INK; ctx.font = `12px ${FONT}`; ctx.textAlign = 'center';
     ctx.fillText(slot.name.length > 6 ? slot.name.slice(0, 6) : slot.name, x + 36, y + 88);
     ctx.textAlign = 'left';
+    // 备选：名字下方一排小头像
+    const ax = x + 36 - (slot.alt.length * (ALT + 2) - 2) / 2;
+    slot.alt.forEach((a, k) => {
+      const px = ax + k * (ALT + 2), py = y + CELL + 12;
+      ctx.fillStyle = TIER[OPERATOR[a]?.tier ?? 0]; round(ctx, px, py, ALT, ALT, 4); ctx.fill();
+      const im = altImages[i][k];
+      if (im) { ctx.save(); round(ctx, px, py, ALT, ALT, 4); ctx.clip(); ctx.drawImage(im, px, py, ALT, ALT); ctx.restore(); }
+    });
   });
   y += CELL + 18;
+  if (hasAlt) {
+    y += ALT + 6;
+    ctx.fillStyle = INK3; ctx.font = `11px ${FONT}`; ctx.textAlign = 'right';
+    ctx.fillText('下排小头像：抓不到时的备选', W - PAD, y + 14);
+    ctx.textAlign = 'left';
+  }
 
   // 策略
   const st = STRATEGY[plan.strategy];

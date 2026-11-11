@@ -2812,3 +2812,34 @@ mark {
 @media (prefers-reduced-motion: reduce) {
   .pl-panel, .pl-card, .pl-slot, .pl-edit, .plc li, .pl-r, .pl-fxl li { animation: none; }
 }
+
+/* 规划：流派说明与备选 */
+.pl-note { position: relative; display: block; margin: 0 0 10px; }
+.pl-note textarea { width: 100%; resize: none; font: inherit; font-size: 13px; line-height: 1.5; color: var(--ink); background: var(--surface2); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 6px; padding: 6px 44px 6px 10px; }
+.pl-note textarea:focus { outline: none; border-color: var(--accent); }
+.pl-note textarea::placeholder { color: var(--ink3); }
+.pl-note small { position: absolute; right: 8px; bottom: 6px; font: 600 11px var(--fn); color: var(--ink3); }
+.pl-slot .alts { display: flex; gap: 2px; justify-content: center; margin-top: 2px; padding-top: 3px; border-top: 1px dashed var(--line2); width: 100%; }
+.pl-slot .alts img { width: 18px; height: 18px; border-radius: 3px; background: var(--tc); opacity: .85; }
+.pl-alts .k { font-size: 12px; color: var(--ink3); }
+.pl-alt { display: inline-flex; align-items: stretch; border: 1px dashed var(--line2); border-radius: 6px; background: var(--surface); overflow: hidden; }
+.pl-alt button { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; padding: 2px 6px 2px 3px; font-size: 12.5px; }
+.pl-alt button img { border-radius: 4px; background: var(--tc); }
+.pl-alt button b { font-size: 11px; color: var(--accent); }
+.pl-alt button:hover:not(:disabled) { background: var(--accent-soft); }
+.pl-alt button:disabled { opacity: .5; }
+.pl-alt .x { padding: 2px 7px; color: var(--ink3); border-left: 1px dashed var(--line2); }
+.pl-alt .x:hover { color: var(--red); }
+.pl-altpick .pl-pick-g button { display: flex; flex-direction: column; align-items: center; width: 60px; line-height: 1.2; padding: 4px 2px; gap: 2px; }
+.pl-altpick .pl-pick-g button img { border-radius: 4px; background: var(--tc); }
+.pl-altpick small { font-size: 10.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-altpick .dots { display: flex; gap: 2px; height: 3px; }
+.pl-altpick .dots u { width: 9px; height: 3px; border-radius: 2px; background: var(--c); }
+.pl-altbar { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; padding: 6px 8px; border-radius: 6px; background: var(--accent-soft); font-size: 12.5px; }
+.pl-altbar span { flex: 1; }
+.pl-altbar button { border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); border-radius: 5px; padding: 2px 10px; font-size: 12.5px; }
+.pl-tiles .tile.alt { border-style: dashed; border-color: var(--accent); }
+.pl-tiles .tile.alt::before { content: "备"; position: absolute; top: 1px; left: 4px; font-size: 10px; font-weight: 700; color: var(--accent); }
+.pls-note { margin: 0; padding-left: 8px; border-left: 3px solid var(--accent); font-size: 12.5px; line-height: 1.5; color: var(--ink2); }
+.pls-op .alts { display: flex; gap: 1px; margin-top: 1px; }
+.pls-op .alts img { width: 14px; height: 14px; border-radius: 2px; background: var(--tc); opacity: .85; }

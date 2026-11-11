@@ -14,10 +14,15 @@ import {
 
 export const MAX_OPS = 8;
 export const MAX_EQ = 2;
+/** 每个位置的备选干员数：抓不到主选时的次级选择 */
+export const MAX_ALT = 3;
+/** 流派说明字数上限 */
+export const MAX_NOTE = 60;
 const ISOMORPH = '变形同构体';
 
-export interface PlanOp { name: string; elite: boolean; eq: string[] }
-export interface Plan { id: string; name: string; ops: PlanOp[]; strategy: string; updated: number }
+/** alt：主选抓不到时依次考虑的备选，只作参考，不计入盟约统计 */
+export interface PlanOp { name: string; elite: boolean; eq: string[]; alt: string[] }
+export interface Plan { id: string; name: string; ops: PlanOp[]; strategy: string; note: string; updated: number }
 
 /* ---------- 盟约 ---------- */
 
@@ -124,6 +129,24 @@ export function suggestions(ops: readonly PlanOp[], limit = 8): Suggestion[] {
   return out.sort((a, b) => b.score - a.score).slice(0, limit);
 }
 
+/**
+ * 某个位置的备选推荐：和主选共享盟约越多、等阶越接近越靠前；排除场上和已列的备选。
+ * 共享核心盟约权重更高，因为核心盟约断人会直接掉档。
+ */
+export function alternatesFor(slot: PlanOp, ops: readonly PlanOp[], limit = 8): Operator[] {
+  const main = OPERATOR[slot.name]; if (!main) return [];
+  const taken = new Set([...ops.map(o => o.name), ...slot.alt]);
+  return OPERATORS
+    .filter(op => !taken.has(op.name))
+    .map(op => {
+      const shared = op.covenants.filter(c => main.covenants.includes(c));
+      return { op, score: shared.reduce((s, c) => s + (isCoreCovenant(c) ? 3 : 2), 0) - Math.abs(op.tier - main.tier) * .6 };
+    })
+    .filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit).map(x => x.op);
+}
+
 /* ---------- 费用、装备 ---------- */
 
 export const copiesFor = (slot: PlanOp): number => slot.elite ? (slot.name === '星极' ? 2 : 3) : 1;
@@ -157,10 +180,13 @@ export function equipNotes(ops: readonly PlanOp[]): EquipNote[] {
 }
 
 /* ---------- 分享码 ----------
- * 字节：[版本 1][策略序号+1][干员数]，每名干员 [游戏 ID 高][低][标志: bit0 精锐, bit1-2 装备数][装备序号+1 …]，余下为 UTF-8 方案名。
+ * 字节（版本 2）：[2][策略序号+1][干员数]
+ *   每名干员 [游戏 ID 高][低][标志: bit0 精锐, bit1-2 装备数, bit3-4 备选数][装备序号+1 …][备选 ID 高][低] …
+ *   然后 [方案名字节数][方案名 UTF-8][说明 UTF-8]
+ * 版本 1 没有备选和说明，余下全部是方案名；仍可导入。
  * 干员用游戏内 char_ID，装备 / 策略用图标序号（e00、s00）：换赛季调整列表顺序后，旧码仍能解析。
  */
-const VERSION = 1;
+const VERSION = 2;
 export const CODE_PREFIX = 'WS';
 const opId = (op: Operator): number => +(op.avatar.match(/^char_(\d+)_/)?.[1] ?? 0);
 const OP_BY_ID = new Map(OPERATORS.map(op => [opId(op), op]));
@@ -172,41 +198,52 @@ const fromB64 = (text: string): Uint8Array => {
   const b64 = text.replace(/-/g, '+').replace(/_/g, '/');
   return Uint8Array.from(atob(b64 + '='.repeat((4 - b64.length % 4) % 4)), c => c.charCodeAt(0));
 };
+const idBytes = (name: string): number[] => { const id = opId(OPERATOR[name]); return [id >> 8 & 255, id & 255]; };
 
-export function encodePlan(plan: Pick<Plan, 'name' | 'ops' | 'strategy'>): string {
+export type Shared = Pick<Plan, 'name' | 'ops' | 'strategy' | 'note'>;
+
+export function encodePlan(plan: Shared): string {
   const bytes: number[] = [VERSION, STRATEGY[plan.strategy] ? +STRATEGY[plan.strategy].portrait.slice(1) + 1 : 0];
   const ops = plan.ops.filter(o => OPERATOR[o.name]).slice(0, MAX_OPS);
   bytes.push(ops.length);
   for (const slot of ops) {
-    const id = opId(OPERATOR[slot.name]);
     const eq = slot.eq.filter(n => EQUIP[n]).slice(0, MAX_EQ);
-    bytes.push(id >> 8 & 255, id & 255, (slot.elite ? 1 : 0) | eq.length << 1, ...eq.map(n => +EQUIP[n].icon.slice(1) + 1));
+    const alt = slot.alt.filter(n => OPERATOR[n]).slice(0, MAX_ALT);
+    bytes.push(...idBytes(slot.name), (slot.elite ? 1 : 0) | eq.length << 1 | alt.length << 3,
+      ...eq.map(n => +EQUIP[n].icon.slice(1) + 1), ...alt.flatMap(idBytes));
   }
   const name = new TextEncoder().encode(plan.name.trim().slice(0, 16));
-  return CODE_PREFIX + toB64(Uint8Array.from([...bytes, ...name]));
+  const note = new TextEncoder().encode(plan.note.trim().slice(0, MAX_NOTE));
+  return CODE_PREFIX + toB64(Uint8Array.from([...bytes, name.length, ...name, ...note]));
 }
 
-export interface Decoded { plan: Pick<Plan, 'name' | 'ops' | 'strategy'>; missing: number }
+export interface Decoded { plan: Shared; missing: number }
 /** 接受分享码本身、带 #p= 的链接，或夹在一段文字里的码 */
 export function decodePlan(input: string): Decoded | null {
   const raw = input.trim().match(/#p=([\w-]+)/)?.[1] ?? input.trim().match(new RegExp(`${CODE_PREFIX}[\\w-]{4,}`))?.[0] ?? '';
   const code = raw.startsWith(CODE_PREFIX) ? raw.slice(CODE_PREFIX.length) : raw;
   if (!code) return null;
   try {
-    const b = fromB64(code);
-    if (b[0] !== VERSION || b.length < 3) return null;
+    const b = fromB64(code), v = b[0];
+    if ((v !== 1 && v !== 2) || b.length < 3) return null;
     let i = 3, missing = 0;
     const ops: PlanOp[] = [];
+    const nameAt = (j: number): string | undefined => OP_BY_ID.get(b[j] << 8 | b[j + 1])?.name;
     for (let k = 0; k < b[2] && i + 2 < b.length; k++) {
-      const op = OP_BY_ID.get(b[i] << 8 | b[i + 1]), flags = b[i + 2];
-      const eqCount = flags >> 1 & 3;
+      const name = nameAt(i), flags = b[i + 2];
+      const eqCount = flags >> 1 & 3, altCount = v > 1 ? flags >> 3 & 3 : 0;
       const eq = [...b.slice(i + 3, i + 3 + eqCount)].map(n => EQ_BY_NO.get(n - 1)?.name).filter((n): n is string => !!n);
       i += 3 + eqCount;
-      if (op && !ops.some(o => o.name === op.name)) ops.push({ name: op.name, elite: !!(flags & 1), eq });
+      const alt: string[] = [];
+      for (let a = 0; a < altCount; a++, i += 2) { const n = nameAt(i); if (n) alt.push(n); }
+      if (name && !ops.some(o => o.name === name)) ops.push({ name, elite: !!(flags & 1), eq, alt: alt.filter(n => n !== name) });
       else missing++;
     }
-    const name = new TextDecoder().decode(b.slice(i)).trim();
-    return { plan: { name, ops, strategy: ST_BY_NO.get(b[1] - 1)?.name ?? '' }, missing };
+    const decoder = new TextDecoder();
+    let name = '', note = '';
+    if (v > 1) { name = decoder.decode(b.slice(i + 1, i + 1 + b[i])).trim(); note = decoder.decode(b.slice(i + 1 + b[i])).trim().slice(0, MAX_NOTE); }
+    else name = decoder.decode(b.slice(i)).trim();
+    return { plan: { name, ops, strategy: ST_BY_NO.get(b[1] - 1)?.name ?? '', note }, missing };
   } catch { return null; }
 }
 
@@ -219,15 +256,20 @@ const read = (key: string): string | null => { try { return localStorage.getItem
 const write = (key: string, value: string): void => { try { localStorage.setItem(key, value); } catch { /* 隐私模式下可能不可用 */ } };
 
 export const newId = (): string => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-export const blankPlan = (name = '新阵容'): Plan => ({ id: newId(), name, ops: [], strategy: '', updated: Date.now() });
+export const blankPlan = (name = '新阵容'): Plan => ({ id: newId(), name, ops: [], strategy: '', note: '', updated: Date.now() });
+export const newSlot = (name: string): PlanOp => ({ name, elite: false, eq: [], alt: [] });
 
 /** 读档时丢掉本赛季不存在的干员 / 装备 / 策略 */
 function clean(plan: Plan): Plan {
   return {
     id: plan.id || newId(), name: String(plan.name || '阵容'), updated: +plan.updated || Date.now(),
     strategy: STRATEGY[plan.strategy] ? plan.strategy : '',
-    ops: (plan.ops ?? []).filter(o => OPERATOR[o.name]).slice(0, MAX_OPS)
-      .map(o => ({ name: o.name, elite: !!o.elite, eq: (o.eq ?? []).filter(n => EQUIP[n]).slice(0, MAX_EQ) })),
+    note: String(plan.note ?? '').slice(0, MAX_NOTE),
+    ops: (plan.ops ?? []).filter(o => OPERATOR[o.name]).slice(0, MAX_OPS).map(o => ({
+      name: o.name, elite: !!o.elite,
+      eq: (o.eq ?? []).filter(n => EQUIP[n]).slice(0, MAX_EQ),
+      alt: (o.alt ?? []).filter(n => OPERATOR[n] && n !== o.name).slice(0, MAX_ALT),
+    })),
   };
 }
 export function loadPlans(): Plan[] {

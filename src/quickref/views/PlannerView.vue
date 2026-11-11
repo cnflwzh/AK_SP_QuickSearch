@@ -7,7 +7,7 @@ import {
 import { avatarSrc, equipIconSrc, portraitSrc } from '../../lib/assets.ts';
 import { nameScore, normalize } from '../../lib/match.ts';
 import {
-  MAX_EQ, MAX_OPS, atLayers, blankPlan, covenantStats, decodePlan, encodePlan, equipNotes, loadCurrent, loadPlans,
+  MAX_ALT, MAX_EQ, MAX_NOTE, MAX_OPS, alternatesFor, atLayers, blankPlan, newSlot, covenantStats, decodePlan, encodePlan, equipNotes, loadCurrent, loadPlans,
   newId, planCost, saveCurrent, savePlans, shareUrl, suggestions, type Decoded, type Plan, type PlanOp,
 } from '../../lib/planner.ts';
 import { planImage } from '../../lib/planImage.ts';
@@ -43,7 +43,8 @@ function fromBuild(name: string): void {
   if (!build) return;
   addPlan({
     ...blankPlan(name), strategy: build.strategies.find(s => STRATEGY[s]) ?? '',
-    ops: build.lineup.filter(n => OPERATOR[n]).slice(0, MAX_OPS).map(n => ({ name: n, elite: false, eq: [] })),
+    ops: build.lineup.filter(n => OPERATOR[n]).slice(0, MAX_OPS).map(newSlot),
+    note: build.tagline,
   });
 }
 
@@ -53,9 +54,10 @@ const inPlan = computed(() => new Set(ops.value.map(o => o.name)));
 const editing = ref(-1);
 const slot = computed<PlanOp | undefined>(() => ops.value[editing.value]);
 function toggle(name: string): void {
+  if (picking.value === 'alt') return addAlt(name);
   const i = ops.value.findIndex(o => o.name === name);
   if (i >= 0) { ops.value.splice(i, 1); if (editing.value >= ops.value.length) editing.value = -1; }
-  else if (ops.value.length < MAX_OPS) ops.value.push({ name, elite: false, eq: [] });
+  else if (ops.value.length < MAX_OPS) ops.value.push(newSlot(name));
   touch();
 }
 function move(d: number): void {
@@ -65,7 +67,7 @@ function move(d: number): void {
   editing.value = j; touch();
 }
 function removeSlot(): void { ops.value.splice(editing.value, 1); editing.value = -1; touch(); }
-const picking = ref<'' | 'eq' | 'st'>('');
+const picking = ref<'' | 'eq' | 'st' | 'alt'>('');
 function addEquip(name: string): void {
   if (!slot.value) return;
   slot.value.eq = [...slot.value.eq, name].slice(-MAX_EQ);
@@ -73,8 +75,25 @@ function addEquip(name: string): void {
   touch();
 }
 function dropEquip(i: number): void { slot.value?.eq.splice(i, 1); touch(); }
+/* 备选：主选抓不到时的次级选择。点备选 = 和主选互换（看换人后的盟约），× = 移除 */
+const altSuggest = computed(() => slot.value ? alternatesFor(slot.value, ops.value) : []);
+function addAlt(name: string): void {
+  const s = slot.value;
+  if (!s || name === s.name || s.alt.includes(name) || inPlan.value.has(name)) return;
+  s.alt.push(name);
+  if (s.alt.length >= MAX_ALT) picking.value = '';
+  touch();
+}
+function dropAlt(i: number): void { slot.value?.alt.splice(i, 1); touch(); }
+function swapAlt(i: number): void {
+  const s = slot.value; if (!s || inPlan.value.has(s.alt[i])) return;
+  const next = s.alt[i];
+  s.alt.splice(i, 1, s.name);
+  s.name = next; s.elite = false;
+  touch();
+}
 function pickStrategy(name: string): void { plan.value.strategy = plan.value.strategy === name ? '' : name; picking.value = ''; touch(); }
-function editSlot(i: number): void { editing.value = editing.value === i ? -1 : i; if (picking.value === 'eq') picking.value = ''; }
+function editSlot(i: number): void { editing.value = editing.value === i ? -1 : i; if (picking.value === 'eq' || picking.value === 'alt') picking.value = ''; }
 
 /* ---------- 计算 ---------- */
 const layers = ref(50);
@@ -129,16 +148,16 @@ const importText = ref('');
 const imported = computed<Decoded | null>(() => importText.value.trim() ? decodePlan(importText.value) : null);
 function acceptImport(): void {
   const d = imported.value; if (!d) return;
-  addPlan({ ...blankPlan(d.plan.name || '导入的阵容'), ops: d.plan.ops, strategy: d.plan.strategy });
+  addPlan({ ...blankPlan(d.plan.name || '导入的阵容'), ops: d.plan.ops, strategy: d.plan.strategy, note: d.plan.note });
   importText.value = ''; panel.value = '';
 }
 const other = ref('');
-const otherPlan = computed<{ title: string; ops: PlanOp[]; strategy: string } | null>(() => {
+const otherPlan = computed<{ title: string; ops: PlanOp[]; strategy: string; note: string } | null>(() => {
   const [kind, key] = other.value.split(':');
-  if (kind === 'p') { const p = plans.find(x => x.id === key); return p ? { title: p.name, ops: p.ops, strategy: p.strategy } : null; }
+  if (kind === 'p') { const p = plans.find(x => x.id === key); return p ? { title: p.name, ops: p.ops, strategy: p.strategy, note: p.note } : null; }
   if (kind === 'b') {
     const b = buildByName(key);
-    return b ? { title: `流派 · ${key}`, ops: b.lineup.filter(n => OPERATOR[n]).map(n => ({ name: n, elite: false, eq: [] })), strategy: b.strategies[0] ?? '' } : null;
+    return b ? { title: `流派 · ${key}`, ops: b.lineup.filter(n => OPERATOR[n]).map(newSlot), strategy: b.strategies[0] ?? '', note: b.tagline } : null;
   }
   return null;
 });
@@ -185,7 +204,7 @@ onUnmounted(() => window.removeEventListener('hashchange', readHash));
     <section v-if="panel === 'import'" class="pl-panel">
       <input v-model="importText" class="pl-paste" placeholder="粘贴分享码或链接" aria-label="分享码">
       <template v-if="imported">
-        <PlanSummary :ops="imported.plan.ops" :strategy="imported.plan.strategy" :title="imported.plan.name || '导入的阵容'"/>
+        <PlanSummary :ops="imported.plan.ops" :strategy="imported.plan.strategy" :note="imported.plan.note" :title="imported.plan.name || '导入的阵容'"/>
         <p v-if="imported.missing" class="pl-warn">{{ imported.missing }} 名干员本赛季没有，已略过</p>
         <div class="pl-row"><button type="button" class="pri" @click="acceptImport">存为我的方案</button></div>
       </template>
@@ -202,8 +221,8 @@ onUnmounted(() => window.removeEventListener('hashchange', readHash));
       <template v-if="otherPlan">
         <div class="pl-diff"><span>相同 <b>{{ shared }}</b></span><span class="a">只在这边 <b>{{ onlyMine.size }}</b></span><span class="b">只在那边 <b>{{ onlyOther.size }}</b></span></div>
         <div class="pl-cmp">
-          <PlanSummary :ops="ops" :strategy="plan.strategy" :title="plan.name" :highlight="onlyMine" compact/>
-          <PlanSummary :ops="otherPlan.ops" :strategy="otherPlan.strategy" :title="otherPlan.title" :highlight="onlyOther" compact/>
+          <PlanSummary :ops="ops" :strategy="plan.strategy" :note="plan.note" :title="plan.name" :highlight="onlyMine" compact/>
+          <PlanSummary :ops="otherPlan.ops" :strategy="otherPlan.strategy" :note="otherPlan.note" :title="otherPlan.title" :highlight="onlyOther" compact/>
         </div>
       </template>
     </section>
@@ -211,7 +230,8 @@ onUnmounted(() => window.removeEventListener('hashchange', readHash));
     <div class="pl-grid">
       <!-- 阵容 -->
       <section class="pl-card pl-lineup">
-        <h4>阵容<span class="tag">{{ ops.length }} / {{ MAX_OPS }}</span><span class="hint">点头像编辑</span></h4>
+        <h4>阵容<span class="tag">{{ ops.length }} / {{ MAX_OPS }}</span><span class="hint">点头像编辑 · 小头像是备选</span></h4>
+        <label class="pl-note"><textarea v-model="plan.note" :maxlength="MAX_NOTE" rows="2" placeholder="一句话说明这套流派：核心思路、靠谁输出、什么时候转" aria-label="流派说明" @input="touch"></textarea><small>{{ plan.note.length }}/{{ MAX_NOTE }}</small></label>
         <div class="pl-slots">
           <button v-for="(s, i) in ops" :key="s.name" type="button" :class="['pl-slot', { on: editing === i, el: s.elite }]" :data-t="OPERATOR[s.name].tier" :data-op="s.name" :style="{ '--i': i }" @click="editSlot(i)">
             <i class="no">{{ i + 1 }}</i>
@@ -219,6 +239,7 @@ onUnmounted(() => window.removeEventListener('hashchange', readHash));
             <span class="nm">{{ s.name }}</span>
             <span class="dots"><u v-for="c in OPERATOR[s.name].covenants" :key="c" :style="{ '--c': color(c) }"></u></span>
             <span v-if="s.eq.length" class="eqs"><img v-for="(e, k) in s.eq" :key="k" :src="equipIconSrc(e)" alt="" width="16" height="16"></span>
+            <span v-if="s.alt.length" class="alts"><img v-for="a in s.alt" :key="a" :src="avatarSrc(a)" :data-t="OPERATOR[a].tier" alt="" width="18" height="18"></span>
           </button>
           <span v-for="k in MAX_OPS - ops.length" :key="`e${k}`" class="pl-slot empty"><i class="no">{{ ops.length + k }}</i>+</span>
         </div>
@@ -235,6 +256,18 @@ onUnmounted(() => window.removeEventListener('hashchange', readHash));
             <span class="k">装备</span>
             <button v-for="(e, k) in slot.eq" :key="k" type="button" class="pl-eq" :data-t="EQUIP[e].tier" :data-eq="e" @click="dropEquip(k)"><img :src="equipIconSrc(e)" alt="" width="22" height="22">{{ e }}<i>×</i></button>
             <button v-if="slot.eq.length < MAX_EQ" type="button" :class="['pl-eq', 'add', { on: picking === 'eq' }]" @click="picking = picking === 'eq' ? '' : 'eq'">+ 装备</button>
+          </div>
+          <div class="pl-row pl-alts">
+            <span class="k">备选</span>
+            <span v-for="(a, k) in slot.alt" :key="a" class="pl-alt" :data-t="OPERATOR[a].tier" :data-op="a">
+              <button type="button" :disabled="inPlan.has(a)" :title="inPlan.has(a) ? '已在阵容里' : '换上场'" @click="swapAlt(k)"><img :src="avatarSrc(a)" alt="" width="24" height="24">{{ a }}<b>⇄</b></button>
+              <button type="button" class="x" aria-label="移除备选" @click="dropAlt(k)">×</button>
+            </span>
+            <button v-if="slot.alt.length < MAX_ALT" type="button" :class="['pl-eq', 'add', { on: picking === 'alt' }]" @click="picking = picking === 'alt' ? '' : 'alt'">+ 备选</button>
+          </div>
+          <div v-if="picking === 'alt'" class="pl-pick pl-altpick">
+            <span class="hint">同盟约、等阶相近 · 也可以在干员列表里点选</span>
+            <div class="pl-pick-g"><button v-for="o in altSuggest" :key="o.name" type="button" :data-t="o.tier" :data-op="o.name" @click="addAlt(o.name)"><img :src="avatarSrc(o.name)" alt="" width="34" height="34" loading="lazy"><small>{{ o.name }}</small><span class="dots"><u v-for="c in o.covenants" :key="c" :style="{ '--c': color(c) }"></u></span></button></div>
           </div>
           <div v-if="picking === 'eq'" class="pl-pick">
             <div v-for="g in eqGroups" :key="g.tier" class="pl-pick-g"><i class="tier" :data-t="g.tier">{{ TIER_LABELS[g.tier] }}</i>
@@ -302,6 +335,7 @@ onUnmounted(() => window.removeEventListener('hashchange', readHash));
       <!-- 干员池 -->
       <section class="pl-card pl-pool">
         <h4>干员<span class="tag">{{ pool.length }}</span><span class="hint">★ 能推进已有盟约</span></h4>
+        <div v-if="picking === 'alt' && slot" class="pl-altbar"><span>点选干员 → 加为 <b>{{ slot.name }}</b> 的备选（{{ slot.alt.length }}/{{ MAX_ALT }}）</span><button type="button" @click="picking = ''">完成</button></div>
         <div class="pl-filter">
           <input v-model="poolQuery" type="search" placeholder="名字 / 拼音" aria-label="搜索干员">
           <select v-model="poolCovenant" aria-label="盟约"><option value="">全部盟约</option><option v-for="name in ALL_COVENANTS" :key="name">{{ name }}</option></select>
@@ -310,7 +344,7 @@ onUnmounted(() => window.removeEventListener('hashchange', readHash));
         <template v-for="g in poolGroups" :key="g.tier">
           <div class="tierh" :data-t="g.tier"><i>{{ TIER_LABELS[g.tier] }}</i><span>{{ g.items.length }}</span></div>
           <div class="pl-tiles">
-            <button v-for="o in g.items" :key="o.name" type="button" :class="['tile', { in: inPlan.has(o.name), rec: !inPlan.has(o.name) && o.covenants.some(c => present.has(c)) }]" :data-t="o.tier" :data-op="o.name" :disabled="!inPlan.has(o.name) && ops.length >= MAX_OPS" @click="toggle(o.name)">
+            <button v-for="o in g.items" :key="o.name" type="button" :class="['tile', { in: inPlan.has(o.name), alt: slot?.alt.includes(o.name), rec: !inPlan.has(o.name) && o.covenants.some(c => present.has(c)) }]" :data-t="o.tier" :data-op="o.name" :disabled="picking === 'alt' ? inPlan.has(o.name) || !!slot?.alt.includes(o.name) : !inPlan.has(o.name) && ops.length >= MAX_OPS" @click="toggle(o.name)">
               <img :src="avatarSrc(o.name)" alt="" width="80" height="80" loading="lazy" decoding="async">
               <span>{{ o.name }}</span><span class="dots"><u v-for="c in o.covenants" :key="c" :style="{ '--c': color(c) }"></u></span>
             </button>
