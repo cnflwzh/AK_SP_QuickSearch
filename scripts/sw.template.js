@@ -1,6 +1,6 @@
 /*
  * 卫戍速查 Service Worker
- * sw.js 由 scripts/build_sw.py 根据本模板生成，请修改模板而不是 sw.js。
+ * sw.js 由 scripts/build-sw.mjs 根据本模板生成，请修改模板而不是 sw.js。
  *
  * 缓存策略
  *   页面 / 脚本 / 样式 / 数据：联网优先，离线时回落到缓存
@@ -32,7 +32,9 @@ const alternatePath = p => {
 };
 
 async function fromCache(request) {
-  const options = { ignoreSearch: true };
+  // Static same-origin resources are identical for module CORS and ordinary fetches.
+  // Preview servers may send Vary: Origin; visited-resource backfills omit that header.
+  const options = { ignoreSearch: true, ignoreVary: true };
   const hit = await caches.match(request, options);
   if (hit) return hit;
   const url = new URL(request.url);
@@ -87,7 +89,7 @@ self.addEventListener('activate', event => {
 
 async function cacheFirst(request, cacheName = IMAGE_CACHE) {
   const cache = await caches.open(cacheName);
-  const hit = await cache.match(request);
+  const hit = await cache.match(request, { ignoreVary: true });
   if (hit) return hit;
   const response = await fetch(request);
   if (response.ok) await cache.put(request, response.clone());

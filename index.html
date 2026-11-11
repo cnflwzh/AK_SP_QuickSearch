@@ -14,35 +14,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="卫戍速查">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="assets/css/base.css">
-<link rel="stylesheet" href="assets/css/quickref.css">
-<!-- modulepreload:start -->
-<link rel="modulepreload" href="data/builds.js">
-<link rel="modulepreload" href="data/covenants.js">
-<link rel="modulepreload" href="data/equipment.js">
-<link rel="modulepreload" href="data/index.js">
-<link rel="modulepreload" href="data/operators.js">
-<link rel="modulepreload" href="data/pinyin.js">
-<link rel="modulepreload" href="data/rules.js">
-<link rel="modulepreload" href="data/strategies.js">
-<link rel="modulepreload" href="js/boot.js">
-<link rel="modulepreload" href="js/lib/assets.js">
-<link rel="modulepreload" href="js/lib/dom.js">
-<link rel="modulepreload" href="js/lib/match.js">
-<link rel="modulepreload" href="js/lib/peek.js">
-<link rel="modulepreload" href="js/lib/update-html.js">
-<link rel="modulepreload" href="js/quickref/chips.js">
-<link rel="modulepreload" href="js/quickref/main.js">
-<link rel="modulepreload" href="js/quickref/search.js">
-<link rel="modulepreload" href="js/quickref/sheet.js">
-<link rel="modulepreload" href="js/quickref/state.js">
-<link rel="modulepreload" href="js/quickref/views/builds.js">
-<link rel="modulepreload" href="js/quickref/views/covenants.js">
-<link rel="modulepreload" href="js/quickref/views/equipment.js">
-<link rel="modulepreload" href="js/quickref/views/numbers.js">
-<link rel="modulepreload" href="js/quickref/views/operators.js">
-<link rel="modulepreload" href="js/quickref/views/strategies.js">
-<!-- modulepreload:end -->
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/quickref.css">
 </head>
 <body class="is-loading" data-page="quickref" aria-busy="true">
 
@@ -55,39 +28,10 @@
   <noscript><style>.load-mark,.load-pending { display:none }</style>启用 JavaScript 以加载数据。</noscript>
 </section>
 
-<header class="wrap qhead">
-  <div>
-    <h1>卫戍速查<small>卫戍协议·规程</small></h1>
-  </div>
-  <a class="guide" href="guide.html">
-    <svg viewBox="0 0 72 72" aria-hidden="true"><circle class="ring" cx="36" cy="36" r="26"/><circle class="nd" cx="36" cy="10" r="6"/><circle class="nd" cx="58.5" cy="49" r="6"/><circle class="nd" cx="13.5" cy="49" r="6"/><circle class="mv" r="4"><animateMotion id="gmv" dur="5s" repeatCount="indefinite" path="M36,10 A26,26 0 1 1 35.9,10"/></circle></svg>
-    <div>
-      <div class="k">GUIDE</div>
-      <b>图解教程</b>
-      <div class="qsteps"><span><i>01</i>入门</span><span><i>02</i>招募升本</span><span><i>03</i>刷怪</span><span><i>04</i>盟约</span><span><i>05</i>流派</span></div>
-    </div>
-    <span class="go">▸</span>
-  </a>
-</header>
-
-<div class="qbar" id="qbar">
-  <div class="wrap">
-    <label class="search" id="sbox">
-      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-      <input type="search" id="q" placeholder="干员 / 装备 / 策略 / 盟约 / 特质，支持拼音" autocomplete="off" aria-label="搜索">
-      <kbd>/</kbd>
-      <button type="button" class="x" id="qx" aria-label="清空">✕</button>
-    </label>
-    <div class="tabs" id="tabs" role="tablist"></div>
-  </div>
-</div>
-
-<main class="wrap" id="view"></main>
-
-<dialog class="sheet" id="sheet"></dialog>
+<div id="app" style="display:contents"></div>
 
 <footer class="wrap"><span class="foot-content">数据：PRTS · 可露希尔 Wiki · BWIKI　<button type="button" class="foot-about" data-about>关于本项目 · 数据来源 · 许可 ▸</button></span><code class="build-version" data-build-version hidden></code></footer>
 
-<script type="module" src="js/boot.js" onerror="document.getElementById('load-screen').dataset.state='error'"></script>
+<script type="module" src="/src/boot.ts" onerror="document.getElementById('load-screen').dataset.state='error'"></script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 /**
- * 生成 data/pinyin.js：干员、盟约、装备、策略、流派名称的拼音，供速查页搜索使用。
+ * 生成 data/pinyin.ts：干员、盟约、装备、策略、流派名称的拼音，供速查页搜索使用。
  *
  *   npm install
  *   npm run pinyin
@@ -12,7 +12,7 @@ import { writeFileSync } from 'node:fs';
 import { pinyin } from 'pinyin-pro';
 import {
   OPERATORS, EQUIPMENT, STRATEGIES, ALL_COVENANTS, BUILD_NAMES,
-} from '../data/index.js';
+} from '../data/index.ts';
 
 const OVERRIDES = {
   仇白: ['qiu bai', 'chou bai'],
@@ -46,12 +46,14 @@ const body = entries
   .map(([name, list]) => `  ${JSON.stringify(name)}: ${JSON.stringify(list.length === 1 ? list[0] : list)},`)
   .join('\n');
 
-writeFileSync(new URL('../data/pinyin.js', import.meta.url), `/**
+writeFileSync(new URL('../data/pinyin.ts', import.meta.url), `import type { PinyinIndex } from './types.ts';
+
+/**
  * 名称拼音，音节以空格分隔；有多种读法时为数组，第一种为标准读法。
  * 由 scripts/gen_pinyin.mjs 生成，请勿手改。
  */
-export const PINYIN = {
+export const PINYIN: PinyinIndex = {
 ${body}
 };
 `);
-console.log(`data/pinyin.js  ${entries.length} names`);
+console.log(`data/pinyin.ts  ${entries.length} names`);
