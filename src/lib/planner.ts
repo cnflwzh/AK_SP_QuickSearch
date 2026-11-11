@@ -11,6 +11,7 @@ import {
   OPERATORS, OPERATOR, EQUIPMENT, EQUIP, EQUIPMENT_COMBOS, STRATEGIES, STRATEGY, COVENANTS, ALL_COVENANTS,
   isCoreCovenant, operatorPrice, type Operator,
 } from '../../data/index.ts';
+import { BitWriter, writeShareText, readShareText, packSharePayload, unpackSharePayload } from './shareCodec.ts';
 
 export const MAX_OPS = 8;
 export const MAX_EQ = 2;
@@ -192,101 +193,149 @@ export function equipNotes(ops: readonly PlanOp[]): EquipNote[] {
 }
 
 /* ---------- 分享码 ----------
- * 字节（版本 2）：[2][策略序号+1][干员数]
- *   每名干员 [游戏 ID 高][低][标志: bit0 精锐, bit1-2 装备数, bit3-4 备选数][装备序号+1 …][备选 ID 高][低] …
- *   [层数条目数] 每条 [盟约序号][层数高][低]
- *   然后 [方案名字节数][方案名 UTF-8][说明 UTF-16]（中文 2 字节 / 字，比 UTF-8 省三分之一，二维码更小）
- * 版本 1 没有备选和说明，余下全部是方案名；仍可导入。
- * 干员用游戏内 char_ID，装备 / 策略用图标序号（e00、s00）：换赛季调整列表顺序后，旧码仍能解析。
+ * 紧凑格式：WS + 一字符模式 + Base64URL 位流；链接省略 WS。
+ * 模式低两位选择 UTF-8 / UTF-16 / 固定 Huffman，bit2 表示 raw DEFLATE。
+ * 数值按实际范围打包；层数根据当前最大值选择位宽，盟约按稀疏列表或位图存储。
+ * 仅解析当前格式；名称、说明的空格、换行、emoji 都原样保留。
  */
-const VERSION = 2;
 export const CODE_PREFIX = 'WS';
+export type Shared = Pick<Plan, 'name' | 'ops' | 'strategy' | 'note' | 'layers'>;
+
+// 短编号使用固定 char_ID 表，干员在展示列表中换位置不会改变分享码含义。
+const SHARE_OP_IDS = [
+  2, 113, 127, 129, 135, 140, 143, 150, 171, 174, 179, 180, 183, 185, 188, 193,
+  194, 195, 199, 202, 206, 218, 219, 237, 249, 258, 263, 264, 274, 291, 293, 322,
+  325, 328, 332, 333, 337, 341, 346, 347, 350, 355, 358, 367, 381, 391, 400, 416,
+  420, 422, 423, 426, 427, 430, 437, 455, 469, 472, 474, 484, 485, 488, 492, 496,
+  499, 616, 1012, 1014, 1016, 1019, 1023, 1027, 1031, 1034, 1036, 1038, 1039, 1040, 1042, 1045,
+  1046, 1047, 1051, 2015, 2025, 2026, 4009, 4010, 4013, 4016, 4026, 4027, 4031, 4037, 4041, 4042,
+  4046, 4047, 4054, 4055, 4058, 4064, 4065, 4066, 4072, 4082, 4088, 4098, 4114, 4116, 4133, 4134,
+  4137, 4139, 4145, 4146, 4147, 4151, 4162, 4163, 4165, 4166, 4177, 4179, 4193, 4198, 4202, 4203,
+  4204, 4207, 4211, 4221, 4222, 4224, 4226, 4228, 4230, 4231, 4232, 4244, 4245, 4247,
+];
 const opId = (op: Operator): number => +(op.avatar.match(/^char_(\d+)_/)?.[1] ?? 0);
 const OP_BY_ID = new Map(OPERATORS.map(op => [opId(op), op]));
-const EQ_BY_NO = new Map(EQUIPMENT.map(e => [+e.icon.slice(1), e]));
-const ST_BY_NO = new Map(STRATEGIES.map(s => [+s.portrait.slice(1), s]));
+const OP_BY_NO = SHARE_OP_IDS.map(id => OP_BY_ID.get(id));
+const OP_NO = new Map(OP_BY_NO.flatMap((op, i) => op ? [[op.name, i] as const] : []));
+const EQ_BY_NO = new Map(EQUIPMENT.map(e => [+e.icon.slice(1) + 1, e]));
+const ST_BY_NO = new Map(STRATEGIES.map(s => [+s.portrait.slice(1) + 1, s]));
+const LAYER_NAMES = ALL_COVENANTS.filter(usesLayers);
+const COV_NO = new Map(LAYER_NAMES.map((c, i) => [c, i]));
 
-const toB64 = (bytes: Uint8Array): string => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-const fromB64 = (text: string): Uint8Array => {
-  const b64 = text.replace(/-/g, '+').replace(/_/g, '/');
-  return Uint8Array.from(atob(b64 + '='.repeat((4 - b64.length % 4) % 4)), c => c.charCodeAt(0));
-};
-const idBytes = (name: string): number[] => { const id = opId(OPERATOR[name]); return [id >> 8 & 255, id & 255]; };
-
-export type Shared = Pick<Plan, 'name' | 'ops' | 'strategy' | 'note' | 'layers'>;
-const COV_NO = new Map(ALL_COVENANTS.map((c, i) => [c, i]));
-const utf16 = (text: string): number[] => [...text].flatMap(ch => { const out: number[] = []; for (let i = 0; i < ch.length; i++) out.push(ch.charCodeAt(i) >> 8, ch.charCodeAt(i) & 255); return out; });
-const fromUtf16 = (b: Uint8Array): string => { let s = ''; for (let i = 0; i + 1 < b.length; i += 2) s += String.fromCharCode(b[i] << 8 | b[i + 1]); return s; };
-/** 只留有层数效果、非零的条目 */
+/** 只留有层数效果、非零的条目。 */
 export const cleanLayers = (layers: unknown): Layers => Object.fromEntries(Object.entries(layers && typeof layers === 'object' ? layers : {})
   .filter(([c]) => Object.hasOwn(COVENANTS, c) && usesLayers(c)).map(([c, n]) => [c, clampLayers(n)]).filter(([, n]) => n));
 
+/**
+ * 生成可直接复制的分享码，保留八人阵容、顺序、装备、备选、层数及完整说明。
+ * 同时比较三种文字编码及可选 DEFLATE，返回最短结果；超出编码容量时抛出异常。
+ */
 export function encodePlan(plan: Shared): string {
-  const bytes: number[] = [VERSION, STRATEGY[plan.strategy] ? +STRATEGY[plan.strategy].portrait.slice(1) + 1 : 0];
   const ops = cleanOps(plan.ops);
-  bytes.push(ops.length);
-  for (const slot of ops) {
-    const eq = slot.eq.filter(n => EQUIP[n]).slice(0, MAX_EQ);
-    const alt = slot.alt.filter(n => OPERATOR[n]).slice(0, MAX_ALT);
-    bytes.push(...idBytes(slot.name), (slot.elite ? 1 : 0) | eq.length << 1 | alt.length << 3,
-      ...eq.map(n => +EQUIP[n].icon.slice(1) + 1), ...alt.flatMap(idBytes));
+  const name = plan.name.slice(0, 16), note = plan.note.slice(0, MAX_NOTE), text = name + note;
+  const layers = Object.entries(cleanLayers(plan.layers)).sort(([a], [b]) => COV_NO.get(a)! - COV_NO.get(b)!);
+  let best = '';
+  for (const mode of [0, 1, 2] as const) {
+    const writer = new BitWriter();
+    writer.write(ops.length, 4);
+    writer.write(Object.hasOwn(STRATEGY, plan.strategy) ? +STRATEGY[plan.strategy].portrait.slice(1) + 1 : 0, 6);
+    writer.write(name.length, 5); writer.write(note.length, 8);
+    for (const slot of ops) {
+      writer.write(OP_NO.get(slot.name)!, 8);
+      writer.write(+slot.elite, 1);
+      const sameEquip = slot.eq.length === 2 && slot.eq[0] === slot.eq[1];
+      writer.write(sameEquip ? 3 : slot.eq.length, 2);
+      writer.write(slot.alt.length, 2);
+      for (const eq of sameEquip ? slot.eq.slice(0, 1) : slot.eq) writer.write(+EQUIP[eq].icon.slice(1) + 1, 7);
+      for (const alt of slot.alt) writer.write(OP_NO.get(alt)!, 8);
+    }
+    writer.write(layers.length ? 1 : 0, 1);
+    if (layers.length) {
+      const dense = 5 + layers.length * 5 > LAYER_NAMES.length;
+      writer.write(+dense, 1);
+      if (dense) {
+        const selected = new Set(layers.map(([c]) => c));
+        for (const c of LAYER_NAMES) writer.write(+selected.has(c), 1);
+      } else {
+        writer.write(layers.length, 5);
+        for (const [c] of layers) writer.write(COV_NO.get(c)!, 5);
+      }
+      const width = Math.ceil(Math.log2(Math.max(...layers.map(([, n]) => n)) + 1));
+      writer.write(width - 1, 4);
+      for (const [, n] of layers) writer.write(n, width);
+    }
+    if (!writeShareText(writer, text, mode)) continue;
+    const candidate = packSharePayload(writer.finish(), mode);
+    if (!best || candidate.length < best.length) best = candidate;
   }
-  const layers = Object.entries(cleanLayers(plan.layers)).slice(0, 255);
-  bytes.push(layers.length, ...layers.flatMap(([c, n]) => [COV_NO.get(c)!, n >> 8, n & 255]));
-  const name = new TextEncoder().encode(plan.name.trim().slice(0, 16));
-  const note = utf16(plan.note.trim().slice(0, MAX_NOTE));
-  return CODE_PREFIX + toB64(Uint8Array.from([...bytes, name.length, ...name, ...note]));
+  return CODE_PREFIX + best;
 }
 
-export interface Decoded { plan: Shared; missing: number }
-/** 接受分享码、带 #p= 的链接或含码文本；结构不完整或超出阵容限制时返回 null。 */
+export interface Decoded { plan: Shared }
+/** 接受当前分享码或 #p= 链接；损坏、截断、超限或含未知条目的数据返回 null。 */
 export function decodePlan(input: string): Decoded | null {
-  const raw = input.trim().match(/#p=([\w-]+)/)?.[1] ?? input.trim().match(new RegExp(`${CODE_PREFIX}[\\w-]{4,}`))?.[0] ?? '';
-  const code = raw.startsWith(CODE_PREFIX) ? raw.slice(CODE_PREFIX.length) : raw;
-  // 正常八人方案不足 1 KB；在解码前限制尺寸，避免长文本占用主线程。
-  if (!code || code.length > 2048) return null;
+  if (input.length > 4096) return null;
+  const link = input.match(/#p=([A-Za-z0-9_-]+)/);
+  const token = link?.[1] ?? input.match(/(?:^|[^A-Za-z0-9_-])WS([A-Za-z0-9_-]+)/)?.[1];
+  if (!token) return null;
   try {
-    const b = fromB64(code), v = b[0];
-    if ((v !== 1 && v !== 2) || b.length < 3 || b[2] > MAX_OPS) return null;
-    let i = 3, missing = 0;
-    const take = (length: number): Uint8Array => {
-      if (i + length > b.length) throw new Error('Incomplete plan');
-      const value = b.slice(i, i + length); i += length; return value;
-    };
+    const { reader, mode } = unpackSharePayload(token);
+    const count = reader.read(4), strategyNo = reader.read(6), nameLength = reader.read(5), noteLength = reader.read(8);
+    if (count > MAX_OPS || nameLength > 16 || noteLength > MAX_NOTE || (strategyNo && !ST_BY_NO.has(strategyNo))) return null;
     const ops: PlanOp[] = [];
-    for (let k = 0; k < b[2]; k++) {
-      const [hi, lo, flags] = take(3);
-      const name = OP_BY_ID.get(hi << 8 | lo)?.name;
-      const eqCount = flags >> 1 & 3, altCount = v > 1 ? flags >> 3 & 3 : 0;
-      if (eqCount > MAX_EQ || flags >> (v > 1 ? 5 : 3)) return null;
-      const eq = [...take(eqCount)].map(n => EQ_BY_NO.get(n - 1)?.name).filter((n): n is string => !!n);
-      const alt: string[] = [];
+    const readOp = (): string => {
+      const name = OP_BY_NO[reader.read(8)]?.name;
+      if (!name) throw new Error('Unknown operator');
+      return name;
+    };
+    for (let k = 0; k < count; k++) {
+      const name = readOp(), elite = !!reader.read(1), eqKind = reader.read(2), altCount = reader.read(2);
+      if (ops.some(o => o.name === name)) return null;
+      const eq: string[] = [], alt: string[] = [];
+      for (let e = 0; e < (eqKind === 3 ? 1 : eqKind); e++) {
+        const item = EQ_BY_NO.get(reader.read(7));
+        if (!item) return null;
+        eq.push(item.name);
+      }
+      if (eqKind === 3) eq.push(eq[0]);
       for (let a = 0; a < altCount; a++) {
-        const [ah, al] = take(2), n = OP_BY_ID.get(ah << 8 | al)?.name;
-        if (n && n !== name && !alt.includes(n)) alt.push(n);
+        const candidate = readOp();
+        if (candidate === name || alt.includes(candidate)) return null;
+        alt.push(candidate);
       }
-      if (name && !ops.some(o => o.name === name)) ops.push({ name, elite: !!(flags & 1), eq, alt });
-      else missing++;
+      ops.push({ name, elite, eq, alt });
     }
-    const decoder = new TextDecoder('utf-8', { fatal: true });
-    let name = '', note = '';
     const layers: Layers = {};
-    if (v > 1) {
-      const [count] = take(1);
-      for (let k = 0; k < count; k++) {
-        const [index, hi, lo] = take(3), c = ALL_COVENANTS[index];
-        if (c) layers[c] = hi << 8 | lo;
+    if (reader.read(1)) {
+      const selected: string[] = [];
+      if (reader.read(1)) {
+        for (const c of LAYER_NAMES) if (reader.read(1)) selected.push(c);
+      } else {
+        const layerCount = reader.read(5);
+        if (layerCount > LAYER_NAMES.length) return null;
+        for (let i = 0; i < layerCount; i++) {
+          const c = LAYER_NAMES[reader.read(5)];
+          if (!c || selected.includes(c)) return null;
+          selected.push(c);
+        }
       }
-      const [nameLength] = take(1);
-      name = decoder.decode(take(nameLength)).trim().slice(0, 16);
-      if ((b.length - i) % 2) return null;
-      note = fromUtf16(take(b.length - i)).trim().slice(0, MAX_NOTE);
-    } else name = decoder.decode(take(b.length - i)).trim().slice(0, 16);
-    return { plan: { name, ops, strategy: ST_BY_NO.get(b[1] - 1)?.name ?? '', note, layers: cleanLayers(layers) }, missing };
+      if (!selected.length) return null;
+      const width = reader.read(4) + 1;
+      if (width > 14) return null;
+      for (const c of selected) {
+        const value = reader.read(width);
+        if (!value || value > MAX_LAYERS) return null;
+        layers[c] = value;
+      }
+    }
+    const text = readShareText(reader, nameLength + noteLength, mode);
+    return { plan: { name: text.slice(0, nameLength), note: text.slice(nameLength), ops, layers, strategy: ST_BY_NO.get(strategyNo)?.name ?? '' } };
   } catch { return null; }
 }
 
-export const shareUrl = (code: string): string => `${location.origin}${location.pathname}#p=${code}`;
+/** 链接的 #p= 已标明用途，省去只用于识别独立分享码的 WS 前缀。 */
+export const shareUrl = (code: string): string => `${location.origin}${location.pathname}#p=${code.slice(CODE_PREFIX.length)}`;
+
 
 /* ---------- 本地存档 ---------- */
 
