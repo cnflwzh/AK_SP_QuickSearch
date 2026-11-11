@@ -1,15 +1,29 @@
 {
   "name": "weishu-quickref",
   "private": true,
-  "description": "明日方舟 卫戍协议·规程 局内速查与图解教程（纯静态，无构建步骤）",
+  "description": "明日方舟 卫戍协议·规程 局内速查与图解教程",
   "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "typecheck": "vue-tsc --noEmit",
+    "build": "npm run typecheck && vite build",
+    "preview": "vite preview --host 127.0.0.1",
     "pinyin": "node scripts/gen_pinyin.mjs",
-    "sw": "python scripts/build_sw.py",
-    "build": "python scripts/build.py"
+    "sw": "node scripts/build-sw.mjs"
   },
   "devDependencies": {
-    "pinyin-pro": "3.29.5"
+    "@types/node": "26.6.6",
+    "@vitejs/plugin-vue": "6.0.10",
+    "pinyin-pro": "3.29.5",
+    "typescript": "6.0.3",
+    "vite": "8.3.8",
+    "vue-tsc": "3.3.14"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "dependencies": {
+    "vue": "3.5.45"
   }
 }

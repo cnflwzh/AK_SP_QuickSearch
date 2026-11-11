@@ -1,0 +1,15 @@
+<script setup lang="ts">
+import type { Operator } from '../../../data/index.ts';
+import { avatarSrc } from '../../lib/assets.ts';
+import { color } from '../format.ts';
+import { useQuickrefActions } from '../state.ts';
+withDefaults(defineProps<{ operator: Operator; extraClass?: string }>(), { extraClass: '' });
+const actions = useQuickrefActions();
+const blank = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+</script>
+<template>
+  <button type="button" :class="['tile', extraClass]" :data-key="`op:${operator.name}`" :data-t="operator.tier" :data-op="operator.name" @click="actions.openDetail('op', operator.name)">
+    <img v-if="avatarSrc(operator.name)" class="" :src="avatarSrc(operator.name)" alt="" width="80" height="80" loading="lazy" decoding="async"><img v-else alt="" :src="blank">
+    <span>{{ operator.name }}</span><span class="dots"><u v-for="name in operator.covenants" :key="name" :style="{ '--c': color(name) }"></u></span>
+  </button>
+</template>

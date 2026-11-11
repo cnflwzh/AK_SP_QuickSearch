@@ -31,22 +31,8 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Set up Python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: '3.13'
+      - name: Install locked dependencies
+        run: npm ci
 
-      - name: Check JavaScript and Python syntax
-        shell: bash
-        run: |
-          while IFS= read -r -d '' file; do
-            node --check "$file"
-          done < <(git ls-files -z '*.js' '*.mjs')
-          python -m compileall -q scripts
-
-      - name: Build static site
-        run: python scripts/build.py
-
-      - name: Verify generated files are current
-        # HTML module preloads and the offline cache version must match the source.
-        run: git diff --exit-code -- index.html guide.html sw.js
+      - name: Typecheck and build site
+        run: npm run build
