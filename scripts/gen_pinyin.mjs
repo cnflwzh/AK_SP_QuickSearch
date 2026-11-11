@@ -11,7 +11,7 @@
 import { writeFileSync } from 'node:fs';
 import { pinyin } from 'pinyin-pro';
 import {
-  OPERATORS, EQUIPMENT, STRATEGIES, ALL_COVENANTS, BUILD_NAMES,
+  OPERATORS, EQUIPMENT, STRATEGIES, ALL_COVENANTS, BUILD_NAMES, LEADERS,
 } from '../data/index.ts';
 
 const OVERRIDES = {
@@ -25,6 +25,7 @@ const names = [...new Set([
   ...EQUIPMENT.map(e => e.name),
   ...STRATEGIES.map(s => s.name),
   ...BUILD_NAMES,
+  ...LEADERS.map(l => l.name),
 ])];
 
 const HAN = /\p{Script=Han}/u;

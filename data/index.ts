@@ -2,12 +2,13 @@
  * 数据入口：重新导出各数据表，并提供按名称查找、按盟约筛选等常用索引。
  * 页面代码只从这里 import，不直接引用单个数据文件。
  */
-import type { Build, BuildField, Equipment, Operator, Strategy } from './types.ts';
+import type { Build, BuildField, Equipment, Leader, Operator, Strategy } from './types.ts';
 import { OPERATORS } from './operators.ts';
 import { EQUIPMENT } from './equipment.ts';
 import { STRATEGIES } from './strategies.ts';
 import { COVENANTS, CORE_COVENANTS, ADDON_COVENANTS } from './covenants.ts';
 import { CORE_BUILDS, MIXED_BUILDS } from './builds.ts';
+import { LEADERS } from './leaders.ts';
 
 export * from './operators.ts';
 export * from './equipment.ts';
@@ -15,6 +16,7 @@ export * from './strategies.ts';
 export * from './covenants.ts';
 export * from './builds.ts';
 export * from './rules.ts';
+export * from './leaders.ts';
 export type * from './types.ts';
 
 const byName = <T extends { readonly name: string }>(list: readonly T[]): Readonly<Record<string, T>> =>
@@ -24,6 +26,7 @@ const byName = <T extends { readonly name: string }>(list: readonly T[]): Readon
 export const OPERATOR: Readonly<Record<string, Operator>> = byName(OPERATORS);
 export const EQUIP: Readonly<Record<string, Equipment>> = byName(EQUIPMENT);
 export const STRATEGY: Readonly<Record<string, Strategy>> = byName(STRATEGIES);
+export const LEADER: Readonly<Record<string, Leader>> = byName(LEADERS);
 
 /** 全部盟约名，核心在前 */
 export const ALL_COVENANTS: readonly string[] = [...CORE_COVENANTS, ...ADDON_COVENANTS];

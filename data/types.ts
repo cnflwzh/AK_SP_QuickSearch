@@ -105,10 +105,109 @@ export interface SoloLevel {
   readonly note: string;
 }
 
+/** 领袖能力的一条；skill 为技能名（无名的被动能力省略）。text 写法见 data/leaders.ts 开头。 */
+export interface LeaderAbility {
+  readonly skill?: string;
+  readonly text: string;
+}
+
+/** 伤害与损伤类型，速查卡片按类型上色 */
+export type LeaderDamage = '物理' | '法术' | '真实' | '侵蚀' | '凋亡' | '神经';
+
 export interface Leader {
   readonly name: string;
+  /** 敌人 ID，也是 public/assets/img/leaders/ 下的图片文件名 */
+  readonly id: string;
+  readonly damage: readonly LeaderDamage[];
   readonly hp: readonly [standard: number, danger: number, desperate: number, ultimate: number];
   readonly hiddenCore: readonly [danger: number, desperate: number, ultimate: number] | null;
+  readonly abilities: readonly LeaderAbility[];
+  /** 隐秘核心回合的变化；没有隐秘核心为空数组 */
+  readonly hiddenAbilities: readonly LeaderAbility[];
+  /** 领袖回合的关卡：领袖位置、巡逻路线与特殊随行敌人 */
+  readonly stage: LeaderStage;
+  /** 隐秘核心回合的关卡；没有隐秘核心为 null */
+  readonly hiddenStage: LeaderStage | null;
+  readonly counters: readonly LeaderCounter[];
+  /** 我方干员站位示意 */
+  readonly layout: LeaderLayout;
+  /** 隐秘核心回合的站位；null = 沿用 layout */
+  readonly hiddenLayout: LeaderLayout | null;
+}
+
+/**
+ * 站位示意里的干员职能：坦 阻挡 / 承伤　输 主输出　疗 治疗　空 对空 / 远程　群 群攻
+ * 卫戍协议里远程干员也能放近战位，领袖图左半场 7×4 格都可部署。
+ */
+export type OpRole = '坦' | '输' | '疗' | '空' | '群';
+export interface OpSlot {
+  readonly role: OpRole;
+  readonly at: MapPos;
+  /** 关键条件，如「攻击最高」「防御最高」「阻挡≥3」 */
+  readonly mark?: string;
+}
+
+/**
+ * 危险区：rect 矩形（at 为左上角）、cross 十字 5 格、col 整列、line 折线（巡逻 / 冲锋 / 连结）
+ * tone：red 领袖本体，hc 隐秘核心或部件
+ */
+export type ZoneShape =
+  | { readonly kind: 'rect'; readonly at: MapPos; readonly w: number; readonly h: number }
+  | { readonly kind: 'cross'; readonly at: MapPos }
+  | { readonly kind: 'col'; readonly x: number }
+  | { readonly kind: 'line'; readonly path: readonly MapPos[] };
+export interface LayoutZone {
+  readonly shape: ZoneShape;
+  readonly label: string;
+  readonly tone?: 'red' | 'hc';
+}
+
+export interface LeaderLayout {
+  readonly slots: readonly OpSlot[];
+  readonly zones: readonly LayoutZone[];
+}
+
+/** 领袖关卡地图上的坐标：[列, 行]，行从上往下数（关卡文件的 row 自下往上，已换算） */
+export type MapPos = readonly [x: number, y: number];
+
+/**
+ * 地图标记。
+ * boss  领袖本体   part  领袖的部件 / 同场首领（剑与锤、碎铳之簧、弦）   unit  走特殊路线的随行敌人
+ * path  从 at 出发依次经过的点；loop 为 true 时循环巡逻
+ */
+export interface StageMark {
+  readonly name: string;
+  readonly kind: 'boss' | 'part' | 'unit';
+  readonly at: MapPos;
+  readonly path?: readonly MapPos[];
+  readonly loop?: boolean;
+}
+
+/** 随行敌人（每局都有的萨卡兹枯朽前锋与妖怪写在 LEADER_MAP.common） */
+export interface StageEscort {
+  readonly name: string;
+  readonly count: number;
+  readonly fly?: boolean;
+  /** 能力摘要，写法同 LeaderAbility.text */
+  readonly note?: string;
+}
+
+export interface LeaderStage {
+  readonly marks: readonly StageMark[];
+  readonly escorts: readonly StageEscort[];
+}
+
+/**
+ * 对策：由能力描述、随行敌人与路线推导。
+ * tag  分散 / 阻挡 / 集火 / 法抗 / 对空 / 限时 / 避让 / 续航 / 控制
+ * by   依据的技能或单位
+ */
+export type CounterTag = '分散' | '阻挡' | '集火' | '法抗' | '对空' | '限时' | '避让' | '续航' | '控制';
+export interface LeaderCounter {
+  readonly tag: CounterTag;
+  readonly text: string;
+  readonly by: string;
+  readonly hidden?: boolean;
 }
 
 export interface TrainingType {

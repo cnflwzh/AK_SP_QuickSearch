@@ -45,7 +45,7 @@ export function leaderHp(mode: number) {
     out.ldr = LEADERS.slice().sort((a, b) => b.hp[mode] - a.hp[mode]).map(l => {
       const hp = l.hp[mode];
       const hidden = hiddenOf(l);
-      return html`<span class="nm" data-key="name:${l.name}">${l.name}</span>
+      return html`<span class="nm" data-key="name:${l.name}" data-ld="${l.name}">${l.name}</span>
         <div class="tr" data-key="hp:${l.name}">
           ${hidden ? `<div class="h" data-key="hidden" style="width:${hidden / max * 100}%"></div>` : ''}
           <div class="m" data-key="main" style="width:${hp / max * 100}%"></div>

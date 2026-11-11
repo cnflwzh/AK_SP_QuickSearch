@@ -12,14 +12,14 @@ import type { LicenseEntry, UploaderSource, WikiSource } from './types.ts';
  * FURTHER_READING  同 UPLOADERS，列出值得一看但未直接取用内容的攻略
  */
 
-export const ABOUT_VERSION = 2;
+export const ABOUT_VERSION = 3;
 
 /** 开源仓库地址，填写后弹窗里会出现「反馈 / 源码」链接 */
 export const REPO_URL = 'https://github.com/cnflwzh/AK_SP_QuickSearch';
 
 export const PURPOSE: readonly string[] = [
   '玩家自制的《明日方舟》卫戍协议·规程攻略工具。',
-  '速查页把干员、盟约、装备、策略、流派整理成对局中横屏小窗也能快速翻的卡片；图解教程从入门讲到流派。',
+  '速查页把干员、盟约、装备、策略、领袖、流派整理成对局中横屏小窗也能快速翻的卡片；图解教程从入门讲到流派。',
   '免费、开源，可安装为离线应用。',
 ];
 
@@ -27,13 +27,40 @@ export const WIKIS: readonly WikiSource[] = [
   {
     name: 'ArknightsGameData', page: '规程 V3_1 · 2026-11-11',
     url: 'https://github.com/Kengxxiao/ArknightsGameData/blob/master/zh_CN/gamedata/excel/activity_table.json',
-    used: '招募价格、练度、各模式升级费用与栏位、回合配置、基础认证；关卡文件核对作战时限',
+    used: '招募价格、练度、各模式升级费用与栏位、回合配置、基础认证；关卡文件核对作战时限；领袖名单与隐秘核心形态',
+  },
+  {
+    name: 'ArknightsGameData', page: 'enemy_handbook_table · 2026-11-11',
+    url: 'https://github.com/Kengxxiao/ArknightsGameData/blob/master/zh_CN/gamedata/excel/enemy_handbook_table.json',
+    used: '领袖、隐秘核心与随行敌人的能力描述（精简措辞）',
+  },
+  {
+    name: 'ArknightsGameData', page: 'levels/activities/act3autochess · 2026-11-11',
+    url: 'https://github.com/Kengxxiao/ArknightsGameData/tree/master/zh_CN/gamedata/levels/activities/act3autochess',
+    used: '领袖回合与隐秘核心回合的地图、领袖位置与巡逻路线、随行敌人与数量',
+  },
+  {
+    name: 'ArknightsGameData', page: 'levels/enemydata/enemy_database · 2026-11-11',
+    url: 'https://github.com/Kengxxiao/ArknightsGameData/blob/master/zh_CN/gamedata/levels/enemydata/enemy_database.json',
+    used: '领袖技能参数（减伤阈值、伪装闪避、环波与践踏半径、占用阻挡数），站位图危险区尺寸',
+  },
+  {
+    name: 'PRTS',
+    page: '“萨米的意志”',
+    url: 'https://prts.wiki/w/%E2%80%9C%E8%90%A8%E7%B1%B3%E7%9A%84%E6%84%8F%E5%BF%97%E2%80%9D',
+    used: '【冰凌】按列纵向判定',
   },
   {
     name: 'PRTS',
     page: '卫戍协议·规程',
     url: 'https://prts.wiki/w/%E5%8D%AB%E6%88%8D%E5%8D%8F%E8%AE%AE%C2%B7%E8%A7%84%E7%A8%8B',
     used: '赛季规则、规程等级与难度、模式',
+  },
+  {
+    name: 'PRTS',
+    page: '敌人一览 · 头像_敌人',
+    url: 'https://prts.wiki/w/%E6%95%8C%E4%BA%BA%E4%B8%80%E8%A7%88',
+    used: '领袖头像',
   },
   {
     name: 'PRTS',

@@ -1,18 +1,19 @@
 /**
- * 速览卡片：干员 / 盟约 / 装备 / 策略的小卡片。
+ * 速览卡片：干员 / 盟约 / 装备 / 策略 / 领袖的小卡片。
  *   - 鼠标：停留片刻显示，移开收起
  *   - 触屏：长按显示，松手后卡片保留，下一次点按任意位置收起；
  *     短按照常打开详情 / 跳转，滑动会取消长按
- *   - 识别规则见 resolve()：带 data-op / data-eq / data-st / data-cv 的元素，
+ *   - 识别规则见 resolve()：带 data-op / data-eq / data-st / data-ld / data-cv 的元素，
  *     以及文字恰好是盟约名的 .cv 标签和效果文本里的 【盟约】（em.c）
  *   - 卡片用 popover 放进顶层，详情弹窗里的芯片也能正常显示
  * 两个页面共用，只依赖 data/。
  */
 import {
-  OPERATOR, EQUIP, STRATEGY, COVENANTS, TIER_LABELS, TIER_STATS, covenantColor, isCoreCovenant, rosterOf,
+  OPERATOR, EQUIP, STRATEGY, LEADER, COVENANTS, MODES, TIER_LABELS, TIER_STATS, covenantColor, isCoreCovenant, rosterOf,
 } from '../../data/index.ts';
-import { esc, html } from './dom.ts';
-import { avatarSrc, equipIconSrc, portraitSrc } from './assets.ts';
+import { esc, html, wan } from './dom.ts';
+import { avatarSrc, equipIconSrc, leaderSrc, portraitSrc } from './assets.ts';
+import { abilityLabel, damageClass, leaderFx } from './leader.ts';
 
 const SHOW_DELAY = 280;      // 停留多久后显示（毫秒）
 const SWITCH_DELAY = 60;     // 已有卡片时切换到另一个目标
@@ -102,9 +103,25 @@ function strategyCard(name: string): string {
   ${row(esc(s.skill), fx(s.effect))}`;
 }
 
+/** 领袖：四档生命值、能力，隐秘核心另起一段 */
+function leaderCard(name: string): string {
+  const l = LEADER[name];
+  return html`<div class="pk-h pk-ldh">
+    ${picture(leaderSrc(name), 'l')}
+    <div>
+      <div class="pk-meta"><span>领袖</span>${l.damage.map(d => `<i class="ldt ${damageClass(d)}">${d}</i>`)}</div>
+      <b class="pk-name">${esc(name)}</b>
+    </div>
+  </div>
+  <div class="pk-hp">${MODES.map((mode, i) => `<span><i>${mode}</i><b>${wan(l.hp[i])}</b></span>`)}</div>
+  ${l.abilities.map(a => row(esc(abilityLabel(a.skill)), leaderFx(a.text)))}
+  ${l.hiddenAbilities.length > 0 && html`<div class="pk-hc">隐秘核心${l.hiddenCore && ` · 险境 ${wan(l.hiddenCore[0])} 起`}</div>
+    ${l.hiddenAbilities.map(a => row(esc(abilityLabel(a.skill, true)), leaderFx(a.text), true))}`}`;
+}
+
 /* ---------- 识别目标 ---------- */
 
-const TARGET = '[data-op],[data-eq],[data-st],[data-cv],.cv,em.c';
+const TARGET = '[data-op],[data-eq],[data-st],[data-ld],[data-cv],.cv,em.c';
 
 /** 元素 → [卡片 HTML 生成函数, 名称]；不是可速览的目标时返回 null */
 type CardContent = [render: (name: string) => string, name: string];
@@ -113,6 +130,7 @@ function resolve(el: HTMLElement): CardContent | null {
   if (d.op) return OPERATOR[d.op] ? [operatorCard, d.op] : null;
   if (d.eq) return EQUIP[d.eq] ? [equipmentCard, d.eq] : null;
   if (d.st) return STRATEGY[d.st] ? [strategyCard, d.st] : null;
+  if (d.ld) return LEADER[d.ld] ? [leaderCard, d.ld] : null;
   const name = d.cv || (el.textContent || '').trim();
   return COVENANTS[name] ? [covenantCard, name] : null;
 }
