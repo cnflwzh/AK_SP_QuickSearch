@@ -6,7 +6,7 @@ import { OPERATOR, STRATEGY, TIER_LABELS, covenantColor } from '../../data/index
 import { avatarSrc, equipIconSrc, portraitSrc } from './assets.ts';
 import { covenantStats, planCost, type Plan } from './planner.ts';
 
-const W = 720, PAD = 24, CELL = 84, NOTE_LINE = 20, ALT = 20;
+const BASE_WIDTH = 720, PAD = 24, CELL = 84, NOTE_LINE = 20, ALT = 20;
 /** 二维码每个模块至少 2 像素（导出时 ×2 = 4 物理像素），码长时整体放大 */
 const QR_MIN = 168, QR_MODULE = 2;
 const TIER = ['#7a8b88', '#434343', '#626654', '#445760', '#615B74', '#6C5E41', '#5d341e'];
@@ -17,7 +17,11 @@ function load(src: string): Promise<HTMLImageElement | null> {
   return new Promise(resolve => {
     if (!src) return resolve(null);
     const img = new Image();
-    img.onload = () => resolve(img); img.onerror = () => resolve(null);
+    const finish = (value: HTMLImageElement | null): void => {
+      clearTimeout(timer); img.onload = null; img.onerror = null; resolve(value);
+    };
+    const timer = setTimeout(() => finish(null), 8000);
+    img.onload = () => finish(img); img.onerror = () => finish(null);
     img.src = src;
   });
 }
@@ -43,11 +47,31 @@ export async function planImage(plan: Plan, link: string): Promise<Blob | null> 
   const { default: qrcode } = await import('qrcode-generator');
   const qr = qrcode(0, 'M'); qr.addData(link); qr.make();
   const QR = Math.max(QR_MIN, qr.getModuleCount() * QR_MODULE + 16);
+  const st = STRATEGY[plan.strategy];
+  const cache = new Map<string, Promise<HTMLImageElement | null>>();
+  const asset = (src: string): Promise<HTMLImageElement | null> => {
+    if (!cache.has(src)) cache.set(src, load(src));
+    return cache.get(src)!;
+  };
+  // 所有导出素材同时加载，同一个头像只请求一次。
+  const [images, eqImages, altImages, strategyImage] = await Promise.all([
+    Promise.all(plan.ops.map(o => asset(avatarSrc(o.name)))),
+    Promise.all(plan.ops.map(o => Promise.all(o.eq.map(e => asset(equipIconSrc(e)))))),
+    Promise.all(plan.ops.map(o => Promise.all(o.alt.map(a => asset(avatarSrc(a)))))),
+    st ? asset(portraitSrc(st.name)) : Promise.resolve(null),
+  ]);
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
+  const cellsOf = (s: typeof stats[number]): number => Math.max(s.count, s.bonusNeed && !s.bonusElite ? s.bonusNeed : 0, s.need);
+  const tagOf = (s: typeof stats[number]): string => (s.broken ? '失效' : s.bonusActive ? '强化' : s.active ? '激活' : `差 ${s.next}`)
+    + (plan.layers[s.name] ? ` · ${plan.layers[s.name]} 层` : '');
+  ctx.font = `12px ${FONT}`;
+  const statWidth = Math.max(0, ...stats.map(s => 96 + cellsOf(s) * 26 + 8 + ctx.measureText(tagOf(s)).width));
+  // 长二维码和九格盟约进度同时出现时，为文字保留独立宽度。
+  const W = Math.max(BASE_WIDTH, Math.ceil(PAD * 2 + statWidth + 20 + QR));
   ctx.font = `13px ${FONT}`;
-  const noteLines = plan.note.trim() ? wrap(ctx, plan.note.trim(), W - PAD * 2) : [];
+  const noteLines = plan.note.trim() ? wrap(ctx, plan.note.trim(), W - PAD * 2 - 10) : [];
   const hasAlt = plan.ops.some(o => o.alt.length);
   /** 盟约区（和二维码）的起点：标题 44 + 干员 102（+ 备选 26）+ 策略 40 + 说明 */
   const SECTION = PAD + 26 + 18 + CELL + 18 + (hasAlt ? ALT + 6 : 0) + 40 + (noteLines.length ? noteLines.length * NOTE_LINE + 14 : 0);
@@ -69,9 +93,6 @@ export async function planImage(plan: Plan, link: string): Promise<Blob | null> 
   y += 18;
 
   // 干员
-  const images = await Promise.all(plan.ops.map(o => load(avatarSrc(o.name))));
-  const eqImages = await Promise.all(plan.ops.map(o => Promise.all(o.eq.map(e => load(equipIconSrc(e))))));
-  const altImages = await Promise.all(plan.ops.map(o => Promise.all(o.alt.map(a => load(avatarSrc(a))))));
   plan.ops.forEach((slot, i) => {
     const x = PAD + i * CELL, tier = OPERATOR[slot.name]?.tier ?? 0;
     ctx.fillStyle = TIER[tier]; round(ctx, x, y, 72, 72, 6); ctx.fill();
@@ -111,10 +132,9 @@ export async function planImage(plan: Plan, link: string): Promise<Blob | null> 
   }
 
   // 策略
-  const st = STRATEGY[plan.strategy];
   ctx.font = `13px ${FONT}`;
   if (st) {
-    const p = await load(portraitSrc(st.name));
+    const p = strategyImage;
     if (p) { ctx.save(); round(ctx, PAD, y - 4, 26, 26, 13); ctx.clip(); ctx.drawImage(p, PAD, y - 4, 26, 26); ctx.restore(); }
     ctx.fillStyle = INK; ctx.fillText(`策略 · ${st.name}「${st.skill}」`, PAD + 34, y + 14);
   } else { ctx.fillStyle = INK3; ctx.fillText('策略 · 未选', PAD, y + 14); }
@@ -134,7 +154,7 @@ export async function planImage(plan: Plan, link: string): Promise<Blob | null> 
     const c = covenantColor(s.name, TEAL);
     ctx.globalAlpha = s.active ? 1 : .45;
     ctx.fillStyle = c; ctx.font = `700 14px ${FONT}`; ctx.fillText(s.name, PAD, y + 12);
-    const cells = Math.max(s.count, s.bonusNeed && !s.bonusElite ? s.bonusNeed : 0, s.need);
+    const cells = cellsOf(s);
     for (let k = 0; k < cells; k++) {
       const x = PAD + 96 + k * 26;
       ctx.fillStyle = k < s.count ? c : '#e3e9e8';
@@ -142,8 +162,7 @@ export async function planImage(plan: Plan, link: string): Promise<Blob | null> 
       if (k + 1 === s.need || (s.bonusNeed && k + 1 === s.bonusNeed)) { ctx.fillStyle = INK; ctx.fillRect(x + 23, y - 2, 2, 20); }
     }
     ctx.fillStyle = INK3; ctx.font = `12px ${FONT}`;
-    const layers = plan.layers[s.name] ? ` · ${plan.layers[s.name]} 层` : '';
-    const tag = (s.broken ? '失效' : s.bonusActive ? '强化' : s.active ? '激活' : `差 ${s.next}`) + layers;
+    const tag = tagOf(s);
     ctx.fillText(tag, PAD + 96 + cells * 26 + 8, y + 12);
     ctx.globalAlpha = 1;
     y += 26;

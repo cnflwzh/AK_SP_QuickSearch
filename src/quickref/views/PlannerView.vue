@@ -10,7 +10,6 @@ import {
   LAYER_SLIDER, MAX_ALT, MAX_EQ, MAX_LAYERS, MAX_NOTE, MAX_OPS, alternatesFor, usesLayers, atLayers, blankPlan, newSlot, covenantStats, decodePlan, encodePlan, equipNotes, loadCurrent, loadPlans,
   newId, planCost, saveCurrent, savePlans, shareUrl, suggestions, type Decoded, type Plan, type PlanOp,
 } from '../../lib/planner.ts';
-import { planImage } from '../../lib/planImage.ts';
 import { color, fx } from '../format.ts';
 import Segmented from '../components/Segmented.vue';
 import PlanCovenants from '../components/PlanCovenants.vue';
@@ -25,12 +24,24 @@ const plans = reactive<Plan[]>(loadPlans());
 if (!plans.length) plans.push(blankPlan('我的阵容'));
 const currentId = ref(plans.some(p => p.id === loadCurrent()) ? loadCurrent() : plans[0].id);
 const plan = computed(() => plans.find(p => p.id === currentId.value) ?? plans[0]);
-watch(plans, list => savePlans(list), { deep: true });
-watch(currentId, id => { saveCurrent(id); editing.value = -1; });
+const saveError = ref(false);
+let saveTimer: ReturnType<typeof setTimeout> | undefined;
+let dirty = false;
+function flushSave(): void {
+  clearTimeout(saveTimer); saveTimer = undefined;
+  if (!dirty) return;
+  const saved = savePlans(plans); saveError.value = !saved; dirty = !saved;
+}
+function scheduleSave(): void {
+  dirty = true; clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 250);
+}
+// 只深度监听当前方案；连续输入合并写入，离页和卸载时立即落盘。
+watch(plan, scheduleSave, { deep: true });
+watch(currentId, id => { saveCurrent(id); editing.value = -1; picking.value = ''; });
 const touch = (): void => { plan.value.updated = Date.now(); };
 function addPlan(next: Plan): void { plans.unshift(next); currentId.value = next.id; }
 function newPlan(): void { addPlan(blankPlan(`阵容 ${plans.length + 1}`)); }
-function copyPlan(): void { addPlan({ ...JSON.parse(JSON.stringify(plan.value)) as Plan, id: newId(), name: plan.value.name + ' 副本', updated: Date.now() }); }
+function copyPlan(): void { addPlan({ ...JSON.parse(JSON.stringify(plan.value)) as Plan, id: newId(), name: plan.value.name.slice(0, 13) + ' 副本', updated: Date.now() }); }
 function removePlan(): void {
   if (!confirm(`删除「${plan.value.name}」？`)) return;
   plans.splice(plans.indexOf(plan.value), 1);
@@ -56,7 +67,11 @@ const slot = computed<PlanOp | undefined>(() => ops.value[editing.value]);
 function toggle(name: string): void {
   if (picking.value === 'alt') return addAlt(name);
   const i = ops.value.findIndex(o => o.name === name);
-  if (i >= 0) { ops.value.splice(i, 1); if (editing.value >= ops.value.length) editing.value = -1; }
+  if (i >= 0) {
+    ops.value.splice(i, 1);
+    if (editing.value === i) { editing.value = -1; picking.value = ''; }
+    else if (editing.value > i) editing.value--;
+  }
   else if (ops.value.length < MAX_OPS) ops.value.push(newSlot(name));
   touch();
 }
@@ -66,7 +81,7 @@ function move(d: number): void {
   [ops.value[i], ops.value[j]] = [ops.value[j], ops.value[i]];
   editing.value = j; touch();
 }
-function removeSlot(): void { ops.value.splice(editing.value, 1); editing.value = -1; touch(); }
+function removeSlot(): void { ops.value.splice(editing.value, 1); editing.value = -1; picking.value = ''; touch(); }
 const picking = ref<'' | 'eq' | 'st' | 'alt'>('');
 function addEquip(name: string): void {
   if (!slot.value) return;
@@ -79,7 +94,7 @@ function dropEquip(i: number): void { slot.value?.eq.splice(i, 1); touch(); }
 const altSuggest = computed(() => slot.value ? alternatesFor(slot.value, ops.value) : []);
 function addAlt(name: string): void {
   const s = slot.value;
-  if (!s || name === s.name || s.alt.includes(name) || inPlan.value.has(name)) return;
+  if (!s || s.alt.length >= MAX_ALT || name === s.name || s.alt.includes(name) || inPlan.value.has(name)) return;
   s.alt.push(name);
   if (s.alt.length >= MAX_ALT) picking.value = '';
   touch();
@@ -138,16 +153,22 @@ async function copy(text: string, what: string): Promise<void> {
   setTimeout(() => { if (copied.value === what) copied.value = ''; }, 1500);
 }
 const imageBusy = ref(false);
+const imageError = ref('');
 async function saveImage(): Promise<void> {
-  imageBusy.value = true;
+  if (imageBusy.value) return;
+  imageBusy.value = true; imageError.value = '';
+  // 导出期间继续编辑或切换方案，也保持图片、二维码和文件名来自同一份快照。
+  const snapshot: Plan = JSON.parse(JSON.stringify(plan.value));
   try {
-    const blob = await planImage(plan.value, link.value);
-    if (!blob) return;
+    const { planImage } = await import('../../lib/planImage.ts');
+    const blob = await planImage(snapshot, shareUrl(encodePlan(snapshot)));
+    if (!blob) throw new Error('Image export failed');
     // 直接保存到本地，不弹系统分享
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = `${plan.value.name || '阵容'}.png`; a.click();
+    a.href = URL.createObjectURL(blob); a.download = `${snapshot.name || '阵容'}.png`; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-  } finally { imageBusy.value = false; }
+  } catch { imageError.value = '图片生成失败，请重试或复制分享链接。'; }
+  finally { imageBusy.value = false; }
 }
 const importText = ref('');
 const imported = computed<Decoded | null>(() => importText.value.trim() ? decodePlan(importText.value) : null);
@@ -177,8 +198,15 @@ function readHash(): void {
   history.replaceState(null, '', location.pathname + location.search);
   window.scrollTo({ top: 0 });
 }
-onMounted(() => { readHash(); window.addEventListener('hashchange', readHash); });
-onUnmounted(() => window.removeEventListener('hashchange', readHash));
+function leavingPage(): void { if (document.visibilityState === 'hidden') flushSave(); }
+onMounted(() => {
+  readHash(); window.addEventListener('hashchange', readHash);
+  window.addEventListener('pagehide', flushSave); document.addEventListener('visibilitychange', leavingPage);
+});
+onUnmounted(() => {
+  flushSave(); window.removeEventListener('hashchange', readHash);
+  window.removeEventListener('pagehide', flushSave); document.removeEventListener('visibilitychange', leavingPage);
+});
 </script>
 <template>
   <div class="pl">
@@ -198,12 +226,16 @@ onUnmounted(() => window.removeEventListener('hashchange', readHash));
       </span>
     </div>
 
+    <p v-if="saveError" class="pl-warn" role="status">本地保存失败，请先复制分享码保留方案。</p>
+
     <!-- 分享 -->
     <section v-if="panel === 'share'" class="pl-panel">
       <div class="pl-code"><span class="k">分享码</span><code>{{ code }}</code><button type="button" @click="copy(code, 'code')">{{ copied === 'code' ? '已复制' : '复制' }}</button></div>
       <div class="pl-code"><span class="k">链接</span><code>{{ link }}</code><button type="button" @click="copy(link, 'link')">{{ copied === 'link' ? '已复制' : '复制' }}</button></div>
       <div class="pl-code"><span class="k">图片</span><span class="hint">干员、装备、盟约，附二维码，扫码即导入</span><button type="button" :disabled="imageBusy || !ops.length" @click="saveImage">{{ imageBusy ? '生成中…' : '生成图片' }}</button></div>
     </section>
+
+    <p v-if="imageError && panel === 'share'" class="pl-warn" role="status">{{ imageError }}</p>
 
     <!-- 导入 -->
     <section v-if="panel === 'import'" class="pl-panel">

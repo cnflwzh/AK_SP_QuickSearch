@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, provide, ref } from 'vue';
+import { computed, defineAsyncComponent, h, nextTick, onMounted, onUnmounted, provide, ref } from 'vue';
 import { ALL_COVENANTS, OPERATORS, EQUIPMENT, STRATEGIES, LEADERS, BUILD_COUNT, OPERATOR, EQUIP, STRATEGY } from '../../data/index.ts';
 import { prefersReducedMotion } from '../lib/dom.ts';
 import { state, setTab, setBuild, setCovenant, setLeader, quickrefActionsKey, type DetailKind, type DetailSelection, type TabId } from './state.ts';
@@ -8,9 +8,15 @@ import CatalogView from './views/CatalogView.vue';
 import BuildsView from './views/BuildsView.vue';
 import LeadersView from './views/LeadersView.vue';
 import NumbersView from './views/NumbersView.vue';
-import PlannerView from './views/PlannerView.vue';
 import SearchView from './views/SearchView.vue';
 import DetailSheet from './components/DetailSheet.vue';
+const PlannerView = defineAsyncComponent({
+  loader: () => import('./views/PlannerView.vue'),
+  loadingComponent: { render: () => h('div', { class: 'empty', role: 'status' }, '正在加载规划器…') },
+  errorComponent: { render: () => h('div', { class: 'empty', role: 'alert' }, [
+    '规划器加载失败。', h('button', { type: 'button', onClick: () => location.reload() }, '重新加载'),
+  ]) },
+});
 const tabs: { id: TabId; label: string; count: number | '' }[] = [
   { id: 'cv', label: '盟约', count: ALL_COVENANTS.length }, { id: 'op', label: '干员', count: OPERATORS.length },
   { id: 'eq', label: '装备', count: EQUIPMENT.length }, { id: 'st', label: '策略', count: STRATEGIES.length },
@@ -71,12 +77,16 @@ async function pickCovenant(name: string): Promise<void> {
 provide(quickrefActionsKey, { openDetail, closeDetail, openCovenant, openBuild, openLeader, pickCovenant });
 function clearAndFocus(): void { clearSearch(); searchInput.value?.focus(); }
 function keydown(event: KeyboardEvent): void {
+  // 规划器包含方案名、搜索框和长说明，输入时让 / 保留为普通字符。
+  const target = event.target;
+  if (event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
+  if (target instanceof HTMLElement && (target.isContentEditable || target.closest('input, textarea, select')) && target !== searchInput.value) return;
   if (event.key === '/' && document.activeElement !== searchInput.value && !detail.value) { event.preventDefault(); searchInput.value?.focus(); searchInput.value?.select(); }
   else if (event.key === 'Escape' && document.activeElement === searchInput.value && query.value) clearSearch();
 }
 function outsidePicker(event: MouseEvent): void { if (state.pickerOpen && event.target instanceof Element && !event.target.closest('#cvside')) state.pickerOpen = false; }
 /** 页面已打开时再点分享链接（只改了 #p=）：切到规划页，由 PlannerView 读取分享码 */
-function sharedLink(): void { if (location.hash.startsWith('#p=') && state.tab !== 'pl') { closeDetail(); void show('pl', false); } }
+function sharedLink(): void { if (location.hash.startsWith('#p=')) { closeDetail(); void show('pl', false); } }
 onMounted(() => { document.addEventListener('keydown', keydown); document.addEventListener('click', outsidePicker); window.addEventListener('hashchange', sharedLink); });
 onUnmounted(() => { clearTimeout(searchTimer); document.removeEventListener('keydown', keydown); document.removeEventListener('click', outsidePicker); window.removeEventListener('hashchange', sharedLink); });
 </script>
