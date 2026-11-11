@@ -8,13 +8,14 @@ import CatalogView from './views/CatalogView.vue';
 import BuildsView from './views/BuildsView.vue';
 import LeadersView from './views/LeadersView.vue';
 import NumbersView from './views/NumbersView.vue';
+import PlannerView from './views/PlannerView.vue';
 import SearchView from './views/SearchView.vue';
 import DetailSheet from './components/DetailSheet.vue';
 const tabs: { id: TabId; label: string; count: number | '' }[] = [
   { id: 'cv', label: '盟约', count: ALL_COVENANTS.length }, { id: 'op', label: '干员', count: OPERATORS.length },
   { id: 'eq', label: '装备', count: EQUIPMENT.length }, { id: 'st', label: '策略', count: STRATEGIES.length },
   { id: 'ld', label: '领袖', count: LEADERS.length },
-  { id: 'bd', label: '流派', count: BUILD_COUNT }, { id: 'nu', label: '数值', count: '' },
+  { id: 'bd', label: '流派', count: BUILD_COUNT }, { id: 'pl', label: '规划', count: '' }, { id: 'nu', label: '数值', count: '' },
 ];
 const query = ref('');
 const renderedQuery = ref('');
@@ -74,12 +75,14 @@ function keydown(event: KeyboardEvent): void {
   else if (event.key === 'Escape' && document.activeElement === searchInput.value && query.value) clearSearch();
 }
 function outsidePicker(event: MouseEvent): void { if (state.pickerOpen && event.target instanceof Element && !event.target.closest('#cvside')) state.pickerOpen = false; }
-onMounted(() => { document.addEventListener('keydown', keydown); document.addEventListener('click', outsidePicker); });
-onUnmounted(() => { clearTimeout(searchTimer); document.removeEventListener('keydown', keydown); document.removeEventListener('click', outsidePicker); });
+/** 页面已打开时再点分享链接（只改了 #p=）：切到规划页，由 PlannerView 读取分享码 */
+function sharedLink(): void { if (location.hash.startsWith('#p=') && state.tab !== 'pl') { closeDetail(); void show('pl', false); } }
+onMounted(() => { document.addEventListener('keydown', keydown); document.addEventListener('click', outsidePicker); window.addEventListener('hashchange', sharedLink); });
+onUnmounted(() => { clearTimeout(searchTimer); document.removeEventListener('keydown', keydown); document.removeEventListener('click', outsidePicker); window.removeEventListener('hashchange', sharedLink); });
 </script>
 <template>
   <header class="wrap qhead"><div><h1>卫戍速查<small>卫戍协议·规程</small></h1></div><a class="guide" href="guide.html"><svg viewBox="0 0 72 72" aria-hidden="true"><circle class="ring" cx="36" cy="36" r="26"/><circle class="nd" cx="36" cy="10" r="6"/><circle class="nd" cx="58.5" cy="49" r="6"/><circle class="nd" cx="13.5" cy="49" r="6"/><circle class="mv" r="4"><animateMotion v-if="!prefersReducedMotion" id="gmv" dur="5s" repeatCount="indefinite" path="M36,10 A26,26 0 1 1 35.9,10"/></circle></svg><div><div class="k">GUIDE</div><b>图解教程</b><div class="qsteps"><span><i>01</i>入门</span><span><i>02</i>招募升本</span><span><i>03</i>刷怪</span><span><i>04</i>盟约</span><span><i>05</i>流派</span></div></div><span class="go">▸</span></a></header>
   <div id="qbar" ref="searchBar" :class="['qbar', { searching }]"><div class="wrap"><label id="sbox" :class="['search', { has: searching }]"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="q" ref="searchInput" type="search" :value="query" placeholder="干员 / 装备 / 策略 / 盟约 / 特质，支持拼音" autocomplete="off" aria-label="搜索" @input="search"><kbd>/</kbd><button id="qx" type="button" class="x" aria-label="清空" @click.prevent="clearAndFocus">✕</button></label><div id="tabs" class="tabs" role="tablist"><button v-for="tab in tabs" :key="tab.id" type="button" role="tab" :data-tab="tab.id" :class="{ on: state.tab === tab.id }" @click="show(tab.id, false)">{{ tab.label }}<i v-if="tab.count">{{ tab.count }}</i></button><a class="tlink" href="guide.html">教程 ▸</a></div></div></div>
-  <main id="view" ref="view" class="wrap"><div :key="renderedQuery ? 'search' : state.tab" class="pane" :data-key="renderedQuery ? 'search' : state.tab"><SearchView v-if="renderedQuery" :query="renderedQuery"/><CovenantsView v-else-if="state.tab === 'cv'"/><CatalogView v-else-if="state.tab === 'op' || state.tab === 'eq' || state.tab === 'st'" :kind="state.tab"/><LeadersView v-else-if="state.tab === 'ld'"/><BuildsView v-else-if="state.tab === 'bd'"/><NumbersView v-else/></div></main>
+  <main id="view" ref="view" class="wrap"><div :key="renderedQuery ? 'search' : state.tab" class="pane" :data-key="renderedQuery ? 'search' : state.tab"><SearchView v-if="renderedQuery" :query="renderedQuery"/><CovenantsView v-else-if="state.tab === 'cv'"/><CatalogView v-else-if="state.tab === 'op' || state.tab === 'eq' || state.tab === 'st'" :kind="state.tab"/><LeadersView v-else-if="state.tab === 'ld'"/><BuildsView v-else-if="state.tab === 'bd'"/><PlannerView v-else-if="state.tab === 'pl'"/><NumbersView v-else/></div></main>
   <DetailSheet :selection="detail" @closed="closeDetail"/>
 </template>

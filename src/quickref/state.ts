@@ -1,7 +1,7 @@
 import { inject, reactive, type InjectionKey } from 'vue';
 import { COVENANTS, BUILD_NAMES, LEADER } from '../../data/index.ts';
 
-export const TAB_IDS = ['cv', 'op', 'eq', 'st', 'ld', 'bd', 'nu'] as const;
+export const TAB_IDS = ['cv', 'op', 'eq', 'st', 'ld', 'bd', 'pl', 'nu'] as const;
 export type TabId = typeof TAB_IDS[number];
 export type DetailKind = 'op' | 'eq' | 'st';
 export interface DetailSelection { kind: DetailKind; name: string }
@@ -16,7 +16,9 @@ const store = {
   get(key: string): string | null { try { return localStorage.getItem('wsq.' + key); } catch { return null; } },
   set(key: string, value: string): void { try { localStorage.setItem('wsq.' + key, value); } catch { /* Storage may be unavailable in private browsing. */ } },
 };
-const storedTab = store.get('tab');
+/** 打开分享链接（#p=分享码）时直接进入规划页 */
+const sharedPlan = typeof location !== 'undefined' && location.hash.startsWith('#p=');
+const storedTab = sharedPlan ? 'pl' : store.get('tab');
 const storedCovenant = store.get('cv') || '乌萨斯';
 const storedBuild = store.get('bd') || '乌萨斯';
 const covenant = COVENANTS[storedCovenant] ? storedCovenant : '乌萨斯';
