@@ -1,6 +1,6 @@
 # 卫戍协议·规程 速查
 
-《明日方舟》卫戍协议·规程（序列Ⅰ）的局内速查与图解教程。纯静态网页，无构建步骤，可安装为 PWA 离线使用。
+《明日方舟》卫戍协议·规程（序列Ⅰ）的局内速查与图解教程。纯静态网页，无需前端打包，部署时生成发布目录，可安装为 PWA 离线使用。
 
 - **速查**（`index.html`）：盟约、干员、装备、策略、流派、数值六个标签页与全局搜索，针对横屏小窗优化
 - **图解教程**（`guide.html`）：从入门到流派的六章图解，含调度中心模拟器、盟约数值计算器等交互
@@ -12,7 +12,7 @@
 ├── guide.html              教程页（静态文字 + 图表容器）
 ├── manifest.webmanifest    PWA 清单
 ├── sw.js                   Service Worker（由 scripts/build_sw.py 生成，勿手改）
-├── _headers                Cloudflare Pages 缓存头
+├── _headers                Cloudflare 静态资源缓存头
 ├── LICENSE                 代码许可：GNU AGPL-3.0
 ├── package.json            仅用于生成拼音表（npm run pinyin），网站本身不需要安装依赖
 │
@@ -79,15 +79,18 @@ python -m http.server 8000
 
 特质文本约定：`<进入休整期时>` 这样的尖括号表示触发时机，`【乌萨斯】` 这样的方括号表示盟约名，页面会自动上色；数字会自动加粗。
 
-## 部署（Cloudflare Pages）
+## 部署（Cloudflare Workers 静态资源）
 
-线上地址：<https://sp.enjoyacg.com>。Pages 项目连接本仓库，推送到 `main` 自动构建发布，其他分支和 PR 生成预览地址。
+线上地址：<https://sp.enjoyacg.com>。Workers 项目 `ak-sp-quicksearch` 连接本仓库，推送到 `main` 由 Workers Builds 自动构建发布。配置在 Cloudflare 后台的项目构建设置中维护。
 
 - 构建命令：`python scripts/build.py`（重新生成 `sw.js`，再把网站文件复制到 `dist/`）
-- 输出目录：`dist`
+- 项目根目录：`/`；发布目录：`dist`
+- 部署命令：`npx wrangler@4.160.0 deploy --assets ./dist --name ak-sp-quicksearch --compatibility-date 2026-11-10`
+- `--assets ./dist` 显式指定发布目录；省略时自动识别可能选中仓库根目录，把构建脚本、依赖和嵌套的 `dist/` 一并上传
 - 部署时会自动重新生成 `sw.js`；本地预览离线缓存时仍需手动运行 `python scripts/build_sw.py`
-- `_headers` 已配置：页面、脚本、样式、数据每次向服务器确认新版本，图片长期缓存
-- Cloudflare Pages 会把 `/guide.html` 重定向到 `/guide`，Service Worker 已兼容两种路径
+- `_headers` 已配置：页面、脚本、样式、数据每次向服务器确认新版本；图片长期缓存；带内容哈希的 WOFF2 字体缓存一年
+- Workers 静态资源会把 `/guide.html` 重定向到 `/guide`，Service Worker 已兼容两种路径
+- 自定义域名绑定到该 Worker 的 production 环境；Cloudflare 跳转规则将 `sp.enjoyacg.com` 的 HTTP 请求以 301 跳转到 HTTPS，保留路径和查询参数
 
 ## 代码约定
 
