@@ -53,9 +53,9 @@ export default {
             `<li style="animation-delay:${i * .06}s"><span>${esc(tip)}</span></li>`)}</ol>
         </div>
         <div style="display:grid;gap:12px;align-content:start">
-          ${core && html`<div><h5>推荐附加盟约 · 阵容人数 / 激活人数</h5><div class="row">${build.addons.map(n => html`<span class="row">${cv(n)}<span class="tag">${lineupCovenantCount(build.lineup, n)} / ${COVENANTS[n].need}</span></span>`)}</div></div>`}
-          <div><h5>策略</h5><div class="row">${build.strategies.map(st)}</div></div>
-          <div><h5>装备</h5><div class="row">${build.equipment.map(eq)}</div></div>
+          ${core && html`<div data-key="addons"><h5>推荐附加盟约 · 阵容人数 / 激活人数</h5><div class="row">${build.addons.map(n => html`<span class="row" data-key="${n}">${cv(n)}<span class="tag">${lineupCovenantCount(build.lineup, n)} / ${COVENANTS[n].need}</span></span>`)}</div></div>`}
+          <div data-key="strategies"><h5>策略</h5><div class="row">${build.strategies.map(st)}</div></div>
+          <div data-key="equipment"><h5>装备</h5><div class="row">${build.equipment.map(eq)}</div></div>
         </div>
       </div>
       ${core && layerTable(name, accent)}

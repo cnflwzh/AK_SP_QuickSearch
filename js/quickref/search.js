@@ -23,7 +23,7 @@ function rankBy(list, q, nameOf, textOf = () => '', tieBreak = () => 0) {
 }
 
 const section = (title, count, body) =>
-  html`<div class="sec">${title}<span class="n">${count}</span></div>${body}`;
+  html`<div class="sec" data-key="heading:${title}">${title}<span class="n">${count}</span></div>${body}`;
 
 export function renderSearch(query) {
   const q = normalize(query);
@@ -44,11 +44,11 @@ export function renderSearch(query) {
   // 注意：html`` 会原样输出数字 0，所以条件要写成布尔值
   return html`
     ${covenants.length + builds.length > 0 && section('盟约 / 流派', covenants.length + builds.length,
-      html`<div class="row">${covenants.map(cv)}${builds.map(buildLink)}</div>`)}
+      html`<div class="row" data-key="covenants">${covenants.map(cv)}${builds.map(buildLink)}</div>`)}
     ${operators.length > 0 && section('干员', operators.length,
-      html`<div class="qg">${operators.slice(0, MAX_OPERATORS).map(o => operatorCard(o, false))}</div>`)}
+      html`<div class="qg" data-key="operators">${operators.slice(0, MAX_OPERATORS).map(o => operatorCard(o, false))}</div>`)}
     ${equipment.length > 0 && section('装备', equipment.length,
-      html`<div class="qg">${equipment.map(equipmentCard)}</div>`)}
+      html`<div class="qg" data-key="equipment">${equipment.map(equipmentCard)}</div>`)}
     ${strategies.length > 0 && section('策略', strategies.length,
-      html`<div class="qg">${strategies.map(strategyCard)}</div>`)}`;
+      html`<div class="qg" data-key="strategies">${strategies.map(strategyCard)}</div>`)}`;
 }

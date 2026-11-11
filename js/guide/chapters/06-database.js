@@ -1,6 +1,7 @@
 /** 第 6 章 图鉴：可筛选的干员列表 + 按等阶分列的装备 */
 import { OPERATORS, EQUIPMENT, ALL_COVENANTS, TIERS, TIER_LABELS } from '../../../data/index.js';
 import { $, html } from '../../lib/dom.js';
+import { updateHTML } from '../../lib/update-html.js';
 import { equipIconSrc } from '../../lib/assets.js';
 import { cv, avatar, mountSegmented } from '../chips.js';
 
@@ -26,11 +27,11 @@ function operatorDatabase() {
       && (!query || (o.name + o.covenants.join('/') + o.trait).includes(query)));
 
     $('#dbN').textContent = list.length + ' / ' + OPERATORS.length;
-    $('#dbg').innerHTML = list.map(o => html`<div class="dbc" data-t="${o.tier}">
+    updateHTML($('#dbg'), list.map(o => html`<div class="dbc" data-key="${o.name}" data-t="${o.tier}">
       <div class="t">${avatar(o.name)}<i>${TIER_LABELS[o.tier]}</i><b>${o.name}</b><span class="s">${o.stars ? '★' + o.stars : ''}</span></div>
       <div class="row">${o.covenants.map(cv)}<span class="tag">${o.type}</span></div>
       <div class="tx">${traitHtml(elite ? o.elite : o.trait)}</div>
-    </div>`).join('');
+    </div>`).join(''));
   };
 
   mountSegmented($('#dbTier'), ['全部', ...TIER_LABELS.slice(1)], 0, i => { tier = i; draw(); });

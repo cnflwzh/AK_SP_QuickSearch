@@ -8,7 +8,7 @@ import { fx, cvTag, segmented, tierHeading } from '../chips.js';
 /** 干员卡片（搜索结果也用） */
 export const operatorCard = (operator, showElite) => {
   const { name, tier, covenants, type } = operator;
-  return html`<button type="button" class="oc" data-t="${tier}" data-op="${esc(name)}">
+  return html`<button type="button" class="oc" data-key="op:${esc(name)}" data-t="${tier}" data-op="${esc(name)}">
     <div class="h">${img(avatarSrc(name))}<b>${esc(name)}</b><i class="tn">${TIER_LABELS[tier]}</i></div>
     <div class="row">${covenants.map(cvTag)}<span class="tag">${type}</span></div>
     <div class="tx">${fx(showElite ? operator.elite : operator.trait)}</div>
@@ -29,13 +29,13 @@ export default {
       const group = list.filter(o => o.tier === tier);
       if (!group.length) return '';
       return tierHeading(tier, group.length)
-        + html`<div class="qg">${group.map(o => operatorCard(o, opElite))}</div>`;
+        + html`<div class="qg" data-key="tier:${tier}">${group.map(o => operatorCard(o, opElite))}</div>`;
     }).join('');
 
     const covenantOptions = ALL_COVENANTS.map(c =>
       `<option ${c === opCovenant ? 'selected' : ''}>${c}</option>`);
 
-    return html`<div class="bar">
+    return html`<div class="bar" data-key="filters">
       ${segmented(['全部', ...TIER_LABELS.slice(1)], opTier, 'opt')}
       <select id="opC" aria-label="盟约"><option value="">全部盟约</option>${covenantOptions}</select>
       ${segmented(['初始', '精锐'], opElite ? 1 : 0, 'opel')}

@@ -4,6 +4,7 @@
  */
 import { OPERATORS, OPERATOR, DISPATCH_BY_MODE, operatorPrice, TIER_LABELS, TIERS } from '../../../data/index.js';
 import { $, html } from '../../lib/dom.js';
+import { updateHTML } from '../../lib/update-html.js';
 import { avatar } from '../chips.js';
 
 const BENCH_SIZE = 10;        // 整备区
@@ -22,8 +23,10 @@ const priceOf = name => operatorPrice(OPERATOR[name]);
 const levelInfo = level => DISPATCH_BY_MODE[+$('#dispatchMode').value][level - 1];
 const tierOf = name => OPERATOR[name].tier;
 
-/** 模拟器状态。bench 元素：{ name, elite, pop(刚加入，播放动画) } */
+/** 模拟器状态。bench 元素：{ id(每张牌唯一), name, elite, pop(刚加入，播放动画), sale } */
 const sim = {};
+let cardId = 0;
+let shopRoll = 0;
 
 function reset() {
   Object.assign(sim, {
@@ -35,6 +38,7 @@ function reset() {
 }
 
 function rollShop() {
+  shopRoll++;
   sim.slots = Array.from({ length: levelInfo(sim.level).operatorSlots }, () => randomOperator(sim.level));
 }
 
@@ -49,7 +53,7 @@ function tryMerge(name) {
   const used = copies.slice(0, need);
   sim.bench = sim.bench.filter((_, i) => !used.includes(i));
   // 晋升销毁初始牌并获得一张新的精锐牌。
-  sim.bench.push({ name, elite: true, pop: true, sale: 1 });
+  sim.bench.push({ id: ++cardId, name, elite: true, pop: true, sale: 1 });
 
   const pool = tierPool(Math.min(MAX_LEVEL, sim.level + 1));
   const picks = new Set();
@@ -59,15 +63,15 @@ function tryMerge(name) {
 
 /* ---------- 绘制 ---------- */
 
-const shopCard = (name, i, flip) => html`<div class="slot ${flip ? 'flip' : ''}" data-i="${i}" data-t="${tierOf(name)}" style="animation-delay:${i * .05}s">
+const shopCard = (name, i, flip) => html`<div class="slot ${flip ? 'flip' : ''}" data-key="shop:${shopRoll}:${i}" data-i="${i}" data-t="${tierOf(name)}" style="animation-delay:${i * .05}s">
   ${avatar(name)}<span class="ti">${TIER_LABELS[tierOf(name)]}</span><span>${name}</span><span class="pr">${priceOf(name)} 资金</span>
 </div>`;
 
 const benchCell = (card, i) => {
   const temp = i >= BENCH_SIZE ? 'tmp' : '';
-  if (!card) return `<div class="b x ${temp}"></div>`;
+  if (!card) return `<div class="b x ${temp}" data-key="empty:${i}"></div>`;
   const tier = tierOf(card.name);
-  return html`<div class="b hasava ${temp} ${card.elite ? 'el' : ''} ${card.pop ? 'pop' : ''}" data-j="${i}" data-t="${tier}">
+  return html`<div class="b hasava ${temp} ${card.elite ? 'el' : ''} ${card.pop ? 'pop' : ''}" data-key="card:${card.id}" data-j="${i}" data-t="${tier}">
     ${avatar(card.name)}<i>${TIER_LABELS[tier]}</i>${card.name}${card.elite && '<br>精锐'}
   </div>`;
 };
@@ -87,8 +91,8 @@ function draw(flip) {
   $('#sRound').textContent = sim.round;
   $('#sSpent').textContent = sim.spent;
   $('#sSlots').textContent = info.operatorSlots;
-  $('#sTiers').innerHTML = TIERS.map(t =>
-    `<div data-t="${t}" class="${t <= sim.level ? 'on' : ''}">${TIER_LABELS[t]}</div>`).join('');
+  updateHTML($('#sTiers'), TIERS.map(t =>
+    `<div data-t="${t}" class="${t <= sim.level ? 'on' : ''}">${TIER_LABELS[t]}</div>`).join(''));
 
   const freeze = $('#bFrz');
   freeze.classList.toggle('p', sim.frozen);
@@ -96,25 +100,26 @@ function draw(flip) {
 
   const shop = $('#sShop');
   shop.classList.toggle('frozen', sim.frozen);
-  shop.innerHTML = sim.slots.map((name, i) => name ? shopCard(name, i, flip) : '<div class="slot empty"></div>').join('')
-    + `<div class="slot eqs"><span class="pr">装备栏 ×${info.equipmentSlots}</span></div>`;
+  // 购买、冻结和升级复用其他卡位；主动刷新商店才换一批节点并播放翻牌动画。
+  updateHTML(shop, sim.slots.map((name, i) => name ? shopCard(name, i, flip) : `<div class="slot empty" data-key="shop:${shopRoll}:${i}"></div>`).join('')
+    + `<div class="slot eqs" data-key="equipment"><span class="pr">装备栏 ×${info.equipmentSlots}</span></div>`);
 
-  $('#sBench').innerHTML = Array.from({ length: BENCH_MAX }, (_, i) => benchCell(sim.bench[i], i)).join('');
+  updateHTML($('#sBench'), Array.from({ length: BENCH_MAX }, (_, i) => benchCell(sim.bench[i], i)).join(''));
   sim.bench.forEach(card => { card.pop = false; });
   $('#sBenchN').textContent = sim.bench.length + ' / ' + BENCH_MAX;
 
   $('#sReward').classList.toggle('on', !!sim.reward);
   if (sim.reward) {
-    $('#sRewardSlots').innerHTML = sim.reward.map((name, i) => html`<div class="slot" data-r="${i}" data-t="${tierOf(name)}">
+    updateHTML($('#sRewardSlots'), sim.reward.map((name, i) => html`<div class="slot" data-key="${name}" data-r="${i}" data-t="${tierOf(name)}">
       ${avatar(name)}<span class="ti">${TIER_LABELS[tierOf(name)]}</span><span>${name}</span><span class="pr">0 资金</span>
-    </div>`).join('');
+    </div>`).join(''));
   }
 }
 
 /* ---------- 操作 ---------- */
 
 function addToBench(name) {
-  sim.bench.push({ name, elite: false, pop: true, sale: 1 });
+  sim.bench.push({ id: ++cardId, name, elite: false, pop: true, sale: 1 });
   tryMerge(name);
   draw();
 }

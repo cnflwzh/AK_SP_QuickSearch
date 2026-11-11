@@ -21,7 +21,7 @@ export const inCategory = (strategy, category) =>
 export const strategyCard = strategy => {
   const { name, hp, skill, effect, category, unlock } = strategy;
   const portrait = portraitSrc(name);
-  return html`<button type="button" class="oc" style="--tc:var(--teal)" data-st="${esc(name)}">
+  return html`<button type="button" class="oc" data-key="st:${esc(name)}" style="--tc:var(--teal)" data-st="${esc(name)}">
     <div class="h">
       ${portrait && `<img class="sp" src="${portrait}" alt="" width="88" height="88" loading="lazy" decoding="async">`}
       <b>${esc(name)}</b>${categoryTag(category)}

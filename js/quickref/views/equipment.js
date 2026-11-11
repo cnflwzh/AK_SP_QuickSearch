@@ -9,7 +9,7 @@ import { fx, cvTag, segmented, tierHeading } from '../chips.js';
 export const equipmentCard = item => {
   const { name, tier, price, covenant, effect, advanced } = item;
   const icon = equipIconSrc(name);
-  return html`<button type="button" class="oc" data-t="${tier}" data-eq="${esc(name)}">
+  return html`<button type="button" class="oc" data-key="eq:${esc(name)}" data-t="${tier}" data-eq="${esc(name)}">
     <div class="h">
       ${icon && `<img class="ei" src="${icon}" alt="" width="80" height="80" loading="lazy" decoding="async">`}
       <b>${esc(name)}</b>${covenant && cvTag(covenant)}<span class="pr">${price}</span>
@@ -31,9 +31,9 @@ export default {
     const body = TIERS.map(tier => {
       const group = list.filter(e => e.tier === tier);
       if (!group.length) return '';
-      return tierHeading(tier, group.length) + html`<div class="qg">${group.map(equipmentCard)}</div>`;
+      return tierHeading(tier, group.length) + html`<div class="qg" data-key="tier:${tier}">${group.map(equipmentCard)}</div>`;
     });
-    return html`<div class="bar">
+    return html`<div class="bar" data-key="filters">
       ${segmented(['全部', ...TIER_LABELS.slice(1)], eqTier, 'eqt')}
       <span class="cnt">${list.length} 件</span>
     </div>

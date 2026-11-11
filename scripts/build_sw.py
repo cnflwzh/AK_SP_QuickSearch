@@ -19,28 +19,30 @@ CORE_GLOBS = ['*.html', 'manifest.webmanifest', 'assets/css/*.css', 'assets/icon
 IMAGE_GLOBS = ['assets/img/*/*.webp']
 
 
-def collect(globs):
+def collect(globs, root):
     files = set()
     for pattern in globs:
-        files.update(p for p in ROOT.glob(pattern) if p.is_file())
-    return sorted(p.relative_to(ROOT).as_posix() for p in files)
+        files.update(p for p in root.glob(pattern) if p.is_file())
+    return sorted(p.relative_to(root).as_posix() for p in files)
 
 
-def main():
-    build_preloads.main()
-    core = collect(CORE_GLOBS)
-    images = collect(IMAGE_GLOBS)
+def main(root=ROOT):
+    """为指定站点目录生成 sw.js；源码目录同步预加载，dist 使用已注入版本的页面。"""
+    if root == ROOT:
+        build_preloads.main()
+    core = collect(CORE_GLOBS, root)
+    images = collect(IMAGE_GLOBS, root)
 
     template = (ROOT / 'scripts' / 'sw.template.js').read_text(encoding='utf-8')
     image_digest = hashlib.sha1()
     for path in images:
         image_digest.update(path.encode())
-        image_digest.update((ROOT / path).read_bytes())
+        image_digest.update((root / path).read_bytes())
     image_version = image_digest.hexdigest()[:10]
     digest = hashlib.sha1(template.encode())
     for path in core + images:
         digest.update(path.encode())
-        digest.update((ROOT / path).read_bytes())
+        digest.update((root / path).read_bytes())
     version = digest.hexdigest()[:10]
 
     output = (template
@@ -48,7 +50,7 @@ def main():
               .replace('__IMAGE_VERSION__', image_version)
               .replace('__CORE__', json.dumps(['./'] + core, ensure_ascii=False, indent=2))
               .replace('__IMAGES__', json.dumps(images, indent=2)))
-    (ROOT / 'sw.js').write_text(output, encoding='utf-8', newline='\n')
+    (root / 'sw.js').write_text(output, encoding='utf-8', newline='\n')
     print(f'sw.js  version={version}  core={len(core) + 1}  images={len(images)}')
 
 

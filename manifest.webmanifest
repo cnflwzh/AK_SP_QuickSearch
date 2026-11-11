@@ -1,6 +1,6 @@
 {
-  "name": "卫戍协议·规程 局内速查",
-  "short_name": "规程速查",
+  "name": "卫戍速查",
+  "short_name": "卫戍速查",
   "description": "卫戍协议·规程：盟约、干员、装备、策略、流派速查与图解教程",
   "lang": "zh-CN",
   "start_url": "./index.html",

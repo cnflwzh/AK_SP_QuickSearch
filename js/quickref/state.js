@@ -23,14 +23,21 @@ export const state = {
   opElite: false,                          // 干员页：显示精锐特质
   eqTier: 0,                               // 装备页
   stCategory: 0,                           // 策略页：STRATEGY_CATEGORIES 下标
-  layers: {},                              // 盟约页计算器：盟约名 → 层数
+  calculatorCovenant: '乌萨斯',             // 数值页计算器当前盟约
+  layers: {},                              // 数值页计算器：盟约名 → 层数
   mode: 1,                                 // 数值页：MODES 下标
 };
 
 if (!TAB_IDS.includes(state.tab)) state.tab = 'cv';
 if (!COVENANTS[state.covenant]) state.covenant = '乌萨斯';
+if (COVENANTS[state.covenant].scaling.length) state.calculatorCovenant = state.covenant;
 
 /** 修改状态并按需持久化 */
-export function setCovenant(name) { state.covenant = name; store.set('cv', name); }
+export function setCovenant(name) {
+  state.covenant = name;
+  store.set('cv', name);
+  // 局内从盟约页切到数值页时直接算当前盟约，省去再次选择。
+  if (COVENANTS[name].scaling.length) state.calculatorCovenant = name;
+}
 export function setBuild(name) { state.build = name; store.set('bd', name); }
 export function setTab(id) { state.tab = id; store.set('tab', id); }
