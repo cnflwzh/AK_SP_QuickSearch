@@ -137,29 +137,43 @@ export interface Leader {
 
 /**
  * 站位示意里的干员职能：坦 阻挡 / 承伤　输 主输出　疗 治疗　空 对空 / 远程　群 群攻
- * 卫戍协议里远程干员也能放近战位，领袖图左半场 7×4 格都可部署。
+ * 卫戍协议允许远程干员部署于近战位。左侧可部署区为 6×4 格，加底行靠平台的一格。
  */
 export type OpRole = '坦' | '输' | '疗' | '空' | '群';
 export interface OpSlot {
   readonly role: OpRole;
   readonly at: MapPos;
+  /** 朝向；仅表达该站位的攻击或支援方向，不预设具体干员射程。 */
+  readonly facing: 'up' | 'right' | 'down' | 'left';
   /** 关键条件，如「攻击最高」「防御最高」「阻挡≥3」 */
   readonly mark?: string;
 }
 
 /**
- * 危险区：rect 矩形（at 为左上角）、cross 十字 5 格、col 整列、line 折线（巡逻 / 冲锋 / 连结）
+ * 危险区：rect 矩形（at 为左上角）、cross 十字、col 整列、circle 圆形半径、tiles 目标格、line 轨迹
  * tone：red 领袖本体，hc 隐秘核心或部件
  */
 export type ZoneShape =
   | { readonly kind: 'rect'; readonly at: MapPos; readonly w: number; readonly h: number }
   | { readonly kind: 'cross'; readonly at: MapPos }
   | { readonly kind: 'col'; readonly x: number }
-  | { readonly kind: 'line'; readonly path: readonly MapPos[] };
+  | { readonly kind: 'line'; readonly path: readonly MapPos[] }
+  | { readonly kind: 'circle'; readonly at: MapPos; readonly radius: number }
+  | { readonly kind: 'tiles'; readonly at: readonly MapPos[] };
 export interface LayoutZone {
   readonly shape: ZoneShape;
   readonly label: string;
   readonly tone?: 'red' | 'hc';
+  /** 当前技能对应的站位要点。 */
+  readonly hint: string;
+  /** 同一技能的附加范围；与主范围同时显示。 */
+  readonly extraShapes?: readonly ZoneShape[];
+  /** 被技能选中的我方格子。 */
+  readonly targets?: readonly MapPos[];
+  /** 巡逻领袖发动技能时的演示位置，路线页仍使用真实出生点。 */
+  readonly bossAt?: MapPos;
+  /** 技能场景中的余音、茧和部件等单位。 */
+  readonly markers?: readonly { readonly name: string; readonly at: MapPos }[];
 }
 
 export interface LeaderLayout {
@@ -183,7 +197,7 @@ export interface StageMark {
   readonly loop?: boolean;
 }
 
-/** 随行敌人（每局都有的萨卡兹枯朽前锋与妖怪写在 LEADER_MAP.common） */
+/** 联合领袖关卡静态刷出的全场随行数量；技能额外召唤不计入 count。 */
 export interface StageEscort {
   readonly name: string;
   readonly count: number;

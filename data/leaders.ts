@@ -4,7 +4,7 @@ import type { Leader, MapPos, StageEscort } from './types.ts';
  * 领袖（最终回合首领）。
  *
  * 来源：ArknightsGameData activity_table.autoChessData.bossInfoDict（领袖名单与隐秘核心形态）、
- * enemy_handbook_table（能力描述，按原文精简措辞）；头像取自 PRTS「头像_敌人_<名称>.png」。
+ * enemy_handbook_table、PRTS 修正条目与关卡 overwrittenData（实际能力）；头像取自 PRTS「头像_敌人_<名称>.png」。
  *
  * hp          [标准, 险境, 绝境, 终极]
  * hiddenCore  隐秘核心 [险境, 绝境, 终极]；null = 无
@@ -16,18 +16,18 @@ import type { Leader, MapPos, StageEscort } from './types.ts';
  * 游戏内只说明隐秘核心需「达成特定条件」，这里不写具体条件。
  *
  * stage / hiddenStage 取自关卡文件 levels/activities/act3autochess/
- *   level_act3autochess_h07_xx_s.json（领袖回合）与 h08_xx_s.json（隐秘核心回合），独立模拟版本。
- *   十张图地形相同（见 LEADER_MAP），区别只在领袖位置、巡逻路线与随行敌人。
- *   随行敌人的数量为单个场地的数量，能力摘自 enemy_handbook_table。
+ *   level_act3autochess_h07_xx.json（领袖回合）与 h08_xx.json（隐秘核心回合），并交叉核对 _s 独立模拟版本。
+ *   十张图地形相同（见 LEADER_MAP）；路线展示联合关卡的左侧阵地。
+ *   随行数量取联合模拟 h07/h08 全场的静态 SPAWN 总数，额外技能召唤另计。
  * counters 由能力描述、随行敌人与路线推导，by 写明依据。
- * layout 为我方站位示意，依据同上；危险区尺寸取自 enemy_database.json 的技能参数（如环波 range_radius 1.5）。
+ * layout 根据机制整理我方站位；范围取自 enemy_database 与 PRTS 技能解析（管 1.8 格、弦 3 格）。
  * 具体数值（20% / 50%、2%、25% / 15 秒 / 50%、1.5 / 1.6 格）取自 levels/enemydata/enemy_database.json。
  */
 
 /**
  * 领袖关卡地图，[列, 行]，行从上往下。
- * grid  # 不可部署   . 可部署   _ 领袖平台   o 平台顶部   S 敌人出发点   E / i 出口
- * 独立模拟只用左半场（列 1–7）；联合模拟两人一图，右侧玩家镜像。
+ * grid  # 不可部署   . 可部署   _ 领袖平台   o 平台顶部   S 敌人出发点   E 蓝门   i 传送入口
+ * 左侧可部署格为列 1–6 的四行，以及 [7,4]；中央平台不能部署。
  */
 export const LEADER_MAP = {
   grid: [
@@ -39,8 +39,9 @@ export const LEADER_MAP = {
     '#i#############i#',
   ],
   spawn: [8, 4] as MapPos,
-  exit: [1, 5] as MapPos,
-  /** 地面敌人：沿底行走向左下出口 */
+  exit: [0, 4] as MapPos,
+  transfer: [1, 5] as MapPos,
+  /** 地面敌人：沿底行走向左下传送入口 */
   walk: [[8, 4], [1, 4], [1, 5]] as readonly MapPos[],
   /** 妖怪：在左半场折返飞行 */
   fly: [[8, 4], [7, 4], [7, 1], [5, 1], [5, 4], [3, 4], [3, 1], [1, 1], [1, 4], [1, 5]] as readonly MapPos[],
@@ -58,8 +59,8 @@ export const LEADERS: readonly Leader[] = [
     abilities: [
       { text: '随机选择目标发射射线，造成法术伤害' },
       { skill: '灭顶之灾', text: '对攻击力最高的干员发射<刺胄之弹>，落点处目标及周围 8 格{晕眩}较长时间并每秒受到物理伤害；飞行中攻击数次可击破' },
-      { skill: '死亡集群', text: '周期性召唤<妖怪>；每击倒一只，胄受到最大生命值 2% 的真实伤害' },
-      { text: '生命值低于 20% 后受到的物理与法术伤害降低 50%，【灭顶之灾】额外发射<刺胄之弹>' },
+      { skill: '死亡集群', text: '周期性召唤<妖怪>；击倒本技能召唤的妖怪时，胄受到最大生命值 2% 的真实伤害' },
+      { text: '生命值低于 20% 后，受到的物理与法术伤害降低 50%' },
     ],
     hiddenAbilities: [
       { skill: '旧日的剑与锤', text: '以完全形态登场，带着<“斩胄之剑”>与<“破胄之锤”>' },
@@ -68,7 +69,7 @@ export const LEADERS: readonly Leader[] = [
     ],
     stage: {
       marks: [{ name: '胄', kind: 'boss', at: [8, 3] }],
-      escorts: [{ name: '重装防御组长', count: 9 }],
+      escorts: [{ name: '重装防御组长', count: 14 }],
     },
     hiddenStage: {
       marks: [
@@ -76,34 +77,40 @@ export const LEADERS: readonly Leader[] = [
         { name: '斩胄之剑', kind: 'part', at: [10, 3] },
         { name: '破胄之锤', kind: 'part', at: [6, 3] },
       ],
-      escorts: [{ name: '“帝国的甲胄”', count: 3, note: '出场锁定生命值最高的单位连续物理伤害；远程；攻击数次后蓄力三连击' }],
+      escorts: [{ name: '“帝国的甲胄”', count: 6, note: '出场锁定生命值最高的单位连续物理伤害；远程；攻击数次后蓄力三连击' }],
     },
     counters: [
       { tag: '分散', text: '攻击力最高的干员周围 8 格少放人：落点九宫格{晕眩}并持续物理伤害', by: '灭顶之灾' },
       { tag: '集火', text: '<刺胄之弹>飞行途中挨数次攻击即被击破，攻速快的干员能拦截', by: '灭顶之灾' },
-      { tag: '对空', text: '召唤的<妖怪>会飞，每击倒一只胄掉 2% 最大生命：带上能打飞行单位的干员', by: '死亡集群' },
-      { tag: '分散', text: '剑与锤飞向攻击力最低的干员：治疗、辅助周围 8 格留空', by: '旧日的剑与锤', hidden: true },
+      { tag: '对空', text: '【死亡集群】召唤的<妖怪>被击倒时，胄损失 2% 最大生命：带上能打飞行单位的干员', by: '死亡集群' },
+      { tag: '分散', text: '剑与锤飞向攻击力最低的干员：让该单位周围 8 格留空', by: '旧日的剑与锤', hidden: true },
       { tag: '集火', text: '剑与锤飞行时可被击落；落地后受到的伤害增加并按比例传给胄', by: '旧日的剑与锤', hidden: true },
     ],
-    layout: {
-      slots: [
-        { role: '坦', at: [7, 4] }, { role: '输', at: [6, 3] }, { role: '空', at: [6, 1] },
-        { role: '输', at: [4, 1], mark: '攻击最高' }, { role: '疗', at: [5, 4] },
-        { role: '坦', at: [2, 4] }, { role: '空', at: [1, 2] },
-      ],
-      zones: [{ shape: { kind: 'rect', at: [3, 1], w: 3, h: 2 }, label: '刺胄之弹 3×3' }],
-    },
-    hiddenLayout: {
-      slots: [
-        { role: '坦', at: [7, 4] }, { role: '输', at: [5, 3] }, { role: '空', at: [6, 1] },
-        { role: '输', at: [4, 1], mark: '攻击最高' }, { role: '疗', at: [1, 2], mark: '攻击最低' },
-        { role: '坦', at: [2, 4] }, { role: '空', at: [3, 3] },
-      ],
-      zones: [
-        { shape: { kind: 'rect', at: [3, 1], w: 3, h: 2 }, label: '刺胄之弹 3×3' },
-        { shape: { kind: 'rect', at: [1, 1], w: 2, h: 3 }, label: '剑与锤 3×3', tone: 'hc' },
-      ],
-    },
+    layout: { slots: [
+      { role: '坦', at: [7, 4], facing: 'right' },
+      { role: '输', at: [6, 3], facing: 'right' },
+      { role: '空', at: [6, 1], facing: 'down' },
+      { role: '空', at: [4, 2], facing: 'right', mark: '攻击最高' },
+      { role: '疗', at: [5, 4], facing: 'up' },
+      { role: '坦', at: [2, 4], facing: 'right' },
+      { role: '空', at: [1, 2], facing: 'right' },
+    ], zones: [
+      { label: '灭顶之灾', shape: { kind: 'rect', at: [3, 1], w: 3, h: 3 }, hint: '攻击最高者周围八格留空；弹体飞行中用多次命中击破。', targets: [[4, 2]] },
+      { label: '死亡集群', shape: { kind: 'line', path: [[8, 4], [7, 4], [7, 1], [5, 1], [5, 4], [3, 4], [3, 1], [1, 1], [1, 4], [1, 5]] }, hint: '对空输出覆盖飞行路线；死亡集群召唤的妖怪被击倒时，胄损失 2% 最大生命。' },
+    ] },
+    hiddenLayout: { slots: [
+      { role: '坦', at: [7, 4], facing: 'right' },
+      { role: '输', at: [6, 3], facing: 'right' },
+      { role: '空', at: [6, 1], facing: 'down' },
+      { role: '空', at: [4, 2], facing: 'right', mark: '攻击最高' },
+      { role: '疗', at: [1, 2], facing: 'right', mark: '攻击最低' },
+      { role: '坦', at: [2, 4], facing: 'right' },
+      { role: '疗', at: [5, 4], facing: 'up' },
+    ], zones: [
+      { label: '灭顶之灾', shape: { kind: 'rect', at: [3, 1], w: 3, h: 3 }, hint: '攻击最高者周围八格留空；弹体飞行中用多次命中击破。', targets: [[4, 2]] },
+      { label: '旧日的剑与锤', shape: { kind: 'rect', at: [0, 1], w: 3, h: 3 }, hint: '最低攻击力单位周围留空；飞行时击落剑锤，再集中输出落地部件。', tone: 'hc', targets: [[1, 2]] },
+      { label: '死亡集群', shape: { kind: 'line', path: [[8, 4], [7, 4], [7, 1], [5, 1], [5, 4], [3, 4], [3, 1], [1, 1], [1, 4], [1, 5]] }, hint: '对空输出覆盖飞行路线；死亡集群召唤的妖怪被击倒时，胄损失 2% 最大生命。' },
+    ] },
   },
   {
     name: '假想敌：铳', id: 'enemy_9017_achunt', damage: ['物理', '侵蚀'],
@@ -126,8 +133,8 @@ export const LEADERS: readonly Leader[] = [
       marks: [
         { name: '铳', kind: 'boss', at: [8, 2], path: [[7, 1], [1, 4], [7, 3]], loop: true },
         { name: '碎铳之簧', kind: 'part', at: [7, 2], path: [[7, 4], [7, 1], [1, 4]], loop: true },
-        { name: '碎铳之簧', kind: 'part', at: [8, 2] },
-        { name: '碎铳之簧', kind: 'part', at: [9, 2] },
+        { name: '碎铳之簧', kind: 'part', at: [8, 2], path: [[7, 1], [1, 4], [7, 4]], loop: true },
+        { name: '碎铳之簧', kind: 'part', at: [9, 2], path: [[1, 4], [7, 4], [7, 1]], loop: true },
       ],
       escorts: [{ name: '假想敌：淤困', count: 2, note: '被阻挡时寄生目标：持续法术伤害，受到的{元素损伤}增加' }],
     },
@@ -139,26 +146,56 @@ export const LEADERS: readonly Leader[] = [
       { tag: '避让', text: '铳与簧之间的连结线上每秒受物理伤害，别站在线上', by: '盲信之誓', hidden: true },
       { tag: '避让', text: '簧被拉回铳身边时免疫伤害并撞伤沿途单位', by: '末日布道', hidden: true },
     ],
-    layout: {
-      slots: [
-        { role: '坦', at: [5, 2], mark: '防御最高' }, { role: '疗', at: [4, 1] },
-        { role: '输', at: [2, 1] }, { role: '输', at: [3, 1] }, { role: '空', at: [6, 4] },
-        { role: '坦', at: [7, 4] }, { role: '群', at: [1, 2] },
-      ],
-      zones: [{ shape: { kind: 'line', path: [[8, 2], [7, 1], [1, 4], [7, 3], [7, 1]] }, label: '巡逻 / 冲锋' }],
-    },
-    hiddenLayout: null,
+    layout: { slots: [
+      { role: '坦', at: [5, 2], facing: 'right', mark: '防御最高' },
+      { role: '疗', at: [3, 2], facing: 'right' },
+      { role: '输', at: [2, 1], facing: 'right' },
+      { role: '输', at: [3, 4], facing: 'up' },
+      { role: '空', at: [6, 4], facing: 'up' },
+      { role: '坦', at: [7, 4], facing: 'right' },
+    ], zones: [
+      { label: '最终之罚', shape: { kind: 'line', path: [[8, 2], [5, 2]] }, hint: '冲锋锁定最高防御单位；两者之间留出通道。', targets: [[5, 2]] },
+      { label: '巡逻路线', shape: { kind: 'line', path: [[8, 2], [7, 1], [1, 4], [7, 3], [7, 1]] }, hint: '在巡逻经过的位置准备阻挡，后排与承伤位错开。' },
+    ] },
+    hiddenLayout: { slots: [
+      { role: '坦', at: [5, 2], facing: 'right', mark: '防御最高' },
+      { role: '疗', at: [3, 2], facing: 'right' },
+      { role: '输', at: [2, 1], facing: 'right' },
+      { role: '输', at: [3, 4], facing: 'up' },
+      { role: '空', at: [6, 4], facing: 'up' },
+      { role: '坦', at: [7, 4], facing: 'right' },
+    ], zones: [
+      { label: '最终之罚', shape: { kind: 'line', path: [[8, 2], [5, 2]] }, hint: '冲锋锁定最高防御单位；两者之间留出通道。', targets: [[5, 2]] },
+      { label: '巡逻路线', shape: { kind: 'line', path: [[8, 2], [7, 1], [1, 4], [7, 3], [7, 1]] }, hint: '在巡逻经过的位置准备阻挡，后排与承伤位错开。' },
+      { label: '盲信之誓', shape: { kind: 'line', path: [[8, 2], [6, 1]] }, hint: '避开铳与簧之间的连结线，集中攻击可受伤的簧。', tone: 'hc', extraShapes: [
+        { kind: 'line', path: [[8, 2], [2, 3]] },
+        { kind: 'line', path: [[8, 2], [4, 3]] },
+      ], markers: [
+        { name: '簧', at: [6, 1] },
+        { name: '簧', at: [2, 3] },
+        { name: '簧', at: [4, 3] },
+      ] },
+      { label: '末日布道', shape: { kind: 'line', path: [[4, 3], [8, 2]] }, hint: '簧回到本体途中免疫伤害；让开它们的移动路径。', tone: 'hc', extraShapes: [
+        { kind: 'line', path: [[2, 3], [8, 2]] },
+        { kind: 'line', path: [[6, 1], [8, 2]] },
+      ], markers: [
+        { name: '簧', at: [4, 3] },
+        { name: '簧', at: [6, 1] },
+        { name: '簧', at: [2, 3] },
+      ] },
+    ] },
   },
   {
     name: '假想敌：管', id: 'enemy_9021_acduml', damage: ['法术', '凋亡'],
     hp: [302400, 1008000, 2520000, 4200000], hiddenCore: [1732800, 4332000, 7220000],
     abilities: [
       { text: '在场时持续召唤【暗色的喟叹】形态<“余音”>，生命值低于一定比例后召唤间隔缩短' },
-      { text: '优先攻击【暗色的喟叹】形态<“余音”>' },
+      { text: '普通攻击为范围法术三连击，优先攻击【暗色的喟叹】形态<“余音”>' },
       { skill: '裂管之奏', text: '对场上所有【暗色的喟叹】形态<“余音”>三连击，造成范围法术伤害和{凋亡损伤}' },
     ],
     hiddenAbilities: [
-      { text: '<假想敌：弦>与管同时登场' },
+      { text: '<假想敌：弦>与管同时登场；弦持续无敌，管倒下后随之退场' },
+      { skill: '断弦之奏', text: '弦以金黄形态<余音>为中心造成范围法术伤害和{凋亡损伤}，并改变余音形态' },
     ],
     stage: {
       marks: [{ name: '管', kind: 'boss', at: [8, 3] }],
@@ -173,41 +210,58 @@ export const LEADERS: readonly Leader[] = [
         { name: '弦', kind: 'part', at: [7, 3] },
       ],
       escorts: [
-        { name: '“余音”', count: 2, note: '只能被阻挡数≥2 的单位阻挡；受击时范围法术伤害和{凋亡损伤}' },
+        { name: '“余音”', count: 4, note: '只能被阻挡数≥2 的单位阻挡；受击时范围法术伤害和{凋亡损伤}' },
         { name: '假想敌：再生', count: 2, note: '被击倒后进入再生，给周围敌人加护盾，一段时间后重生' },
       ],
     },
     counters: [
-      { tag: '法抗', text: '全是法术伤害加{凋亡损伤}：阻挡位优先法抗高的干员', by: '伤害类型' },
+      { tag: '法抗', text: '管与余音造成法术伤害和{凋亡损伤}：阻挡位兼顾法抗与元素恢复', by: '伤害类型' },
       { tag: '阻挡', text: '<余音>只能被阻挡数≥2 的干员挡住', by: '余音' },
       { tag: '避让', text: '以每个暗色<余音>为中心范围三连击：余音身边别堆人，尽快清掉', by: '裂管之奏' },
       { tag: '集火', text: '<弦>永久无敌，管倒下时一起离场：只打管', by: '弦', hidden: true },
       { tag: '避让', text: '<弦>以金黄<余音>为中心打大范围法术伤害', by: '断弦之奏', hidden: true },
     ],
-    layout: {
-      slots: [
-        { role: '坦', at: [7, 4] }, { role: '坦', at: [6, 4], mark: '双坦 阻挡≥2' },
-        { role: '疗', at: [4, 3] }, { role: '输', at: [3, 1] }, { role: '输', at: [4, 1] },
-        { role: '群', at: [5, 1] }, { role: '坦', at: [2, 4] },
-      ],
-      zones: [{ shape: { kind: 'rect', at: [5, 3], w: 3, h: 2 }, label: '余音溅射' }],
-    },
-    hiddenLayout: null,
+    layout: { slots: [
+      { role: '坦', at: [6, 4], facing: 'right', mark: '阻挡≥2' },
+      { role: '坦', at: [2, 4], facing: 'right' },
+      { role: '疗', at: [4, 3], facing: 'right' },
+      { role: '输', at: [6, 1], facing: 'down' },
+      { role: '输', at: [4, 1], facing: 'right' },
+      { role: '群', at: [2, 1], facing: 'right' },
+    ], zones: [
+      { label: '裂管之奏', shape: { kind: 'circle', at: [6.7, 4], radius: 1.8 }, hint: '暗色余音是溅射中心；阻挡位留在前方，输出与治疗拉开。', markers: [
+        { name: '余音', at: [6.7, 4] },
+      ] },
+    ] },
+    hiddenLayout: { slots: [
+      { role: '坦', at: [6, 4], facing: 'right', mark: '阻挡≥2' },
+      { role: '坦', at: [2, 4], facing: 'right' },
+      { role: '疗', at: [4, 3], facing: 'right' },
+      { role: '输', at: [6, 1], facing: 'down' },
+      { role: '输', at: [4, 1], facing: 'right' },
+      { role: '群', at: [2, 1], facing: 'right' },
+    ], zones: [
+      { label: '裂管之奏', shape: { kind: 'circle', at: [6.7, 4], radius: 1.8 }, hint: '暗色余音是溅射中心；阻挡位留在前方，输出与治疗拉开。', markers: [
+        { name: '余音', at: [6.7, 4] },
+      ] },
+      { label: '断弦之奏', shape: { kind: 'circle', at: [6.7, 4], radius: 3 }, hint: '金黄余音周围的大范围伤害；弦持续无敌，主要输出集中给管。', tone: 'hc', markers: [
+        { name: '余音', at: [6.7, 4] },
+      ] },
+    ] },
   },
   {
     name: '盐风主教昆图斯', id: 'enemy_1521_dslily', damage: ['物理', '法术', '神经'],
     hp: [314640, 1048800, 2622000, 4370000], hiddenCore: null,
     abilities: [
-      { text: '同时攻击防御力最高的两个单位' },
+      { text: '同时攻击防御力最高的两个单位，造成物理伤害和{神经损伤}' },
       { skill: '大潮', text: '对所有我方单位造成法术伤害和{神经损伤}' },
       { skill: '崩坍', text: '对若干我方单位造成物理伤害' },
-      { skill: '断裂生殖', text: '召唤子代缠绕我方单位，使其{晕眩}' },
-      { skill: '物种爆发', text: '战斗经过较长时间后，扣除所有目标生命' },
+      { skill: '断裂生殖', text: '召唤<子代>缠绕我方单位，持续造成物理伤害、{神经损伤}和{晕眩}' },
     ],
     hiddenAbilities: [],
     stage: {
       marks: [{ name: '昆图斯', kind: 'boss', at: [8, 3] }],
-      escorts: [{ name: '复核洋流使者', count: 5, note: '吞噬<赘生甲壳>后攻击力和生命值大幅提升' }],
+      escorts: [{ name: '复核洋流使者', count: 10, note: '吞噬<赘生甲壳>后攻击力和生命值大幅提升' }],
     },
     hiddenStage: null,
     counters: [
@@ -216,14 +270,22 @@ export const LEADERS: readonly Leader[] = [
       { tag: '法抗', text: '全体法术伤害加{神经损伤}', by: '大潮' },
       { tag: '集火', text: '<复核洋流使者>吃到<赘生甲壳>会大幅变强，优先击杀', by: '复核洋流使者' },
     ],
-    layout: {
-      slots: [
-        { role: '坦', at: [7, 4], mark: '防御最高' }, { role: '坦', at: [5, 4], mark: '防御次高' },
-        { role: '疗', at: [6, 2] }, { role: '输', at: [4, 2] }, { role: '输', at: [3, 1] },
-        { role: '群', at: [4, 3] }, { role: '空', at: [2, 2] },
-      ],
-      zones: [],
-    },
+    layout: { slots: [
+      { role: '坦', at: [7, 4], facing: 'right', mark: '防御最高' },
+      { role: '坦', at: [5, 4], facing: 'right', mark: '防御次高' },
+      { role: '疗', at: [6, 2], facing: 'down' },
+      { role: '输', at: [4, 2], facing: 'right' },
+      { role: '群', at: [4, 3], facing: 'right' },
+      { role: '空', at: [2, 2], facing: 'right' },
+    ], zones: [
+      { label: '双目标攻击', shape: { kind: 'tiles', at: [[7, 4], [5, 4]] }, hint: '防御最高的两名单位承伤；同时保持两处治疗覆盖。', targets: [[7, 4], [5, 4]] },
+      { label: '大潮', shape: { kind: 'rect', at: [1, 1], w: 6, h: 4 }, hint: '全场法术伤害与神经损伤，准备群体治疗和元素恢复。', extraShapes: [
+        { kind: 'rect', at: [7, 4], w: 1, h: 1 },
+      ] },
+      { label: '断裂生殖', shape: { kind: 'tiles', at: [[5, 4]] }, hint: '其他输出覆盖被缠绕者附近，及时清理子代。', targets: [[5, 4]], markers: [
+        { name: '子代', at: [5, 3.3] },
+      ] },
+    ] },
     hiddenLayout: null,
   },
   {
@@ -231,9 +293,8 @@ export const LEADERS: readonly Leader[] = [
     hp: [266400, 888000, 2220000, 3700000], hiddenCore: null,
     abilities: [
       { skill: '王权号令', text: '锁定一个我方单位及其周围 4 格，造成一次高额物理伤害，并在这些地块上生成随机装备' },
-      { skill: '莫非王土', text: '场上有装备时活化一件，不同装备效果不同' },
+      { skill: '莫非王土', text: '活化装备：刀片攻击我方；背心提供屏障和方向减伤；施术单元生成<黄金回响>并占用部署格' },
       { text: '生命值降至一半及以下时防御力大幅提升、法术抗性 +45，【莫非王土】每次活化两件' },
-      { skill: '斥退', text: '战斗经过较长时间后，对全场我方单位造成法术溅射伤害，并扣除所有目标生命' },
     ],
     hiddenAbilities: [],
     stage: {
@@ -245,18 +306,21 @@ export const LEADERS: readonly Leader[] = [
     },
     hiddenStage: null,
     counters: [
-      { tag: '集火', text: '半血后防御大幅提升、法抗 +45，一次活化两件装备：爆发留到半血前', by: '特性' },
+      { tag: '集火', text: '半血后防御与法抗提高、每次活化两件装备：准备削弱或持续输出处理强化阶段', by: '特性' },
       { tag: '分散', text: '锁定一名干员及上下左右 4 格高额物理伤害：别十字相邻', by: '王权号令' },
       { tag: '对空', text: '<萨科塔昂首>从平台顶部飞出，降低全场攻速，优先击落', by: '萨科塔昂首' },
     ],
-    layout: {
-      slots: [
-        { role: '坦', at: [7, 4] }, { role: '空', at: [6, 3] }, { role: '输', at: [5, 2] },
-        { role: '疗', at: [4, 3] }, { role: '坦', at: [3, 4] }, { role: '输', at: [4, 1] },
-        { role: '群', at: [2, 1] },
-      ],
-      zones: [{ shape: { kind: 'cross', at: [5, 2] }, label: '王权号令 十字' }],
-    },
+    layout: { slots: [
+      { role: '坦', at: [7, 4], facing: 'right' },
+      { role: '空', at: [6, 3], facing: 'up' },
+      { role: '输', at: [5, 2], facing: 'right' },
+      { role: '疗', at: [4, 3], facing: 'right' },
+      { role: '坦', at: [3, 4], facing: 'right' },
+      { role: '输', at: [4, 1], facing: 'right' },
+      { role: '群', at: [2, 1], facing: 'right' },
+    ], zones: [
+      { label: '王权号令', shape: { kind: 'cross', at: [5, 2] }, hint: '关键单位错开上下左右相邻格，降低十字伤害与装备落点的影响。', targets: [[5, 2]] },
+    ] },
     hiddenLayout: null,
   },
   {
@@ -265,13 +329,13 @@ export const LEADERS: readonly Leader[] = [
     abilities: [
       { skill: '冰凌', text: '攻击时对整列我方单位造成物理伤害' },
       { skill: '自然涌动', text: '使一名我方单位{晕眩}并持续受到法术伤害' },
-      { text: '生命值低于一半时受到的物理和法术伤害降低，【冰凌】和【自然涌动】额外选择一个目标' },
+      { text: '生命值低于一半时受到的物理和法术伤害降低 30%，【冰凌】和【自然涌动】额外选择一个目标' },
     ],
     hiddenAbilities: [],
     stage: {
       marks: [{ name: '萨米的意志', kind: 'boss', at: [8, 3] }],
       escorts: [
-        { name: '冰爆源石虫', count: 5, note: '死亡时对周围造成物理伤害并{寒冷}' },
+        { name: '冰爆源石虫', count: 8, note: '死亡时对周围造成物理伤害并{寒冷}' },
         { name: '游击队盾卫', count: 4, note: '自身容易受到攻击（吸引火力）' },
       ],
     },
@@ -281,14 +345,21 @@ export const LEADERS: readonly Leader[] = [
       { tag: '续航', text: '{晕眩}一名干员并持续法术伤害；半血后多选一个目标', by: '自然涌动' },
       { tag: '避让', text: '<冰爆源石虫>死亡时周围物理伤害加{寒冷}，别在阻挡点附近堆人', by: '冰爆源石虫' },
     ],
-    layout: {
-      slots: [
-        { role: '坦', at: [7, 4] }, { role: '输', at: [6, 2] }, { role: '疗', at: [5, 3] },
-        { role: '输', at: [4, 1] }, { role: '空', at: [3, 3] }, { role: '坦', at: [2, 4] },
-        { role: '群', at: [1, 2] },
-      ],
-      zones: [{ shape: { kind: 'col', x: 6 }, label: '冰凌 整列' }],
-    },
+    layout: { slots: [
+      { role: '坦', at: [7, 4], facing: 'right' },
+      { role: '输', at: [6, 2], facing: 'right' },
+      { role: '疗', at: [5, 3], facing: 'up' },
+      { role: '输', at: [4, 1], facing: 'right' },
+      { role: '空', at: [3, 3], facing: 'right' },
+      { role: '坦', at: [2, 4], facing: 'right' },
+      { role: '群', at: [1, 2], facing: 'right' },
+    ], zones: [
+      { label: '冰凌', shape: { kind: 'col', x: 6 }, hint: '输出与治疗错列，避免同列一起受击。', targets: [[6, 2]] },
+      { label: '半血强化', shape: { kind: 'col', x: 6 }, hint: '半血后冰凌与自然涌动各多选一名目标；核心输出保持分列。', extraShapes: [
+        { kind: 'col', x: 4 },
+      ], targets: [[6, 2], [4, 1]] },
+      { label: '自然涌动', shape: { kind: 'tiles', at: [[6, 2]] }, hint: '受控单位持续承受法术伤害，需要其他治疗支援。', targets: [[6, 2]] },
+    ] },
     hiddenLayout: null,
   },
   {
@@ -307,11 +378,11 @@ export const LEADERS: readonly Leader[] = [
     ],
     stage: {
       marks: [{ name: '械', kind: 'boss', at: [8, 3] }],
-      escorts: [{ name: '搏命享受者', count: 3, note: '周围敌人受到的物理和法术伤害降低' }],
+      escorts: [{ name: '搏命享受者', count: 6, note: '周围敌人受到的物理和法术伤害降低' }],
     },
     hiddenStage: {
       marks: [{ name: '械', kind: 'boss', at: [8, 3] }],
-      escorts: [{ name: '搏命享受者', count: 3, note: '周围敌人受到的物理和法术伤害降低' }],
+      escorts: [{ name: '搏命享受者', count: 6, note: '周围敌人受到的物理和法术伤害降低' }],
     },
     counters: [
       { tag: '控制', text: '阻挡数最高的干员身边会刷<量变之械>：给它配范围输出', by: '洪流攻势' },
@@ -320,15 +391,40 @@ export const LEADERS: readonly Leader[] = [
       { tag: '集火', text: '打<冲击之械>能把它推回去，撞上械时全部销毁', by: '威光冲击', hidden: true },
       { tag: '避让', text: '两个<冲击之械>之间的干员攻速大幅降低', by: '威光冲击', hidden: true },
     ],
-    layout: {
-      slots: [
-        { role: '坦', at: [7, 4] }, { role: '坦', at: [4, 4], mark: '阻挡最高' },
-        { role: '群', at: [4, 2] }, { role: '群', at: [2, 3] }, { role: '疗', at: [5, 2] },
-        { role: '输', at: [6, 2] }, { role: '空', at: [2, 1] },
-      ],
-      zones: [{ shape: { kind: 'rect', at: [3, 3], w: 3, h: 2 }, label: '量变之械' }],
-    },
-    hiddenLayout: null,
+    layout: { slots: [
+      { role: '坦', at: [7, 4], facing: 'right' },
+      { role: '坦', at: [4, 4], facing: 'right', mark: '阻挡最高' },
+      { role: '群', at: [4, 2], facing: 'down' },
+      { role: '群', at: [2, 3], facing: 'right' },
+      { role: '疗', at: [5, 2], facing: 'down' },
+      { role: '输', at: [6, 2], facing: 'right' },
+      { role: '空', at: [2, 1], facing: 'right' },
+    ], zones: [
+      { label: '洪流攻势', shape: { kind: 'tiles', at: [[4, 4]] }, hint: '以最高阻挡数单位为召唤中心，让群攻与治疗覆盖这一带。', targets: [[4, 4]], markers: [
+        { name: '量变', at: [4.7, 4] },
+        { name: '量变', at: [3.3, 4] },
+      ] },
+    ] },
+    hiddenLayout: { slots: [
+      { role: '坦', at: [7, 4], facing: 'right' },
+      { role: '坦', at: [4, 4], facing: 'right', mark: '阻挡最高' },
+      { role: '群', at: [4, 2], facing: 'down' },
+      { role: '群', at: [2, 3], facing: 'right' },
+      { role: '疗', at: [5, 2], facing: 'down' },
+      { role: '输', at: [6, 2], facing: 'right' },
+      { role: '空', at: [2, 1], facing: 'right' },
+    ], zones: [
+      { label: '洪流攻势', shape: { kind: 'tiles', at: [[4, 4]] }, hint: '以最高阻挡数单位为召唤中心，让群攻与治疗覆盖这一带。', targets: [[4, 4]], markers: [
+        { name: '量变', at: [4.7, 4] },
+        { name: '量变', at: [3.3, 4] },
+      ] },
+      { label: '威光冲击', shape: { kind: 'line', path: [[3, 3], [8, 3]] }, hint: '两侧部件夹区会降低攻速；攻击飞出的冲击之械，将其推回本体。', tone: 'hc', extraShapes: [
+        { kind: 'line', path: [[10, 3], [8, 3]] },
+      ], markers: [
+        { name: '冲击', at: [3, 3] },
+        { name: '冲击', at: [10, 3] },
+      ] },
+    ] },
   },
   {
     name: '假想敌：茧', id: 'enemy_9035_acspider', damage: ['物理', '真实'],
@@ -348,25 +444,47 @@ export const LEADERS: readonly Leader[] = [
     },
     hiddenStage: {
       marks: [{ name: '茧', kind: 'boss', at: [8, 3] }],
-      escorts: [{ name: '假想敌：丛生', count: 3, note: '对每个目标的首次伤害提升，并使其一段时间内无法被治疗' }],
+      escorts: [{ name: '假想敌：丛生', count: 6, note: '对每个目标的首次伤害提升，并使其一段时间内无法被治疗' }],
     },
     counters: [
       { tag: '续航', text: '每次打当前生命最高的 3 个干员：高血量干员要有治疗', by: '特性' },
       { tag: '集火', text: '每掉 25% 生命伪装 15 秒、闪避 50%：爆发技能避开这段', by: '特性' },
       { tag: '阻挡', text: '若干干员会被<淤困之茧>捆住，无法攻击、阻挡、开技能：别只靠一个阻挡点', by: '淤困捕食' },
       { tag: '法抗', text: '<恶尘源石虫>死后留下源石污染区，<萨卡兹枯朽前锋>在区内改打法术伤害', by: '恶尘源石虫' },
-      { tag: '分散', text: '酸雨覆盖一片场地：降攻速并持续真实伤害', by: '悲惨之雨', hidden: true },
-      { tag: '续航', text: '<丛生>使目标一段时间无法被治疗，普攻还附带中毒', by: '假想敌：丛生', hidden: true },
+      { tag: '续航', text: '酸雨覆盖整片场地：用群体治疗应对持续真实伤害与攻速下降', by: '悲惨之雨', hidden: true },
+      { tag: '续航', text: '<丛生>的首次伤害使目标暂时无法被治疗；茧的核心形态普攻另附加中毒', by: '丛生 / 核心普攻', hidden: true },
     ],
-    layout: {
-      slots: [
-        { role: '坦', at: [7, 4], mark: '生命高' }, { role: '坦', at: [3, 4], mark: '生命高' },
-        { role: '疗', at: [5, 2] }, { role: '输', at: [6, 2] }, { role: '输', at: [4, 1] },
-        { role: '空', at: [2, 2] }, { role: '群', at: [5, 4] },
-      ],
-      zones: [],
-    },
-    hiddenLayout: null,
+    layout: { slots: [
+      { role: '坦', at: [7, 4], facing: 'right', mark: '当前生命①' },
+      { role: '坦', at: [3, 4], facing: 'right', mark: '当前生命②' },
+      { role: '疗', at: [5, 2], facing: 'down' },
+      { role: '输', at: [6, 2], facing: 'down', mark: '当前生命③' },
+      { role: '输', at: [4, 1], facing: 'right' },
+      { role: '空', at: [2, 2], facing: 'right' },
+      { role: '群', at: [5, 4], facing: 'up' },
+    ], zones: [
+      { label: '三目标攻击', shape: { kind: 'tiles', at: [[7, 4], [3, 4], [6, 2]] }, hint: '按当前生命值选择前三名；治疗和受伤都会改变目标排序。', targets: [[7, 4], [3, 4], [6, 2]] },
+      { label: '淤困捕食', shape: { kind: 'tiles', at: [[6, 2]] }, hint: '输出互相覆盖，及时打掉淤困之茧；阻挡位保留接替位置。', targets: [[6, 2]], markers: [
+        { name: '茧', at: [6, 2] },
+      ] },
+    ] },
+    hiddenLayout: { slots: [
+      { role: '坦', at: [7, 4], facing: 'right', mark: '当前生命①' },
+      { role: '坦', at: [3, 4], facing: 'right', mark: '当前生命②' },
+      { role: '疗', at: [5, 2], facing: 'down' },
+      { role: '输', at: [6, 2], facing: 'down', mark: '当前生命③' },
+      { role: '输', at: [4, 1], facing: 'right', mark: '当前生命④' },
+      { role: '空', at: [2, 2], facing: 'right' },
+      { role: '群', at: [5, 4], facing: 'up' },
+    ], zones: [
+      { label: '四目标攻击', shape: { kind: 'tiles', at: [[7, 4], [3, 4], [6, 2], [4, 1]] }, hint: '核心每个场地多攻击一名单位，普攻附加中毒。', tone: 'hc', targets: [[7, 4], [3, 4], [6, 2], [4, 1]] },
+      { label: '淤困捕食', shape: { kind: 'tiles', at: [[6, 2]] }, hint: '输出互相覆盖，及时打掉淤困之茧；阻挡位保留接替位置。', targets: [[6, 2]], markers: [
+        { name: '茧', at: [6, 2] },
+      ] },
+      { label: '悲惨之雨', shape: { kind: 'rect', at: [1, 1], w: 6, h: 4 }, hint: '酸雨覆盖整个场地；准备群体续航应对真实伤害与攻速下降。', tone: 'hc', extraShapes: [
+        { kind: 'rect', at: [7, 4], w: 1, h: 1 },
+      ] },
+    ] },
   },
   {
     name: '假想敌：鳍', id: 'enemy_9037_aceel', damage: ['法术', '神经'],
@@ -385,7 +503,7 @@ export const LEADERS: readonly Leader[] = [
         { name: '鳍', kind: 'boss', at: [8, 2], path: [[7, 1], [1, 4], [7, 3]], loop: true },
         { name: '纤核漂游者', kind: 'unit', at: [8, 4], path: [[6, 1], [5, 4], [3, 1], [1, 5]] },
       ],
-      escorts: [{ name: '纤核漂游者', count: 3, fly: true, note: '优先攻击高台单位，攻击附带{神经损伤}' }],
+      escorts: [{ name: '纤核漂游者', count: 6, fly: true, note: '优先攻击高台单位，攻击附带{神经损伤}' }],
     },
     hiddenStage: {
       marks: [{ name: '鳍', kind: 'boss', at: [8, 2], path: [[7, 1], [1, 4], [7, 3]], loop: true }],
@@ -398,24 +516,35 @@ export const LEADERS: readonly Leader[] = [
       { tag: '对空', text: '<纤核漂游者>会飞，附带{神经损伤}', by: '纤核漂游者' },
       { tag: '分散', text: '雷暴周期性劈站位密集处；攻击还会在干员间跳跃', by: '雷暴天气', hidden: true },
     ],
-    layout: {
-      slots: [
-        { role: '坦', at: [5, 2], mark: '法抗高' }, { role: '坦', at: [7, 4] },
-        { role: '疗', at: [3, 2] }, { role: '输', at: [2, 1] }, { role: '输', at: [1, 3] },
-        { role: '空', at: [5, 4] },
-      ],
-      zones: [
-        { shape: { kind: 'line', path: [[8, 2], [7, 1], [1, 4], [7, 3], [7, 1]] }, label: '巡逻路线' },
-        { shape: { kind: 'rect', at: [4, 1], w: 3, h: 3 }, label: '离子环波 1.5 格' },
-      ],
-    },
-    hiddenLayout: null,
+    layout: { slots: [
+      { role: '坦', at: [5, 2], facing: 'right', mark: '法抗承伤' },
+      { role: '坦', at: [7, 4], facing: 'right' },
+      { role: '疗', at: [3, 2], facing: 'right' },
+      { role: '输', at: [2, 1], facing: 'right' },
+      { role: '输', at: [1, 3], facing: 'right' },
+      { role: '空', at: [5, 4], facing: 'up' },
+    ], zones: [
+      { label: '离子环波', shape: { kind: 'circle', at: [5.55, 1.725], radius: 1.5 }, hint: '以鳍为中心的半径 1.5 格；后排离开承伤位周围，可用沉默处理环波。', targets: [[5, 2]], bossAt: [5.55, 1.725] },
+      { label: '巡逻路线', shape: { kind: 'line', path: [[8, 2], [7, 1], [1, 4], [7, 3], [7, 1]] }, hint: '在巡逻经过的位置准备阻挡，后排与承伤位错开。' },
+    ] },
+    hiddenLayout: { slots: [
+      { role: '坦', at: [5, 2], facing: 'right', mark: '法抗承伤' },
+      { role: '坦', at: [7, 4], facing: 'right' },
+      { role: '疗', at: [3, 2], facing: 'right' },
+      { role: '输', at: [2, 1], facing: 'right' },
+      { role: '输', at: [1, 3], facing: 'right' },
+      { role: '空', at: [5, 4], facing: 'up' },
+    ], zones: [
+      { label: '离子环波', shape: { kind: 'circle', at: [5.55, 1.725], radius: 1.5 }, hint: '以鳍为中心的半径 1.5 格；后排离开承伤位周围，可用沉默处理环波。', targets: [[5, 2]], bossAt: [5.55, 1.725] },
+      { label: '巡逻路线', shape: { kind: 'line', path: [[8, 2], [7, 1], [1, 4], [7, 3], [7, 1]] }, hint: '在巡逻经过的位置准备阻挡，后排与承伤位错开。' },
+      { label: '连锁攻击', shape: { kind: 'line', path: [[5.55, 1.725], [5, 2]] }, hint: '连续攻击同一目标会增加伤害和跳跃数；后排保持间距。', tone: 'hc', targets: [[5, 2]], bossAt: [5.55, 1.725] },
+    ] },
   },
   {
     name: '矩兽', id: 'enemy_2124_dyjsfg', damage: ['物理'],
     hp: [140400, 468000, 1170000, 1950000], hiddenCore: null,
     abilities: [
-      { skill: '明力', text: '{晕眩}、{寒冷}、{冻结}等异常状态持续时间大幅降低，受到的物理与法术伤害大幅降低；被阻挡或停止移动时减伤效果减少' },
+      { skill: '明力', text: '{晕眩}、{寒冷}、{冻结}等异常状态持续时间大幅降低，移动时受到的物理与法术伤害降低 50%；被阻挡或停止移动时降低 20%' },
       { skill: '尚同', text: '持续对周围 1.6 格造成物理伤害，每次被阻挡时额外造成一次高额物理伤害' },
       { skill: '非命', text: '生命值首次低于 50% 时，占用阻挡数、攻击力与移动速度提升' },
       { skill: '兼爱', text: '被击倒或退场时，使场上除<后兽>外的所有敌人退场，并对场上所有友方单位造成一次无视{隐匿}的高额物理伤害' },
@@ -423,26 +552,29 @@ export const LEADERS: readonly Leader[] = [
     hiddenAbilities: [],
     stage: {
       marks: [{ name: '矩兽', kind: 'boss', at: [8, 2], path: [[7, 1], [1, 4], [7, 3]], loop: true }],
-      escorts: [{ name: '山海众秘使', count: 2, note: '{隐匿}；隐匿失效后的下一次攻击伤害更高' }],
+      escorts: [{ name: '山海众秘使', count: 4, note: '{隐匿}；隐匿失效后的下一次攻击伤害更高' }],
     },
     hiddenStage: null,
     counters: [
       { tag: '阻挡', text: '被阻挡或停下时减伤变少：必须挡住', by: '明力' },
       { tag: '续航', text: '每次被阻挡对周围额外一次高额物理伤害：阻挡位要硬，身边少放人', by: '尚同' },
       { tag: '控制', text: '{晕眩}{寒冷}{冻结}持续时间大幅缩短，控制收益低', by: '明力' },
-      { tag: '阻挡', text: '占用阻挡数 3，首次半血后 +1：阻挡位要能挡 4', by: '非命' },
+      { tag: '阻挡', text: '初始占用阻挡数 2，首次半血后增加到 3：提前准备阻挡 3 的承伤位', by: '非命' },
     ],
-    layout: {
-      slots: [
-        { role: '坦', at: [5, 2], mark: '阻挡≥3' }, { role: '坦', at: [7, 4] },
-        { role: '疗', at: [3, 3] }, { role: '输', at: [2, 1] }, { role: '输', at: [2, 4] },
-        { role: '空', at: [6, 4] },
-      ],
-      zones: [
-        { shape: { kind: 'line', path: [[8, 2], [7, 1], [1, 4], [7, 3], [7, 1]] }, label: '巡逻路线' },
-        { shape: { kind: 'rect', at: [4, 1], w: 3, h: 3 }, label: '尚同 1.6 格' },
-      ],
-    },
+    layout: { slots: [
+      { role: '坦', at: [5, 2], facing: 'right', mark: '半血后阻挡≥3' },
+      { role: '坦', at: [7, 4], facing: 'right' },
+      { role: '疗', at: [3, 3], facing: 'right' },
+      { role: '输', at: [2, 1], facing: 'right' },
+      { role: '输', at: [2, 4], facing: 'right' },
+      { role: '空', at: [6, 4], facing: 'up' },
+    ], zones: [
+      { label: '尚同', shape: { kind: 'circle', at: [5.55, 1.725], radius: 1.6 }, hint: '初始占用阻挡 2，半血后 3；近身范围持续伤害，后排离开承伤圈。', targets: [[5, 2]], bossAt: [5.55, 1.725] },
+      { label: '巡逻路线', shape: { kind: 'line', path: [[8, 2], [7, 1], [1, 4], [7, 3], [7, 1]] }, hint: '在巡逻经过的位置准备阻挡，后排与承伤位错开。' },
+      { label: '兼爱', shape: { kind: 'rect', at: [1, 1], w: 6, h: 4 }, hint: '击倒前抬高全队生命，预留治疗或减伤承受退场伤害。', extraShapes: [
+        { kind: 'rect', at: [7, 4], w: 1, h: 1 },
+      ] },
+    ] },
     hiddenLayout: null,
   },
 ];
