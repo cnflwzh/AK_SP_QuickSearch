@@ -7,7 +7,7 @@
  *   图片：缓存优先
  *   本地字体：按需下载，缓存优先；文件名包含内容哈希
  */
-const VERSION = '6886438aeb';
+const VERSION = '8673e3ff9d';
 const CORE = [
   "./",
   "assets/css/base.css",
@@ -30,6 +30,7 @@ const CORE = [
   "data/strategies.js",
   "guide.html",
   "index.html",
+  "js/boot.js",
   "js/guide/chapters/01-basics.js",
   "js/guide/chapters/02-recruit.js",
   "js/guide/chapters/03-enemies.js",
@@ -41,6 +42,7 @@ const CORE = [
   "js/guide/main.js",
   "js/lib/about.js",
   "js/lib/assets.js",
+  "js/lib/deferred.js",
   "js/lib/dom.js",
   "js/lib/match.js",
   "js/lib/peek.js",
@@ -338,6 +340,7 @@ const IMAGES = [
 const CORE_CACHE = 'wsq-core-' + VERSION;
 const IMAGE_CACHE = 'wsq-img-543a5a5e85';
 const FONT_CACHE = 'wsq-font-local-v1';
+const ALLOWED = new Set([...CORE, ...IMAGES].map(path => new URL(path, self.registration.scope).href));
 
 /*
  * Cloudflare Pages 会把 /guide.html 重定向到 /guide。
@@ -362,23 +365,38 @@ async function fromCache(request) {
   return caches.match(new URL(alternatePath(url.pathname), url).href, options);
 }
 
-self.addEventListener('install', event => {
+// 安装时不下载任何页面、图片或字体；未访问的内容不会占用网络。
+self.addEventListener('install', event => event.waitUntil(self.skipWaiting()));
+
+const cacheName = url => url.pathname.includes('/assets/fonts/') ? FONT_CACHE
+  : /\/assets\/(img|icons)\//.test(url.pathname) ? IMAGE_CACHE : CORE_CACHE;
+
+/** 首次安装前已下载的本页资源，从 HTTP 缓存补存；后续请求由 fetch 事件缓存。 */
+self.addEventListener('message', event => {
+  if (event.data?.type !== 'CACHE_VISITED' || !Array.isArray(event.data.urls)) return;
   event.waitUntil((async () => {
-    const core = await caches.open(CORE_CACHE);
-    await Promise.all(CORE.map(async url => {
-      const res = await fetch(url, { cache: 'reload' });
-      if (res.ok) await core.put(url, await stripRedirect(res));
-    }));
-    const images = await caches.open(IMAGE_CACHE);
-    // Reuse unchanged images across content updates; at most four background downloads.
+    const urls = [...new Set(event.data.urls)].filter(value => {
+      if (typeof value !== 'string') return false;
+      try {
+        const url = new URL(value);
+        if (url.origin !== location.origin) return false;
+        return ALLOWED.has(url.href)
+          || ALLOWED.has(new URL(alternatePath(url.pathname), url).href)
+          || /\/assets\/fonts\/[a-z]+-[a-f0-9]{16}\.woff2$/.test(url.pathname);
+      } catch { return false; }
+    });
     let next = 0;
-    await Promise.all(Array.from({ length: 4 }, async () => {
-      while (next < IMAGES.length) {
-        const url = IMAGES[next++];
-        if (!await images.match(url)) await images.add(url).catch(() => {});
+    await Promise.all(Array.from({ length: 2 }, async () => {
+      while (next < urls.length) {
+        const url = new URL(urls[next++]);
+        const cache = await caches.open(cacheName(url));
+        if (await cache.match(url.href)) continue;
+        try {
+          const response = await fetch(url.href, { cache: 'force-cache', priority: 'low' });
+          if (response.ok) await cache.put(url.href, await stripRedirect(response));
+        } catch { /* 网络中断时，已保存的其他资源仍可离线使用。 */ }
       }
     }));
-    self.skipWaiting();
   })());
 });
 
@@ -402,11 +420,12 @@ async function cacheFirst(request, cacheName = IMAGE_CACHE) {
   return response;
 }
 
-function networkFirst(request) {
+function networkFirst(event) {
+  const request = event.request;
   return fetch(request).then(async res => {
     if (res.ok && res.type === 'basic') {
       const copy = await stripRedirect(res.clone());
-      caches.open(CORE_CACHE).then(cache => cache.put(request, copy));
+      event.waitUntil(caches.open(CORE_CACHE).then(cache => cache.put(request, copy)));
     }
     return res;
   }).catch(async () =>
@@ -425,6 +444,6 @@ self.addEventListener('fetch', event => {
   } else if (url.pathname.includes('/assets/img/') || url.pathname.includes('/assets/icons/')) {
     event.respondWith(cacheFirst(request));
   } else {
-    event.respondWith(networkFirst(request));
+    event.respondWith(networkFirst(event));
   }
 });

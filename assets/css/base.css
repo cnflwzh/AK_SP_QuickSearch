@@ -97,6 +97,81 @@ body {
 }
 
 /* layout */
+/* 遮罩仅使用系统字体；数据就绪即移除，不等待装饰字体。 */
+body.is-loading {
+  overflow: hidden;
+}
+body.is-loading > :not(#load-screen):not(script) {
+  visibility: hidden;
+}
+#load-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 24px;
+  background: var(--bg);
+  background-image: linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size: 32px 32px;
+  font: 500 14px/1.6 system-ui,sans-serif;
+  color: var(--ink2);
+}
+#load-screen p { margin: 0; letter-spacing: .12em; }
+.load-mark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+}
+.load-mark i {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--teal);
+  transform: rotate(45deg);
+  animation: load-pulse 1.4s ease-in-out infinite;
+}
+.load-mark i:nth-child(2) { border-color: var(--accent); animation-delay: .16s; }
+.load-mark i:nth-child(3) { animation-delay: .32s; }
+@keyframes load-pulse {
+  0%,100% { opacity: .3; transform: translateY(0) rotate(45deg); }
+  50% { opacity: 1; transform: translateY(-7px) rotate(45deg); }
+}
+#load-screen .load-slow,
+#load-screen .load-error,
+#load-screen .load-retry { display: none; }
+#load-screen[data-state] .load-pending { display: none; }
+#load-screen[data-state="slow"] .load-slow,
+#load-screen[data-state="error"] .load-error,
+#load-screen[data-state] .load-retry { display: block; }
+#load-screen[data-state="error"] .load-mark i { animation: none; border-color: var(--red); }
+.load-retry {
+  padding: 8px 20px;
+  border: 1px solid var(--line2);
+  border-radius: 6px;
+  background: var(--surface);
+  cursor: pointer;
+}
+.load-retry:hover { border-color: var(--teal); color: var(--teal); }
+.chap[aria-busy="true"] .chap-h::after {
+  content: '';
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--teal);
+  animation: load-pulse 1.4s ease-in-out infinite;
+  margin-left: auto;
+}
+.chap[aria-busy="true"] :is(button, input, select) { pointer-events: none; }
+.chapter-retry { margin: 0 0 18px; }
+@media (prefers-reduced-motion: reduce) {
+  .load-mark i,
+  .chap[aria-busy="true"] .chap-h::after { animation: none; }
+}
+
 .wrap {
   max-width: 1140px;
   margin: 0 auto;

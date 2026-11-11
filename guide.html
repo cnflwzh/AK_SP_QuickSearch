@@ -14,11 +14,34 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="规程速查">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="assets/css/fonts.css">
 <link rel="stylesheet" href="assets/css/base.css">
 <link rel="stylesheet" href="assets/css/guide.css">
+<!-- modulepreload:start -->
+<link rel="modulepreload" href="data/builds.js">
+<link rel="modulepreload" href="data/covenants.js">
+<link rel="modulepreload" href="data/equipment.js">
+<link rel="modulepreload" href="data/index.js">
+<link rel="modulepreload" href="data/operators.js">
+<link rel="modulepreload" href="data/rules.js">
+<link rel="modulepreload" href="data/strategies.js">
+<link rel="modulepreload" href="js/boot.js">
+<link rel="modulepreload" href="js/guide/chips.js">
+<link rel="modulepreload" href="js/guide/main.js">
+<link rel="modulepreload" href="js/lib/assets.js">
+<link rel="modulepreload" href="js/lib/dom.js">
+<link rel="modulepreload" href="js/lib/peek.js">
+<!-- modulepreload:end -->
 </head>
-<body>
+<body class="is-loading" data-page="guide" aria-busy="true">
+
+<section id="load-screen" role="status" aria-live="polite">
+  <div class="load-mark" aria-hidden="true"><i></i><i></i><i></i></div>
+  <p class="load-pending">正在加载图解教程</p>
+  <p class="load-slow">连接较慢，仍在加载</p>
+  <p class="load-error">加载失败，请重试</p>
+  <button type="button" class="load-retry" onclick="location.reload()">重新加载</button>
+  <noscript><style>.load-mark,.load-pending { display:none }</style>启用 JavaScript 以加载数据。</noscript>
+</section>
 
 <header class="wrap hero">
   <div>
@@ -376,6 +399,6 @@
 </main>
 <footer class="wrap">数据：PRTS · 可露希尔 Wiki · BWIKI · 流派参考 B 站 UP 主小鬼卡比、白樱iridescent　<button type="button" class="foot-about" data-about>关于本项目 · 数据来源 · 许可 ▸</button></footer>
 
-<script type="module" src="js/guide/main.js"></script>
+<script type="module" src="js/boot.js" onerror="document.getElementById('load-screen').dataset.state='error'"></script>
 </body>
 </html>

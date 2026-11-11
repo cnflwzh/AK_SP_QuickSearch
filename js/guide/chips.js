@@ -2,7 +2,6 @@
  * 教程页的小组件。与速查页不同，这里的芯片只是展示用的 <span>，不可点击。
  */
 import { OPERATOR, EQUIP, STRATEGY, TIER_LABELS, covenantColor } from '../../data/index.js';
-import { $$ } from '../lib/dom.js';
 import { avatarSrc, equipIconSrc, portraitSrc, img } from '../lib/assets.js';
 
 /** 盟约色；附加盟约统一用强调色 */
@@ -41,22 +40,23 @@ export const tierBadge = tier =>
 /**
  * guide.html 里手写的 <span class="op">名字</span> / <span class="eq">…</span> / .fc 卡片，
  * 在这里补上头像和图标，HTML 里就不用写图片路径了。
+ * @param {Document|Element} root 仅装饰已加载的章节；省略时处理整页。
  */
-export function decorateStaticChips() {
+export function decorateStaticChips(root = document) {
   const ROMAN = /^[ⅠⅡⅢⅣⅤⅥ·]/;
 
-  $$('span.op').forEach(el => {
+  root.querySelectorAll('span.op:not([data-op])').forEach(el => {
     const name = el.textContent.replace(ROMAN, '');
     if (!avatarSrc(name)) return;
     el.outerHTML = op(name, el.classList.contains('hl') ? 'hl' : '');
   });
 
-  $$('.fc').forEach(el => {
+  root.querySelectorAll('.fc').forEach(el => {
     const name = el.textContent.replace(/[ⅠⅡⅢⅣⅤⅥ]|精锐/g, '').trim();
     if (avatarSrc(name)) el.querySelector('i').insertAdjacentHTML('beforebegin', avatar(name));
   });
 
-  $$('span.eq').forEach(el => {
+  root.querySelectorAll('span.eq:not([data-eq])').forEach(el => {
     const label = el.textContent.replace(ROMAN, '');
     const name = label.replace(/＋$/, '');
     if (!equipIconSrc(name)) return;

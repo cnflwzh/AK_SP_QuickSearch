@@ -7,8 +7,6 @@
  */
 import { OPERATORS, EQUIPMENT, STRATEGIES, ALL_COVENANTS, BUILD_COUNT } from '../../data/index.js';
 import { $, $$, prefersReducedMotion } from '../lib/dom.js';
-import { registerServiceWorker } from '../lib/pwa.js';
-import { initAbout } from '../lib/about.js';
 import { initPeek } from '../lib/peek.js';
 import { state, setTab, setCovenant, setBuild } from './state.js';
 import { renderSearch } from './search.js';
@@ -179,5 +177,3 @@ document.addEventListener('keydown', e => {
 
 show(state.tab, { scroll: false });
 initPeek();
-initAbout();
-registerServiceWorker();

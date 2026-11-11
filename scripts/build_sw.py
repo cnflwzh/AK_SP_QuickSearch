@@ -1,4 +1,4 @@
-"""生成 sw.js：把预缓存清单和版本号填进 scripts/sw.template.js。
+"""生成 sw.js：把可缓存资源清单和版本号填进 scripts/sw.template.js。
 
 改动任何页面、脚本、样式、数据或图片后运行一次：
 
@@ -9,12 +9,13 @@
 import hashlib
 import json
 from pathlib import Path
+import build_preloads
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# 页面、样式、脚本、数据、图标：安装时全部缓存，联网时优先取新版本
+# 可缓存资源清单：只保存访问过的内容，联网时优先取新版本。
 CORE_GLOBS = ['*.html', 'manifest.webmanifest', 'assets/css/*.css', 'assets/icons/*', 'data/*.js', 'js/**/*.js']
-# 头像与图标：安装时预取，之后优先读缓存
+# 头像与图标：按需加载，之后优先读缓存。
 IMAGE_GLOBS = ['assets/img/*/*.webp']
 
 
@@ -26,6 +27,7 @@ def collect(globs):
 
 
 def main():
+    build_preloads.main()
     core = collect(CORE_GLOBS)
     images = collect(IMAGE_GLOBS)
 
