@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { OPERATOR, STRATEGY } from '../../../data/index.ts';
+import { OPERATOR, STRATEGY, TIER_LABELS } from '../../../data/index.ts';
 import { avatarSrc, equipIconSrc, portraitSrc } from '../../lib/assets.ts';
 import { covenantStats, planCost, type PlanOp } from '../../lib/planner.ts';
 import PlanCovenants from './PlanCovenants.vue';
@@ -15,6 +15,7 @@ const cost = computed(() => planCost(props.ops));
     <div class="pls-ops">
       <span v-for="slot in ops" :key="slot.name" :class="['pls-op', { el: slot.elite, hi: highlight?.has(slot.name) }]" :data-t="OPERATOR[slot.name]?.tier" :data-op="slot.name">
         <img :src="avatarSrc(slot.name)" alt="" width="44" height="44" loading="lazy">
+        <b class="tr">{{ TIER_LABELS[OPERATOR[slot.name]?.tier ?? 0] }}</b>
         <small>{{ slot.name }}</small>
         <span v-if="slot.eq.length" class="eqs"><img v-for="(e, i) in slot.eq" :key="i" :src="equipIconSrc(e)" :data-eq="e" alt="" width="14" height="14"></span>
         <span v-if="slot.alt.length" class="alts"><img v-for="a in slot.alt" :key="a" :src="avatarSrc(a)" :data-t="OPERATOR[a]?.tier" :data-op="a" alt="" width="14" height="14"></span>

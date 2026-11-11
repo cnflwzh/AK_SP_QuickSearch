@@ -2,7 +2,7 @@
  * 阵容分享图：干员头像、装备、策略、盟约进度和分享链接二维码画到一张 PNG 上。
  * 图片都在同源 assets/ 下，canvas 不会被污染，可以直接导出。
  */
-import { OPERATOR, STRATEGY, covenantColor } from '../../data/index.ts';
+import { OPERATOR, STRATEGY, TIER_LABELS, covenantColor } from '../../data/index.ts';
 import { avatarSrc, equipIconSrc, portraitSrc } from './assets.ts';
 import { covenantStats, planCost, type Plan } from './planner.ts';
 
@@ -77,6 +77,10 @@ export async function planImage(plan: Plan, link: string): Promise<Blob | null> 
     ctx.fillStyle = TIER[tier]; round(ctx, x, y, 72, 72, 6); ctx.fill();
     const img = images[i];
     if (img) { ctx.save(); round(ctx, x, y, 72, 72, 6); ctx.clip(); ctx.drawImage(img, x, y, 72, 72); ctx.restore(); }
+    // 等阶：左上角罗马数字（右上角是精锐，左下角是装备）
+    ctx.fillStyle = 'rgba(0,0,0,.62)'; round(ctx, x + 2, y + 2, 20, 16, 4); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = `700 11px ${FONT}`; ctx.textAlign = 'center';
+    ctx.fillText(TIER_LABELS[tier] ?? '', x + 12, y + 14); ctx.textAlign = 'left';
     if (slot.elite) {
       ctx.fillStyle = ACCENT; round(ctx, x + 44, y + 2, 26, 15, 4); ctx.fill();
       ctx.fillStyle = '#fff'; ctx.font = `700 10px ${FONT}`; ctx.fillText('精锐', x + 47, y + 13);

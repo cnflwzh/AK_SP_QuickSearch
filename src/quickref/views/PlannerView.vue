@@ -239,7 +239,7 @@ onUnmounted(() => window.removeEventListener('hashchange', readHash));
         <div class="pl-slots">
           <button v-for="(s, i) in ops" :key="s.name" type="button" :class="['pl-slot', { on: editing === i, el: s.elite }]" :data-t="OPERATOR[s.name].tier" :data-op="s.name" :style="{ '--i': i }" @click="editSlot(i)">
             <i class="no">{{ i + 1 }}</i>
-            <img :src="avatarSrc(s.name)" alt="" width="56" height="56">
+            <span class="av"><img :src="avatarSrc(s.name)" alt="" width="56" height="56"><b class="tr" :title="`${OPERATOR[s.name].tier} 阶`">{{ TIER_LABELS[OPERATOR[s.name].tier] }}</b></span>
             <span class="nm">{{ s.name }}</span>
             <span class="dots"><u v-for="c in OPERATOR[s.name].covenants" :key="c" :style="{ '--c': color(c) }"></u></span>
             <span v-if="s.eq.length" class="eqs"><img v-for="(e, k) in s.eq" :key="k" :src="equipIconSrc(e)" alt="" width="16" height="16"></span>

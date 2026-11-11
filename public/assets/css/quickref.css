@@ -2670,7 +2670,11 @@ mark {
 .pl-slot { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 5px 2px 4px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface2); min-width: 0; font-size: 11.5px; animation: tin .25s calc(var(--i, 0) * .03s) both; transition: border-color .15s, transform .15s; }
 .pl-slot:hover { border-color: var(--accent); }
 .pl-slot.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); transform: translateY(-2px); }
-.pl-slot > img { width: 100%; max-width: 56px; aspect-ratio: 1; height: auto; border-radius: 5px; background: var(--tc); border-bottom: 3px solid var(--tc); }
+.pl-slot .av { position: relative; display: block; width: 100%; max-width: 56px; }
+.pl-slot .av img { display: block; width: 100%; aspect-ratio: 1; height: auto; border-radius: 5px; background: var(--tc); border-bottom: 3px solid var(--tc); }
+.pl-slot .tr, .pls-op .tr { position: absolute; font: 700 10px/1 var(--fn); color: #fff; background: var(--tc); border-radius: 3px; box-shadow: 0 0 0 1px rgba(255,255,255,.7); pointer-events: none; }
+.pl-slot .tr { left: -2px; bottom: 1px; padding: 2px 4px; }
+.pls-op .tr { left: 1px; top: 1px; padding: 1px 3px; font-size: 9px; }
 .pl-slot .nm { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pl-slot .no { position: absolute; top: 2px; left: 4px; font: 600 10px var(--fn); color: var(--ink3); font-style: normal; z-index: 1; }
 .pl-slot.el::after { content: "精锐"; position: absolute; top: 3px; right: 3px; font-size: 9px; font-weight: 700; padding: 0 3px; border-radius: 3px; background: var(--accent); color: var(--accent-ink); }
