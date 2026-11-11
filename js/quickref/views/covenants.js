@@ -1,12 +1,12 @@
 /**
  * 盟约页：左侧盟约选择器，右侧依次为
- * 激活人数 → 效果 → 按等阶的阵容 → 叠层干员 → 专属装备/策略/流派 → 层数计算器
+ * 激活人数 → 效果 → 按等阶的阵容 → 叠层干员 → 专属装备/策略/流派
  */
 import {
   COVENANTS, CORE_COVENANTS, ADDON_COVENANTS, CORE_BUILDS, EQUIPMENT, STRATEGIES,
   TIERS, TIER_LABELS, ALL_COVENANTS, isCoreCovenant, rosterOf,
 } from '../../../data/index.js';
-import { $, $$, esc, html, range, round1 } from '../../lib/dom.js';
+import { $, $$, esc, html, range } from '../../lib/dom.js';
 import { updateHTML } from '../../lib/update-html.js';
 import { avatarSrc, img } from '../../lib/assets.js';
 import { state } from '../state.js';
@@ -180,37 +180,20 @@ function related(name, build) {
   </div>`;
 }
 
-const PRESETS = [0, 30, 60, 100, 150, 200, 300];
-
-function calculator(covenant, layers) {
-  if (!covenant.scaling.length) return '';
-  return html`<div class="qcalc" data-key="calculator">
-    <div class="top">
-      <span class="tag">层数</span>
-      <input type="range" min="0" max="300" value="${layers}" id="cvL" aria-label="层数">
-      <span class="lv num" id="cvLv">${layers}</span>
-    </div>
-    <div class="q">${PRESETS.map(x => `<button type="button" data-lv="${x}">${x}</button>`)}</div>
-    <div class="vals" id="cvVals"></div>
-  </div>`;
-}
-
 /* ---------- 视图 ---------- */
 
-/** 只生成右侧详情内容；首屏与局部切换共用，层数从当前会话状态恢复。 */
+/** 只生成右侧详情内容；首屏与局部切换共用。 */
 function detailContent(name) {
   const covenant = COVENANTS[name];
   const core = isCoreCovenant(name);
   const build = CORE_BUILDS[name];
   const roster = rosterOf(name);
-  const layers = state.layers[name] ?? 60;
 
   return html`${header(name, covenant, core)}
     ${effects(covenant, core)}
     ${rosterGrid(roster, build)}
     ${stackList(roster, name, build)}
-    ${related(name, build)}
-    ${calculator(covenant, layers)}`;
+    ${related(name, build)}`;
 }
 
 export default {
@@ -232,7 +215,7 @@ export default {
   /**
    * 按 state.covenant 更新右侧详情及左侧选中状态，保留列表节点、焦点与滚动位置。
    * @returns {boolean} 盟约视图已挂载时返回 true；返回 false 时由入口完整渲染。
-   * 切换盟约时重新绑定详情计算器；重复选择当前盟约不重建详情。
+   * 重复选择当前盟约不重建详情。
    */
   updateSelection() {
     const side = $('#cvside');
@@ -261,28 +244,7 @@ export default {
       detail.style.setProperty('--c', color(name));
       updateHTML(detail, detailContent(name));
       detail.dataset.covenant = name;
-      this.mount();
     }
     return true;
-  },
-
-  /** 计算器：拖动或点预设层数时刷新数值 */
-  mount() {
-    const name = state.covenant;
-    const { scaling } = COVENANTS[name];
-    if (!scaling.length) return;
-    const slider = $('#cvL');
-    const draw = () => {
-      const layers = +slider.value;
-      state.layers[name] = layers;
-      $('#cvLv').textContent = layers;
-      updateHTML($('#cvVals'), scaling.map(s =>
-        `<div><span>${s.label}</span><b>${round1(s.at(layers))}<small>${s.unit}</small></b></div>`).join(''));
-    };
-    slider.oninput = draw;
-    $$('[data-lv]').forEach(b => {
-      b.onclick = () => { slider.value = b.dataset.lv; draw(); };
-    });
-    draw();
   },
 };

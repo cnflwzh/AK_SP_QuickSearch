@@ -1,11 +1,38 @@
-/** 数值页：回合时限、调度中心、领袖生命、悬赏、练度等常查数字 */
+/** 数值页：盟约层数计算器、回合时限、调度中心、领袖生命、悬赏、练度等常查数字 */
 import {
   MODES, DECISION_ROUNDS, ROUND_TIME, LEADERS, DISPATCH_LEVELS, DISPATCH_BY_MODE, BOUNTIES, TIER_STATS,
-  TIER_LABELS, TRAINING, OWN_OPERATOR_BONUS,
+  TIER_LABELS, TRAINING, OWN_OPERATOR_BONUS, COVENANTS, CORE_COVENANTS, ADDON_COVENANTS,
 } from '../../../data/index.js';
-import { esc, html, range, wan } from '../../lib/dom.js';
+import { $, $$, esc, html, range, wan, round1 } from '../../lib/dom.js';
+import { updateHTML } from '../../lib/update-html.js';
 import { state } from '../state.js';
-import { segmented } from '../chips.js';
+import { color, segmented } from '../chips.js';
+
+const LAYER_PRESETS = [0, 30, 60, 100, 150, 200, 300];
+
+/** 复用盟约数据中的公式，只生成当前层数的结果。 */
+const layerValues = (name, layers) => COVENANTS[name].scaling.map(s =>
+  `<div><span>${esc(s.label)}</span><b>${round1(s.at(layers))}<small>${esc(s.unit)}</small></b></div>`).join('');
+
+/** 局内速查：计算器置顶，直接输入与预设按钮减少定位层数所需的操作。 */
+function layerCalculator() {
+  const name = state.calculatorCovenant;
+  const layers = state.layers[name] ?? 60;
+  const options = [['核心', CORE_COVENANTS], ['附加', ADDON_COVENANTS]].map(([label, names]) =>
+    html`<optgroup label="${label}">${names.filter(n => COVENANTS[n].scaling.length).map(n =>
+      `<option value="${esc(n)}" ${n === name ? 'selected' : ''}>${esc(n)}</option>`)}</optgroup>`);
+
+  return html`<section class="qcalc ncalc" id="nuCalc" style="--c:${color(name)}" aria-label="盟约层数计算器">
+    <div class="top">
+      <h4>层数计算器</h4>
+      <select id="nuCovenant" aria-label="计算盟约">${options}</select>
+      <label class="layer-value"><input class="lv" id="nuLayers" type="number" min="0" max="300" step="1" value="${layers}" aria-label="盟约层数">层</label>
+      <input id="nuRange" type="range" min="0" max="300" step="1" value="${layers}" aria-label="拖动调整层数">
+    </div>
+    <div class="q">${LAYER_PRESETS.map(n => `<button type="button" data-layers="${n}" class="${n === layers ? 'on' : ''}" aria-pressed="${n === layers}">${n}</button>`)}</div>
+    <div class="vals" id="nuValues">${layerValues(name, layers)}</div>
+  </section>`;
+}
 
 /** 每回合作战时限柱状图；联合模拟 14 回合，险境及以上可追加隐秘核心 */
 function roundTimeline(modeIndex) {
@@ -90,7 +117,7 @@ export default {
 
   render() {
     const modeTabs = segmented(MODES, state.mode, 'nud');
-    return html`<div class="ng">
+    return html`${layerCalculator()}<div class="ng">
       <div class="nc">
         <h4>回合时限（秒）${modeTabs}</h4>
         <div class="rtl">${roundTimeline(state.mode)}</div>
@@ -108,5 +135,39 @@ export default {
         <div class="row">${TRAINING.map(t => `<span class="tag t">${t.name} · ${t.desc}</span>`)}</div>
       </div>
     </div>`;
+  },
+
+  /** 只更新计算器的数值；切换盟约时恢复该盟约在本次会话中使用的层数。 */
+  mount() {
+    const calculator = $('#nuCalc');
+    const select = $('#nuCovenant', calculator);
+    const slider = $('#nuRange', calculator);
+    const input = $('#nuLayers', calculator);
+    const presets = $$('[data-layers]', calculator);
+    const draw = value => {
+      if (!Number.isFinite(value)) return;
+      const layers = Math.max(0, Math.min(300, Math.round(value)));
+      const name = state.calculatorCovenant;
+      state.layers[name] = layers;
+      slider.value = layers;
+      if (input.value !== String(layers)) input.value = layers;
+      updateHTML($('#nuValues', calculator), layerValues(name, layers));
+      presets.forEach(button => {
+        const selected = +button.dataset.layers === layers;
+        button.classList.toggle('on', selected);
+        button.setAttribute('aria-pressed', String(selected));
+      });
+    };
+    select.onchange = () => {
+      state.calculatorCovenant = select.value;
+      calculator.style.setProperty('--c', color(select.value));
+      draw(state.layers[select.value] ?? 60);
+    };
+    slider.oninput = () => draw(slider.valueAsNumber);
+    input.oninput = () => draw(input.valueAsNumber);
+    // 清空输入时允许继续键入；离开输入框后恢复有效层数，避免显示 NaN。
+    input.onchange = () => draw(Number.isFinite(input.valueAsNumber)
+      ? input.valueAsNumber : state.layers[state.calculatorCovenant] ?? 60);
+    presets.forEach(button => { button.onclick = () => draw(+button.dataset.layers); });
   },
 };

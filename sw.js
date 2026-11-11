@@ -7,7 +7,7 @@
  *   图片：缓存优先
  *   本地字体：按需下载，缓存优先；文件名包含内容哈希
  */
-const VERSION = '5ffbc7eb6e';
+const VERSION = '89e74b4e10';
 const CORE = [
   "./",
   "assets/css/base.css",

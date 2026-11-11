@@ -642,6 +642,50 @@ button.op:hover, button.eq:hover, button.st:hover, button.cv:hover {
   border-color: var(--c);
 }
 
+.qcalc .q button.on {
+  border-color: var(--c);
+  background: color-mix(in srgb,var(--c) 12%,var(--surface));
+  color: var(--ink);
+}
+
+.ncalc {
+  margin-bottom: 14px;
+}
+
+.ncalc h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink2);
+}
+
+.ncalc select,
+.ncalc input[type=number] {
+  border: 1px solid var(--line2);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 4px 8px;
+}
+
+.ncalc select {
+  min-width: 8em;
+  font-size: 14px;
+}
+
+.ncalc .layer-value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink2);
+  font-size: 13px;
+}
+
+.ncalc input[type=number] {
+  width: 5.5rem;
+  min-width: 0;
+  font-size: 24px;
+}
+
 .roster {
   display: flex;
   flex-direction: column;
