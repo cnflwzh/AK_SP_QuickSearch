@@ -1848,10 +1848,28 @@ mark {
   padding: 0 1px;
 }
 
-@media (max-width:860px) {
+/* 平板页头保持单行；教程入口收为紧凑按钮，为标题留出查询区上方的空间。 */
+@media (max-width:1000px) {
   .qhead {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0,1fr) auto;
   }
+  .qhead h1 {
+    font-size: clamp(36px,6vw,54px);
+    white-space: nowrap;
+  }
+  .guide {
+    grid-template-columns: auto auto;
+    width: auto;
+    padding: 10px 14px;
+  }
+  .guide svg,
+  .guide .k,
+  .guide .qsteps {
+    display: none;
+  }
+}
+
+@media (max-width:860px) {
   .cvwrap {
     grid-template-columns: minmax(0,1fr);
     gap: 10px;
