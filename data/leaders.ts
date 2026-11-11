@@ -17,7 +17,7 @@ import type { Leader, MapPos, StageEscort } from './types.ts';
  *
  * stage / hiddenStage 取自关卡文件 levels/activities/act3autochess/
  *   level_act3autochess_h07_xx.json（领袖回合）与 h08_xx.json（隐秘核心回合），并交叉核对 _s 独立模拟版本。
- *   十张图地形相同（见 LEADER_MAP）；路线展示联合关卡的左侧阵地。
+ *   h07/h08 是波次与路线模板；实际地形取标准场地 01 的 m01_sub_03 联合战场。
  *   随行数量取联合模拟 h07/h08 全场的静态 SPAWN 总数，额外技能召唤另计。
  * counters 由能力描述、随行敌人与路线推导，by 写明依据。
  * layout 根据机制整理我方站位；范围取自 enemy_database 与 PRTS 技能解析（管 1.8 格、弦 3 格）。
@@ -25,23 +25,28 @@ import type { Leader, MapPos, StageEscort } from './types.ts';
  */
 
 /**
- * 领袖关卡地图，[列, 行]，行从上往下。
- * grid  # 不可部署   . 可部署   _ 领袖平台   o 平台顶部   S 敌人出发点   E 蓝门   i 传送入口
- * 左侧可部署格为列 1–6 的四行，以及 [7,4]；中央平台不能部署。
+ * 标准场地 01 的联合战场，截取原图列 2–18、从上往下第 6–11 行。
+ * 来源：Kengxxiao/ArknightsGameData，zh_CN/gamedata/levels/activities/act3autochess/
+ * level_act3autochess_m01/level_act3autochess_m01_sub_03.json。
+ * # 禁行，. 可部署地面，B 可部署但地面敌人不可通行的障碍格，_ 不可部署通道，
+ * o 传送出口，E 蓝门，i 传送入口，b 整备区；crates 为预置阻隔工事。
+ * 地面路线根据关卡检查点绕过地形；飞行路线保留原检查点。
  */
 export const LEADER_MAP = {
+  name: '标准场地 01',
   grid: [
     '#################',
-    '#......_o_......#',
-    '#......___......#',
-    '#......___......#',
-    'E.......S.......E',
-    '#i#############i#',
+    '#B....._o_.....B#',
+    '#B.BBB.___.BBB.B#',
+    '#B.BBB.___.BBB.B#',
+    'E..###..o..###..E',
+    '#ibbbbb###bbbbbi#',
   ],
+  crates: [[3, 2], [3, 3], [4, 3], [13, 2], [13, 3], [12, 3]] as readonly MapPos[],
   spawn: [8, 4] as MapPos,
   exit: [0, 4] as MapPos,
   transfer: [1, 5] as MapPos,
-  /** 地面敌人：沿底行走向左下传送入口 */
+  /** 当前左侧分支；跨场传送不画成穿越地形的连线。 */
   walk: [[8, 4], [1, 4], [1, 5]] as readonly MapPos[],
   /** 妖怪：在左半场折返飞行 */
   fly: [[8, 4], [7, 4], [7, 1], [5, 1], [5, 4], [3, 4], [3, 1], [1, 1], [1, 4], [1, 5]] as readonly MapPos[],
@@ -91,12 +96,12 @@ export const LEADERS: readonly Leader[] = [
       { role: '输', at: [6, 3], facing: 'right' },
       { role: '空', at: [6, 1], facing: 'down' },
       { role: '空', at: [4, 2], facing: 'right', mark: '攻击最高' },
-      { role: '疗', at: [5, 4], facing: 'up' },
+      { role: '疗', at: [6, 4], facing: 'up' },
       { role: '坦', at: [2, 4], facing: 'right' },
       { role: '空', at: [1, 2], facing: 'right' },
     ], zones: [
       { label: '灭顶之灾', shape: { kind: 'rect', at: [3, 1], w: 3, h: 3 }, hint: '攻击最高者周围八格留空；弹体飞行中用多次命中击破。', targets: [[4, 2]] },
-      { label: '死亡集群', shape: { kind: 'line', path: [[8, 4], [7, 4], [7, 1], [5, 1], [5, 4], [3, 4], [3, 1], [1, 1], [1, 4], [1, 5]] }, hint: '对空输出覆盖飞行路线；死亡集群召唤的妖怪被击倒时，胄损失 2% 最大生命。' },
+      { label: '死亡集群', shape: { kind: 'line', path: LEADER_MAP.fly }, hint: '对空输出覆盖飞行路线；死亡集群召唤的妖怪被击倒时，胄损失 2% 最大生命。' },
     ] },
     hiddenLayout: { slots: [
       { role: '坦', at: [7, 4], facing: 'right' },
@@ -105,11 +110,11 @@ export const LEADERS: readonly Leader[] = [
       { role: '空', at: [4, 2], facing: 'right', mark: '攻击最高' },
       { role: '疗', at: [1, 2], facing: 'right', mark: '攻击最低' },
       { role: '坦', at: [2, 4], facing: 'right' },
-      { role: '疗', at: [5, 4], facing: 'up' },
+      { role: '疗', at: [6, 4], facing: 'up' },
     ], zones: [
       { label: '灭顶之灾', shape: { kind: 'rect', at: [3, 1], w: 3, h: 3 }, hint: '攻击最高者周围八格留空；弹体飞行中用多次命中击破。', targets: [[4, 2]] },
       { label: '旧日的剑与锤', shape: { kind: 'rect', at: [0, 1], w: 3, h: 3 }, hint: '最低攻击力单位周围留空；飞行时击落剑锤，再集中输出落地部件。', tone: 'hc', targets: [[1, 2]] },
-      { label: '死亡集群', shape: { kind: 'line', path: [[8, 4], [7, 4], [7, 1], [5, 1], [5, 4], [3, 4], [3, 1], [1, 1], [1, 4], [1, 5]] }, hint: '对空输出覆盖飞行路线；死亡集群召唤的妖怪被击倒时，胄损失 2% 最大生命。' },
+      { label: '死亡集群', shape: { kind: 'line', path: LEADER_MAP.fly }, hint: '对空输出覆盖飞行路线；死亡集群召唤的妖怪被击倒时，胄损失 2% 最大生命。' },
     ] },
   },
   {
@@ -147,39 +152,39 @@ export const LEADERS: readonly Leader[] = [
       { tag: '避让', text: '簧被拉回铳身边时免疫伤害并撞伤沿途单位', by: '末日布道', hidden: true },
     ],
     layout: { slots: [
-      { role: '坦', at: [5, 2], facing: 'right', mark: '防御最高' },
-      { role: '疗', at: [3, 2], facing: 'right' },
+      { role: '坦', at: [6, 2], facing: 'right', mark: '防御最高' },
+      { role: '疗', at: [3, 1], facing: 'right' },
       { role: '输', at: [2, 1], facing: 'right' },
-      { role: '输', at: [3, 4], facing: 'up' },
+      { role: '输', at: [2, 3], facing: 'up' },
       { role: '空', at: [6, 4], facing: 'up' },
       { role: '坦', at: [7, 4], facing: 'right' },
     ], zones: [
-      { label: '最终之罚', shape: { kind: 'line', path: [[8, 2], [5, 2]] }, hint: '冲锋锁定最高防御单位；两者之间留出通道。', targets: [[5, 2]] },
+      { label: '最终之罚', shape: { kind: 'line', path: [[8, 2], [6, 2]] }, hint: '冲锋锁定最高防御单位；两者之间留出通道。', targets: [[6, 2]] },
       { label: '巡逻路线', shape: { kind: 'line', path: [[8, 2], [7, 1], [1, 4], [7, 3], [7, 1]] }, hint: '在巡逻经过的位置准备阻挡，后排与承伤位错开。' },
     ] },
     hiddenLayout: { slots: [
-      { role: '坦', at: [5, 2], facing: 'right', mark: '防御最高' },
-      { role: '疗', at: [3, 2], facing: 'right' },
+      { role: '坦', at: [6, 2], facing: 'right', mark: '防御最高' },
+      { role: '疗', at: [3, 1], facing: 'right' },
       { role: '输', at: [2, 1], facing: 'right' },
-      { role: '输', at: [3, 4], facing: 'up' },
+      { role: '输', at: [2, 3], facing: 'up' },
       { role: '空', at: [6, 4], facing: 'up' },
       { role: '坦', at: [7, 4], facing: 'right' },
     ], zones: [
-      { label: '最终之罚', shape: { kind: 'line', path: [[8, 2], [5, 2]] }, hint: '冲锋锁定最高防御单位；两者之间留出通道。', targets: [[5, 2]] },
+      { label: '最终之罚', shape: { kind: 'line', path: [[8, 2], [6, 2]] }, hint: '冲锋锁定最高防御单位；两者之间留出通道。', targets: [[6, 2]] },
       { label: '巡逻路线', shape: { kind: 'line', path: [[8, 2], [7, 1], [1, 4], [7, 3], [7, 1]] }, hint: '在巡逻经过的位置准备阻挡，后排与承伤位错开。' },
       { label: '盲信之誓', shape: { kind: 'line', path: [[8, 2], [6, 1]] }, hint: '避开铳与簧之间的连结线，集中攻击可受伤的簧。', tone: 'hc', extraShapes: [
         { kind: 'line', path: [[8, 2], [2, 3]] },
-        { kind: 'line', path: [[8, 2], [4, 3]] },
+        { kind: 'line', path: [[8, 2], [6, 3]] },
       ], markers: [
         { name: '簧', at: [6, 1] },
         { name: '簧', at: [2, 3] },
-        { name: '簧', at: [4, 3] },
+        { name: '簧', at: [6, 3] },
       ] },
-      { label: '末日布道', shape: { kind: 'line', path: [[4, 3], [8, 2]] }, hint: '簧回到本体途中免疫伤害；让开它们的移动路径。', tone: 'hc', extraShapes: [
+      { label: '末日布道', shape: { kind: 'line', path: [[6, 3], [8, 2]] }, hint: '簧回到本体途中免疫伤害；让开它们的移动路径。', tone: 'hc', extraShapes: [
         { kind: 'line', path: [[2, 3], [8, 2]] },
         { kind: 'line', path: [[6, 1], [8, 2]] },
       ], markers: [
-        { name: '簧', at: [4, 3] },
+        { name: '簧', at: [6, 3] },
         { name: '簧', at: [6, 1] },
         { name: '簧', at: [2, 3] },
       ] },
@@ -224,7 +229,7 @@ export const LEADERS: readonly Leader[] = [
     layout: { slots: [
       { role: '坦', at: [6, 4], facing: 'right', mark: '阻挡≥2' },
       { role: '坦', at: [2, 4], facing: 'right' },
-      { role: '疗', at: [4, 3], facing: 'right' },
+      { role: '疗', at: [3, 1], facing: 'right' },
       { role: '输', at: [6, 1], facing: 'down' },
       { role: '输', at: [4, 1], facing: 'right' },
       { role: '群', at: [2, 1], facing: 'right' },
@@ -236,7 +241,7 @@ export const LEADERS: readonly Leader[] = [
     hiddenLayout: { slots: [
       { role: '坦', at: [6, 4], facing: 'right', mark: '阻挡≥2' },
       { role: '坦', at: [2, 4], facing: 'right' },
-      { role: '疗', at: [4, 3], facing: 'right' },
+      { role: '疗', at: [3, 1], facing: 'right' },
       { role: '输', at: [6, 1], facing: 'down' },
       { role: '输', at: [4, 1], facing: 'right' },
       { role: '群', at: [2, 1], facing: 'right' },
@@ -272,18 +277,18 @@ export const LEADERS: readonly Leader[] = [
     ],
     layout: { slots: [
       { role: '坦', at: [7, 4], facing: 'right', mark: '防御最高' },
-      { role: '坦', at: [5, 4], facing: 'right', mark: '防御次高' },
+      { role: '坦', at: [6, 4], facing: 'right', mark: '防御次高' },
       { role: '疗', at: [6, 2], facing: 'down' },
       { role: '输', at: [4, 2], facing: 'right' },
-      { role: '群', at: [4, 3], facing: 'right' },
+      { role: '群', at: [4, 1], facing: 'right' },
       { role: '空', at: [2, 2], facing: 'right' },
     ], zones: [
-      { label: '双目标攻击', shape: { kind: 'tiles', at: [[7, 4], [5, 4]] }, hint: '防御最高的两名单位承伤；同时保持两处治疗覆盖。', targets: [[7, 4], [5, 4]] },
+      { label: '双目标攻击', shape: { kind: 'tiles', at: [[7, 4], [6, 4]] }, hint: '防御最高的两名单位承伤；同时保持两处治疗覆盖。', targets: [[7, 4], [6, 4]] },
       { label: '大潮', shape: { kind: 'rect', at: [1, 1], w: 6, h: 4 }, hint: '全场法术伤害与神经损伤，准备群体治疗和元素恢复。', extraShapes: [
         { kind: 'rect', at: [7, 4], w: 1, h: 1 },
       ] },
-      { label: '断裂生殖', shape: { kind: 'tiles', at: [[5, 4]] }, hint: '其他输出覆盖被缠绕者附近，及时清理子代。', targets: [[5, 4]], markers: [
-        { name: '子代', at: [5, 3.3] },
+      { label: '断裂生殖', shape: { kind: 'tiles', at: [[6, 4]] }, hint: '其他输出覆盖被缠绕者附近，及时清理子代。', targets: [[6, 4]], markers: [
+        { name: '子代', at: [6, 3.3] },
       ] },
     ] },
     hiddenLayout: null,
@@ -314,8 +319,8 @@ export const LEADERS: readonly Leader[] = [
       { role: '坦', at: [7, 4], facing: 'right' },
       { role: '空', at: [6, 3], facing: 'up' },
       { role: '输', at: [5, 2], facing: 'right' },
-      { role: '疗', at: [4, 3], facing: 'right' },
-      { role: '坦', at: [3, 4], facing: 'right' },
+      { role: '疗', at: [3, 1], facing: 'right' },
+      { role: '坦', at: [2, 4], facing: 'right' },
       { role: '输', at: [4, 1], facing: 'right' },
       { role: '群', at: [2, 1], facing: 'right' },
     ], zones: [
@@ -350,7 +355,7 @@ export const LEADERS: readonly Leader[] = [
       { role: '输', at: [6, 2], facing: 'right' },
       { role: '疗', at: [5, 3], facing: 'up' },
       { role: '输', at: [4, 1], facing: 'right' },
-      { role: '空', at: [3, 3], facing: 'right' },
+      { role: '空', at: [3, 1], facing: 'right' },
       { role: '坦', at: [2, 4], facing: 'right' },
       { role: '群', at: [1, 2], facing: 'right' },
     ], zones: [
@@ -393,35 +398,35 @@ export const LEADERS: readonly Leader[] = [
     ],
     layout: { slots: [
       { role: '坦', at: [7, 4], facing: 'right' },
-      { role: '坦', at: [4, 4], facing: 'right', mark: '阻挡最高' },
+      { role: '坦', at: [2, 4], facing: 'right', mark: '阻挡最高' },
       { role: '群', at: [4, 2], facing: 'down' },
-      { role: '群', at: [2, 3], facing: 'right' },
+      { role: '群', at: [2, 3], facing: 'down' },
       { role: '疗', at: [5, 2], facing: 'down' },
       { role: '输', at: [6, 2], facing: 'right' },
       { role: '空', at: [2, 1], facing: 'right' },
     ], zones: [
-      { label: '洪流攻势', shape: { kind: 'tiles', at: [[4, 4]] }, hint: '以最高阻挡数单位为召唤中心，让群攻与治疗覆盖这一带。', targets: [[4, 4]], markers: [
-        { name: '量变', at: [4.7, 4] },
-        { name: '量变', at: [3.3, 4] },
+      { label: '洪流攻势', shape: { kind: 'tiles', at: [[2, 4]] }, hint: '以最高阻挡数单位为召唤中心，让群攻与治疗覆盖这一带。', targets: [[2, 4]], markers: [
+        { name: '量变', at: [2, 3.3] },
+        { name: '量变', at: [1.3, 4] },
       ] },
     ] },
     hiddenLayout: { slots: [
       { role: '坦', at: [7, 4], facing: 'right' },
-      { role: '坦', at: [4, 4], facing: 'right', mark: '阻挡最高' },
+      { role: '坦', at: [2, 4], facing: 'right', mark: '阻挡最高' },
       { role: '群', at: [4, 2], facing: 'down' },
-      { role: '群', at: [2, 3], facing: 'right' },
+      { role: '群', at: [2, 3], facing: 'down' },
       { role: '疗', at: [5, 2], facing: 'down' },
       { role: '输', at: [6, 2], facing: 'right' },
       { role: '空', at: [2, 1], facing: 'right' },
     ], zones: [
-      { label: '洪流攻势', shape: { kind: 'tiles', at: [[4, 4]] }, hint: '以最高阻挡数单位为召唤中心，让群攻与治疗覆盖这一带。', targets: [[4, 4]], markers: [
-        { name: '量变', at: [4.7, 4] },
-        { name: '量变', at: [3.3, 4] },
+      { label: '洪流攻势', shape: { kind: 'tiles', at: [[2, 4]] }, hint: '以最高阻挡数单位为召唤中心，让群攻与治疗覆盖这一带。', targets: [[2, 4]], markers: [
+        { name: '量变', at: [2, 3.3] },
+        { name: '量变', at: [1.3, 4] },
       ] },
-      { label: '威光冲击', shape: { kind: 'line', path: [[3, 3], [8, 3]] }, hint: '两侧部件夹区会降低攻速；攻击飞出的冲击之械，将其推回本体。', tone: 'hc', extraShapes: [
+      { label: '威光冲击', shape: { kind: 'line', path: [[2, 3], [8, 3]] }, hint: '两侧部件夹区会降低攻速；攻击飞出的冲击之械，将其推回本体。', tone: 'hc', extraShapes: [
         { kind: 'line', path: [[10, 3], [8, 3]] },
       ], markers: [
-        { name: '冲击', at: [3, 3] },
+        { name: '冲击', at: [2, 3] },
         { name: '冲击', at: [10, 3] },
       ] },
     ] },
@@ -456,28 +461,28 @@ export const LEADERS: readonly Leader[] = [
     ],
     layout: { slots: [
       { role: '坦', at: [7, 4], facing: 'right', mark: '当前生命①' },
-      { role: '坦', at: [3, 4], facing: 'right', mark: '当前生命②' },
+      { role: '坦', at: [2, 4], facing: 'right', mark: '当前生命②' },
       { role: '疗', at: [5, 2], facing: 'down' },
       { role: '输', at: [6, 2], facing: 'down', mark: '当前生命③' },
       { role: '输', at: [4, 1], facing: 'right' },
       { role: '空', at: [2, 2], facing: 'right' },
-      { role: '群', at: [5, 4], facing: 'up' },
+      { role: '群', at: [5, 3], facing: 'up' },
     ], zones: [
-      { label: '三目标攻击', shape: { kind: 'tiles', at: [[7, 4], [3, 4], [6, 2]] }, hint: '按当前生命值选择前三名；治疗和受伤都会改变目标排序。', targets: [[7, 4], [3, 4], [6, 2]] },
+      { label: '三目标攻击', shape: { kind: 'tiles', at: [[7, 4], [2, 4], [6, 2]] }, hint: '按当前生命值选择前三名；治疗和受伤都会改变目标排序。', targets: [[7, 4], [2, 4], [6, 2]] },
       { label: '淤困捕食', shape: { kind: 'tiles', at: [[6, 2]] }, hint: '输出互相覆盖，及时打掉淤困之茧；阻挡位保留接替位置。', targets: [[6, 2]], markers: [
         { name: '茧', at: [6, 2] },
       ] },
     ] },
     hiddenLayout: { slots: [
       { role: '坦', at: [7, 4], facing: 'right', mark: '当前生命①' },
-      { role: '坦', at: [3, 4], facing: 'right', mark: '当前生命②' },
+      { role: '坦', at: [2, 4], facing: 'right', mark: '当前生命②' },
       { role: '疗', at: [5, 2], facing: 'down' },
       { role: '输', at: [6, 2], facing: 'down', mark: '当前生命③' },
       { role: '输', at: [4, 1], facing: 'right', mark: '当前生命④' },
       { role: '空', at: [2, 2], facing: 'right' },
-      { role: '群', at: [5, 4], facing: 'up' },
+      { role: '群', at: [5, 3], facing: 'up' },
     ], zones: [
-      { label: '四目标攻击', shape: { kind: 'tiles', at: [[7, 4], [3, 4], [6, 2], [4, 1]] }, hint: '核心每个场地多攻击一名单位，普攻附加中毒。', tone: 'hc', targets: [[7, 4], [3, 4], [6, 2], [4, 1]] },
+      { label: '四目标攻击', shape: { kind: 'tiles', at: [[7, 4], [2, 4], [6, 2], [4, 1]] }, hint: '核心每个场地多攻击一名单位，普攻附加中毒。', tone: 'hc', targets: [[7, 4], [2, 4], [6, 2], [4, 1]] },
       { label: '淤困捕食', shape: { kind: 'tiles', at: [[6, 2]] }, hint: '输出互相覆盖，及时打掉淤困之茧；阻挡位保留接替位置。', targets: [[6, 2]], markers: [
         { name: '茧', at: [6, 2] },
       ] },
@@ -517,27 +522,27 @@ export const LEADERS: readonly Leader[] = [
       { tag: '分散', text: '雷暴周期性劈站位密集处；攻击还会在干员间跳跃', by: '雷暴天气', hidden: true },
     ],
     layout: { slots: [
-      { role: '坦', at: [5, 2], facing: 'right', mark: '法抗承伤' },
+      { role: '坦', at: [6, 2], facing: 'right', mark: '法抗承伤' },
       { role: '坦', at: [7, 4], facing: 'right' },
-      { role: '疗', at: [3, 2], facing: 'right' },
+      { role: '疗', at: [3, 1], facing: 'right' },
       { role: '输', at: [2, 1], facing: 'right' },
       { role: '输', at: [1, 3], facing: 'right' },
-      { role: '空', at: [5, 4], facing: 'up' },
+      { role: '空', at: [4, 2], facing: 'up' },
     ], zones: [
-      { label: '离子环波', shape: { kind: 'circle', at: [5.55, 1.725], radius: 1.5 }, hint: '以鳍为中心的半径 1.5 格；后排离开承伤位周围，可用沉默处理环波。', targets: [[5, 2]], bossAt: [5.55, 1.725] },
+      { label: '离子环波', shape: { kind: 'circle', at: [6.9, 2], radius: 1.5 }, hint: '以鳍为中心的半径 1.5 格；后排离开承伤位周围，可用沉默处理环波。', targets: [[6, 2]], bossAt: [6.9, 2] },
       { label: '巡逻路线', shape: { kind: 'line', path: [[8, 2], [7, 1], [1, 4], [7, 3], [7, 1]] }, hint: '在巡逻经过的位置准备阻挡，后排与承伤位错开。' },
     ] },
     hiddenLayout: { slots: [
-      { role: '坦', at: [5, 2], facing: 'right', mark: '法抗承伤' },
+      { role: '坦', at: [6, 2], facing: 'right', mark: '法抗承伤' },
       { role: '坦', at: [7, 4], facing: 'right' },
-      { role: '疗', at: [3, 2], facing: 'right' },
+      { role: '疗', at: [3, 1], facing: 'right' },
       { role: '输', at: [2, 1], facing: 'right' },
       { role: '输', at: [1, 3], facing: 'right' },
-      { role: '空', at: [5, 4], facing: 'up' },
+      { role: '空', at: [4, 2], facing: 'up' },
     ], zones: [
-      { label: '离子环波', shape: { kind: 'circle', at: [5.55, 1.725], radius: 1.5 }, hint: '以鳍为中心的半径 1.5 格；后排离开承伤位周围，可用沉默处理环波。', targets: [[5, 2]], bossAt: [5.55, 1.725] },
+      { label: '离子环波', shape: { kind: 'circle', at: [6.9, 2], radius: 1.5 }, hint: '以鳍为中心的半径 1.5 格；后排离开承伤位周围，可用沉默处理环波。', targets: [[6, 2]], bossAt: [6.9, 2] },
       { label: '巡逻路线', shape: { kind: 'line', path: [[8, 2], [7, 1], [1, 4], [7, 3], [7, 1]] }, hint: '在巡逻经过的位置准备阻挡，后排与承伤位错开。' },
-      { label: '连锁攻击', shape: { kind: 'line', path: [[5.55, 1.725], [5, 2]] }, hint: '连续攻击同一目标会增加伤害和跳跃数；后排保持间距。', tone: 'hc', targets: [[5, 2]], bossAt: [5.55, 1.725] },
+      { label: '连锁攻击', shape: { kind: 'line', path: [[6.9, 2], [6, 2]] }, hint: '连续攻击同一目标会增加伤害和跳跃数；后排保持间距。', tone: 'hc', targets: [[6, 2]], bossAt: [6.9, 2] },
     ] },
   },
   {
@@ -562,14 +567,14 @@ export const LEADERS: readonly Leader[] = [
       { tag: '阻挡', text: '初始占用阻挡数 2，首次半血后增加到 3：提前准备阻挡 3 的承伤位', by: '非命' },
     ],
     layout: { slots: [
-      { role: '坦', at: [5, 2], facing: 'right', mark: '半血后阻挡≥3' },
+      { role: '坦', at: [6, 2], facing: 'right', mark: '半血后阻挡≥3' },
       { role: '坦', at: [7, 4], facing: 'right' },
-      { role: '疗', at: [3, 3], facing: 'right' },
+      { role: '疗', at: [4, 2], facing: 'right' },
       { role: '输', at: [2, 1], facing: 'right' },
       { role: '输', at: [2, 4], facing: 'right' },
       { role: '空', at: [6, 4], facing: 'up' },
     ], zones: [
-      { label: '尚同', shape: { kind: 'circle', at: [5.55, 1.725], radius: 1.6 }, hint: '初始占用阻挡 2，半血后 3；近身范围持续伤害，后排离开承伤圈。', targets: [[5, 2]], bossAt: [5.55, 1.725] },
+      { label: '尚同', shape: { kind: 'circle', at: [6.9, 2], radius: 1.6 }, hint: '初始占用阻挡 2，半血后 3；近身范围持续伤害，后排离开承伤圈。', targets: [[6, 2]], bossAt: [6.9, 2] },
       { label: '巡逻路线', shape: { kind: 'line', path: [[8, 2], [7, 1], [1, 4], [7, 3], [7, 1]] }, hint: '在巡逻经过的位置准备阻挡，后排与承伤位错开。' },
       { label: '兼爱', shape: { kind: 'rect', at: [1, 1], w: 6, h: 4 }, hint: '击倒前抬高全队生命，预留治疗或减伤承受退场伤害。', extraShapes: [
         { kind: 'rect', at: [7, 4], w: 1, h: 1 },

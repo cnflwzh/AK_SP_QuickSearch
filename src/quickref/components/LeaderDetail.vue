@@ -82,6 +82,7 @@ const portrait = computed(() => leaderSrc(props.leader.name));
       <div v-if="layout" class="map-skills" role="group" aria-label="选择技能范围">
         <button v-for="(z, i) in layout.zones" :key="z.label" type="button" :class="{ on: scene === z, hc: z.tone === 'hc' }" :aria-pressed="scene === z" @click="sceneIndex = i">{{ z.label }}</button>
       </div>
+      <div class="map-terrain-key"><b>{{ LEADER_MAP.name }}</b><span><i class="terrain-road"></i>地面</span><span title="地面敌人不可通行，可部署干员"><i class="terrain-barrier"></i>地形障碍</span><span><i class="terrain-crate"></i>阻隔工事</span><span><i class="terrain-wall"></i>禁行</span></div>
       <LeaderMap :stage="stage" :layout="layout" :scene="scene" :portrait="portrait"/>
       <div v-if="scene" class="map-reading" aria-live="polite">
         <div v-if="targetMarks.length" class="map-targets"><span>目标</span><b v-for="mark in targetMarks" :key="mark">{{ mark }}</b></div>
@@ -95,7 +96,7 @@ const portrait = computed(() => leaderSrc(props.leader.name));
         <span><i class="b"></i>领袖</span><span v-if="patrols(leader)"><i class="pt"></i>巡逻</span>
         <span><i class="w"></i>地面</span><span><i class="f"></i>飞行</span>
         <span v-if="stage.marks.some(m => m.kind !== 'boss')"><i class="u"></i>特殊单位</span>
-        <span><i class="s"></i>出发</span><span><i class="x"></i>蓝门</span>
+        <span><i class="s"></i>敌人入场</span><span><i class="x"></i>蓝门</span>
       </div>
       <h5 class="escort-heading">随行敌人<span>联合全场</span></h5>
       <ul class="lwe">
