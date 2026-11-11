@@ -17,12 +17,17 @@ export const MAX_EQ = 2;
 /** 每个位置的备选干员数：抓不到主选时的次级选择 */
 export const MAX_ALT = 3;
 /** 流派说明字数上限 */
-export const MAX_NOTE = 60;
+export const MAX_NOTE = 150;
+/** 盟约层数：滑条到 1000，输入框可以填到 9999 */
+export const LAYER_SLIDER = 1000;
+export const MAX_LAYERS = 9999;
 const ISOMORPH = '变形同构体';
 
 /** alt：主选抓不到时依次考虑的备选，只作参考，不计入盟约统计 */
 export interface PlanOp { name: string; elite: boolean; eq: string[]; alt: string[] }
-export interface Plan { id: string; name: string; ops: PlanOp[]; strategy: string; note: string; updated: number }
+/** layers：各盟约自己的层数（只记效果随层数变化的盟约） */
+export type Layers = Record<string, number>;
+export interface Plan { id: string; name: string; ops: PlanOp[]; strategy: string; note: string; layers: Layers; updated: number }
 
 /* ---------- 盟约 ---------- */
 
@@ -64,7 +69,11 @@ export function covenantsOf(slot: PlanOp): { own: readonly string[]; granted: st
 const bonusNeedOf = (bonus: string): number => +(bonus.match(/^(\d+)名(?!精锐)/)?.[1] ?? 0);
 const bonusLayersOf = (bonus: string): number => +(bonus.match(/(\d+)层/)?.[1] ?? 0);
 
-export function covenantStats(ops: readonly PlanOp[], layers: number): CovenantStat[] {
+/** 效果或强化条件里出现“层”的盟约，才需要填层数 */
+export const usesLayers = (name: string): boolean => /层/.test(COVENANTS[name].effect + COVENANTS[name].bonus);
+const clampLayers = (n: unknown): number => Math.max(0, Math.min(MAX_LAYERS, Math.round(+(n as number) || 0)));
+
+export function covenantStats(ops: readonly PlanOp[], layers: Layers = {}): CovenantStat[] {
   const members = new Map<string, Set<string>>(), granted = new Map<string, Set<string>>();
   for (const slot of ops) {
     const { own, granted: extra } = covenantsOf(slot);
@@ -84,7 +93,7 @@ export function covenantStats(ops: readonly PlanOp[], layers: number): CovenantS
     const broken = name === '独行' && count > 1;
     const active = !broken && count >= cov.need;
     const bonusCount = bonusElite ? elites : count;
-    const bonusActive = active && (bonusNeed ? bonusCount >= bonusNeed : bonusLayers ? layers >= bonusLayers : false);
+    const bonusActive = active && (bonusNeed ? bonusCount >= bonusNeed : bonusLayers ? (layers[name] ?? 0) >= bonusLayers : false);
     const next = broken ? 0 : count < cov.need ? cov.need - count : bonusNeed && !bonusElite && count < bonusNeed ? bonusNeed - count : 0;
     return {
       name, core, members: list, granted: [...(granted.get(name) ?? [])], extra, count, need: cov.need,
@@ -105,7 +114,7 @@ export interface Suggestion { op: Operator; score: number; gains: { covenant: st
 export function suggestions(ops: readonly PlanOp[], limit = 8): Suggestion[] {
   if (ops.length >= MAX_OPS) return [];
   const taken = new Set(ops.map(o => o.name));
-  const before = new Map(covenantStats(ops, 0).map(s => [s.name, s]));
+  const before = new Map(covenantStats(ops).map(s => [s.name, s]));
   const out: Suggestion[] = [];
   for (const op of OPERATORS) {
     if (taken.has(op.name)) continue;
@@ -182,7 +191,8 @@ export function equipNotes(ops: readonly PlanOp[]): EquipNote[] {
 /* ---------- 分享码 ----------
  * 字节（版本 2）：[2][策略序号+1][干员数]
  *   每名干员 [游戏 ID 高][低][标志: bit0 精锐, bit1-2 装备数, bit3-4 备选数][装备序号+1 …][备选 ID 高][低] …
- *   然后 [方案名字节数][方案名 UTF-8][说明 UTF-8]
+ *   [层数条目数] 每条 [盟约序号][层数高][低]
+ *   然后 [方案名字节数][方案名 UTF-8][说明 UTF-16]（中文 2 字节 / 字，比 UTF-8 省三分之一，二维码更小）
  * 版本 1 没有备选和说明，余下全部是方案名；仍可导入。
  * 干员用游戏内 char_ID，装备 / 策略用图标序号（e00、s00）：换赛季调整列表顺序后，旧码仍能解析。
  */
@@ -200,7 +210,13 @@ const fromB64 = (text: string): Uint8Array => {
 };
 const idBytes = (name: string): number[] => { const id = opId(OPERATOR[name]); return [id >> 8 & 255, id & 255]; };
 
-export type Shared = Pick<Plan, 'name' | 'ops' | 'strategy' | 'note'>;
+export type Shared = Pick<Plan, 'name' | 'ops' | 'strategy' | 'note' | 'layers'>;
+const COV_NO = new Map(ALL_COVENANTS.map((c, i) => [c, i]));
+const utf16 = (text: string): number[] => [...text].flatMap(ch => { const out: number[] = []; for (let i = 0; i < ch.length; i++) out.push(ch.charCodeAt(i) >> 8, ch.charCodeAt(i) & 255); return out; });
+const fromUtf16 = (b: Uint8Array): string => { let s = ''; for (let i = 0; i + 1 < b.length; i += 2) s += String.fromCharCode(b[i] << 8 | b[i + 1]); return s; };
+/** 只留有层数效果、非零的条目 */
+export const cleanLayers = (layers: unknown): Layers => Object.fromEntries(Object.entries(layers && typeof layers === 'object' ? layers : {})
+  .filter(([c]) => COVENANTS[c] && usesLayers(c)).map(([c, n]) => [c, clampLayers(n)]).filter(([, n]) => n));
 
 export function encodePlan(plan: Shared): string {
   const bytes: number[] = [VERSION, STRATEGY[plan.strategy] ? +STRATEGY[plan.strategy].portrait.slice(1) + 1 : 0];
@@ -212,8 +228,10 @@ export function encodePlan(plan: Shared): string {
     bytes.push(...idBytes(slot.name), (slot.elite ? 1 : 0) | eq.length << 1 | alt.length << 3,
       ...eq.map(n => +EQUIP[n].icon.slice(1) + 1), ...alt.flatMap(idBytes));
   }
+  const layers = Object.entries(cleanLayers(plan.layers)).slice(0, 255);
+  bytes.push(layers.length, ...layers.flatMap(([c, n]) => [COV_NO.get(c)!, n >> 8, n & 255]));
   const name = new TextEncoder().encode(plan.name.trim().slice(0, 16));
-  const note = new TextEncoder().encode(plan.note.trim().slice(0, MAX_NOTE));
+  const note = utf16(plan.note.trim().slice(0, MAX_NOTE));
   return CODE_PREFIX + toB64(Uint8Array.from([...bytes, name.length, ...name, ...note]));
 }
 
@@ -241,9 +259,14 @@ export function decodePlan(input: string): Decoded | null {
     }
     const decoder = new TextDecoder();
     let name = '', note = '';
-    if (v > 1) { name = decoder.decode(b.slice(i + 1, i + 1 + b[i])).trim(); note = decoder.decode(b.slice(i + 1 + b[i])).trim().slice(0, MAX_NOTE); }
-    else name = decoder.decode(b.slice(i)).trim();
-    return { plan: { name, ops, strategy: ST_BY_NO.get(b[1] - 1)?.name ?? '', note }, missing };
+    const layers: Layers = {};
+    if (v > 1) {
+      const count = b[i++] ?? 0;
+      for (let k = 0; k < count; k++, i += 3) { const c = ALL_COVENANTS[b[i]]; if (c) layers[c] = b[i + 1] << 8 | b[i + 2]; }
+      name = decoder.decode(b.slice(i + 1, i + 1 + b[i])).trim();
+      note = fromUtf16(b.slice(i + 1 + b[i])).trim().slice(0, MAX_NOTE);
+    } else name = decoder.decode(b.slice(i)).trim();
+    return { plan: { name, ops, strategy: ST_BY_NO.get(b[1] - 1)?.name ?? '', note, layers: cleanLayers(layers) }, missing };
   } catch { return null; }
 }
 
@@ -256,7 +279,7 @@ const read = (key: string): string | null => { try { return localStorage.getItem
 const write = (key: string, value: string): void => { try { localStorage.setItem(key, value); } catch { /* 隐私模式下可能不可用 */ } };
 
 export const newId = (): string => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-export const blankPlan = (name = '新阵容'): Plan => ({ id: newId(), name, ops: [], strategy: '', note: '', updated: Date.now() });
+export const blankPlan = (name = '新阵容'): Plan => ({ id: newId(), name, ops: [], strategy: '', note: '', layers: {}, updated: Date.now() });
 export const newSlot = (name: string): PlanOp => ({ name, elite: false, eq: [], alt: [] });
 
 /** 读档时丢掉本赛季不存在的干员 / 装备 / 策略 */
@@ -265,6 +288,7 @@ function clean(plan: Plan): Plan {
     id: plan.id || newId(), name: String(plan.name || '阵容'), updated: +plan.updated || Date.now(),
     strategy: STRATEGY[plan.strategy] ? plan.strategy : '',
     note: String(plan.note ?? '').slice(0, MAX_NOTE),
+    layers: cleanLayers(plan.layers),
     ops: (plan.ops ?? []).filter(o => OPERATOR[o.name]).slice(0, MAX_OPS).map(o => ({
       name: o.name, elite: !!o.elite,
       eq: (o.eq ?? []).filter(n => EQUIP[n]).slice(0, MAX_EQ),

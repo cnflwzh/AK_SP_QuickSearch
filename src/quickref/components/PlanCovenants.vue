@@ -5,7 +5,8 @@ import { color } from '../format.ts';
  * 盟约进度条：每格一名干员，竖线标出激活 / 强化门槛。
  * 实心 = 本身有该盟约；描边 = 装备赋予；斜纹 = 调和 +1。
  */
-withDefaults(defineProps<{ stats: readonly CovenantStat[]; compact?: boolean }>(), { compact: false });
+const props = withDefaults(defineProps<{ stats: readonly CovenantStat[]; layers?: Readonly<Record<string, number>>; compact?: boolean }>(), { layers: () => ({}), compact: false });
+const layerOf = (s: CovenantStat): number => props.layers[s.name] ?? 0;
 const cells = (s: CovenantStat): number => Math.max(s.count, s.bonusNeed && !s.bonusElite ? s.bonusNeed : s.need, s.need);
 const kind = (s: CovenantStat, i: number): string => {
   const own = s.members.length - s.granted.length;
@@ -13,11 +14,11 @@ const kind = (s: CovenantStat, i: number): string => {
 };
 function status(s: CovenantStat): { text: string; cls: string } {
   if (s.broken) return { text: '超过 1 名失效', cls: 'off' };
-  if (s.bonusActive) return { text: s.bonusElite ? `${s.bonusCount} 精锐 · 强化` : s.bonusLayers ? `${s.bonusLayers} 层 · 强化` : '强化', cls: 'max' };
+  if (s.bonusActive) return { text: s.bonusElite ? `${s.bonusCount} 精锐 · 强化` : s.bonusLayers ? `${layerOf(s)} 层 · 强化` : '强化', cls: 'max' };
   if (s.active) {
     if (s.next) return { text: `差 ${s.next} 名强化`, cls: 'on' };
     if (s.bonusElite) return { text: `精锐 ${s.bonusCount}/5`, cls: 'on' };
-    if (s.bonusLayers) return { text: `${s.bonusLayers} 层强化`, cls: 'on' };
+    if (s.bonusLayers) return { text: `${layerOf(s)}/${s.bonusLayers} 层强化`, cls: 'on' };
     return { text: '激活', cls: 'on' };
   }
   return { text: `差 ${s.next} 名`, cls: '' };

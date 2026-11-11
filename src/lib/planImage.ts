@@ -6,7 +6,9 @@ import { OPERATOR, STRATEGY, covenantColor } from '../../data/index.ts';
 import { avatarSrc, equipIconSrc, portraitSrc } from './assets.ts';
 import { covenantStats, planCost, type Plan } from './planner.ts';
 
-const W = 720, PAD = 24, CELL = 84, QR = 168, NOTE_LINE = 20, ALT = 20;
+const W = 720, PAD = 24, CELL = 84, NOTE_LINE = 20, ALT = 20;
+/** 二维码每个模块至少 2 像素（导出时 ×2 = 4 物理像素），码长时整体放大 */
+const QR_MIN = 168, QR_MODULE = 2;
 const TIER = ['#7a8b88', '#434343', '#626654', '#445760', '#615B74', '#6C5E41', '#5d341e'];
 const FONT = '"Noto Sans SC","Microsoft YaHei",sans-serif';
 const INK = '#122220', INK3 = '#7a8b88', LINE = '#cdd8d6', ACCENT = '#b46a07', TEAL = '#0f766c';
@@ -35,19 +37,20 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, max: number): string[
 
 /** link：分享链接（#p=分享码），画成二维码 */
 export async function planImage(plan: Plan, link: string): Promise<Blob | null> {
-  const stats = covenantStats(plan.ops, 0);
+  const stats = covenantStats(plan.ops, plan.layers);
   const cost = planCost(plan.ops);
   const rows = Math.max(1, stats.length);
   const { default: qrcode } = await import('qrcode-generator');
   const qr = qrcode(0, 'M'); qr.addData(link); qr.make();
+  const QR = Math.max(QR_MIN, qr.getModuleCount() * QR_MODULE + 16);
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
   ctx.font = `13px ${FONT}`;
   const noteLines = plan.note.trim() ? wrap(ctx, plan.note.trim(), W - PAD * 2) : [];
   const hasAlt = plan.ops.some(o => o.alt.length);
-  /** 盟约区（和二维码）的起点：标题 44 + 说明 + 干员 102（+ 备选 26）+ 策略 40 */
-  const SECTION = PAD + 26 + 18 + (noteLines.length ? noteLines.length * NOTE_LINE + 6 : 0) + CELL + 18 + (hasAlt ? ALT + 6 : 0) + 40;
+  /** 盟约区（和二维码）的起点：标题 44 + 干员 102（+ 备选 26）+ 策略 40 + 说明 */
+  const SECTION = PAD + 26 + 18 + CELL + 18 + (hasAlt ? ALT + 6 : 0) + 40 + (noteLines.length ? noteLines.length * NOTE_LINE + 14 : 0);
   const H = SECTION + Math.max(rows * 26, QR + 44) + 6 + PAD;
   const scale = 2;
   canvas.width = W * scale; canvas.height = H * scale;
@@ -64,14 +67,6 @@ export async function planImage(plan: Plan, link: string): Promise<Blob | null> 
   ctx.fillText(`招募 ${cost.recruit} · 装备 ${cost.equipment} · 调度中心 Lv${cost.maxTier || '—'}`, W - PAD, y);
   ctx.textAlign = 'left';
   y += 18;
-
-  // 流派说明
-  if (noteLines.length) {
-    ctx.fillStyle = ACCENT; ctx.fillRect(PAD, y - 2, 3, noteLines.length * NOTE_LINE);
-    ctx.fillStyle = INK; ctx.font = `13px ${FONT}`;
-    noteLines.forEach((line, k) => ctx.fillText(line, PAD + 10, y + 12 + k * NOTE_LINE));
-    y += noteLines.length * NOTE_LINE + 6;
-  }
 
   // 干员
   const images = await Promise.all(plan.ops.map(o => load(avatarSrc(o.name))));
@@ -121,6 +116,14 @@ export async function planImage(plan: Plan, link: string): Promise<Blob | null> 
   } else { ctx.fillStyle = INK3; ctx.fillText('策略 · 未选', PAD, y + 14); }
   y += 40;
 
+  // 流派说明：策略下方
+  if (noteLines.length) {
+    ctx.fillStyle = ACCENT; ctx.fillRect(PAD, y - 6, 3, noteLines.length * NOTE_LINE);
+    ctx.fillStyle = INK; ctx.font = `13px ${FONT}`;
+    noteLines.forEach((line, k) => ctx.fillText(line, PAD + 10, y + 8 + k * NOTE_LINE));
+    y += noteLines.length * NOTE_LINE + 14;
+  }
+
   // 盟约
   ctx.strokeStyle = LINE; ctx.beginPath(); ctx.moveTo(PAD, y - 12); ctx.lineTo(W - PAD, y - 12); ctx.stroke();
   for (const s of stats) {
@@ -135,7 +138,8 @@ export async function planImage(plan: Plan, link: string): Promise<Blob | null> 
       if (k + 1 === s.need || (s.bonusNeed && k + 1 === s.bonusNeed)) { ctx.fillStyle = INK; ctx.fillRect(x + 23, y - 2, 2, 20); }
     }
     ctx.fillStyle = INK3; ctx.font = `12px ${FONT}`;
-    const tag = s.broken ? '失效' : s.bonusActive ? '强化' : s.active ? '激活' : `差 ${s.next}`;
+    const layers = plan.layers[s.name] ? ` · ${plan.layers[s.name]} 层` : '';
+    const tag = (s.broken ? '失效' : s.bonusActive ? '强化' : s.active ? '激活' : `差 ${s.next}`) + layers;
     ctx.fillText(tag, PAD + 96 + cells * 26 + 8, y + 12);
     ctx.globalAlpha = 1;
     y += 26;

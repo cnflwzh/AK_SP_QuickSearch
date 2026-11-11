@@ -7,7 +7,7 @@ import {
 import { avatarSrc, equipIconSrc, portraitSrc } from '../../lib/assets.ts';
 import { nameScore, normalize } from '../../lib/match.ts';
 import {
-  MAX_ALT, MAX_EQ, MAX_NOTE, MAX_OPS, alternatesFor, atLayers, blankPlan, newSlot, covenantStats, decodePlan, encodePlan, equipNotes, loadCurrent, loadPlans,
+  LAYER_SLIDER, MAX_ALT, MAX_EQ, MAX_LAYERS, MAX_NOTE, MAX_OPS, alternatesFor, usesLayers, atLayers, blankPlan, newSlot, covenantStats, decodePlan, encodePlan, equipNotes, loadCurrent, loadPlans,
   newId, planCost, saveCurrent, savePlans, shareUrl, suggestions, type Decoded, type Plan, type PlanOp,
 } from '../../lib/planner.ts';
 import { planImage } from '../../lib/planImage.ts';
@@ -96,8 +96,13 @@ function pickStrategy(name: string): void { plan.value.strategy = plan.value.str
 function editSlot(i: number): void { editing.value = editing.value === i ? -1 : i; if (picking.value === 'eq' || picking.value === 'alt') picking.value = ''; }
 
 /* ---------- 计算 ---------- */
-const layers = ref(50);
-const stats = computed(() => covenantStats(ops.value, layers.value));
+/* 盟约层数：每个盟约各自的层数，存在方案里，随分享码一起分享 */
+const layerOf = (name: string): number => plan.value.layers[name] ?? 0;
+function setLayers(name: string, value: number): void {
+  plan.value.layers = { ...plan.value.layers, [name]: Math.max(0, Math.min(MAX_LAYERS, Math.round(+value || 0))) };
+  touch();
+}
+const stats = computed(() => covenantStats(ops.value, plan.value.layers));
 const active = computed(() => stats.value.filter(s => s.active));
 const cost = computed(() => planCost(ops.value));
 const recs = computed(() => suggestions(ops.value));
@@ -148,16 +153,16 @@ const importText = ref('');
 const imported = computed<Decoded | null>(() => importText.value.trim() ? decodePlan(importText.value) : null);
 function acceptImport(): void {
   const d = imported.value; if (!d) return;
-  addPlan({ ...blankPlan(d.plan.name || '导入的阵容'), ops: d.plan.ops, strategy: d.plan.strategy, note: d.plan.note });
+  addPlan({ ...blankPlan(d.plan.name || '导入的阵容'), ops: d.plan.ops, strategy: d.plan.strategy, note: d.plan.note, layers: d.plan.layers });
   importText.value = ''; panel.value = '';
 }
 const other = ref('');
-const otherPlan = computed<{ title: string; ops: PlanOp[]; strategy: string; note: string } | null>(() => {
+const otherPlan = computed<{ title: string; ops: PlanOp[]; strategy: string; note: string; layers: Record<string, number> } | null>(() => {
   const [kind, key] = other.value.split(':');
-  if (kind === 'p') { const p = plans.find(x => x.id === key); return p ? { title: p.name, ops: p.ops, strategy: p.strategy, note: p.note } : null; }
+  if (kind === 'p') { const p = plans.find(x => x.id === key); return p ? { title: p.name, ops: p.ops, strategy: p.strategy, note: p.note, layers: p.layers } : null; }
   if (kind === 'b') {
     const b = buildByName(key);
-    return b ? { title: `流派 · ${key}`, ops: b.lineup.filter(n => OPERATOR[n]).map(newSlot), strategy: b.strategies[0] ?? '', note: b.tagline } : null;
+    return b ? { title: `流派 · ${key}`, ops: b.lineup.filter(n => OPERATOR[n]).map(newSlot), strategy: b.strategies[0] ?? '', note: b.tagline, layers: {} } : null;
   }
   return null;
 });
@@ -204,7 +209,7 @@ onUnmounted(() => window.removeEventListener('hashchange', readHash));
     <section v-if="panel === 'import'" class="pl-panel">
       <input v-model="importText" class="pl-paste" placeholder="粘贴分享码或链接" aria-label="分享码">
       <template v-if="imported">
-        <PlanSummary :ops="imported.plan.ops" :strategy="imported.plan.strategy" :note="imported.plan.note" :title="imported.plan.name || '导入的阵容'"/>
+        <PlanSummary :ops="imported.plan.ops" :strategy="imported.plan.strategy" :note="imported.plan.note" :layers="imported.plan.layers" :title="imported.plan.name || '导入的阵容'"/>
         <p v-if="imported.missing" class="pl-warn">{{ imported.missing }} 名干员本赛季没有，已略过</p>
         <div class="pl-row"><button type="button" class="pri" @click="acceptImport">存为我的方案</button></div>
       </template>
@@ -221,8 +226,8 @@ onUnmounted(() => window.removeEventListener('hashchange', readHash));
       <template v-if="otherPlan">
         <div class="pl-diff"><span>相同 <b>{{ shared }}</b></span><span class="a">只在这边 <b>{{ onlyMine.size }}</b></span><span class="b">只在那边 <b>{{ onlyOther.size }}</b></span></div>
         <div class="pl-cmp">
-          <PlanSummary :ops="ops" :strategy="plan.strategy" :note="plan.note" :title="plan.name" :highlight="onlyMine" compact/>
-          <PlanSummary :ops="otherPlan.ops" :strategy="otherPlan.strategy" :note="otherPlan.note" :title="otherPlan.title" :highlight="onlyOther" compact/>
+          <PlanSummary :ops="ops" :strategy="plan.strategy" :note="plan.note" :layers="plan.layers" :title="plan.name" :highlight="onlyMine" compact/>
+          <PlanSummary :ops="otherPlan.ops" :strategy="otherPlan.strategy" :note="otherPlan.note" :layers="otherPlan.layers" :title="otherPlan.title" :highlight="onlyOther" compact/>
         </div>
       </template>
     </section>
@@ -231,7 +236,6 @@ onUnmounted(() => window.removeEventListener('hashchange', readHash));
       <!-- 阵容 -->
       <section class="pl-card pl-lineup">
         <h4>阵容<span class="tag">{{ ops.length }} / {{ MAX_OPS }}</span><span class="hint">点头像编辑 · 小头像是备选</span></h4>
-        <label class="pl-note"><textarea v-model="plan.note" :maxlength="MAX_NOTE" rows="2" placeholder="一句话说明这套流派：核心思路、靠谁输出、什么时候转" aria-label="流派说明" @input="touch"></textarea><small>{{ plan.note.length }}/{{ MAX_NOTE }}</small></label>
         <div class="pl-slots">
           <button v-for="(s, i) in ops" :key="s.name" type="button" :class="['pl-slot', { on: editing === i, el: s.elite }]" :data-t="OPERATOR[s.name].tier" :data-op="s.name" :style="{ '--i': i }" @click="editSlot(i)">
             <i class="no">{{ i + 1 }}</i>
@@ -295,12 +299,13 @@ onUnmounted(() => window.removeEventListener('hashchange', readHash));
           <Segmented :labels="STRATEGY_CATEGORIES" :active="stCategory" attr="plsc" @change="stCategory = $event"/>
           <div class="pl-pick-g"><button v-for="s in stList" :key="s.name" type="button" :class="{ on: s.name === plan.strategy }" :data-st="s.name" @click="pickStrategy(s.name)"><img :src="portraitSrc(s.name)" alt="" width="34" height="34" loading="lazy"><small>{{ s.name }}</small></button></div>
         </div>
+        <label class="pl-note"><span class="k">流派说明</span><textarea v-model="plan.note" :maxlength="MAX_NOTE" rows="4" placeholder="核心思路、靠谁输出、前期怎么过渡、几层转型、抓不到核心时怎么换" aria-label="流派说明" @input="touch"></textarea><small>{{ plan.note.length }}/{{ MAX_NOTE }}</small></label>
       </section>
 
       <!-- 盟约 -->
       <section class="pl-card pl-cov">
         <h4>盟约<span class="tag">{{ active.length }} 激活</span></h4>
-        <PlanCovenants :stats="stats"/>
+        <PlanCovenants :stats="stats" :layers="plan.layers"/>
       </section>
 
       <!-- 补位 -->
@@ -316,13 +321,17 @@ onUnmounted(() => window.removeEventListener('hashchange', readHash));
 
       <!-- 效果 -->
       <section class="pl-card pl-fx">
-        <h4>效果<label class="pl-layer"><span>层数</span><input v-model.number="layers" type="range" min="0" max="200" step="5" aria-label="盟约层数"><b>{{ layers }}</b></label></h4>
+        <h4>效果<span class="hint">有层数的盟约各自拖动 / 填写</span></h4>
         <ul class="pl-fxl">
           <li v-for="s in active" :key="s.name" :style="{ '--c': color(s.name) }">
             <b class="n">{{ s.name }}</b>
             <div>
-              <p v-html="fx(atLayers(COVENANTS[s.name].effect, layers))"></p>
-              <p v-if="COVENANTS[s.name].bonus" :class="['bn', { on: s.bonusActive }]" v-html="fx(atLayers(COVENANTS[s.name].bonus, layers))"></p>
+              <label v-if="usesLayers(s.name)" class="pl-layer">
+                <input type="range" min="0" :max="Math.max(LAYER_SLIDER, layerOf(s.name))" step="10" :value="layerOf(s.name)" :aria-label="`${s.name}层数`" @input="setLayers(s.name, +($event.target as HTMLInputElement).value)">
+                <input type="number" min="0" :max="MAX_LAYERS" inputmode="numeric" :value="layerOf(s.name)" :aria-label="`${s.name}层数`" @change="setLayers(s.name, +($event.target as HTMLInputElement).value)"><span>层</span>
+              </label>
+              <p v-html="fx(atLayers(COVENANTS[s.name].effect, layerOf(s.name)))"></p>
+              <p v-if="COVENANTS[s.name].bonus" :class="['bn', { on: s.bonusActive }]" v-html="fx(atLayers(COVENANTS[s.name].bonus, layerOf(s.name)))"></p>
             </div>
           </li>
           <li v-if="!active.length" class="none">还没有激活的盟约</li>
