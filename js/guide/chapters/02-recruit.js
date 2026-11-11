@@ -3,6 +3,7 @@ import {
   OPERATORS, OPERATOR, EQUIP, DISPATCH_LEVELS, DISPATCH_MODES, DISPATCH_BY_MODE, TIER_STATS, TIER_LABELS, TIERS, EQUIPMENT_COMBOS,
 } from '../../../data/index.js';
 import { $, html, range } from '../../lib/dom.js';
+import { updateHTML } from '../../lib/update-html.js';
 import { avatarSrc } from '../../lib/assets.js';
 import { op, eq, st, cv, avatar, tierBadge, mountSegmented } from '../chips.js';
 import { initShopSimulator, resetShopSimulator } from './shop-simulator.js';
@@ -11,11 +12,11 @@ import { initShopSimulator, resetShopSimulator } from './shop-simulator.js';
 function dispatchTable() {
   const levels = DISPATCH_BY_MODE[+$('#dispatchMode').value];
   const row = (label, cell) => `<tr><td>${label}</td>${levels.map(cell).join('')}</tr>`;
-  $('#shopTbl').innerHTML = `<tr><th>等级</th>${levels.map(r => `<th>${r.level}</th>`).join('')}</tr>`
+  updateHTML($('#shopTbl'), `<tr><th>等级</th>${levels.map(r => `<th>${r.level}</th>`).join('')}</tr>`
     + row('升级费用', r => `<td class="n">${r.upgradeCost ?? 'MAX'}</td>`)
     + row('干员栏位', r => `<td class="n">${r.operatorSlots}</td>`)
     + row('装备栏位', r => `<td class="n">${r.equipmentSlots}</td>`)
-    + row('最高等阶', r => `<td>${tierBadge(r.level)}</td>`);
+    + row('最高等阶', r => `<td>${tierBadge(r.level)}</td>`));
 }
 
 /** 2.3 各等阶练度 */
@@ -41,7 +42,7 @@ function elite() {
   const draw = () => {
     const o = OPERATOR[select.value];
     const stats = TIER_STATS[o.tier - 1];
-    $('#elOut').innerHTML = html`
+    updateHTML($('#elOut'), html`
       <div class="elc">
         <div class="elh">${op(o.name)}<span class="tag">初始</span></div>
         <div class="els">${stats.base}</div>
@@ -52,7 +53,7 @@ function elite() {
         <div class="elh">${op(o.name, 'el')}<span class="tag a">精锐</span></div>
         <div class="els">${stats.elite}</div>
         <div class="elt">${highlightTrait(o.elite)}</div>
-      </div>`;
+      </div>`);
   };
   select.onchange = draw;
   draw();
@@ -91,7 +92,7 @@ function cardPool() {
       <div class="got">${range(got).map(() => poolAvatar(SAMPLE, '', .25 + (order++) * .35))}</div>
       <span class="cnt">${got ? got + ' / 3' : ''}</span>
     </div>`;
-    $('#poolV').innerHTML = html`
+    updateHTML($('#poolV'), html`
       <div class="pvpool">
         <span class="lab" style="margin:0">例：卡池剩 3 张${SAMPLE}</span>
         <div class="row">${range(3).map(() => poolAvatar(SAMPLE, 'gone'))}</div>
@@ -100,7 +101,7 @@ function cardPool() {
       <div class="pvpl">${players.map(playerCard)}</div>
       <div class="row">${contested
         ? '<span class="tag r">你 2 张 · 队友 1 张 → 谁都合不成精锐</span>'
-        : '<span class="tag t">3 张全归你 → 合成精锐</span>'}</div>`;
+        : '<span class="tag t">3 张全归你 → 合成精锐</span>'}</div>`);
   });
 
   const KEPT = ['炎', '维多利亚', '阿戈尔', '卡西米尔', '伊比利亚'];

@@ -5,10 +5,10 @@
 /* head */
 .qhead {
   display: grid;
-  grid-template-columns: 1fr minmax(0,460px);
+  grid-template-columns: minmax(0,1fr) minmax(0,360px);
   gap: 20px;
   align-items: center;
-  padding: 26px 0 18px;
+  padding: 22px 0 16px;
 }
 
 .qhead h1 {
@@ -16,7 +16,7 @@
   font-weight: 400;
   font-size: clamp(40px,7vw,62px);
   line-height: 1;
-  margin: 8px 0 0;
+  margin: 0;
   letter-spacing: .02em;
 }
 
@@ -28,40 +28,20 @@
   vertical-align: .35em;
 }
 
-.qkpi {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-top: 14px;
-}
-
-.qkpi span {
-  font-size: 12px;
-  color: var(--ink2);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 2px 8px;
-}
-
-.qkpi b {
-  font-family: var(--fn);
-  font-size: 15px;
-  color: var(--ink);
-  margin-right: 3px;
-}
-
 .guide {
   display: grid;
-  grid-template-columns: 72px 1fr auto;
-  gap: 14px;
+  grid-template-columns: 52px 1fr auto;
+  gap: 10px;
+  width: 100%;
+  max-width: 360px;
+  justify-self: end;
   align-items: center;
   text-decoration: none;
   color: var(--ink);
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 12px 16px 12px 12px;
+  padding: 10px 12px 10px 10px;
   box-shadow: var(--shadow);
   transition: border-color .2s,transform .2s;
   position: relative;
@@ -89,13 +69,13 @@
 }
 
 .guide svg {
-  width: 72px;
-  height: 72px;
+  width: 52px;
+  height: 52px;
 }
 
 .guide b {
   display: block;
-  font-size: 19px;
+  font-size: 17px;
   line-height: 1.2;
 }
 
@@ -111,12 +91,12 @@
   display: flex;
   gap: 3px;
   flex-wrap: wrap;
-  margin-top: 6px;
+  margin-top: 4px;
 }
 
 .guide .qsteps span {
-  font-size: 11px;
-  padding: 0 6px;
+  font-size: 10px;
+  padding: 0 4px;
   border-radius: 3px;
   background: var(--surface2);
   border: 1px solid var(--line);
@@ -293,10 +273,6 @@
 #view {
   padding: 18px 0 40px;
   min-height: 60vh;
-}
-
-.pane {
-  animation: pin .28s both;
 }
 
 @keyframes pin {
@@ -1892,14 +1868,6 @@ mark {
 }
 
 @media (max-width:560px) {
-  .guide {
-    grid-template-columns: 56px 1fr auto;
-    gap: 10px;
-  }
-  .guide svg {
-    width: 56px;
-    height: 56px;
-  }
   .cmp2 {
     grid-template-columns: 1fr;
   }
@@ -1944,8 +1912,6 @@ mark {
     padding: 8px 0 6px;
     gap: 10px;
   }
-  .qhead .kicker,
-  .qkpi,
   .qhead h1 small,
   .guide svg,
   .guide .k,
@@ -1958,6 +1924,7 @@ mark {
   }
   .guide {
     grid-template-columns: auto auto;
+    width: auto;
     padding: 5px 10px;
     gap: 6px;
     border-radius: 999px;

@@ -5,8 +5,8 @@
  *   render() 返回 HTML 字符串，mount() 在插入 DOM 后绑定局部事件。
  * 点击统一用事件委托处理，见下方 ACTIONS。
  */
-import { OPERATORS, EQUIPMENT, STRATEGIES, ALL_COVENANTS, BUILD_COUNT } from '../../data/index.js';
 import { $, $$, prefersReducedMotion } from '../lib/dom.js';
+import { updateHTML } from '../lib/update-html.js';
 import { initPeek } from '../lib/peek.js';
 import { state, setTab, setCovenant, setBuild } from './state.js';
 import { renderSearch } from './search.js';
@@ -31,14 +31,6 @@ const searchInput = $('#q');
 
 if (prefersReducedMotion) $('#gmv')?.remove();
 
-$('#qkpi').innerHTML = [
-  [OPERATORS.length, '干员'],
-  [ALL_COVENANTS.length, '盟约'],
-  [EQUIPMENT.length, '装备'],
-  [STRATEGIES.length, '策略'],
-  [BUILD_COUNT, '流派'],
-].map(([n, label]) => `<span><b>${n}</b>${label}</span>`).join('');
-
 tabs.innerHTML = VIEWS.map(v =>
   `<button type="button" role="tab" data-tab="${v.id}">${v.label}${v.count ? `<i>${v.count}</i>` : ''}</button>`,
 ).join('') + '<a class="tlink" href="guide.html">教程 ▸</a>';
@@ -48,7 +40,8 @@ tabs.innerHTML = VIEWS.map(v =>
 function render() {
   const query = searchInput.value.trim();
   const current = VIEW[state.tab];
-  view.innerHTML = `<div class="pane">${query ? renderSearch(query) : current.render()}</div>`;
+  // 同一标签的筛选与连续搜索复用内容；只有切换标签才建立新的视图。
+  updateHTML(view, `<div class="pane" data-key="${query ? 'search' : state.tab}">${query ? renderSearch(query) : current.render()}</div>`);
   if (!query) current.mount?.(render);
 }
 
@@ -58,6 +51,7 @@ const scrollBehavior = () => prefersReducedMotion ? 'auto' : 'smooth';
 const topOf = el => el.getBoundingClientRect().top + scrollY - searchBar.offsetHeight;
 
 function clearSearch() {
+  clearTimeout(searchTimer);
   searchInput.value = '';
   searchBox.classList.remove('has');
   searchBar.classList.remove('searching');
@@ -65,10 +59,13 @@ function clearSearch() {
 
 /** 切换标签页；默认清空搜索，并在已滚过视图顶部时滚回去 */
 function show(tab, { keepQuery = false, scroll = true } = {}) {
+  clearTimeout(searchTimer);
+  const reuseCovenantView = tab === 'cv' && state.tab === 'cv' && !searchInput.value.trim();
   setTab(tab);
   if (!keepQuery && searchInput.value) clearSearch();
   [...tabs.children].forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
-  render();
+  // 盟约页内跳转复用左右两栏的外框，避免整块内容重新播放入场动画。
+  if (!reuseCovenantView || !covenants.updateSelection()) render();
   if (scroll) {
     const y = topOf(view) - 4;
     if (scrollY > y) scrollTo({ top: y, behavior: scrollBehavior() });
@@ -120,16 +117,23 @@ const ACTIONS = {
   cvtg: () => $('#cvside').classList.toggle('open'),          // 窄屏盟约菜单开关
   pick: d => {                                                 // 选择盟约
     setCovenant(d.pick);
-    render();
+    if (!covenants.updateSelection()) render();
     if (innerWidth <= 860) scrollTo({ top: topOf($('.cvd')) - 6, behavior: scrollBehavior() });
   },
-  bd: d => { setBuild(d.bd); render(); },
-  opt: d => { state.opTier = +d.opt; render(); },
-  opel: d => { state.opElite = d.opel === '1'; render(); },
-  eqt: d => { state.eqTier = +d.eqt; render(); },
-  stc: d => { state.stCategory = +d.stc; render(); },
-  nud: d => { state.mode = +d.nud; render(); },
+  bd: d => { if (state.build !== d.bd) { setBuild(d.bd); render(); } },
+  opt: d => updateFilter('opTier', +d.opt),
+  opel: d => updateFilter('opElite', d.opel === '1'),
+  eqt: d => updateFilter('eqTier', +d.eqt),
+  stc: d => updateFilter('stCategory', +d.stc),
+  nud: d => updateFilter('mode', +d.nud),
 };
+
+/** 重复点击已选项不触发重绘。 */
+function updateFilter(key, value) {
+  if (state[key] === value) return;
+  state[key] = value;
+  render();
+}
 
 const toAttr = key => 'data-' + key.replace(/[A-Z]/g, c => '-' + c.toLowerCase());
 const ACTION_SELECTOR = Object.keys(ACTIONS).map(k => `[${toAttr(k)}]`).join(',');

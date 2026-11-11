@@ -1,6 +1,7 @@
 /** 第 3 章 刷怪：特训敌人、漏怪动画、联防、领袖生命、悬赏与决策回合 */
 import { TRAINING, LEADERS, BOUNTIES, DECISION_ROUNDS, MODES } from '../../../data/index.js';
 import { $, html, range, wan, prefersReducedMotion } from '../../lib/dom.js';
+import { updateHTML } from '../../lib/update-html.js';
 import { whileVisible } from '../../lib/visibility.js';
 import { mountSegmented } from '../chips.js';
 
@@ -23,7 +24,7 @@ function trainingDemo() {
       waves += `<div style="background:${WAVE_COLORS[k]}" title="R${r}">${TRAINING[chosen[k]].name}</div>`;
     }
     waves += '<div style="background:var(--red)">领袖</div>';
-    $('#waves').innerHTML = waves;
+    updateHTML($('#waves'), waves);
   };
   shuffle();
   whileVisible(grid, () => { const timer = setInterval(shuffle, 3200); return () => clearInterval(timer); });
@@ -168,16 +169,16 @@ function leaderHp() {
     const hiddenOf = l => mode > 0 && l.hiddenCore ? l.hiddenCore[mode - 1] : 0;
     // 满条长度：有隐秘核心的取隐秘核心，否则取领袖生命
     const max = Math.max(...LEADERS.map(l => (mode > 0 && l.hiddenCore) ? l.hiddenCore[mode - 1] : l.hp[mode]));
-    $('#ldr').innerHTML = LEADERS.slice().sort((a, b) => b.hp[mode] - a.hp[mode]).map(l => {
+    updateHTML($('#ldr'), LEADERS.slice().sort((a, b) => b.hp[mode] - a.hp[mode]).map(l => {
       const hp = l.hp[mode];
       const hidden = hiddenOf(l);
-      return html`<span class="nm">${l.name}</span>
-        <div class="tr">
-          ${hidden ? `<div class="h" style="width:${hidden / max * 100}%"></div>` : ''}
-          <div class="m" style="width:${hp / max * 100}%"></div>
+      return html`<span class="nm" data-key="name:${l.name}">${l.name}</span>
+        <div class="tr" data-key="hp:${l.name}">
+          ${hidden ? `<div class="h" data-key="hidden" style="width:${hidden / max * 100}%"></div>` : ''}
+          <div class="m" data-key="main" style="width:${hp / max * 100}%"></div>
           <span class="v">${wan(hp)}${hidden ? ' · 核心 ' + wan(hidden) : ''}</span>
         </div>`;
-    }).join('');
+    }).join(''));
   });
 }
 

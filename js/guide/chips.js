@@ -14,8 +14,8 @@ export function op(name, extraClass = '') {
   const tier = OPERATOR[name]?.tier ?? 0;
   const src = avatarSrc(name);
   return src
-    ? `<span class="op ${extraClass}" data-t="${tier}" data-op="${name}"><span class="av">${img(src)}<i>${TIER_LABELS[tier]}</i></span>${name}</span>`
-    : `<span class="op ${extraClass}" data-t="${tier}" data-op="${name}"><i>${TIER_LABELS[tier] || '·'}</i>${name}</span>`;
+    ? `<span class="op ${extraClass}" data-key="op:${name}" data-t="${tier}" data-op="${name}"><span class="av">${img(src)}<i>${TIER_LABELS[tier]}</i></span>${name}</span>`
+    : `<span class="op ${extraClass}" data-key="op:${name}" data-t="${tier}" data-op="${name}"><i>${TIER_LABELS[tier] || '·'}</i>${name}</span>`;
 }
 
 /** label 用于显示与名称不同的文字，如 "维式重锤＋" */
@@ -23,15 +23,15 @@ export function eq(name, label = name) {
   const tier = EQUIP[name]?.tier ?? 0;
   const src = equipIconSrc(name);
   return src
-    ? `<span class="eq" data-t="${tier}" data-eq="${name}"><span class="ei">${img(src)}<i>${TIER_LABELS[tier]}</i></span>${label}</span>`
-    : `<span class="eq" data-t="${tier}" data-eq="${name}"><i>${EQUIP[name] ? TIER_LABELS[tier] : ''}</i>${label}</span>`;
+    ? `<span class="eq" data-key="eq:${name}" data-t="${tier}" data-eq="${name}"><span class="ei">${img(src)}<i>${TIER_LABELS[tier]}</i></span>${label}</span>`
+    : `<span class="eq" data-key="eq:${name}" data-t="${tier}" data-eq="${name}"><i>${EQUIP[name] ? TIER_LABELS[tier] : ''}</i>${label}</span>`;
 }
 
 export const portrait = name => img(portraitSrc(name), '', 88);
 
-export const st = name => `<span class="st" data-st="${name}">${portrait(name)}<b>${STRATEGY[name]?.hp ?? ''}</b>${name}</span>`;
+export const st = name => `<span class="st" data-key="st:${name}" data-st="${name}">${portrait(name)}<b>${STRATEGY[name]?.hp ?? ''}</b>${name}</span>`;
 
-export const cv = name => `<span class="cv" style="--c:${color(name)}">${name}</span>`;
+export const cv = name => `<span class="cv" data-key="cv:${name}" style="--c:${color(name)}">${name}</span>`;
 
 /** 小号等阶块，用于表格 */
 export const tierBadge = tier =>
@@ -74,7 +74,7 @@ export function mountSegmented(el, labels, initial, onChange) {
     `<button type="button" data-i="${i}" class="${i === initial ? 'on' : ''}">${label}</button>`).join('');
   el.onclick = e => {
     const button = e.target.closest('button');
-    if (!button) return;
+    if (!button || button.classList.contains('on')) return;
     [...el.children].forEach(c => c.classList.toggle('on', c === button));
     onChange(+button.dataset.i);
   };

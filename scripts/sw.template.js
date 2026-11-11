@@ -1,5 +1,5 @@
 /*
- * 规程速查 Service Worker
+ * 卫戍速查 Service Worker
  * sw.js 由 scripts/build_sw.py 根据本模板生成，请修改模板而不是 sw.js。
  *
  * 缓存策略

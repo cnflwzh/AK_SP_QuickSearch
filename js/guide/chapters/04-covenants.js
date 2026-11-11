@@ -4,6 +4,7 @@ import {
   isCoreCovenant, rosterOf,
 } from '../../../data/index.js';
 import { $, $$, html, range, round1 } from '../../lib/dom.js';
+import { updateHTML } from '../../lib/update-html.js';
 import { op, cv, portrait, color, mountSegmented } from '../chips.js';
 
 /** 4.1 盟约卡片：实心圆 = 激活人数，空心圆 = 核心盟约强化还需的人数 */
@@ -64,13 +65,13 @@ function triggerTimeline() {
 
   const select = i => {
     $$('button', el).forEach(b => b.classList.toggle('on', +b.dataset.i === i));
-    $('#tlist').innerHTML = lists[i]
+    updateHTML($('#tlist'), lists[i]
       .sort((a, b) => a.tier - b.tier)
-      .map(o => `<div>${op(o.name)}${o.trait.replace(/<[^>]+>/g, '')}</div>`).join('');
+      .map(o => `<div data-key="${o.name}">${op(o.name)}${o.trait.replace(/<[^>]+>/g, '')}</div>`).join(''));
   };
   el.onclick = e => {
     const b = e.target.closest('button');
-    if (b) select(+b.dataset.i);
+    if (b && !b.classList.contains('on')) select(+b.dataset.i);
   };
   select(4);
 }
@@ -98,7 +99,7 @@ function positions() {
         cells += `<div class="${me ? 'me' : ''} ${lit.includes(r + ',' + c) ? 'on' : ''}">${me ? (dir > 0 ? '▶' : '◀') : ''}</div>`;
       }
     }
-    $('#pos').innerHTML = cells;
+    updateHTML($('#pos'), cells);
 
     const matched = OPERATORS.filter(o => (o.trait + o.elite).includes(keyword));
     $('#posTitle').textContent = keyword + ' · ' + matched.length + ' 名';
@@ -106,7 +107,7 @@ function positions() {
       周围四格: '<span class="cv" style="--c:var(--accent)">灵巧盟约</span>',
       周围八格: '<span class="cv" style="--c:var(--accent)">灵巧 40 层</span>',
     }[keyword] || '';
-    $('#posOps').innerHTML = matched.map(o => op(o.name)).join('') + extra;
+    updateHTML($('#posOps'), matched.map(o => op(o.name)).join('') + extra);
   };
   mountSegmented($('#posseg'), POSITIONS.map(p => p[0]), 0, i => { current = i; draw(); });
   $('#mirror').onchange = draw;
@@ -125,8 +126,8 @@ function calculator() {
     const c = COVENANTS[select.value];
     const L = +slider.value;
     $('#cvLv').textContent = L;
-    $('#cvVals').innerHTML = c.scaling.map(s =>
-      `<div><span>${s.label}</span><b>${round1(s.at(L))}<small style="font-size:14px;color:var(--ink2)">${s.unit}</small></b></div>`).join('');
+    updateHTML($('#cvVals'), c.scaling.map(s =>
+      `<div><span>${s.label}</span><b>${round1(s.at(L))}<small style="font-size:14px;color:var(--ink2)">${s.unit}</small></b></div>`).join(''));
     $('#cvBase').textContent = c.effect;
     $('#cvBig').textContent = c.bonus;
 
@@ -156,7 +157,7 @@ function calculator() {
       + `<circle class="dot" cx="${xs(L)}" cy="${ys(f(L))}" r="6"/>`
       + `<text class="axl" x="${x0}" y="12" style="fill:var(--ink2)">${main.label}（${main.unit}）</text>`
       + `<text class="axl" x="${W - 12}" y="${y0 - 6}" text-anchor="end">层数</text>`;
-    $('#cvChart').innerHTML = s;
+    updateHTML($('#cvChart'), s);
   };
   select.onchange = draw;
   slider.oninput = draw;
@@ -170,7 +171,7 @@ function strategies() {
     const list = STRATEGIES.filter(s => category === '全部'
       || (category === '阵营' ? isCoreCovenant(s.category) : s.category === category));
     $('#stcnt').textContent = list.length + ' 名';
-    $('#stg').innerHTML = list.map(s => html`<div class="stc">
+    updateHTML($('#stg'), list.map(s => html`<div class="stc" data-key="${s.name}">
       <div class="t">
         <span class="stp">${portrait(s.name)}</span><b>${s.name}</b>
         ${isCoreCovenant(s.category) ? cv(s.category) : `<span class="tag">${s.category}</span>`}
@@ -178,7 +179,7 @@ function strategies() {
       <div class="hp"><span>${s.hp}</span><div class="tr"><div style="width:${(s.hp - 15) / 25 * 100}%"></div></div></div>
       <div><span class="sk">${s.skill}</span>　${s.effect}</div>
       <div><span class="tag ${s.unlock === '初始' ? 't' : ''}">${s.unlock}</span></div>
-    </div>`).join('');
+    </div>`).join(''));
   });
 }
 

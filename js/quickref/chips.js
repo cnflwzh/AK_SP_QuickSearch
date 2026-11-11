@@ -24,27 +24,27 @@ const badgeWithPicture = (src, wrapperClass, tier) => src
 
 export function op(name, extraClass = '') {
   const tier = OPERATOR[name]?.tier ?? 0;
-  return html`<button type="button" class="op ${extraClass}" data-t="${tier}" data-op="${esc(name)}">
+  return html`<button type="button" class="op ${extraClass}" data-key="op:${esc(name)}" data-t="${tier}" data-op="${esc(name)}">
     ${badgeWithPicture(avatarSrc(name), 'av', tier) ?? `<i>${TIER_LABELS[tier] || '·'}</i>`}${esc(name)}
   </button>`;
 }
 
 export function eq(name) {
   const tier = EQUIP[name]?.tier ?? 0;
-  return html`<button type="button" class="eq" data-t="${tier}" data-eq="${esc(name)}">
+  return html`<button type="button" class="eq" data-key="eq:${esc(name)}" data-t="${tier}" data-eq="${esc(name)}">
     ${badgeWithPicture(equipIconSrc(name), 'ei', tier) ?? `<i>${TIER_LABELS[tier]}</i>`}${esc(name)}
   </button>`;
 }
 
 export function st(name) {
   const hp = STRATEGY[name]?.hp ?? '';
-  return html`<button type="button" class="st" data-st="${esc(name)}">
+  return html`<button type="button" class="st" data-key="st:${esc(name)}" data-st="${esc(name)}">
     ${img(portraitSrc(name))}<b>${hp}</b>${esc(name)}
   </button>`;
 }
 
 export const cv = name =>
-  `<button type="button" class="cv" style="--c:${color(name)}" data-cv="${esc(name)}">${esc(name)}</button>`;
+  `<button type="button" class="cv" data-key="cv:${esc(name)}" style="--c:${color(name)}" data-cv="${esc(name)}">${esc(name)}</button>`;
 
 /** 静态盟约标签（不可点） */
 export const cvTag = name => `<span class="cv" style="--c:${color(name)}">${name}</span>`;
@@ -52,7 +52,7 @@ export const cvTag = name => `<span class="cv" style="--c:${color(name)}">${name
 /** 跳到流派页的链接 */
 export const buildLink = name => {
   const c = CORE_BUILDS[name] ? color(name) : 'var(--accent)';
-  return `<button type="button" class="cv" style="--c:${c}" data-build="${esc(name)}">${esc(name)} ▸</button>`;
+  return `<button type="button" class="cv" data-key="build:${esc(name)}" style="--c:${c}" data-build="${esc(name)}">${esc(name)} ▸</button>`;
 };
 
 const BLANK_GIF = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
@@ -61,7 +61,7 @@ const BLANK_GIF = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAE
 export function tile(operator, extraClass = '') {
   const { name, tier, covenants } = operator;
   const src = avatarSrc(name);
-  return html`<button type="button" class="tile ${extraClass}" data-t="${tier}" data-op="${esc(name)}">
+  return html`<button type="button" class="tile ${extraClass}" data-key="op:${esc(name)}" data-t="${tier}" data-op="${esc(name)}">
     ${src ? img(src) : `<img alt="" src="${BLANK_GIF}">`}
     <span>${esc(name)}</span>
     <span class="dots">${covenants.map(c => `<u style="--c:${color(c)}"></u>`)}</span>
@@ -76,7 +76,7 @@ export const segmented = (labels, active, attr) => html`<div class="seg">
 
 /** 等阶分组标题 */
 export const tierHeading = (tier, count) =>
-  `<div class="tierh" data-t="${tier}"><i>${TIER_LABELS[tier]}</i><span>${count}</span></div>`;
+  `<div class="tierh" data-key="heading:${tier}" data-t="${tier}"><i>${TIER_LABELS[tier]}</i><span>${count}</span></div>`;
 
 /** 策略初始生命条（15–40） */
 export const hpWidth = hp => (hp - 15) / 25 * 100;

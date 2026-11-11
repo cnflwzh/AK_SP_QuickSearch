@@ -3,6 +3,7 @@ import {
   OPERATOR, EQUIP, STRATEGY, OPERATORS, TIER_LABELS, TIER_STATS, buildsUsing, isCoreCovenant, covenantColor, rosterOf,
 } from '../../data/index.js';
 import { $, esc, html } from '../lib/dom.js';
+import { updateHTML } from '../lib/update-html.js';
 import { covenantRows } from '../lib/peek.js';
 import { avatarSrc, equipIconSrc, portraitSrc } from '../lib/assets.js';
 import { fx, op, cv, buildLink, hpWidth } from './chips.js';
@@ -27,7 +28,7 @@ const compare = (left, right) => html`<div class="cmp2">
  */
 const covenantSide = names => html`<aside class="sh-side" aria-label="盟约效果">
   <div class="sd-k">盟约效果</div>
-  ${names.map((name, i) => html`<section class="sd-c" style="--c:${covenantColor(name, 'var(--teal)')};--i:${i}">
+  ${names.map((name, i) => html`<section class="sd-c" data-key="${esc(name)}" style="--c:${covenantColor(name, 'var(--teal)')};--i:${i}">
     <button type="button" class="sd-h" data-cv="${esc(name)}" data-peek="off" title="查看${esc(name)}盟约页">
       <b>${esc(name)}</b><span>${isCoreCovenant(name) ? '核心' : '附加'} · ${rosterOf(name).length} 名</span><em>▸</em>
     </button>
@@ -43,7 +44,7 @@ const covenantSide = names => html`<aside class="sh-side" aria-label="盟约效�
 function open(content, { operator = '', side = '' } = {}) {
   sheet.dataset.viewing = operator;
   sheet.classList.toggle('with-side', !!side);
-  sheet.innerHTML = `<div class="sh-main">${content}</div>${side}`;
+  updateHTML(sheet, `<div class="sh-main">${content}</div>${side}`);
   if (!sheet.open) sheet.showModal();
   $('.sh-main', sheet).scrollTop = 0;
 }

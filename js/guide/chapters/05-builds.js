@@ -3,6 +3,7 @@ import {
   CORE_BUILDS, MIXED_BUILDS, CORE_COVENANTS, COVENANTS, OPERATOR, TIERS, TIER_LABELS, rosterOf, lineupCovenantCount,
 } from '../../../data/index.js';
 import { $, html, range } from '../../lib/dom.js';
+import { updateHTML } from '../../lib/update-html.js';
 import { op, eq, st, cv, avatar, color } from '../chips.js';
 
 /** 主数值在 0–150 层的迷你曲线 */
@@ -31,7 +32,7 @@ function drawBuild(name) {
   const tierRows = TIERS.map(tier => {
     const list = roster.filter(o => o.tier === tier);
     if (!list.length) return '';
-    return html`<div class="tr"><i data-t="${tier}">${TIER_LABELS[tier]}</i>
+    return html`<div class="tr" data-key="${tier}"><i data-t="${tier}">${TIER_LABELS[tier]}</i>
       <div class="row">${list.map(o => op(o.name, build.lineup.includes(o.name) ? 'hl' : ''))}</div>
     </div>`;
   }).join('');
@@ -39,10 +40,10 @@ function drawBuild(name) {
   // 终盘 8 人，C = 核心输出
   const lineup = build.lineup.map(n => {
     const tier = OPERATOR[n].tier;
-    return `<div class="${build.carries.includes(n) ? 'c' : ''}" data-t="${tier}">${avatar(n)}<i>${TIER_LABELS[tier]}</i>${n}</div>`;
+    return `<div class="${build.carries.includes(n) ? 'c' : ''}" data-key="${n}" data-t="${tier}">${avatar(n)}<i>${TIER_LABELS[tier]}</i>${n}</div>`;
   });
 
-  $('#bpanel').innerHTML = html`<div class="bp" style="--c:${color(name)}">
+  updateHTML($('#bpanel'), html`<div class="bp" style="--c:${color(name)}">
     <div class="bp-h">
       <div><h3>${name}</h3><div class="tg">${build.tagline}</div></div>
       <div style="min-width:min(100%,300px);flex:1;max-width:420px">${sparkline(name)}</div>
@@ -61,14 +62,14 @@ function drawBuild(name) {
         <p class="lab" style="margin-top:16px">运营</p>
         <ol class="steps">${build.tips.map(t => `<li>${t}</li>`)}</ol>
         <p class="lab" style="margin-top:16px">推荐附加盟约 · 阵容人数 / 激活人数</p>
-        <div class="row">${build.addons.map(n => html`<span class="row">${cv(n)}<span class="tag">${lineupCovenantCount(build.lineup, n)} / ${COVENANTS[n].need}</span></span>`)}</div>
+        <div class="row">${build.addons.map(n => html`<span class="row" data-key="${n}">${cv(n)}<span class="tag">${lineupCovenantCount(build.lineup, n)} / ${COVENANTS[n].need}</span></span>`)}</div>
         <p class="lab" style="margin-top:12px">策略</p>
         <div class="row">${build.strategies.map(st)}</div>
         <p class="lab" style="margin-top:12px">装备</p>
         <div class="row">${build.equipment.map(n => eq(n))}</div>
       </div>
     </div>
-  </div>`;
+  </div>`);
 }
 
 export function initBuilds() {
@@ -78,7 +79,7 @@ export function initBuilds() {
     `<button type="button" style="--c:${color(n)}" data-n="${n}" class="${n === DEFAULT ? 'on' : ''}">${n}</button>`).join('');
   tabs.onclick = e => {
     const b = e.target.closest('button');
-    if (!b) return;
+    if (!b || b.classList.contains('on')) return;
     [...tabs.children].forEach(c => c.classList.toggle('on', c === b));
     drawBuild(b.dataset.n);
   };

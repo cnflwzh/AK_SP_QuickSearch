@@ -3,6 +3,7 @@ import {
   DIFFICULTIES, MODES, DECISION_ROUNDS, SOLO_LEVELS, ROUND_TIME, CREDIT,
 } from '../../../data/index.js';
 import { $, html } from '../../lib/dom.js';
+import { updateHTML } from '../../lib/update-html.js';
 import { cv, mountSegmented } from '../chips.js';
 
 /** 1.2 联合模拟难度：认证效率条 */
@@ -131,7 +132,7 @@ function roundTimeline() {
     if (!standard) {
       s += '<div class="c hid"><span class="sec">??</span><div class="bar" style="height:110px"></div><span class="rn">核心</span></div>';
     }
-    $('#tl').innerHTML = s;
+    updateHTML($('#tl'), s);
     $('#tlinfo').textContent = standard ? '14 回合' : '14 回合 + 隐秘核心';
   });
 }
@@ -171,7 +172,7 @@ function creditChart() {
       + `<text class="axl" x="${x + (bw - 6) / 2}" y="206" text-anchor="middle" style="fill:var(--red)">领袖</text>`;
     s += `<text class="axl" x="${x0}" y="219">通过回合数</text>`;
 
-    $('#crchart').innerHTML = s;
+    updateHTML($('#crchart'), s);
     $('#crsum').textContent = '×' + Math.round(m * 100) + '% · 击败领袖额外 +' + bonus;
   });
 }

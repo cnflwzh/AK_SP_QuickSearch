@@ -36,12 +36,12 @@ function leaderBars(modeIndex) {
   const hiddenOf = leader => modeIndex > 0 && leader.hiddenCore ? leader.hiddenCore[modeIndex - 1] : 0;
   const sorted = LEADERS.slice().sort((a, b) => b.hp[modeIndex] - a.hp[modeIndex]);
   const max = Math.max(...sorted.map(l => Math.max(l.hp[modeIndex], hiddenOf(l))));
-  return sorted.map((leader, i) => {
+  return sorted.map(leader => {
     const hp = leader.hp[modeIndex];
     const hidden = hiddenOf(leader);
-    return html`<span class="nm">${esc(leader.name)}</span>
-      <div class="tr">
-        <div class="m" style="width:${hp / max * 100}%;animation-delay:${i * .04}s"></div>
+    return html`<span class="nm" data-key="name:${esc(leader.name)}">${esc(leader.name)}</span>
+      <div class="tr" data-key="hp:${esc(leader.name)}">
+        <div class="m" style="width:${hp / max * 100}%"></div>
         <span>${wan(hp)}${hidden ? ' · 核心 ' + wan(hidden) : ''}</span>
       </div>`;
   }).join('');

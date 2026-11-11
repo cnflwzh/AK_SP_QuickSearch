@@ -1,5 +1,5 @@
 /*
- * 规程速查 Service Worker
+ * 卫戍速查 Service Worker
  * sw.js 由 scripts/build_sw.py 根据本模板生成，请修改模板而不是 sw.js。
  *
  * 缓存策略
@@ -7,7 +7,7 @@
  *   图片：缓存优先
  *   本地字体：按需下载，缓存优先；文件名包含内容哈希
  */
-const VERSION = '3d4ba40354';
+const VERSION = '5ffbc7eb6e';
 const CORE = [
   "./",
   "assets/css/base.css",
@@ -47,6 +47,7 @@ const CORE = [
   "js/lib/match.js",
   "js/lib/peek.js",
   "js/lib/pwa.js",
+  "js/lib/update-html.js",
   "js/lib/visibility.js",
   "js/quickref/chips.js",
   "js/quickref/main.js",
