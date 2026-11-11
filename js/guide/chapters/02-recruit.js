@@ -1,16 +1,17 @@
 /** 第 2 章 招募与升本：调度中心、精锐、卡池、阵型、装备 */
 import {
-  OPERATORS, OPERATOR, EQUIP, DISPATCH_LEVELS, TIER_STATS, TIER_LABELS, TIERS, EQUIPMENT_COMBOS,
+  OPERATORS, OPERATOR, EQUIP, DISPATCH_LEVELS, DISPATCH_MODES, DISPATCH_BY_MODE, TIER_STATS, TIER_LABELS, TIERS, EQUIPMENT_COMBOS,
 } from '../../../data/index.js';
 import { $, html, range } from '../../lib/dom.js';
 import { avatarSrc } from '../../lib/assets.js';
 import { op, eq, st, cv, avatar, tierBadge, mountSegmented } from '../chips.js';
-import { initShopSimulator } from './shop-simulator.js';
+import { initShopSimulator, resetShopSimulator } from './shop-simulator.js';
 
 /** 2.2 调度中心等级表 */
 function dispatchTable() {
-  const row = (label, cell) => `<tr><td>${label}</td>${DISPATCH_LEVELS.map(cell).join('')}</tr>`;
-  $('#shopTbl').innerHTML = `<tr><th>等级</th>${DISPATCH_LEVELS.map(r => `<th>${r.level}</th>`).join('')}</tr>`
+  const levels = DISPATCH_BY_MODE[+$('#dispatchMode').value];
+  const row = (label, cell) => `<tr><td>${label}</td>${levels.map(cell).join('')}</tr>`;
+  $('#shopTbl').innerHTML = `<tr><th>等级</th>${levels.map(r => `<th>${r.level}</th>`).join('')}</tr>`
     + row('升级费用', r => `<td class="n">${r.upgradeCost ?? 'MAX'}</td>`)
     + row('干员栏位', r => `<td class="n">${r.operatorSlots}</td>`)
     + row('装备栏位', r => `<td class="n">${r.equipmentSlots}</td>`)
@@ -46,7 +47,7 @@ function elite() {
         <div class="els">${stats.base}</div>
         <div class="elt">${highlightTrait(o.trait)}</div>
       </div>
-      <div class="elarr">▼ 三合一</div>
+      <div class="elarr">▼ ${o.name === '星极' ? '二合一' : '三合一'}</div>
       <div class="elc el">
         <div class="elh">${op(o.name, 'el')}<span class="tag a">精锐</span></div>
         <div class="els">${stats.elite}</div>
@@ -57,10 +58,10 @@ function elite() {
   draw();
 
   const COSTS = [
-    ['3 张普通干员', 9], ['真理 / 至简 ×3', 3], ['星极 ×2', 6], ['2 张 + 拟态物质', 10], ['1 张 + 博士投影', 8],
+    ['Ⅰ阶 ×3', 6], ['Ⅱ—Ⅳ阶 ×3', 9], ['Ⅴ—Ⅵ阶 ×3', 12], ['真理 / 至简 ×3', 3], ['星极 ×2', 6], ['3费×2 + 拟态物质', 10], ['3费 + 博士投影', 8],
   ];
   $('#elCost').innerHTML = COSTS.map(([label, funds]) => html`<div class="hb" style="grid-template-columns:8em 1fr 2em">
-    <span>${label}</span><div class="hb-t"><div class="hb-f" style="width:${funds * 10}%"></div></div><span class="hb-v">${funds}</span>
+    <span>${label}</span><div class="hb-t"><div class="hb-f" style="width:${funds / 12 * 100}%"></div></div><span class="hb-v">${funds}</span>
   </div>`).join('');
 
   $('#elFx').innerHTML = html`
@@ -181,6 +182,9 @@ function equipmentCombos() {
 }
 
 export function initRecruit() {
+  const mode = $('#dispatchMode');
+  mode.innerHTML = DISPATCH_MODES.map((label, i) => `<option value="${i}">${label}</option>`).join('');
+  mode.onchange = () => { dispatchTable(); resetShopSimulator(); };
   dispatchTable();
   tierStatsTable();
   initShopSimulator();

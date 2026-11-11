@@ -10,18 +10,23 @@
  * FURTHER_READING  同 UPLOADERS，列出值得一看但未直接取用内容的攻略
  */
 
-export const ABOUT_VERSION = 1;
+export const ABOUT_VERSION = 2;
 
 /** 开源仓库地址，填写后弹窗里会出现「反馈 / 源码」链接 */
-export const REPO_URL = '';
+export const REPO_URL = 'https://github.com/cnflwzh/AK_SP_QuickSearch';
 
 export const PURPOSE = [
-  '玩家自制的《明日方舟》卫戍协议·规程攻略工具，与上海鹰角网络科技有限公司无关。',
+  '玩家自制的《明日方舟》卫戍协议·规程攻略工具。',
   '速查页把干员、盟约、装备、策略、流派整理成对局中横屏小窗也能快速翻的卡片；图解教程从入门讲到流派。',
   '免费、开源，可安装为离线应用。',
 ];
 
 export const WIKIS = [
+  {
+    name: 'ArknightsGameData', page: '规程 V3_1 · 2026-11-11',
+    url: 'https://github.com/Kengxxiao/ArknightsGameData/blob/master/zh_CN/gamedata/excel/activity_table.json',
+    used: '招募价格、练度、各模式升级费用与栏位、回合配置、基础认证；关卡文件核对作战时限',
+  },
   {
     name: 'PRTS',
     page: '卫戍协议·规程',

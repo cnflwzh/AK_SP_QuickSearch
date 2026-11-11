@@ -2,7 +2,7 @@
  * 2.2 调度中心模拟器：随机商店、购买、三合一精锐、精锐奖励、升级、刷新、冻结、整备区。
  * 只模拟资金流向与卡池规则，不模拟战斗。
  */
-import { OPERATORS, OPERATOR, DISPATCH_LEVELS, TIER_LABELS, TIERS } from '../../../data/index.js';
+import { OPERATORS, OPERATOR, DISPATCH_BY_MODE, operatorPrice, TIER_LABELS, TIERS } from '../../../data/index.js';
 import { $, html } from '../../lib/dom.js';
 import { avatar } from '../chips.js';
 
@@ -13,13 +13,13 @@ const MAX_LEVEL = 6;
 const NOT_IN_SHOP = '盟约·辅助干员';
 
 const pickRandom = list => list[Math.floor(Math.random() * list.length)];
-const shopPool = level => OPERATORS.filter(o => o.tier <= level && o.name !== NOT_IN_SHOP);
+const pools = Array.from({ length: 7 }, (_, level) => OPERATORS.filter(o => o.tier <= level && o.name !== NOT_IN_SHOP));
+const shopPool = level => pools[level];
 const tierPool = tier => OPERATORS.filter(o => o.tier === tier && o.name !== NOT_IN_SHOP).map(o => o.name);
 const randomOperator = level => pickRandom(shopPool(level)).name;
 
-/** 真理 / 至简 1 资金，其余 3 */
-const priceOf = name => name === '真理' || name === '至简' ? 1 : 3;
-const levelInfo = level => DISPATCH_LEVELS[level - 1];
+const priceOf = name => operatorPrice(OPERATOR[name]);
+const levelInfo = level => DISPATCH_BY_MODE[+$('#dispatchMode').value][level - 1];
 const tierOf = name => OPERATOR[name].tier;
 
 /** 模拟器状态。bench 元素：{ name, elite, pop(刚加入，播放动画) } */
@@ -27,7 +27,7 @@ const sim = {};
 
 function reset() {
   Object.assign(sim, {
-    level: 1, cost: 5, round: 1, spent: 0, frozen: false,
+    level: 1, cost: levelInfo(1).upgradeCost, round: 1, spent: 0, frozen: false,
     bench: [], reward: null, slots: [],
   });
   rollShop();
@@ -38,7 +38,7 @@ function rollShop() {
   sim.slots = Array.from({ length: levelInfo(sim.level).operatorSlots }, () => randomOperator(sim.level));
 }
 
-/** 凑齐 3 张（星极 2 张）同名未精锐 → 合成精锐，并给出高一阶的三选一奖励 */
+/** 凑齐 3 张（星极 2 张）同名未精锐 → 合成精锐，并给出比当前中心高一阶的三选一奖励 */
 function tryMerge(name) {
   const need = name === '星极' ? 2 : 3;
   const copies = sim.bench
@@ -48,9 +48,10 @@ function tryMerge(name) {
 
   const used = copies.slice(0, need);
   sim.bench = sim.bench.filter((_, i) => !used.includes(i));
-  sim.bench.push({ name, elite: true, pop: true });
+  // 晋升销毁初始牌并获得一张新的精锐牌。
+  sim.bench.push({ name, elite: true, pop: true, sale: 1 });
 
-  const pool = tierPool(Math.min(MAX_LEVEL, tierOf(name) + 1));
+  const pool = tierPool(Math.min(MAX_LEVEL, sim.level + 1));
   const picks = new Set();
   while (picks.size < 3 && picks.size < pool.length) picks.add(pickRandom(pool));
   sim.reward = [...picks];
@@ -78,7 +79,8 @@ function draw(flip) {
   $('#sLv').textContent = sim.level;
   $('#sCost').textContent = maxed ? 'MAX' : sim.cost;
   $('#bUpC').textContent = maxed ? '—' : sim.cost;
-  $('#bUp').disabled = maxed;
+  $('#bUp').disabled = maxed || !!sim.reward;
+  $('#bRef').disabled = $('#bFrz').disabled = !!sim.reward;
   // 升级费用每回合 -1，进度条显示剩余比例
   const baseCost = maxed ? 1 : info.upgradeCost;
   $('#sCd').style.width = (maxed ? 0 : sim.cost / baseCost * 100) + '%';
@@ -112,7 +114,7 @@ function draw(flip) {
 /* ---------- 操作 ---------- */
 
 function addToBench(name) {
-  sim.bench.push({ name, elite: false, pop: true });
+  sim.bench.push({ name, elite: false, pop: true, sale: 1 });
   tryMerge(name);
   draw();
 }
@@ -121,7 +123,7 @@ function bindControls() {
   // 购买
   $('#sShop').onclick = e => {
     const slot = e.target.closest('.slot[data-i]');
-    if (!slot || sim.bench.length >= BENCH_MAX) return;
+    if (!slot || sim.reward || sim.bench.length >= BENCH_SIZE) return;
     const i = +slot.dataset.i;
     const name = sim.slots[i];
     sim.slots[i] = null;
@@ -132,36 +134,39 @@ function bindControls() {
   // 领取精锐奖励（0 资金）
   $('#sRewardSlots').onclick = e => {
     const slot = e.target.closest('.slot[data-r]');
-    if (!slot || sim.bench.length >= BENCH_MAX) return;
+    if (!slot || !sim.reward || sim.bench.length >= BENCH_MAX) return;
     const name = sim.reward[+slot.dataset.r];
     sim.reward = null;
     addToBench(name);
   };
 
-  // 出售（+1 资金），精锐不可出售
+  // 初始与精锐都可出售；温蒂固定售价，海沫按每张牌单独积累。
   $('#sBench').onclick = e => {
     const cell = e.target.closest('.b[data-j]');
     if (!cell) return;
     const j = +cell.dataset.j;
-    if (sim.bench[j].elite) return;
+    const card = sim.bench[j];
+    const price = card.name === '温蒂' ? (card.elite ? 6 : 3) : card.sale;
     sim.bench.splice(j, 1);
-    sim.spent -= 1;
+    sim.spent -= price;
     draw();
   };
 
   $('#bRef').onclick = () => {
+    if (sim.reward) return;
     sim.spent += 1;
     rollShop();
     draw(true);
   };
 
   $('#bFrz').onclick = () => {
+    if (sim.reward) return;
     sim.frozen = !sim.frozen;
     draw();
   };
 
   $('#bUp').onclick = () => {
-    if (sim.level >= MAX_LEVEL) return;
+    if (sim.level >= MAX_LEVEL || sim.reward) return;
     sim.spent += sim.cost;
     sim.level++;
     sim.cost = levelInfo(sim.level).upgradeCost ?? 0;
@@ -171,12 +176,16 @@ function bindControls() {
 
   // 下一回合：升级费用 -1，奖励作废，临时栏位清空，未冻结则刷新商店
   $('#bNext').onclick = () => {
+    sim.bench.forEach(card => {
+      if (card.name === '海沫') card.sale = Math.min(card.elite ? 8 : 4, card.sale + (card.elite ? 2 : 1));
+    });
     sim.round++;
     sim.cost = Math.max(0, sim.cost - 1);
     sim.reward = null;
     if (sim.bench.length > BENCH_SIZE) sim.bench = sim.bench.slice(0, BENCH_SIZE);
     if (sim.frozen) {
       sim.frozen = false;
+      sim.slots = sim.slots.map(name => name || randomOperator(sim.level));
       draw();
     } else {
       rollShop();
@@ -186,6 +195,8 @@ function bindControls() {
 
   $('#bReset').onclick = reset;
 }
+
+export function resetShopSimulator() { reset(); }
 
 export function initShopSimulator() {
   bindControls();

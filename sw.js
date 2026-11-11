@@ -5,12 +5,13 @@
  * 缓存策略
  *   页面 / 脚本 / 样式 / 数据：联网优先，离线时回落到缓存
  *   图片：缓存优先
- *   Google Fonts：先用缓存，同时后台更新
+ *   本地字体：按需下载，缓存优先；文件名包含内容哈希
  */
-const VERSION = '5265bb701b';
+const VERSION = '6886438aeb';
 const CORE = [
   "./",
   "assets/css/base.css",
+  "assets/css/fonts.css",
   "assets/css/guide.css",
   "assets/css/quickref.css",
   "assets/icons/apple-180.png",
@@ -44,6 +45,7 @@ const CORE = [
   "js/lib/match.js",
   "js/lib/peek.js",
   "js/lib/pwa.js",
+  "js/lib/visibility.js",
   "js/quickref/chips.js",
   "js/quickref/main.js",
   "js/quickref/search.js",
@@ -334,8 +336,8 @@ const IMAGES = [
 ];
 
 const CORE_CACHE = 'wsq-core-' + VERSION;
-const IMAGE_CACHE = 'wsq-img-' + VERSION;
-const FONT_CACHE = 'wsq-font';
+const IMAGE_CACHE = 'wsq-img-543a5a5e85';
+const FONT_CACHE = 'wsq-font-local-v1';
 
 /*
  * Cloudflare Pages 会把 /guide.html 重定向到 /guide。
@@ -368,7 +370,14 @@ self.addEventListener('install', event => {
       if (res.ok) await core.put(url, await stripRedirect(res));
     }));
     const images = await caches.open(IMAGE_CACHE);
-    await Promise.all(IMAGES.map(url => images.add(url).catch(() => {})));
+    // Reuse unchanged images across content updates; at most four background downloads.
+    let next = 0;
+    await Promise.all(Array.from({ length: 4 }, async () => {
+      while (next < IMAGES.length) {
+        const url = IMAGES[next++];
+        if (!await images.match(url)) await images.add(url).catch(() => {});
+      }
+    }));
     self.skipWaiting();
   })());
 });
@@ -378,31 +387,19 @@ self.addEventListener('activate', event => {
   event.waitUntil((async () => {
     const keep = [CORE_CACHE, IMAGE_CACHE, FONT_CACHE];
     for (const key of await caches.keys()) {
-      if (!keep.includes(key)) await caches.delete(key);
+      if (key.startsWith('wsq-') && !keep.includes(key)) await caches.delete(key);
     }
     await self.clients.claim();
   })());
 });
 
-function staleWhileRevalidate(request) {
-  return caches.open(FONT_CACHE).then(async cache => {
-    const hit = await cache.match(request);
-    const network = fetch(request).then(res => {
-      if (res.ok || res.type === 'opaque') cache.put(request, res.clone());
-      return res;
-    }).catch(() => hit);
-    return hit || network;
-  });
-}
-
-function cacheFirst(request) {
-  return caches.match(request).then(hit => hit || fetch(request).then(res => {
-    if (res.ok) {
-      const copy = res.clone();
-      caches.open(IMAGE_CACHE).then(cache => cache.put(request, copy));
-    }
-    return res;
-  }));
+async function cacheFirst(request, cacheName = IMAGE_CACHE) {
+  const cache = await caches.open(cacheName);
+  const hit = await cache.match(request);
+  if (hit) return hit;
+  const response = await fetch(request);
+  if (response.ok) await cache.put(request, response.clone());
+  return response;
 }
 
 function networkFirst(request) {
@@ -421,10 +418,10 @@ self.addEventListener('fetch', event => {
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
 
-  if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
-    event.respondWith(staleWhileRevalidate(request));
-  } else if (url.origin !== location.origin) {
+  if (url.origin !== location.origin) {
     // 其他第三方请求不处理
+  } else if (url.pathname.includes('/assets/fonts/')) {
+    event.respondWith(cacheFirst(request, FONT_CACHE));
   } else if (url.pathname.includes('/assets/img/') || url.pathname.includes('/assets/icons/')) {
     event.respondWith(cacheFirst(request));
   } else {

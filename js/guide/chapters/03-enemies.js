@@ -1,6 +1,7 @@
 /** 第 3 章 刷怪：特训敌人、漏怪动画、联防、领袖生命、悬赏与决策回合 */
 import { TRAINING, LEADERS, BOUNTIES, DECISION_ROUNDS, MODES } from '../../../data/index.js';
 import { $, html, range, wan, prefersReducedMotion } from '../../lib/dom.js';
+import { whileVisible } from '../../lib/visibility.js';
 import { mountSegmented } from '../chips.js';
 
 const pickRandom = list => list[Math.floor(Math.random() * list.length)];
@@ -25,7 +26,7 @@ function trainingDemo() {
     $('#waves').innerHTML = waves;
   };
   shuffle();
-  if (!prefersReducedMotion) setInterval(shuffle, 3200);
+  whileVisible(grid, () => { const timer = setInterval(shuffle, 3200); return () => clearInterval(timer); });
 }
 
 /** 3.2 漏怪动画：敌人从右向左走，被防线击倒或抵达目标扣血（每回合至多 10） */
@@ -43,6 +44,7 @@ function leakAnimation() {
 
   const layer = svg.querySelector('#lkE');
   const base = svg.querySelector('.base');
+  const hpLabel = svg.querySelector('#lkHp'), lostLabel = svg.querySelector('#lkLost'), timeBar = svg.querySelector('#lkT');
   const ROUND_SECONDS = 8.5;
   const SPEED = 105;            // px / 秒
   const sim = { hp: 25, lost: 0, t: 0, enemies: [] };
@@ -74,8 +76,8 @@ function leakAnimation() {
   }
 
   const updateLabels = () => {
-    svg.querySelector('#lkHp').textContent = sim.hp;
-    svg.querySelector('#lkLost').textContent = sim.lost;
+    if (hpLabel.textContent !== String(sim.hp)) hpLabel.textContent = sim.hp;
+    if (lostLabel.textContent !== String(sim.lost)) lostLabel.textContent = sim.lost;
   };
 
   newRound();
@@ -87,7 +89,7 @@ function leakAnimation() {
     return;
   }
 
-  let last = performance.now();
+  let last = performance.now(), frameId;
   function frame(now) {
     const dt = Math.min(.05, (now - last) / 1000);
     last = now;
@@ -106,7 +108,7 @@ function leakAnimation() {
       }
       e.dot.setAttribute('cx', e.x);
     });
-    svg.querySelector('#lkT').setAttribute('width', Math.max(0, 150 * (1 - sim.t / ROUND_SECONDS)));
+    timeBar.setAttribute('width', Math.max(0, 150 * (1 - sim.t / ROUND_SECONDS)));
 
     if (sim.t >= ROUND_SECONDS) {
       // 超时仍在场上的敌人也算漏怪
@@ -116,9 +118,13 @@ function leakAnimation() {
       newRound();
     }
     updateLabels();
-    requestAnimationFrame(frame);
+    frameId = requestAnimationFrame(frame);
   }
-  requestAnimationFrame(frame);
+  whileVisible(svg, () => {
+    last = performance.now();
+    frameId = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(frameId);
+  });
 }
 
 /** 3.3 联防：完美通关者进入联防战场，清理其他人的漏怪 */
@@ -187,7 +193,7 @@ function bountiesAndDecisions() {
     <td>${mode}</td>
     ${range(13).map(r => `<td style="${cell}">${rounds.includes(r + 1)
       ? DIAMOND
-      : (mode === '标准' && r >= 8 ? '<span class="muted">·</span>' : '')}</td>`)}
+      : ''}</td>`)}
   </tr>`);
   $('#decTbl').innerHTML = html`<div class="tw"><table>
     <tr><th>难度</th>${range(13).map(r => `<th style="${cell}">${r + 1}</th>`)}</tr>

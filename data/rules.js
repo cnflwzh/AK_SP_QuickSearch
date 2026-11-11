@@ -2,7 +2,7 @@
 export const TIER_LABELS = ['', 'Ⅰ', 'Ⅱ', 'Ⅲ', 'Ⅳ', 'Ⅴ', 'Ⅵ'];
 export const TIERS = [1, 2, 3, 4, 5, 6];
 
-/** 调度中心各等级 */
+/** 调度中心：个人规程 / 联合险境及以上。V3_1 shopLevelDataDict。 */
 export const DISPATCH_LEVELS = [
   { level: 1, upgradeCost: 5, operatorSlots: 3, equipmentSlots: 1 },
   { level: 2, upgradeCost: 8, operatorSlots: 4, equipmentSlots: 1 },
@@ -12,14 +12,29 @@ export const DISPATCH_LEVELS = [
   { level: 6, upgradeCost: null, operatorSlots: 5, equipmentSlots: 1 },
 ];
 
+/** 联合标准与极速有独立的升级费用、栏位表。 */
+const dispatchRows = (costs, slots) => costs.map((upgradeCost, i) => ({
+  level: i + 1, upgradeCost, operatorSlots: slots[i], equipmentSlots: 1,
+}));
+export const DISPATCH_MODES = ['个人规程 / 险境以上', '联合标准', '极速模拟'];
+export const DISPATCH_BY_MODE = [
+  DISPATCH_LEVELS,
+  dispatchRows([5, 8, 10, 11, 11, null], [3, 4, 4, 4, 4, 5]),
+  dispatchRows([1, 1, 5, 8, 10, null], [3, 4, 4, 4, 4, 5]),
+];
+/** 干员基础购买价；特质改价优先于等阶基础价。 */
+export function operatorPrice(operator) {
+  return ['真理', '至简'].includes(operator.name) ? 1 : [0, 2, 3, 3, 3, 4, 4][operator.tier];
+}
+
 /** 各等阶干员练度：初始 / 精锐 */
 export const TIER_STATS = [
-  { tier: 1, base: 'Lv55 · 潜能4', elite: 'Lv50 · 潜能7 · 模组1' },
-  { tier: 2, base: 'Lv60 · 潜能4', elite: 'Lv55 · 潜能7 · 模组1' },
-  { tier: 3, base: '精二 Lv1 · 潜能4 · 模组1', elite: '精二 Lv60 · 潜能7 · 模组1' },
-  { tier: 4, base: '精二 Lv1 · 潜能4 · 模组1', elite: '精二 Lv60 · 潜能7 · 模组1' },
-  { tier: 5, base: '精二 Lv1 · 潜能4 · 模组1', elite: '精二 Lv60 · 潜能7 · 模组1' },
-  { tier: 6, base: '精二 Lv1 · 潜能4 · 模组1', elite: '精二 Lv60 · 潜能7 · 模组3' },
+  { tier: 1, base: '精一 Lv55 · 技能4', elite: '精二 Lv50 · 技能7 · 模组1' },
+  { tier: 2, base: '精一 Lv60 · 技能4', elite: '精二 Lv55 · 技能7 · 模组1' },
+  { tier: 3, base: '精二 Lv1 · 技能4', elite: '精二 Lv60 · 技能7 · 模组1' },
+  { tier: 4, base: '精二 Lv1 · 技能4', elite: '精二 Lv60 · 技能7 · 模组1' },
+  { tier: 5, base: '精二 Lv1 · 技能4', elite: '精二 Lv60 · 技能7 · 模组1' },
+  { tier: 6, base: '精二 Lv1 · 技能4', elite: '精二 Lv60 · 技能7 · 模组3' },
 ];
 
 /** 自己账号里练过的干员带来的属性加成 */
@@ -32,7 +47,7 @@ export const OWN_OPERATOR_BONUS = [
 /** 联合模拟难度。efficiency = 认证效率 %，strength = 模拟强度 */
 export const DIFFICULTIES = [
   { name: '入门协议', efficiency: 0, strength: null, note: '预设干员 · 无进度' },
-  { name: '标准模拟', efficiency: 100, strength: 8, note: '9 回合' },
+  { name: '标准模拟', efficiency: 100, strength: 8, note: '14 回合' },
   { name: '险境模拟', efficiency: 120, strength: 13, note: '通关标准解锁' },
   { name: '绝境模拟', efficiency: 135, strength: 19, note: '追加敌人' },
   { name: '终极模拟', efficiency: 150, strength: 20, note: '绝境通关 3 次' },
@@ -42,13 +57,13 @@ export const DIFFICULTIES = [
 export const MODES = ['标准', '险境', '绝境', '终极'];
 
 /** 各难度的机变 / 悬赏决策回合（该回合结束后） */
-export const DECISION_ROUNDS = { 标准: [2, 8], 险境: [2, 5, 8], 绝境: [2, 8, 10], 终极: [2, 8, 10] };
+export const DECISION_ROUNDS = { 标准: [2, 8], 险境: [5, 8], 绝境: [2, 8, 10], 终极: [2, 8, 10] };
 
 /** 第 1–14 回合作战时限（秒），领袖回合固定 120 */
 export const ROUND_TIME = [45, 45, 55, 55, 55, 70, 85, 85, 95, 95, 115, 115, 115, 120];
 
-/** 通过第 N 回合获得的作战认证（标准难度，其他难度乘以效率） */
-export const CREDIT = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 120, 140, 160, 200];
+/** 通过第 N 回合的基础认证：autoChessData.roundScoreDataList；其他难度乘效率。 */
+export const CREDIT = [10, 20, 30, 50, 70, 90, 110, 130, 150, 170, 200, 230, 260, 300];
 
 /** 个人模拟规程等级。efficiency = 认证效率 %，strength = 模拟强度 */
 export const SOLO_LEVELS = [

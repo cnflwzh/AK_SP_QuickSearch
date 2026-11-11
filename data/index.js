@@ -33,6 +33,15 @@ export const covenantColor = (name, fallback) => COVENANTS[name]?.color || fallb
 /** 属于某盟约的全部干员（保持数据表顺序） */
 export const rosterOf = covenant => OPERATORS.filter(o => o.covenants.includes(covenant));
 
+/**
+ * 统计给定阵容中盟约的不同干员人数，重复名称只计一次。
+ * @param {string[]} lineup 干员名称列表。
+ * @param {string} covenant 盟约名称。
+ * @returns {number} 阵容中拥有该盟约的不同干员数。
+ */
+export const lineupCovenantCount = (lineup, covenant) =>
+  [...new Set(lineup)].filter(name => OPERATOR[name]?.covenants.includes(covenant)).length;
+
 /** 全部流派名：核心盟约流派 + 混搭流派 */
 export const BUILD_NAMES = [...Object.keys(CORE_BUILDS), ...MIXED_BUILDS.map(b => b.name)];
 export const BUILD_COUNT = BUILD_NAMES.length;

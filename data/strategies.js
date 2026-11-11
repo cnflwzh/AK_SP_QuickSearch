@@ -110,7 +110,7 @@ export const STRATEGIES = [
   {
     name: 'Touch', hp: 28, category: '精锐', unlock: '通关任意模拟3次', portrait: 's19',
     skill: '外勤医疗',
-    effect: '场上出现<预备干员-医疗>；场上≥2名精锐时替换为<Touch>',
+    effect: '所有玩家场上出现<预备干员-医疗>；战斗开始时场上≥2名精锐则替换为<Touch>',
   },
   {
     name: '森蚺', hp: 29, category: '装备', unlock: '通关任意模拟5次', portrait: 's20',

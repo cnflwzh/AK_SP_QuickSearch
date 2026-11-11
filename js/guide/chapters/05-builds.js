@@ -1,6 +1,6 @@
 /** 第 5 章 流派：核心盟约流派面板 + 混搭流派卡片 */
 import {
-  CORE_BUILDS, MIXED_BUILDS, CORE_COVENANTS, COVENANTS, OPERATOR, TIERS, TIER_LABELS, rosterOf,
+  CORE_BUILDS, MIXED_BUILDS, CORE_COVENANTS, COVENANTS, OPERATOR, TIERS, TIER_LABELS, rosterOf, lineupCovenantCount,
 } from '../../../data/index.js';
 import { $, html, range } from '../../lib/dom.js';
 import { op, eq, st, cv, avatar, color } from '../chips.js';
@@ -60,8 +60,8 @@ function drawBuild(name) {
         <div class="fin">${lineup}</div>
         <p class="lab" style="margin-top:16px">运营</p>
         <ol class="steps">${build.tips.map(t => `<li>${t}</li>`)}</ol>
-        <p class="lab" style="margin-top:16px">附加盟约</p>
-        <div class="row">${build.addons.map(cv)}</div>
+        <p class="lab" style="margin-top:16px">推荐附加盟约 · 阵容人数 / 激活人数</p>
+        <div class="row">${build.addons.map(n => html`<span class="row">${cv(n)}<span class="tag">${lineupCovenantCount(build.lineup, n)} / ${COVENANTS[n].need}</span></span>`)}</div>
         <p class="lab" style="margin-top:12px">策略</p>
         <div class="row">${build.strategies.map(st)}</div>
         <p class="lab" style="margin-top:12px">装备</p>

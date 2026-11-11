@@ -116,7 +116,7 @@ function roundTimeline() {
   mountSegmented($('#tlseg'), MODES, 1, i => {
     const mode = MODES[i];
     const standard = mode === '标准';
-    const rounds = standard ? 9 : 14;
+    const rounds = 14;
     let s = '';
     for (let r = 1; r <= rounds; r++) {
       const leader = r === rounds;
@@ -132,7 +132,7 @@ function roundTimeline() {
       s += '<div class="c hid"><span class="sec">??</span><div class="bar" style="height:110px"></div><span class="rn">核心</span></div>';
     }
     $('#tl').innerHTML = s;
-    $('#tlinfo').textContent = standard ? '9 回合' : '14 回合 + 隐秘核心';
+    $('#tlinfo').textContent = standard ? '14 回合' : '14 回合 + 隐秘核心';
   });
 }
 
@@ -142,7 +142,7 @@ function creditChart() {
   mountSegmented($('#crseg'), MODES, 0, i => {
     const m = multipliers[i];
     const W = 600, x0 = 38, bw = (W - x0 - 10) / 15, BASE_Y = 190;
-    const max = 250 * 1.5;
+    const max = (CREDIT.at(-1) + 50) * 1.5;
     const h = v => v / max * 170;
     let s = '';
 
@@ -160,9 +160,9 @@ function creditChart() {
         + `<text class="axl" x="${cx}" y="206" text-anchor="middle">${k + 1}${k === 13 ? '+' : ''}</text>`;
     });
 
-    // 领袖回合：200 基础 + 50 击败奖励
+    // 击败领袖：最终通过回合的基础认证 + 50 击败奖励
     const bonus = Math.round(50 * m);
-    const base = Math.round(200 * m);
+    const base = Math.round(CREDIT.at(-1) * m);
     const x = x0 + 14 * bw + 3;
     const h1 = base / max * 170, h2 = bonus / max * 170;
     s += `<rect x="${x}" y="${BASE_Y - h1}" width="${bw - 6}" height="${h1}" rx="2" fill="color-mix(in srgb,var(--teal) 75%,transparent)"/>`
@@ -172,7 +172,7 @@ function creditChart() {
     s += `<text class="axl" x="${x0}" y="219">通过回合数</text>`;
 
     $('#crchart').innerHTML = s;
-    $('#crsum').textContent = '×' + Math.round(m * 100) + '% · 击败领袖 +50';
+    $('#crsum').textContent = '×' + Math.round(m * 100) + '% · 击败领袖额外 +' + bonus;
   });
 }
 

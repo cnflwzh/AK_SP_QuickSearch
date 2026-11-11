@@ -29,15 +29,21 @@ def main():
     core = collect(CORE_GLOBS)
     images = collect(IMAGE_GLOBS)
 
-    digest = hashlib.sha1()
+    template = (ROOT / 'scripts' / 'sw.template.js').read_text(encoding='utf-8')
+    image_digest = hashlib.sha1()
+    for path in images:
+        image_digest.update(path.encode())
+        image_digest.update((ROOT / path).read_bytes())
+    image_version = image_digest.hexdigest()[:10]
+    digest = hashlib.sha1(template.encode())
     for path in core + images:
         digest.update(path.encode())
         digest.update((ROOT / path).read_bytes())
     version = digest.hexdigest()[:10]
 
-    template = (ROOT / 'scripts' / 'sw.template.js').read_text(encoding='utf-8')
     output = (template
               .replace('__VERSION__', version)
+              .replace('__IMAGE_VERSION__', image_version)
               .replace('__CORE__', json.dumps(['./'] + core, ensure_ascii=False, indent=2))
               .replace('__IMAGES__', json.dumps(images, indent=2)))
     (ROOT / 'sw.js').write_text(output, encoding='utf-8', newline='\n')

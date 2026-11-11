@@ -14,9 +14,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="规程速查">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=Saira+Condensed:wght@500;600;700&family=ZCOOL+QingKe+HuangYou&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/fonts.css">
 <link rel="stylesheet" href="assets/css/base.css">
 <link rel="stylesheet" href="assets/css/guide.css">
 </head>
@@ -100,7 +98,7 @@
     <div style="--sc:var(--accent)"><div class="sh"><b>后期</b><span class="num">R9–13</span></div><div class="lvb">目标：5–6 级 · Ⅴ–Ⅵ 阶</div><ul class="ul"><li>凑 6 名不同核心干员，开强化效果</li><li>叠层手配 Mon3tr / 凛御银灰 抬上限</li><li>按身前 / 身后调整站位</li></ul></div>
     <div style="--sc:var(--red)"><div class="sh"><b>领袖</b><span class="num">R14</span></div><div class="lvb">全队生命合并</div><ul class="ul"><li>超时每秒 −1 生命</li><li>伤害取决于叠到的层数</li><li>击败后满足条件 → 隐秘核心</li></ul></div>
   </div>
-  <div class="row mt"><span class="tag">标准模拟 9 回合：同样四段，节奏压缩</span></div>
+  <div class="row mt"><span class="tag">极速模拟 9 回合：节奏压缩；联合标准 14 回合</span></div>
 </section>
 
 <!-- ============ 02 ============ -->
@@ -110,7 +108,7 @@
   <h3 class="bh"><span>2.1</span>资金</h3>
   <div class="card">
     <div class="fund">
-      <div><b class="m">−3</b><span>招募</span><small>真理 / 至简 −1</small></div>
+      <div><b class="m">−2 / 3 / 4</b><span>招募</span><small>Ⅰ / Ⅱ–Ⅳ / Ⅴ–Ⅵ阶 · 真理 / 至简 −1</small></div>
       <div><b class="p">+1</b><span>出售</span><small>温蒂 3/6 · 海沫涨价</small></div>
       <div><b class="m">−1</b><span>刷新</span><small>奇迹 / 忍冬 免费</small></div>
       <div><b class="m">−N</b><span>升级</span><small>每回合 N−1</small></div>
@@ -121,6 +119,7 @@
 
   <h3 class="bh"><span>2.2</span>调度中心模拟</h3>
   <div class="card">
+    <div class="row" style="margin-bottom:14px"><label for="dispatchMode">模式</label><select id="dispatchMode"></select><span class="tag">切换模式重置练习</span></div>
     <div class="sim">
       <div class="lvl">
         <div class="lv-badge"><span class="big num" id="sLv">1</span><span>级调度中心</span></div>
@@ -157,9 +156,9 @@
         <div class="fstack"><div class="fc el" data-t="3" style="animation-delay:1.3s"><i>Ⅲ</i>乌啾<span class="tag a">精锐</span></div></div>
         <ul class="ul"><li>3 张合为 1 张，空出 2 格</li><li>练度升至精锐档</li><li>特质换成精锐版</li></ul></div>
       <div class="sarr">▶</div>
-      <div class="sb"><div class="sbn">3</div><b>精锐奖励 · 三选一</b>
+      <div class="sb"><div class="sbn">3</div><b>精锐奖励 · 以三本为例</b>
         <div class="fstack"><div class="fc" data-t="4" style="animation-delay:2.6s"><i>Ⅳ</i>？</div><div class="fc" data-t="4" style="animation-delay:2.6s"><i>Ⅳ</i>？</div><div class="fc" data-t="4" style="animation-delay:2.6s"><i>Ⅳ</i>？</div></div>
-        <ul class="ul"><li>3 名高一阶干员，选 1 名</li><li>0 资金</li><li>不能刷新、不能冻结</li><li>当回合不选即作废</li><li>Ⅵ 阶精锐 → 奖励仍为 Ⅵ</li></ul></div>
+        <ul class="ul"><li>比当前调度中心高一阶，3 选 1</li><li>0 资金</li><li>不能刷新、不能冻结</li><li>当回合不选即作废</li><li>奖励最高Ⅵ阶；四本合成可拿Ⅴ阶</li></ul></div>
     </div>
   </div>
   <div class="g3 mt">
@@ -187,8 +186,8 @@
     </div>
   </div>
   <div class="g2 mt">
-    <div class="card"><h4>调度中心等级 → 商店能出的等阶</h4><div id="tierMx"></div>
-      <div class="row mt"><span class="tag">只出 ≤ 当前等级的等阶</span><span class="tag a">想要 Ⅴ–Ⅵ 阶 → 先升到 5–6 级</span></div>
+    <div class="card"><h4>个人规程 / 险境以上：调度中心 → 商店等阶</h4><div id="tierMx"></div>
+      <div class="row mt"><span class="tag">只出 ≤ 当前等级的等阶</span><span class="tag a">常规调度Ⅴ–Ⅵ阶 → 升到5–6级；精锐奖励可跨一阶</span></div>
     </div>
     <div class="card"><h4>刷新与冻结</h4><div class="rf" id="rfx"></div><div id="rfChips" class="mt"></div></div>
   </div>
@@ -261,7 +260,7 @@
   <div class="card">
     <div class="row" style="justify-content:space-between;margin-bottom:12px"><div class="seg" id="ldseg"></div><div class="legend" style="margin:0"><span><i style="background:var(--red)"></i>领袖</span><span><i style="background:repeating-linear-gradient(45deg,var(--ink3) 0 3px,transparent 3px 6px)"></i>隐秘核心</span></div></div>
     <div class="ldr" id="ldr"></div>
-    <div class="row mt"><span class="tag">隐秘核心：击败领袖后达成特定条件出现</span><span class="tag">标准模拟：第 9 回合领袖</span><span class="tag">其他：第 14 回合领袖</span></div>
+    <div class="row mt"><span class="tag">隐秘核心：击败领袖后达成特定条件出现</span><span class="tag">极速模拟：第 9 回合领袖</span><span class="tag">其他：第 14 回合领袖</span></div>
   </div>
 
   <h3 class="bh"><span>3.5</span>悬赏 · 机变</h3>

@@ -1,6 +1,6 @@
 /** 流派页：顶部流派选择，下方为终盘阵容、运营要点、附加盟约 / 策略 / 装备 */
 import {
-  CORE_BUILDS, MIXED_BUILDS, COVENANTS, OPERATOR, BUILD_NAMES, BUILD_COUNT, buildByName,
+  CORE_BUILDS, MIXED_BUILDS, COVENANTS, OPERATOR, BUILD_NAMES, BUILD_COUNT, buildByName, lineupCovenantCount,
 } from '../../../data/index.js';
 import { esc, html, round1 } from '../../lib/dom.js';
 import { state } from '../state.js';
@@ -53,7 +53,7 @@ export default {
             `<li style="animation-delay:${i * .06}s"><span>${esc(tip)}</span></li>`)}</ol>
         </div>
         <div style="display:grid;gap:12px;align-content:start">
-          ${core && html`<div><h5>附加盟约</h5><div class="row">${build.addons.map(cv)}</div></div>`}
+          ${core && html`<div><h5>推荐附加盟约 · 阵容人数 / 激活人数</h5><div class="row">${build.addons.map(n => html`<span class="row">${cv(n)}<span class="tag">${lineupCovenantCount(build.lineup, n)} / ${COVENANTS[n].need}</span></span>`)}</div></div>`}
           <div><h5>策略</h5><div class="row">${build.strategies.map(st)}</div></div>
           <div><h5>装备</h5><div class="row">${build.equipment.map(eq)}</div></div>
         </div>
