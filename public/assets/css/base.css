@@ -5,6 +5,7 @@
 /* 主题色：浅色默认，系统深色或 data-theme="dark" 时切换 */
 :root {
   --bg: #edf1f0;
+  --safe-area-bottom: env(safe-area-max-inset-bottom, env(safe-area-inset-bottom, 0px));
   --surface: #ffffff;
   --surface2: #f4f7f6;
   --line: #cdd8d6;
@@ -81,13 +82,19 @@
   box-sizing: border-box;
 }
 
+/* 根画布与页面同色，让独立窗口和系统手势区域使用当前主题背景。 */
 html {
+  background: var(--bg);
+  min-height: 100%;
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
 }
 
 body {
   margin: 0;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding-bottom: var(--safe-area-bottom);
   background: var(--bg);
   color: var(--ink);
   font: 15px/1.6 "Noto Sans SC",system-ui,sans-serif;

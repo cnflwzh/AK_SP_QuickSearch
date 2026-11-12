@@ -372,3 +372,8 @@ export const EQUIPMENT_COMBOS: readonly EquipmentCombo[] = [
   ['汲取者之喙', '汲取者之心', '汲取者之镰'],
   ['驱逐者警棍', '驱逐者瓦斯', '驱逐者防暴装备'],
 ];
+
+/** 成品名称 → 两件材料与成品；装备列表和卡片共用，同一成品只计一次。 */
+export const EQUIPMENT_RECIPES: Readonly<Record<string, EquipmentCombo>> = Object.fromEntries(
+  EQUIPMENT_COMBOS.map(recipe => [recipe[2], recipe]),
+);

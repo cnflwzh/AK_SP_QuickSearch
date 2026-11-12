@@ -3,12 +3,12 @@ import Markup from '../components/Markup';
 import Segmented from '../components/Segmented.vue';
 import { op, eq } from '../chips';
 import { computed, ref } from 'vue';
-import { OPERATORS, COVENANTS, STRATEGY_CATEGORIES } from '../../../data/index';
-import { covenantContent, calculator, strategies, TRIGGERS, POSITIONS } from './covenantsView';
+import { OPERATORS, COVENANTS, STRATEGY_CATEGORIES, OPERATOR_TRIGGERS as TRIGGERS, matchesOperatorTrigger } from '../../../data/index';
+import { covenantContent, calculator, strategies, POSITIONS } from './covenantsView';
 const content = covenantContent();
 const traitText = (text: string) => text.replace(/<[^>]+>/g, '');
 const trigger = ref(4), position = ref(0), mirror = ref(false);
-const triggerLists = TRIGGERS.map(([, tags]) => OPERATORS.filter(o => tags.some(tag => o.trait.includes(tag))).sort((a, b) => a.tier - b.tier));
+const triggerLists = TRIGGERS.map(([label]) => OPERATORS.filter(o => matchesOperatorTrigger(o, label)).sort((a, b) => a.tier - b.tier));
 const keyword = computed(() => POSITIONS[position.value][0]);
 const positionOperators = computed(() => OPERATORS.filter(o => (o.trait + o.elite).includes(keyword.value)));
 const positionCells = computed(() => {

@@ -88,7 +88,7 @@ export async function planImage(plan: Plan, link: string): Promise<Blob | null> 
   ctx.fillStyle = INK; ctx.font = `700 24px ${FONT}`; ctx.textBaseline = 'alphabetic';
   ctx.fillText(plan.name || '阵容', PAD, y);
   ctx.font = `13px ${FONT}`; ctx.fillStyle = INK3; ctx.textAlign = 'right';
-  ctx.fillText(`招募 ${cost.recruit} · 装备 ${cost.equipment} · 调度中心 Lv${cost.maxTier || '—'}`, W - PAD, y);
+  ctx.fillText(`招募 ${cost.recruit} · 装备 ${cost.equipment}`, W - PAD, y);
   ctx.textAlign = 'left';
   y += 18;
 

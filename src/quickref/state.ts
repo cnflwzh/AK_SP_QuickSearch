@@ -8,6 +8,8 @@ export type DetailKind = 'op' | 'eq' | 'st';
 export interface DetailSelection { kind: DetailKind; name: string }
 export interface QuickrefState {
   tab: TabId; covenant: string; build: string; opTier: number; opCovenant: string;
+  /** 两项与盟约、等阶取交集，切换标签页时保留筛选条件。 */
+  opTrigger: string; opType: string;
   opElite: boolean; eqTier: number; stCategory: number; calculatorCovenant: string;
   layers: Record<string, number>; mode: number; pickerOpen: boolean;
   /** 领袖页正在看的领袖名；空字符串 = 列表。记住它：一局只有一个领袖，重开页面直接回到详情 */
@@ -31,7 +33,7 @@ const storedLeader = store.get('ld') || '';
 export const state = reactive<QuickrefState>({
   tab: TAB_IDS.includes(storedTab as TabId) ? storedTab as TabId : 'fx',
   covenant, build: storedBuild,
-  opTier: 0, opCovenant: '', opElite: false, eqTier: 0, stCategory: 0,
+  opTier: 0, opCovenant: '', opTrigger: '', opType: '', opElite: false, eqTier: 0, stCategory: 0,
   calculatorCovenant: COVENANTS[covenant].scaling.length ? covenant : '乌萨斯',
   layers: {}, mode: 1, pickerOpen: false,
   leader: LEADER[storedLeader] ? storedLeader : '',

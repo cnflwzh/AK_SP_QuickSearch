@@ -3,7 +3,7 @@ import Markup from '../components/Markup';
 import Segmented from '../components/Segmented.vue';
 import { avatar } from '../chips';
 import { computed, ref } from 'vue';
-import { OPERATORS, EQUIPMENT, ALL_COVENANTS, TIERS, TIER_LABELS } from '../../../data/index';
+import { OPERATORS, OPERATOR_TYPES, EQUIPMENT, ALL_COVENANTS, TIERS, TIER_LABELS } from '../../../data/index';
 import { equipIconSrc } from '../../lib/assets';
 import { cv } from '../chips';
 const tier = ref(0), covenant = ref(''), type = ref(''), query = ref(''), elite = ref(false);
@@ -25,7 +25,7 @@ const equipmentColumns = TIERS.map(tier => ({ tier, items: EQUIPMENT.filter(equi
   <div class="dbf">
     <Segmented id="dbTier" :labels="['全部', ...TIER_LABELS.slice(1)]" v-model="tier" />
     <select id="dbCov" aria-label="盟约" v-model="covenant"><option value="">全部盟约</option><option v-for="name in ALL_COVENANTS" :key="name">{{ name }}</option></select>
-    <select id="dbType" aria-label="特质类型" v-model="type"><option value="">全部类型</option><option>持续叠加</option><option>单次叠加</option><option>作战能力</option><option>整备能力</option><option>特异化</option></select>
+    <select id="dbType" aria-label="特质类型" v-model="type"><option value="">全部类型</option><option v-for="name in OPERATOR_TYPES" :key="name">{{ name }}</option></select>
     <input type="search" id="dbQ" v-model="query" placeholder="搜索" aria-label="搜索干员">
     <label class="row" style="font-size:13px;gap:6px"><input type="checkbox" id="dbEl" v-model="elite">精锐</label>
     <span class="cnt" id="dbN">{{ operators.length }} / {{ OPERATORS.length }}</span>

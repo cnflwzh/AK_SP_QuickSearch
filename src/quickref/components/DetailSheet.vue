@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
-import { OPERATOR, EQUIP, STRATEGY, OPERATORS, TIER_LABELS, TIER_STATS, COVENANTS, buildsUsing, isCoreCovenant, rosterOf } from '../../../data/index.ts';
+import { OPERATOR, EQUIP, EQUIPMENT_COMBOS, STRATEGY, OPERATORS, TIER_LABELS, TIER_STATS, COVENANTS, buildsUsing, isCoreCovenant, rosterOf } from '../../../data/index.ts';
 import { avatarSrc, equipIconSrc, portraitSrc } from '../../lib/assets.ts';
 import { color, fx, peekFx, hpWidth, bonusHeadcount, bonusText } from '../format.ts';
 import { useQuickrefActions, type DetailSelection } from '../state.ts';
@@ -12,6 +12,7 @@ const dialog = ref<HTMLDialogElement | null>(null);
 const main = ref<HTMLDivElement | null>(null);
 const operator = computed(() => props.selection?.kind === 'op' ? OPERATOR[props.selection.name] : undefined);
 const equipment = computed(() => props.selection?.kind === 'eq' ? EQUIP[props.selection.name] : undefined);
+const equipmentRecipes = computed(() => equipment.value ? EQUIPMENT_COMBOS.filter(recipe => recipe.includes(equipment.value!.name)) : []);
 const strategy = computed(() => props.selection?.kind === 'st' ? STRATEGY[props.selection.name] : undefined);
 const stats = computed(() => operator.value ? TIER_STATS[operator.value.tier - 1] : undefined);
 const mates = computed(() => { const current = operator.value; return current ? OPERATORS.filter(other => other.name !== current.name && other.tier === current.tier && other.covenants.some(c => current.covenants.includes(c))) : []; });
@@ -35,6 +36,12 @@ watch(() => props.selection, async selection => {
         <div v-if="operator && stats" class="cmp2"><div v-html="`<div class='lb'><span class='tag'>初始</span><small>${stats.base}</small></div>${fx(operator.trait)}`"></div><div class="el" v-html="`<div class='lb'><span class='tag a'>精锐</span><small>${stats.elite}</small></div>${fx(operator.elite)}`"></div></div>
         <div v-else-if="equipment" class="cmp2"><div v-html="`<div class='lb'><span class='tag'>基础</span></div>${fx(equipment.effect)}`"></div><div class="el" v-html="`<div class='lb'><span class='tag a'>进阶</span></div>${fx(equipment.advanced || equipment.effect)}`"></div></div>
         <div v-else-if="strategy" class="ef" style="--c:var(--teal)"><span class="tag t">{{ strategy.skill }}</span><div v-html="fx(strategy.effect)"></div></div>
+        <div v-if="equipmentRecipes.length">
+          <h5 class="cnt" style="margin:0 0 6px">组合配方</h5>
+          <div v-for="recipe in equipmentRecipes" :key="recipe[2]" class="row eq-formula">
+            <Chip kind="eq" :name="recipe[0]"/><span aria-hidden="true">＋</span><Chip kind="eq" :name="recipe[1]"/><span aria-hidden="true">→</span><Chip kind="eq" :name="recipe[2]"/>
+          </div>
+        </div>
         <div v-if="builds.length"><h5 class="cnt" style="margin:0 0 6px">流派</h5><div class="row"><Chip v-for="name in builds" :key="name" kind="build" :name="name"/></div></div>
         <div v-if="mates.length"><h5 class="cnt" style="margin:0 0 6px">同盟约 · 同阶</h5><div class="row"><Chip v-for="mate in mates" :key="mate.name" kind="op" :name="mate.name"/></div></div>
       </div>
