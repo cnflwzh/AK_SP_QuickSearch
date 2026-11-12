@@ -3,13 +3,13 @@ import { computed, defineAsyncComponent, h, onMounted, onUnmounted, ref, watch }
 import { CORE_BUILDS, COVENANTS, OPERATOR, EQUIP, STRATEGY, buildByName, type Operator } from '../../../data/index.ts';
 import { round1 } from '../../lib/dom.ts';
 import { avatarSrc } from '../../lib/assets.ts';
-import { banReplace, blankPlan, covenantStats, decodePlan, type Decoded } from '../../lib/planner.ts';
+import { atLayers, banReplace, blankPlan, covenantStats, decodePlan, type Decoded } from '../../lib/planner.ts';
 import { state, useQuickrefActions } from '../state.ts';
 import {
   presets, current, editing, runKey, runBans, saveError, presetColor, selectPreset, newPreset, copyPreset, removePreset, restorePreset,
   startEdit, finishEdit, setRun, toggleBan, addPlan,
 } from '../planStore.ts';
-import { color } from '../format.ts';
+import { color, fx, bonusHeadcount, bonusText } from '../format.ts';
 import Chip from '../components/Chip.vue';
 import OperatorTile from '../components/OperatorTile.vue';
 import PlanSummary from '../components/PlanSummary.vue';
@@ -42,6 +42,16 @@ const withAlts = computed(() => p.value.plan.ops.filter(o => o.alt.length));
 const stats = computed(() => covenantStats(p.value.plan.ops, p.value.plan.layers).filter(s => s.name !== '绝技'));
 /** 这套要用的盟约：终盘阵容里激活的 */
 const needs = computed(() => stats.value.filter(s => s.active));
+/** 已成型盟约的效果；方案里填过层数的按层数代入 */
+const effects = computed(() => needs.value.map(s => {
+  const cov = COVENANTS[s.name], layers = p.value.plan.layers[s.name] ?? 0, head = bonusHeadcount(cov.bonus);
+  return {
+    ...s, layers,
+    effect: fx(layers ? atLayers(cov.effect, layers) : cov.effect),
+    bonus: cov.bonus ? fx(layers ? atLayers(bonusText(cov.bonus), layers) : bonusText(cov.bonus)) : '',
+    bonusLabel: head ? `${head} 名` : '强化',
+  };
+}));
 const tips = computed(() => p.value.plan.note.split('\n').map(t => t.trim()).filter(Boolean));
 const strategies = computed(() => [...new Set([p.value.plan.strategy, ...(base.value?.strategies ?? [])])].filter(s => STRATEGY[s]));
 const equipment = computed(() => [...new Set([...p.value.plan.ops.flatMap(o => o.eq), ...(base.value?.equipment ?? [])])].filter(e => EQUIP[e]));
@@ -161,6 +171,19 @@ onUnmounted(() => window.removeEventListener('hashchange', readHash));
       <div v-if="lineup.length" class="tiles"><OperatorTile v-for="operator in lineup" :key="operator.name" :operator="operator" :extra-class="carries.has(operator.name) ? 'core' : ''"/></div>
       <div v-else class="empty">还没有干员，点「编辑」排阵容</div>
       <div v-if="withAlts.length" class="balt"><span class="k">备选</span><span v-for="o in withAlts" :key="o.name"><b>{{ o.name }}</b> → {{ o.alt.join('、') }}</span></div>
+    </div>
+    <div v-if="effects.length" class="bfx"><h5>盟约效果<span class="hint">终盘阵容已成型</span></h5>
+      <div class="fxg">
+        <article v-for="(c, i) in effects" :key="c.name" :class="['fxc', 'on', { max: c.bonusActive }]" :style="{ '--c': color(c.name), animationDelay: i * .05 + 's' }">
+          <header>
+            <button type="button" class="n" :data-cv="c.name" data-peek="off" :title="`查看${c.name}盟约页`" @click="actions.openCovenant(c.name)">{{ c.name }}</button>
+            <span class="need">{{ c.need }} 人</span>
+            <span class="mine" :title="c.members.join('、')">{{ c.count }} / {{ c.need }}<template v-if="c.layers"> · {{ c.layers }} 层</template></span>
+          </header>
+          <p v-html="c.effect"></p>
+          <p v-if="c.bonus" class="bn"><span :class="['tag', c.bonusActive ? 'a' : '']">{{ c.bonusActive ? '已强化' : c.bonusLabel }}</span> <span v-html="c.bonus"></span></p>
+        </article>
+      </div>
     </div>
     <div class="bgrid">
       <div v-if="tips.length"><h5>要点</h5><ol class="qsteps"><li v-for="(tip, index) in tips" :key="index" :style="{ animationDelay: index * .06 + 's' }"><span>{{ tip }}</span></li></ol></div>

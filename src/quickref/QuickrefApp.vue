@@ -12,7 +12,8 @@ import NumbersView from './views/NumbersView.vue';
 import SearchView from './views/SearchView.vue';
 import DetailSheet from './components/DetailSheet.vue';
 const TAB_META: Record<TabId, { label: string; count: number | '' }> = {
-  fx: { label: '效果', count: '' }, cv: { label: '盟约', count: ALL_COVENANTS.length }, op: { label: '干员', count: OPERATORS.length },
+  // 速览：全部盟约效果平铺；盟约详情：单个盟约的成员、叠层、装备策略
+  fx: { label: '速览', count: '' }, cv: { label: '盟约详情', count: ALL_COVENANTS.length }, op: { label: '干员', count: OPERATORS.length },
   bd: { label: '流派', count: BUILD_COUNT },
   eq: { label: '装备', count: EQUIPMENT.length }, st: { label: '策略', count: STRATEGIES.length },
   ld: { label: '领袖', count: LEADERS.length }, nu: { label: '数值', count: '' },

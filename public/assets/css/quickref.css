@@ -2929,6 +2929,11 @@ mark {
 .bban .hint { margin: 0; font-size: 12.5px; color: var(--ink3); }
 .balt { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 12.5px; color: var(--ink2); }
 .balt b { color: var(--ink); }
+.bfx { margin-top: 14px; }
+.bfx h5 .hint { margin-left: 8px; font-weight: 400; font-size: 11.5px; color: var(--ink3); }
+.bfx .fxc { animation: bfx-in .3s ease-out both; }
+@keyframes bfx-in { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { .bfx .fxc { animation: none; } }
 
 /* ---------- 矮窗口（横屏手机、挂在游戏旁的小窗）----------
  * 局内只为速查：页头和教程入口收起，搜索框缩成一个图标，整条顶栏只占一行 Tab。
