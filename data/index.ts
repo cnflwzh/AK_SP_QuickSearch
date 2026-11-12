@@ -17,6 +17,7 @@ export * from './covenants.ts';
 export * from './builds.ts';
 export * from './rules.ts';
 export * from './leaders.ts';
+export * from './leader-movement.ts';
 export type * from './types.ts';
 
 const byName = <T extends { readonly name: string }>(list: readonly T[]): Readonly<Record<string, T>> =>
