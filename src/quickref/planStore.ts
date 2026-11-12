@@ -1,17 +1,20 @@
 /**
- * 当前阵容：规划页编辑的方案，同时供效果 / 盟约 / 流派 / 干员详情读取。
- * 各页据此标出“已在阵容”的干员、盟约进度，以及和现成流派的接近程度。
+ * 流派预设：内置流派 + 我的流派，编辑即规划。
+ *
+ * - 内置流派第一次编辑时存一份修改版（Plan.base = 内置流派名），之后列表里由修改版代替；
+ *   改回和内置一样时自动丢弃，也可以手动恢复默认。
+ * - “本局”：玩家开局前选一套要打的流派；盟约 / 效果 / 干员各页据此高亮。
+ * - 本局被 ban 的盟约由玩家自己勾，只用于给出替代方案。
  */
 import { computed, reactive, ref, watch } from 'vue';
-import { BUILD_NAMES, OPERATOR, STRATEGY, buildByName } from '../../data/index.ts';
-import {
-  MAX_OPS, blankPlan, covenantStats, loadCurrent, loadPlans, newSlot, saveCurrent, savePlans, type CovenantStat, type Plan,
-} from '../lib/planner.ts';
+import { BUILD_NAMES, CORE_BUILDS } from '../../data/index.ts';
+import { color } from './format.ts';
+import { blankPlan, builtinPlan, covenantStats, loadPlans, newId, samePlan, savePlans, type CovenantStat, type Plan } from '../lib/planner.ts';
+import { state, setBuild } from './state.ts';
 
-export const plans = reactive<Plan[]>(loadPlans());
-if (!plans.length) plans.push(blankPlan('我的阵容'));
-export const currentId = ref(plans.some(p => p.id === loadCurrent()) ? loadCurrent() : plans[0].id);
-export const plan = computed(() => plans.find(p => p.id === currentId.value) ?? plans[0]);
+/** 用户的方案：自建流派和内置流派的修改版 */
+// 旧版规划页会自动建一个空的“我的阵容”，没动过的就不带进流派列表
+export const plans = reactive<Plan[]>(loadPlans().filter(p => p.ops.length || p.note || p.name !== '我的阵容'));
 
 /* ---------- 存档：连续修改合并写入，离页时立即落盘 ---------- */
 export const saveError = ref(false);
@@ -23,58 +26,113 @@ export function flushSave(): void {
   const saved = savePlans(plans); saveError.value = !saved; dirty = !saved;
 }
 function scheduleSave(): void { dirty = true; clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 250); }
-// 只深度监听当前方案；方案增删由 addPlan / removePlan 显式触发。
-watch(plan, scheduleSave, { deep: true });
-watch(currentId, id => saveCurrent(id));
+watch(plans, scheduleSave, { deep: true });
 if (typeof window !== 'undefined') {
   window.addEventListener('pagehide', flushSave);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSave(); });
 }
 
-export const touch = (): void => { plan.value.updated = Date.now(); };
-export function addPlan(next: Plan): void { plans.unshift(next); currentId.value = next.id; scheduleSave(); }
-export function removePlan(target: Plan): void {
-  plans.splice(plans.indexOf(target), 1);
-  if (!plans.length) plans.push(blankPlan('我的阵容'));
-  currentId.value = plans[0].id; scheduleSave();
+/* ---------- 预设列表 ---------- */
+export interface Preset {
+  /** 内置流派 = 流派名；自建流派 = 方案 id */
+  key: string;
+  plan: Plan;
+  builtin: boolean;
+  /** 内置流派已被改过 */
+  modified: boolean;
+}
+const BUILTIN = new Map(BUILD_NAMES.map(name => [name, builtinPlan(name)!]));
+export const presets = computed<Preset[]>(() => [
+  ...BUILD_NAMES.map(name => {
+    const own = plans.find(p => p.base === name);
+    return { key: name, plan: own ?? BUILTIN.get(name)!, builtin: true, modified: !!own };
+  }),
+  ...plans.filter(p => !p.base).map(p => ({ key: p.id, plan: p, builtin: false, modified: false })),
+]);
+export const presetOf = (key: string): Preset | undefined => presets.value.find(p => p.key === key);
+/** 核心流派用盟约色，其余用强调色 */
+export const presetColor = (preset: Preset): string => preset.builtin && CORE_BUILDS[preset.key] ? color(preset.key) : 'var(--accent)';
+/** 流派页正在看的预设 */
+export const current = computed(() => presetOf(state.build) ?? presets.value[0]);
+export const myPresets = computed(() => presets.value.filter(p => !p.builtin));
+
+const clone = (plan: Plan): Plan => JSON.parse(JSON.stringify(plan)) as Plan;
+function select(key: string): void { finishEdit(); setBuild(key); }
+export { select as selectPreset };
+
+/** 新方案放在“我的流派”最前面并选中 */
+export function addPlan(next: Plan): void { plans.unshift(next); select(next.id); }
+export function newPreset(): void { addPlan(blankPlan(`我的流派 ${myPresets.value.length + 1}`)); startEdit(plans[0].id); }
+export function copyPreset(key: string): void {
+  const source = presetOf(key); if (!source) return;
+  const copy = { ...clone(source.plan), id: newId(), name: source.plan.name.slice(0, 13) + ' 副本', updated: Date.now() };
+  delete copy.base;
+  addPlan(copy);
+}
+export function removePreset(key: string): void {
+  const i = plans.findIndex(p => p.id === key && !p.base);
+  if (i < 0) return;
+  if (editingId.value === key) editingId.value = '';
+  plans.splice(i, 1);
+  if (runKey.value === key) setRun('');
+  if (state.build === key) setBuild(BUILD_NAMES[0]);
+}
+/** 丢掉内置流派的修改版 */
+export function restorePreset(name: string): void {
+  const i = plans.findIndex(p => p.base === name);
+  if (i < 0) return;
+  if (editingId.value === plans[i].id) editingId.value = '';
+  plans.splice(i, 1);
 }
 
-/* ---------- 供其他页读取 ---------- */
+/* ---------- 编辑 ---------- */
+export const editingId = ref('');
+const FALLBACK = blankPlan();
+/** 正在编辑的方案；规划器只在编辑时挂载 */
+export const plan = computed<Plan>(() => plans.find(p => p.id === editingId.value) ?? FALLBACK);
+export const editing = computed(() => !!editingId.value && plan.value !== FALLBACK);
+export const touch = (): void => { plan.value.updated = Date.now(); };
+/** 进入编辑；内置流派先复制一份修改版 */
+export function startEdit(key: string): void {
+  const preset = presetOf(key); if (!preset) return;
+  if (preset.builtin && !preset.modified) {
+    plans.push({ ...clone(preset.plan), id: newId(), updated: Date.now() });
+    editingId.value = plans[plans.length - 1].id;
+  } else editingId.value = preset.plan.id;
+  setBuild(key);
+}
+/** 退出编辑；修改版改回和内置一样时丢弃 */
+export function finishEdit(): void {
+  const edited = plans.find(p => p.id === editingId.value);
+  editingId.value = '';
+  if (edited?.base && samePlan(edited, BUILTIN.get(edited.base)!)) plans.splice(plans.indexOf(edited), 1);
+}
+/** 规划器内部：正在编辑的阵容 */
 export const planOps = computed(() => plan.value.ops);
 export const inPlan = computed(() => new Set(planOps.value.map(o => o.name)));
-export const planFull = computed(() => planOps.value.length >= MAX_OPS);
 export const planStats = computed(() => covenantStats(planOps.value, plan.value.layers));
-export const planStat = computed(() => new Map<string, CovenantStat>(planStats.value.map(s => [s.name, s])));
 
-/** 把干员加入 / 移出当前阵容；满员时不加 */
-export function toggleInPlan(name: string): void {
-  if (!OPERATOR[name]) return;
-  const ops = plan.value.ops, i = ops.findIndex(o => o.name === name);
-  if (i >= 0) ops.splice(i, 1);
-  else if (ops.length < MAX_OPS) ops.push(newSlot(name));
-  else return;
-  touch();
+/* ---------- 本局 ---------- */
+const read = (key: string): string => { try { return localStorage.getItem(key) ?? ''; } catch { return ''; } };
+const write = (key: string, value: string): void => { try { localStorage.setItem(key, value); } catch { /* 隐私模式下不可用 */ } };
+const storedBans = ((): string[] => { try { const v: unknown = JSON.parse(read('wsq.bans') || '[]'); return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []; } catch { return []; } })();
+
+export const runKey = ref(read('wsq.run'));
+/** 本局被 ban 的盟约（玩家自己勾的，只用于替代推荐） */
+export const runBans = ref<string[]>(storedBans);
+watch(runKey, key => write('wsq.run', key));
+watch(runBans, bans => write('wsq.bans', JSON.stringify(bans)), { deep: true });
+export const run = computed(() => runKey.value ? presetOf(runKey.value) : undefined);
+/** 换一套流派或结束本局；结束时清掉勾选的 ban */
+export function setRun(key: string): void {
+  runKey.value = key;
+  if (!key) runBans.value = [];
 }
-
-/** 以流派终盘阵容新建一套方案并切过去 */
-export function planFromBuild(name: string): void {
-  const build = buildByName(name);
-  if (!build) return;
-  addPlan({
-    ...blankPlan(name), strategy: build.strategies.find(s => STRATEGY[s]) ?? '',
-    ops: build.lineup.filter(n => OPERATOR[n]).slice(0, MAX_OPS).map(newSlot),
-    note: build.tagline,
-  });
+export function toggleBan(name: string): void {
+  const i = runBans.value.indexOf(name);
+  if (i >= 0) runBans.value.splice(i, 1); else runBans.value.push(name);
 }
-
-/* ---------- 流派接近度 ---------- */
-export interface BuildMatch { name: string; have: string[]; missing: string[]; total: number }
-/** 当前阵容和每套流派终盘阵容的重合：已有几人、还差谁 */
-export const buildMatches = computed<BuildMatch[]>(() => BUILD_NAMES.map(name => {
-  const lineup = buildByName(name)!.lineup.filter(n => OPERATOR[n]);
-  return { name, have: lineup.filter(n => inPlan.value.has(n)), missing: lineup.filter(n => !inPlan.value.has(n)), total: lineup.length };
-}));
-export const buildMatch = computed(() => new Map(buildMatches.value.map(m => [m.name, m])));
-/** 至少重合 2 人的流派，按重合数排序：阵容还没成形时不乱推荐 */
-export const closestBuilds = computed(() => buildMatches.value.filter(m => m.have.length >= 2)
-  .sort((a, b) => b.have.length - a.have.length || a.missing.length - b.missing.length).slice(0, 3));
+export const runOps = computed(() => run.value?.plan.ops ?? []);
+export const inRun = computed(() => new Set(runOps.value.map(o => o.name)));
+export const runStats = computed<CovenantStat[]>(() => run.value ? covenantStats(run.value.plan.ops, run.value.plan.layers) : []);
+export const runStat = computed(() => new Map(runStats.value.map(s => [s.name, s])));

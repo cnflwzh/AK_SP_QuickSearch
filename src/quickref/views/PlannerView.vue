@@ -1,39 +1,26 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import {
   OPERATORS, OPERATOR, EQUIPMENT, EQUIP, STRATEGIES, STRATEGY, STRATEGY_CATEGORIES, COVENANTS, ALL_COVENANTS,
-  TIERS, TIER_LABELS, BUILD_NAMES, CORE_BUILDS, buildByName, isCoreCovenant,
+  TIERS, TIER_LABELS, isCoreCovenant,
 } from '../../../data/index.ts';
 import { avatarSrc, equipIconSrc, portraitSrc } from '../../lib/assets.ts';
 import { nameScore, normalize } from '../../lib/match.ts';
 import {
-  LAYER_SLIDER, MAX_ALT, MAX_EQ, MAX_LAYERS, MAX_NOTE, MAX_OPS, alternatesFor, usesLayers, atLayers, blankPlan, newSlot, decodePlan, encodePlan, equipNotes,
-  newId, planCost, shareUrl, suggestions, type Decoded, type Plan, type PlanOp,
+  LAYER_SLIDER, MAX_ALT, MAX_EQ, MAX_LAYERS, MAX_NOTE, MAX_OPS, alternatesFor, usesLayers, atLayers, newSlot, encodePlan, equipNotes,
+  planCost, shareUrl, suggestions, type Plan, type PlanOp,
 } from '../../lib/planner.ts';
-import {
-  plans, currentId, plan, saveError, touch, addPlan, removePlan as dropPlan, planFromBuild, planOps as ops, inPlan, planStats as stats, closestBuilds,
-} from '../planStore.ts';
-import { useQuickrefActions } from '../state.ts';
+import { presets, editingId, plan, touch, planOps as ops, inPlan, planStats as stats } from '../planStore.ts';
 import { color, fx } from '../format.ts';
 import Segmented from '../components/Segmented.vue';
 import PlanCovenants from '../components/PlanCovenants.vue';
 import PlanSummary from '../components/PlanSummary.vue';
 /**
- * 阵容规划：从全部干员里排 8 人，实时看盟约进度、效果和补位推荐；
- * 方案存在本地，可用分享码 / 链接 / 图片分享，也能导入别人的方案或与另一套对比。
+ * 流派编辑（规划器）：从全部干员里排 8 人，实时看盟约进度、效果和补位推荐；
+ * 编辑的是流派页当前选中的预设，可用分享码 / 链接 / 图片分享，或与另一套对比。
  */
-
-/* ---------- 方案存档：状态在 planStore，其他页也读同一份当前阵容 ---------- */
-const actions = useQuickrefActions();
-watch(currentId, () => { editing.value = -1; picking.value = ''; });
-function newPlan(): void { addPlan(blankPlan(`阵容 ${plans.length + 1}`)); }
-function copyPlan(): void { addPlan({ ...JSON.parse(JSON.stringify(plan.value)) as Plan, id: newId(), name: plan.value.name.slice(0, 13) + ' 副本', updated: Date.now() }); }
-function removePlan(): void {
-  if (!confirm(`删除「${plan.value.name}」？`)) return;
-  dropPlan(plan.value);
-}
-const template = ref('');
-function fromBuild(name: string): void { template.value = ''; planFromBuild(name); }
+const emit = defineEmits<{ done: [] }>();
+watch(editingId, () => { editing.value = -1; picking.value = ''; });
 
 /* ---------- 阵容编辑 ---------- */
 const editing = ref(-1);
@@ -93,13 +80,7 @@ function setLayers(name: string, value: number): void {
 }
 const active = computed(() => stats.value.filter(s => s.active));
 const cost = computed(() => planCost(ops.value));
-/** 补位推荐：最接近的流派里还缺的人优先，并标出流派名 */
-const nearest = computed(() => closestBuilds.value[0]);
-const recs = computed(() => {
-  const wanted = new Set(nearest.value?.missing ?? []);
-  return suggestions(ops.value, 24).map(r => ({ ...r, build: wanted.has(r.op.name), score: r.score + (wanted.has(r.op.name) ? 4 : 0) }))
-    .sort((a, b) => b.score - a.score).slice(0, 8);
-});
+const recs = computed(() => suggestions(ops.value));
 const notes = computed(() => equipNotes(ops.value));
 const strategy = computed(() => STRATEGY[plan.value.strategy]);
 /** 阵容里已有的盟约：干员池里能推进它们的干员加星 */
@@ -122,7 +103,7 @@ const stCategory = ref(0);
 const stList = computed(() => { const c = STRATEGY_CATEGORIES[stCategory.value]; return STRATEGIES.filter(s => c === '全部' || (c === '阵营' ? isCoreCovenant(s.category) : s.category === c)); });
 
 /* ---------- 分享 / 导入 / 对比 ---------- */
-const panel = ref<'' | 'share' | 'import' | 'compare'>('');
+const panel = ref<'' | 'share' | 'compare'>('');
 const openPanel = (name: typeof panel.value): void => { panel.value = panel.value === name ? '' : name; };
 const code = computed(() => encodePlan(plan.value));
 const link = computed(() => shareUrl(code.value));
@@ -149,56 +130,25 @@ async function saveImage(): Promise<void> {
   } catch { imageError.value = '图片生成失败，请重试或复制分享链接。'; }
   finally { imageBusy.value = false; }
 }
-const importText = ref('');
-const imported = computed<Decoded | null>(() => importText.value.trim() ? decodePlan(importText.value) : null);
-function acceptImport(): void {
-  const d = imported.value; if (!d) return;
-  addPlan({ ...blankPlan(d.plan.name || '导入的阵容'), ops: d.plan.ops, strategy: d.plan.strategy, note: d.plan.note, layers: d.plan.layers });
-  importText.value = ''; panel.value = '';
-}
 const other = ref('');
-const otherPlan = computed<{ title: string; ops: PlanOp[]; strategy: string; note: string; layers: Record<string, number> } | null>(() => {
-  const [kind, key] = other.value.split(':');
-  if (kind === 'p') { const p = plans.find(x => x.id === key); return p ? { title: p.name, ops: p.ops, strategy: p.strategy, note: p.note, layers: p.layers } : null; }
-  if (kind === 'b') {
-    const b = buildByName(key);
-    return b ? { title: `流派 · ${key}`, ops: b.lineup.filter(n => OPERATOR[n]).map(newSlot), strategy: b.strategies[0] ?? '', note: b.tagline, layers: {} } : null;
-  }
-  return null;
-});
+const otherPlan = computed<Plan | null>(() => presets.value.find(x => x.key === other.value)?.plan ?? null);
 const onlyMine = computed(() => new Set(ops.value.map(o => o.name).filter(n => !otherPlan.value?.ops.some(o => o.name === n))));
 const onlyOther = computed(() => new Set((otherPlan.value?.ops ?? []).map(o => o.name).filter(n => !inPlan.value.has(n))));
 const shared = computed(() => ops.value.length - onlyMine.value.size);
 
-/** 分享链接 #p=分享码：打开导入预览，然后把地址栏的码去掉，免得刷新后重复弹出 */
-function readHash(): void {
-  if (!location.hash.startsWith('#p=')) return;
-  importText.value = location.hash; panel.value = 'import';
-  history.replaceState(null, '', location.pathname + location.search);
-  window.scrollTo({ top: 0 });
-}
-onMounted(() => { readHash(); window.addEventListener('hashchange', readHash); });
-onUnmounted(() => window.removeEventListener('hashchange', readHash));
 </script>
 <template>
   <div class="pl">
     <!-- 方案栏 -->
     <div class="pl-bar">
-      <select v-model="currentId" aria-label="方案"><option v-for="p in plans" :key="p.id" :value="p.id">{{ p.name }}（{{ p.ops.length }}）</option></select>
-      <input v-model="plan.name" class="pl-name" maxlength="16" aria-label="方案名" @input="touch">
+      <input v-model="plan.name" class="pl-name" maxlength="16" aria-label="流派名" @input="touch">
       <span class="pl-acts">
-        <button type="button" @click="newPlan">新建</button>
-        <button type="button" @click="copyPlan">复制</button>
-        <select v-model="template" class="pl-tpl" aria-label="从流派载入" @change="fromBuild(template)"><option value="">从流派载入</option><option v-for="name in BUILD_NAMES" :key="name" :value="name">{{ name }}</option></select>
-        <button type="button" class="dg" @click="removePlan">删除</button>
-        <i class="sep"></i>
         <button type="button" :class="{ on: panel === 'share' }" @click="openPanel('share')">分享</button>
-        <button type="button" :class="{ on: panel === 'import' }" @click="openPanel('import')">导入</button>
         <button type="button" :class="{ on: panel === 'compare' }" @click="openPanel('compare')">对比</button>
+        <i class="sep"></i>
+        <button type="button" class="pri" @click="emit('done')">完成</button>
       </span>
     </div>
-
-    <p v-if="saveError" class="pl-warn" role="status">本地保存失败，请先复制分享码保留方案。</p>
 
     <!-- 分享 -->
     <section v-if="panel === 'share'" class="pl-panel">
@@ -209,28 +159,17 @@ onUnmounted(() => window.removeEventListener('hashchange', readHash));
 
     <p v-if="imageError && panel === 'share'" class="pl-warn" role="status">{{ imageError }}</p>
 
-    <!-- 导入 -->
-    <section v-if="panel === 'import'" class="pl-panel">
-      <input v-model="importText" class="pl-paste" placeholder="粘贴分享码或链接" aria-label="分享码">
-      <template v-if="imported">
-        <PlanSummary :ops="imported.plan.ops" :strategy="imported.plan.strategy" :note="imported.plan.note" :layers="imported.plan.layers" :title="imported.plan.name || '导入的阵容'"/>
-        <div class="pl-row"><button type="button" class="pri" @click="acceptImport">存为我的方案</button></div>
-      </template>
-      <p v-else-if="importText.trim()" class="pl-warn">认不出这个分享码</p>
-    </section>
-
     <!-- 对比 -->
     <section v-if="panel === 'compare'" class="pl-panel">
       <select v-model="other" aria-label="对比对象">
-        <option value="">选择要对比的方案或流派</option>
-        <optgroup label="我的方案"><option v-for="p in plans.filter(p => p.id !== plan.id)" :key="p.id" :value="`p:${p.id}`">{{ p.name }}</option></optgroup>
-        <optgroup label="流派"><option v-for="name in BUILD_NAMES" :key="name" :value="`b:${name}`">{{ name }}</option></optgroup>
+        <option value="">选择要对比的流派</option>
+        <option v-for="x in presets.filter(x => x.plan.id !== plan.id)" :key="x.key" :value="x.key">{{ x.builtin ? '' : '我的 · ' }}{{ x.plan.name }}</option>
       </select>
       <template v-if="otherPlan">
         <div class="pl-diff"><span>相同 <b>{{ shared }}</b></span><span class="a">只在这边 <b>{{ onlyMine.size }}</b></span><span class="b">只在那边 <b>{{ onlyOther.size }}</b></span></div>
         <div class="pl-cmp">
           <PlanSummary :ops="ops" :strategy="plan.strategy" :note="plan.note" :layers="plan.layers" :title="plan.name" :highlight="onlyMine" compact/>
-          <PlanSummary :ops="otherPlan.ops" :strategy="otherPlan.strategy" :note="otherPlan.note" :layers="otherPlan.layers" :title="otherPlan.title" :highlight="onlyOther" compact/>
+          <PlanSummary :ops="otherPlan.ops" :strategy="otherPlan.strategy" :note="otherPlan.note" :layers="otherPlan.layers" :title="otherPlan.name" :highlight="onlyOther" compact/>
         </div>
       </template>
     </section>
@@ -312,22 +251,14 @@ onUnmounted(() => window.removeEventListener('hashchange', readHash));
       </section>
 
       <!-- 补位 -->
-      <section v-if="recs.length || closestBuilds.length" class="pl-card pl-rec">
-        <h4 v-if="recs.length">补谁<span class="hint">加入后跨过的门槛</span></h4>
-        <div v-if="recs.length" class="pl-recs">
+      <section v-if="recs.length" class="pl-card pl-rec">
+        <h4>补谁<span class="hint">加入后跨过的门槛</span></h4>
+        <div class="pl-recs">
           <button v-for="r in recs" :key="r.op.name" type="button" class="pl-r" :data-t="r.op.tier" :data-op="r.op.name" @click="toggle(r.op.name)">
             <img :src="avatarSrc(r.op.name)" alt="" width="40" height="40" loading="lazy">
-            <span><b>{{ r.op.name }}</b><span class="g"><i v-if="r.build" class="bd">{{ nearest?.name }} 流派</i><i v-for="g in r.gains" :key="g.covenant" :class="g.kind" :style="{ '--c': color(g.covenant) }">{{ g.covenant }} {{ GAIN[g.kind] }}</i></span></span>
+            <span><b>{{ r.op.name }}</b><span class="g"><i v-for="g in r.gains" :key="g.covenant" :class="g.kind" :style="{ '--c': color(g.covenant) }">{{ g.covenant }} {{ GAIN[g.kind] }}</i></span></span>
           </button>
         </div>
-        <template v-if="closestBuilds.length">
-          <h4 class="pl-bm-h">接近的流派<span class="hint">点头像补进阵容 · 点名字看打法</span></h4>
-          <div v-for="m in closestBuilds" :key="m.name" class="pl-bm" :style="{ '--c': CORE_BUILDS[m.name] ? color(m.name) : 'var(--accent)' }">
-            <button type="button" class="nm" :data-build="m.name" @click="actions.openBuild(m.name)"><b>{{ m.name }}</b><span class="bar"><i v-for="k in m.total" :key="k" :class="{ f: k <= m.have.length }"></i></span><small>{{ m.have.length }}/{{ m.total }}</small></button>
-            <span v-if="m.missing.length" class="miss"><span class="k">还差</span><button v-for="n in m.missing" :key="n" type="button" :data-t="OPERATOR[n].tier" :data-op="n" :disabled="ops.length >= MAX_OPS" :title="`加入 ${n}`" @click="toggle(n)"><img :src="avatarSrc(n)" alt="" width="30" height="30" loading="lazy"></button></span>
-            <span v-else class="done">已凑齐</span>
-          </div>
-        </template>
       </section>
 
       <!-- 效果 -->

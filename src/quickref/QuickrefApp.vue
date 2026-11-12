@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, h, nextTick, onMounted, onUnmounted, provide, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, provide, ref } from 'vue';
 import { ALL_COVENANTS, OPERATORS, EQUIPMENT, STRATEGIES, LEADERS, BUILD_COUNT, OPERATOR, EQUIP, STRATEGY } from '../../data/index.ts';
 import { prefersReducedMotion } from '../lib/dom.ts';
 import { state, setTab, setBuild, setCovenant, setLeader, quickrefActionsKey, TAB_IDS, type DetailKind, type DetailSelection, type TabId } from './state.ts';
@@ -11,16 +11,9 @@ import LeadersView from './views/LeadersView.vue';
 import NumbersView from './views/NumbersView.vue';
 import SearchView from './views/SearchView.vue';
 import DetailSheet from './components/DetailSheet.vue';
-const PlannerView = defineAsyncComponent({
-  loader: () => import('./views/PlannerView.vue'),
-  loadingComponent: { render: () => h('div', { class: 'empty', role: 'status' }, '正在加载规划器…') },
-  errorComponent: { render: () => h('div', { class: 'empty', role: 'alert' }, [
-    '规划器加载失败。', h('button', { type: 'button', onClick: () => location.reload() }, '重新加载'),
-  ]) },
-});
 const TAB_META: Record<TabId, { label: string; count: number | '' }> = {
   fx: { label: '效果', count: '' }, cv: { label: '盟约', count: ALL_COVENANTS.length }, op: { label: '干员', count: OPERATORS.length },
-  bd: { label: '流派', count: BUILD_COUNT }, pl: { label: '规划', count: '' },
+  bd: { label: '流派', count: BUILD_COUNT },
   eq: { label: '装备', count: EQUIPMENT.length }, st: { label: '策略', count: STRATEGIES.length },
   ld: { label: '领袖', count: LEADERS.length }, nu: { label: '数值', count: '' },
 };
@@ -77,13 +70,12 @@ async function openCovenant(name: string): Promise<void> {
 }
 async function openBuild(name: string): Promise<void> { closeDetail(); setBuild(name); await show('bd'); }
 async function openLeader(name: string): Promise<void> { closeDetail(); setLeader(name); await show('ld'); }
-async function openPlanner(): Promise<void> { closeDetail(); await show('pl'); }
 async function pickCovenant(name: string): Promise<void> {
   setCovenant(name); await nextTick();
   const element = view.value?.querySelector('.cvd');
   if (window.innerWidth <= 860 && element) window.scrollTo({ top: topOf(element) - 6, behavior: scrollBehavior() });
 }
-provide(quickrefActionsKey, { openDetail, closeDetail, openCovenant, openBuild, openLeader, openPlanner, pickCovenant });
+provide(quickrefActionsKey, { openDetail, closeDetail, openCovenant, openBuild, openLeader, pickCovenant });
 /** ✕：清空并留在搜索框；矮窗口下搜索框平时只是一个图标，✕ 直接清空并收起 */
 function clearAndFocus(): void {
   const compact = window.matchMedia('(max-height:520px)').matches;
@@ -129,14 +121,14 @@ function keydown(event: KeyboardEvent): void {
   else if (event.key === 'Escape' && document.activeElement === searchInput.value && query.value) clearSearch();
 }
 function outsidePicker(event: MouseEvent): void { if (state.pickerOpen && event.target instanceof Element && !event.target.closest('#cvside')) state.pickerOpen = false; }
-/** 页面已打开时再点分享链接（只改了 #p=）：切到规划页，由 PlannerView 读取分享码 */
-function sharedLink(): void { if (location.hash.startsWith('#p=')) { closeDetail(); void show('pl', false); } }
+/** 页面已打开时再点分享链接（只改了 #p=）：切到流派页，由 BuildsView 读取分享码 */
+function sharedLink(): void { if (location.hash.startsWith('#p=')) { closeDetail(); void show('bd', false); } }
 onMounted(() => { document.addEventListener('keydown', keydown); document.addEventListener('click', outsidePicker); window.addEventListener('hashchange', sharedLink); });
 onUnmounted(() => { clearTimeout(searchTimer); document.removeEventListener('keydown', keydown); document.removeEventListener('click', outsidePicker); window.removeEventListener('hashchange', sharedLink); });
 </script>
 <template>
   <header class="wrap qhead"><div><h1>卫戍速查<small>卫戍协议·规程</small></h1></div><a class="guide" href="guide.html"><svg viewBox="0 0 72 72" aria-hidden="true"><circle class="ring" cx="36" cy="36" r="26"/><circle class="nd" cx="36" cy="10" r="6"/><circle class="nd" cx="58.5" cy="49" r="6"/><circle class="nd" cx="13.5" cy="49" r="6"/><circle class="mv" r="4"><animateMotion v-if="!prefersReducedMotion" id="gmv" dur="5s" repeatCount="indefinite" path="M36,10 A26,26 0 1 1 35.9,10"/></circle></svg><div><div class="k">GUIDE</div><b>图解教程</b><div class="qsteps"><span><i>01</i>入门</span><span><i>02</i>招募升本</span><span><i>03</i>刷怪</span><span><i>04</i>盟约</span><span><i>05</i>流派</span></div></div><span class="go">▸</span></a></header>
   <div id="qbar" ref="searchBar" :class="['qbar', { searching }]"><div class="wrap"><label id="sbox" :class="['search', { has: searching }]"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="q" ref="searchInput" type="search" :value="query" placeholder="干员 / 装备 / 策略 / 盟约 / 特质，支持拼音" autocomplete="off" aria-label="搜索" @input="search"><kbd>/</kbd><button id="qx" type="button" class="x" aria-label="清空或收起搜索" @click.prevent="clearAndFocus">✕</button></label><div id="tabs" ref="tabBar" class="tabs" role="tablist"><button v-for="tab in tabs" :key="tab.id" type="button" role="tab" :data-tab="tab.id" :class="{ on: state.tab === tab.id }" @click="pickTab(tab.id)">{{ tab.label }}<i v-if="tab.count">{{ tab.count }}</i></button></div></div></div>
-  <main id="view" ref="view" class="wrap" @touchstart.passive="touchStart" @touchend.passive="touchEnd" @touchcancel.passive="touchCancel"><div :key="renderedQuery ? 'search' : state.tab" class="pane" :data-key="renderedQuery ? 'search' : state.tab" :data-slide="slide || undefined"><SearchView v-if="renderedQuery" :query="renderedQuery"/><EffectsView v-else-if="state.tab === 'fx'"/><CovenantsView v-else-if="state.tab === 'cv'"/><CatalogView v-else-if="state.tab === 'op' || state.tab === 'eq' || state.tab === 'st'" :kind="state.tab"/><LeadersView v-else-if="state.tab === 'ld'"/><BuildsView v-else-if="state.tab === 'bd'"/><PlannerView v-else-if="state.tab === 'pl'"/><NumbersView v-else/></div></main>
+  <main id="view" ref="view" class="wrap" @touchstart.passive="touchStart" @touchend.passive="touchEnd" @touchcancel.passive="touchCancel"><div :key="renderedQuery ? 'search' : state.tab" class="pane" :data-key="renderedQuery ? 'search' : state.tab" :data-slide="slide || undefined"><SearchView v-if="renderedQuery" :query="renderedQuery"/><EffectsView v-else-if="state.tab === 'fx'"/><CovenantsView v-else-if="state.tab === 'cv'"/><CatalogView v-else-if="state.tab === 'op' || state.tab === 'eq' || state.tab === 'st'" :kind="state.tab"/><LeadersView v-else-if="state.tab === 'ld'"/><BuildsView v-else-if="state.tab === 'bd'"/><NumbersView v-else/></div></main>
   <DetailSheet :selection="detail" @closed="closeDetail"/>
 </template>

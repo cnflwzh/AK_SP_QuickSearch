@@ -9,7 +9,7 @@
  */
 import {
   OPERATORS, OPERATOR, EQUIPMENT, EQUIP, EQUIPMENT_COMBOS, STRATEGIES, STRATEGY, COVENANTS, ALL_COVENANTS,
-  isCoreCovenant, operatorPrice, type Operator,
+  isCoreCovenant, operatorPrice, buildByName, type Operator,
 } from '../../data/index.ts';
 import { BitWriter, writeShareText, readShareText, packSharePayload, unpackSharePayload } from './shareCodec.ts';
 
@@ -28,7 +28,8 @@ const ISOMORPH = '变形同构体';
 export interface PlanOp { name: string; elite: boolean; eq: string[]; alt: string[] }
 /** layers：各盟约自己的层数（只记效果随层数变化的盟约） */
 export type Layers = Record<string, number>;
-export interface Plan { id: string; name: string; ops: PlanOp[]; strategy: string; note: string; layers: Layers; updated: number }
+/** base：改自哪个内置流派（同名内置流派由这份修改版代替）；没有 = 自建流派 */
+export interface Plan { id: string; name: string; ops: PlanOp[]; strategy: string; note: string; layers: Layers; updated: number; base?: string }
 
 /* ---------- 盟约 ---------- */
 
@@ -158,6 +159,82 @@ export function alternatesFor(slot: PlanOp, ops: readonly PlanOp[], limit = 8): 
     .filter(x => x.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit).map(x => x.op);
+}
+
+/* ---------- 盟约被 ban ----------
+ * 被 ban 盟约的干员整局都不会出现：带这些盟约的位置全部空出，
+ * 再从剩下的干员里补人，尽量把其余盟约补回原来的人数。 */
+
+export interface BanPick {
+  /** 补上的干员 */
+  name: string;
+  /** 顶替的原阵容干员 */
+  replaces: string;
+  /** 同一位置的其他候选，点选可替换 */
+  alts: string[];
+  /** 这名干员帮着补回人数的盟约 */
+  gains: string[];
+}
+export interface BanResult {
+  /** 因带被 ban 盟约而空出的干员 */
+  removed: string[];
+  picks: BanPick[];
+  /** 替换后的阵容，保持原来的站位顺序 */
+  ops: PlanOp[];
+  /** 原本激活、换人后仍补不回来的盟约（不含被 ban 的） */
+  lost: string[];
+}
+
+export const isBanned = (name: string, bans: ReadonlySet<string>): boolean => !!OPERATOR[name]?.covenants.some(c => bans.has(c));
+
+/**
+ * 按等阶从高到低逐个补位：候选干员每补回一个缺人的盟约加分（核心 3、附加 2），
+ * 正好跨过激活 / 强化门槛再加 3；没有可补的就凑阵容里已有人的其他盟约；
+ * 原位置的备选优先，等阶差越大越扣分。
+ * forced：用户为某个位置手动选的候选（键为被顶替的干员）。
+ */
+export function banReplace(ops: readonly PlanOp[], bans: readonly string[], forced: Readonly<Record<string, string>> = {}): BanResult {
+  const ban = new Set(bans);
+  const removed = ops.filter(slot => isBanned(slot.name, ban));
+  const target = new Map(covenantStats(ops).filter(s => !ban.has(s.name) && s.name !== '绝技').map(s => [s.name, s]));
+  const lineup = ops.filter(slot => !isBanned(slot.name, ban)).map(slot => ({ ...slot, eq: [...slot.eq], alt: slot.alt.filter(a => !isBanned(a, ban)) }));
+  const picks: BanPick[] = [];
+  for (const slot of [...removed].sort((a, b) => OPERATOR[b.name].tier - OPERATOR[a.name].tier)) {
+    const taken = new Set(lineup.map(s => s.name));
+    const now = new Map(covenantStats(lineup).map(s => [s.name, s.count]));
+    const tier = OPERATOR[slot.name].tier;
+    const scored = OPERATORS.filter(op => !taken.has(op.name) && !isBanned(op.name, ban)).map(op => {
+      let score = op.tier * .01;
+      const gains: string[] = [];
+      for (const c of op.covenants) {
+        const want = target.get(c), have = now.get(c) ?? 0;
+        if (want && have < want.count) {
+          gains.push(c);
+          score += isCoreCovenant(c) ? 3 : 2;
+          if (have + 1 === want.need || (want.bonusNeed && have + 1 === want.bonusNeed)) score += 3;
+        } else if (have > 0 && have < COVENANTS[c].need) {
+          // 原阵容里没这个盟约要补时，退而凑一个阵容里已有人的新盟约
+          gains.push(c);
+          score += have + 1 >= COVENANTS[c].need ? 2 : .8;
+        }
+      }
+      const alt = slot.alt.includes(op.name);
+      if (alt) score += 3;
+      return { op, score: score - Math.abs(op.tier - tier) * .4, gains, keep: alt || gains.length > 0 };
+    }).filter(x => x.keep).sort((a, b) => b.score - a.score);
+    const choice = scored.find(x => x.op.name === forced[slot.name]) ?? scored[0];
+    if (!choice) continue;
+    picks.push({ name: choice.op.name, replaces: slot.name, alts: scored.filter(x => x !== choice).slice(0, 3).map(x => x.op.name), gains: choice.gains });
+    lineup.push(newSlot(choice.op.name));
+  }
+  const byRemoved = new Map(picks.map(p => [p.replaces, p.name]));
+  const result = ops.flatMap(slot => {
+    if (!isBanned(slot.name, ban)) return [lineup.find(s => s.name === slot.name)!];
+    const next = byRemoved.get(slot.name);
+    return next ? [{ ...newSlot(next), alt: slot.alt.filter(a => a !== next && !isBanned(a, ban)) }] : [];
+  });
+  const after = new Set(covenantStats(result).filter(s => s.active).map(s => s.name));
+  return { removed: removed.map(s => s.name), picks, ops: result, lost: [...target.values()].filter(s => s.active && !after.has(s.name)).map(s => s.name) };
 }
 
 /* ---------- 费用、装备 ---------- */
@@ -347,6 +424,21 @@ export const newId = (): string => Date.now().toString(36) + Math.random().toStr
 export const blankPlan = (name = '新阵容'): Plan => ({ id: newId(), name, ops: [], strategy: '', note: '', layers: {}, updated: Date.now() });
 export const newSlot = (name: string): PlanOp => ({ name, elite: false, eq: [], alt: [] });
 
+/** 内置流派转成方案：终盘阵容、首选策略，要点逐行写进说明 */
+export function builtinPlan(name: string): Plan | null {
+  const build = buildByName(name);
+  if (!build) return null;
+  return {
+    id: `b:${name}`, base: name, name: name.slice(0, 16), updated: 0, layers: {},
+    ops: cleanOps(build.lineup.map(newSlot)),
+    strategy: build.strategies.find(s => Object.hasOwn(STRATEGY, s)) ?? '',
+    note: build.tips.join('\n').slice(0, MAX_NOTE),
+  };
+}
+/** 两份方案的内容是否一样（不看 id、修改时间） */
+export const samePlan = (a: Plan, b: Plan): boolean =>
+  JSON.stringify([a.name, a.ops, a.strategy, a.note, cleanLayers(a.layers)]) === JSON.stringify([b.name, b.ops, b.strategy, b.note, cleanLayers(b.layers)]);
+
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const knownOp = (name: unknown): name is string => typeof name === 'string' && Object.hasOwn(OPERATOR, name);
 const knownEq = (name: unknown): name is string => typeof name === 'string' && Object.hasOwn(EQUIP, name);
@@ -376,15 +468,19 @@ function clean(value: unknown): Plan | null {
     strategy: typeof value.strategy === 'string' && Object.hasOwn(STRATEGY, value.strategy) ? value.strategy : '',
     note: typeof value.note === 'string' ? value.note.slice(0, MAX_NOTE) : '',
     layers: cleanLayers(value.layers), ops: cleanOps(value.ops),
+    ...(typeof value.base === 'string' && buildByName(value.base) ? { base: value.base } : {}),
   };
 }
 export function loadPlans(): Plan[] {
   try {
     const list: unknown = JSON.parse(read(KEY) ?? '[]');
     if (!Array.isArray(list)) return [];
-    const ids = new Set<string>();
+    const ids = new Set<string>(), bases = new Set<string>();
     return list.map(clean).filter((p): p is Plan => !!p).map(p => {
       if (ids.has(p.id)) p.id = newId();
+      // 每个内置流派只认一份修改版，多出来的当作自建流派
+      if (p.base && bases.has(p.base)) delete p.base;
+      if (p.base) bases.add(p.base);
       ids.add(p.id); return p;
     });
   } catch { return []; }
