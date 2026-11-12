@@ -89,14 +89,15 @@ const imported = computed<Decoded | null>(() => importText.value.trim() ? decode
 function acceptImport(): void {
   const d = imported.value; if (!d) return;
   addPlan({ ...blankPlan(d.plan.name || '导入的流派'), ops: d.plan.ops, strategy: d.plan.strategy, note: d.plan.note, layers: d.plan.layers });
+  // 确认导入后再清理地址；预览期间保留完整链接，方便微信转交外部浏览器。
+  if (location.hash.startsWith('#p=')) history.replaceState(history.state, '', location.pathname + location.search);
   importText.value = ''; importOpen.value = false;
 }
-/** 分享链接 #p=分享码：打开导入预览，然后把地址栏的码去掉，免得刷新后重复弹出 */
+/** 分享链接只打开预览；读取本身不消费分享码，重新打开或转交浏览器仍可恢复阵容。 */
 function readHash(): void {
   if (!location.hash.startsWith('#p=')) return;
   finishEdit();
   importText.value = location.hash; importOpen.value = true;
-  history.replaceState(null, '', location.pathname + location.search);
   window.scrollTo({ top: 0 });
 }
 onMounted(() => { readHash(); window.addEventListener('hashchange', readHash); });
