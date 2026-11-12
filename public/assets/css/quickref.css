@@ -2854,13 +2854,8 @@ mark {
 .tile.inplan::before { content: "✓"; position: absolute; top: 2px; left: 2px; z-index: 1; width: 15px; height: 15px; border-radius: 50%; display: grid; place-items: center; background: var(--teal); color: #fff; font-size: 10px; font-weight: 700; line-height: 1; box-shadow: 0 0 0 1.5px var(--surface); }
 .oc.inplan { border-color: var(--teal); border-left-color: var(--tc); }
 .oc .inp { margin-left: auto; font-size: 11px; font-weight: 700; color: #fff; background: var(--teal); border-radius: 999px; padding: 0 7px; white-space: nowrap; }
-.sh-plan { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.sh-plan button, .bplan button, .cv-mine { font: inherit; font-size: 13px; cursor: pointer; border-radius: 6px; padding: 4px 12px; border: 1px solid var(--line2); background: var(--surface); color: var(--ink); }
-.sh-plan .pri, .bplan .pri { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
-.sh-plan .pri.in { background: var(--surface); color: var(--teal); border-color: var(--teal); }
-.sh-plan .pri:disabled { opacity: .5; cursor: default; }
-.sh-plan .lk { border-color: transparent; background: none; color: var(--ink2); padding-inline: 4px; }
-.sh-plan .lk:hover { color: var(--accent); }
+.bplan button, .cv-mine { font: inherit; font-size: 13px; cursor: pointer; border-radius: 6px; padding: 4px 12px; border: 1px solid var(--line2); background: var(--surface); color: var(--ink); }
+.bplan .pri { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
 .cv-mine { margin-left: auto; align-self: center; border-radius: 999px; padding: 2px 12px; font-size: 12.5px; color: var(--ink2); white-space: nowrap; }
 .cv-mine b { font-family: var(--fn); font-size: 14px; color: var(--ink); }
 .cv-mine.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, var(--surface)); color: var(--ink); }
