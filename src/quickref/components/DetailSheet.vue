@@ -4,6 +4,8 @@ import { OPERATOR, EQUIP, STRATEGY, OPERATORS, TIER_LABELS, TIER_STATS, COVENANT
 import { avatarSrc, equipIconSrc, portraitSrc } from '../../lib/assets.ts';
 import { color, fx, peekFx, hpWidth, bonusHeadcount, bonusText } from '../format.ts';
 import { useQuickrefActions, type DetailSelection } from '../state.ts';
+import { plan, inPlan, planFull, toggleInPlan } from '../planStore.ts';
+import { MAX_OPS } from '../../lib/planner.ts';
 import Chip from './Chip.vue';
 const props = defineProps<{ selection: DetailSelection | null }>();
 const emit = defineEmits<{ closed: [] }>();
@@ -32,6 +34,10 @@ watch(() => props.selection, async selection => {
       <div v-else-if="equipment" class="sh-h" :data-t="equipment.tier"><img v-if="equipIconSrc(equipment.name)" class="pic e" :src="equipIconSrc(equipment.name)" alt="" width="80" height="80"><div><div class="row"><i class="tn">{{ TIER_LABELS[equipment.tier] }} 阶</i><span class="tag a">{{ equipment.price }} 资金</span></div><h3>{{ equipment.name }}</h3><div class="row"><Chip v-if="equipment.covenant" kind="cv" :name="equipment.covenant"/></div></div><button type="button" class="sh-x" data-close aria-label="关闭" @click="actions.closeDetail()">✕</button></div>
       <div v-else-if="strategy" class="sh-h"><img v-if="portraitSrc(strategy.name)" class="pic s" :src="portraitSrc(strategy.name)" alt="" width="88" height="88"><div><div class="row"><Chip v-if="isCoreCovenant(strategy.category)" kind="cv" :name="strategy.category"/><span v-else class="tag">{{ strategy.category }}</span><span :class="['tag', { t: strategy.unlock === '初始' }]">{{ strategy.unlock }}</span></div><h3>{{ strategy.name }}</h3><div class="hpbig"><b>{{ strategy.hp }}</b><div class="trk"><div :style="{ width: hpWidth(strategy.hp) + '%' }"></div></div></div></div><button type="button" class="sh-x" data-close aria-label="关闭" @click="actions.closeDetail()">✕</button></div>
       <div class="sh-b">
+        <div v-if="operator" class="sh-plan">
+          <button type="button" :class="['pri', { in: inPlan.has(operator.name) }]" :disabled="planFull && !inPlan.has(operator.name)" @click="toggleInPlan(operator.name)">{{ inPlan.has(operator.name) ? '✓ 已在阵容 · 点击移出' : planFull ? '阵容已满' : '＋ 加入阵容' }}</button>
+          <button type="button" class="lk" @click="actions.openPlanner()">{{ plan.name }} · {{ plan.ops.length }}/{{ MAX_OPS }} ▸</button>
+        </div>
         <div v-if="operator && stats" class="cmp2"><div v-html="`<div class='lb'><span class='tag'>初始</span><small>${stats.base}</small></div>${fx(operator.trait)}`"></div><div class="el" v-html="`<div class='lb'><span class='tag a'>精锐</span><small>${stats.elite}</small></div>${fx(operator.elite)}`"></div></div>
         <div v-else-if="equipment" class="cmp2"><div v-html="`<div class='lb'><span class='tag'>基础</span></div>${fx(equipment.effect)}`"></div><div class="el" v-html="`<div class='lb'><span class='tag a'>进阶</span></div>${fx(equipment.advanced || equipment.effect)}`"></div></div>
         <div v-else-if="strategy" class="ef" style="--c:var(--teal)"><span class="tag t">{{ strategy.skill }}</span><div v-html="fx(strategy.effect)"></div></div>

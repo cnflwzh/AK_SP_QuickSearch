@@ -1,7 +1,8 @@
 import { inject, reactive, type InjectionKey } from 'vue';
 import { COVENANTS, BUILD_NAMES, LEADER } from '../../data/index.ts';
 
-export const TAB_IDS = ['cv', 'op', 'eq', 'st', 'ld', 'bd', 'pl', 'nu'] as const;
+/** 顺序即 Tab 栏从左到右的顺序，左右滑动也按它切换 */
+export const TAB_IDS = ['fx', 'cv', 'op', 'bd', 'pl', 'eq', 'st', 'ld', 'nu'] as const;
 export type TabId = typeof TAB_IDS[number];
 export type DetailKind = 'op' | 'eq' | 'st';
 export interface DetailSelection { kind: DetailKind; name: string }
@@ -24,7 +25,7 @@ const storedBuild = store.get('bd') || '乌萨斯';
 const covenant = COVENANTS[storedCovenant] ? storedCovenant : '乌萨斯';
 const storedLeader = store.get('ld') || '';
 export const state = reactive<QuickrefState>({
-  tab: TAB_IDS.includes(storedTab as TabId) ? storedTab as TabId : 'cv',
+  tab: TAB_IDS.includes(storedTab as TabId) ? storedTab as TabId : 'fx',
   covenant, build: BUILD_NAMES.includes(storedBuild) ? storedBuild : '乌萨斯',
   opTier: 0, opCovenant: '', opElite: false, eqTier: 0, stCategory: 0,
   calculatorCovenant: COVENANTS[covenant].scaling.length ? covenant : '乌萨斯',
@@ -46,6 +47,7 @@ export interface QuickrefActions {
   openCovenant(name: string): Promise<void>;
   openBuild(name: string): Promise<void>;
   openLeader(name: string): Promise<void>;
+  openPlanner(): Promise<void>;
   pickCovenant(name: string): Promise<void>;
   closeDetail(): void;
 }

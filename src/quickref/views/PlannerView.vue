@@ -1,15 +1,19 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import {
   OPERATORS, OPERATOR, EQUIPMENT, EQUIP, STRATEGIES, STRATEGY, STRATEGY_CATEGORIES, COVENANTS, ALL_COVENANTS,
-  TIERS, TIER_LABELS, BUILD_NAMES, buildByName, isCoreCovenant,
+  TIERS, TIER_LABELS, BUILD_NAMES, CORE_BUILDS, buildByName, isCoreCovenant,
 } from '../../../data/index.ts';
 import { avatarSrc, equipIconSrc, portraitSrc } from '../../lib/assets.ts';
 import { nameScore, normalize } from '../../lib/match.ts';
 import {
-  LAYER_SLIDER, MAX_ALT, MAX_EQ, MAX_LAYERS, MAX_NOTE, MAX_OPS, alternatesFor, usesLayers, atLayers, blankPlan, newSlot, covenantStats, decodePlan, encodePlan, equipNotes, loadCurrent, loadPlans,
-  newId, planCost, saveCurrent, savePlans, shareUrl, suggestions, type Decoded, type Plan, type PlanOp,
+  LAYER_SLIDER, MAX_ALT, MAX_EQ, MAX_LAYERS, MAX_NOTE, MAX_OPS, alternatesFor, usesLayers, atLayers, blankPlan, newSlot, decodePlan, encodePlan, equipNotes,
+  newId, planCost, shareUrl, suggestions, type Decoded, type Plan, type PlanOp,
 } from '../../lib/planner.ts';
+import {
+  plans, currentId, plan, saveError, touch, addPlan, removePlan as dropPlan, planFromBuild, planOps as ops, inPlan, planStats as stats, closestBuilds,
+} from '../planStore.ts';
+import { useQuickrefActions } from '../state.ts';
 import { color, fx } from '../format.ts';
 import Segmented from '../components/Segmented.vue';
 import PlanCovenants from '../components/PlanCovenants.vue';
@@ -19,49 +23,19 @@ import PlanSummary from '../components/PlanSummary.vue';
  * 方案存在本地，可用分享码 / 链接 / 图片分享，也能导入别人的方案或与另一套对比。
  */
 
-/* ---------- 方案存档 ---------- */
-const plans = reactive<Plan[]>(loadPlans());
-if (!plans.length) plans.push(blankPlan('我的阵容'));
-const currentId = ref(plans.some(p => p.id === loadCurrent()) ? loadCurrent() : plans[0].id);
-const plan = computed(() => plans.find(p => p.id === currentId.value) ?? plans[0]);
-const saveError = ref(false);
-let saveTimer: ReturnType<typeof setTimeout> | undefined;
-let dirty = false;
-function flushSave(): void {
-  clearTimeout(saveTimer); saveTimer = undefined;
-  if (!dirty) return;
-  const saved = savePlans(plans); saveError.value = !saved; dirty = !saved;
-}
-function scheduleSave(): void {
-  dirty = true; clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 250);
-}
-// 只深度监听当前方案；连续输入合并写入，离页和卸载时立即落盘。
-watch(plan, scheduleSave, { deep: true });
-watch(currentId, id => { saveCurrent(id); editing.value = -1; picking.value = ''; });
-const touch = (): void => { plan.value.updated = Date.now(); };
-function addPlan(next: Plan): void { plans.unshift(next); currentId.value = next.id; }
+/* ---------- 方案存档：状态在 planStore，其他页也读同一份当前阵容 ---------- */
+const actions = useQuickrefActions();
+watch(currentId, () => { editing.value = -1; picking.value = ''; });
 function newPlan(): void { addPlan(blankPlan(`阵容 ${plans.length + 1}`)); }
 function copyPlan(): void { addPlan({ ...JSON.parse(JSON.stringify(plan.value)) as Plan, id: newId(), name: plan.value.name.slice(0, 13) + ' 副本', updated: Date.now() }); }
 function removePlan(): void {
   if (!confirm(`删除「${plan.value.name}」？`)) return;
-  plans.splice(plans.indexOf(plan.value), 1);
-  if (!plans.length) plans.push(blankPlan('我的阵容'));
-  currentId.value = plans[0].id;
+  dropPlan(plan.value);
 }
 const template = ref('');
-function fromBuild(name: string): void {
-  const build = buildByName(name); template.value = '';
-  if (!build) return;
-  addPlan({
-    ...blankPlan(name), strategy: build.strategies.find(s => STRATEGY[s]) ?? '',
-    ops: build.lineup.filter(n => OPERATOR[n]).slice(0, MAX_OPS).map(newSlot),
-    note: build.tagline,
-  });
-}
+function fromBuild(name: string): void { template.value = ''; planFromBuild(name); }
 
 /* ---------- 阵容编辑 ---------- */
-const ops = computed(() => plan.value.ops);
-const inPlan = computed(() => new Set(ops.value.map(o => o.name)));
 const editing = ref(-1);
 const slot = computed<PlanOp | undefined>(() => ops.value[editing.value]);
 function toggle(name: string): void {
@@ -117,10 +91,15 @@ function setLayers(name: string, value: number): void {
   plan.value.layers = { ...plan.value.layers, [name]: Math.max(0, Math.min(MAX_LAYERS, Math.round(+value || 0))) };
   touch();
 }
-const stats = computed(() => covenantStats(ops.value, plan.value.layers));
 const active = computed(() => stats.value.filter(s => s.active));
 const cost = computed(() => planCost(ops.value));
-const recs = computed(() => suggestions(ops.value));
+/** 补位推荐：最接近的流派里还缺的人优先，并标出流派名 */
+const nearest = computed(() => closestBuilds.value[0]);
+const recs = computed(() => {
+  const wanted = new Set(nearest.value?.missing ?? []);
+  return suggestions(ops.value, 24).map(r => ({ ...r, build: wanted.has(r.op.name), score: r.score + (wanted.has(r.op.name) ? 4 : 0) }))
+    .sort((a, b) => b.score - a.score).slice(0, 8);
+});
 const notes = computed(() => equipNotes(ops.value));
 const strategy = computed(() => STRATEGY[plan.value.strategy]);
 /** 阵容里已有的盟约：干员池里能推进它们的干员加星 */
@@ -198,15 +177,8 @@ function readHash(): void {
   history.replaceState(null, '', location.pathname + location.search);
   window.scrollTo({ top: 0 });
 }
-function leavingPage(): void { if (document.visibilityState === 'hidden') flushSave(); }
-onMounted(() => {
-  readHash(); window.addEventListener('hashchange', readHash);
-  window.addEventListener('pagehide', flushSave); document.addEventListener('visibilitychange', leavingPage);
-});
-onUnmounted(() => {
-  flushSave(); window.removeEventListener('hashchange', readHash);
-  window.removeEventListener('pagehide', flushSave); document.removeEventListener('visibilitychange', leavingPage);
-});
+onMounted(() => { readHash(); window.addEventListener('hashchange', readHash); });
+onUnmounted(() => window.removeEventListener('hashchange', readHash));
 </script>
 <template>
   <div class="pl">
@@ -340,14 +312,22 @@ onUnmounted(() => {
       </section>
 
       <!-- 补位 -->
-      <section v-if="recs.length" class="pl-card pl-rec">
-        <h4>补谁<span class="hint">加入后跨过的门槛</span></h4>
-        <div class="pl-recs">
+      <section v-if="recs.length || closestBuilds.length" class="pl-card pl-rec">
+        <h4 v-if="recs.length">补谁<span class="hint">加入后跨过的门槛</span></h4>
+        <div v-if="recs.length" class="pl-recs">
           <button v-for="r in recs" :key="r.op.name" type="button" class="pl-r" :data-t="r.op.tier" :data-op="r.op.name" @click="toggle(r.op.name)">
             <img :src="avatarSrc(r.op.name)" alt="" width="40" height="40" loading="lazy">
-            <span><b>{{ r.op.name }}</b><span class="g"><i v-for="g in r.gains" :key="g.covenant" :class="g.kind" :style="{ '--c': color(g.covenant) }">{{ g.covenant }} {{ GAIN[g.kind] }}</i></span></span>
+            <span><b>{{ r.op.name }}</b><span class="g"><i v-if="r.build" class="bd">{{ nearest?.name }} 流派</i><i v-for="g in r.gains" :key="g.covenant" :class="g.kind" :style="{ '--c': color(g.covenant) }">{{ g.covenant }} {{ GAIN[g.kind] }}</i></span></span>
           </button>
         </div>
+        <template v-if="closestBuilds.length">
+          <h4 class="pl-bm-h">接近的流派<span class="hint">点头像补进阵容 · 点名字看打法</span></h4>
+          <div v-for="m in closestBuilds" :key="m.name" class="pl-bm" :style="{ '--c': CORE_BUILDS[m.name] ? color(m.name) : 'var(--accent)' }">
+            <button type="button" class="nm" :data-build="m.name" @click="actions.openBuild(m.name)"><b>{{ m.name }}</b><span class="bar"><i v-for="k in m.total" :key="k" :class="{ f: k <= m.have.length }"></i></span><small>{{ m.have.length }}/{{ m.total }}</small></button>
+            <span v-if="m.missing.length" class="miss"><span class="k">还差</span><button v-for="n in m.missing" :key="n" type="button" :data-t="OPERATOR[n].tier" :data-op="n" :disabled="ops.length >= MAX_OPS" :title="`加入 ${n}`" @click="toggle(n)"><img :src="avatarSrc(n)" alt="" width="30" height="30" loading="lazy"></button></span>
+            <span v-else class="done">已凑齐</span>
+          </div>
+        </template>
       </section>
 
       <!-- 效果 -->

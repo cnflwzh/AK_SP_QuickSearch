@@ -2173,47 +2173,6 @@ mark {
   }
 }
 
-.tlink {
-  display: none;
-  flex: none;
-  margin-left: auto;
-  align-self: center;
-  text-decoration: none;
-  color: var(--accent);
-  font-size: 13px;
-  border: 1px solid color-mix(in srgb,var(--accent) 45%,transparent);
-  border-radius: 999px;
-  padding: 2px 10px;
-}
-
-@media (max-height:520px) {
-  .qhead {
-    display: none;
-  }
-  .tlink {
-    display: block;
-  }
-}
-
-@media (max-height:520px) and (min-width:640px) {
-  .qbar .wrap {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding-top: 4px;
-    padding-bottom: 0;
-  }
-  .search {
-    flex: 1 1 220px;
-    min-width: 0;
-  }
-  .tabs {
-    margin-top: 0;
-    flex: none;
-    max-width: 62%;
-  }
-}
-
 @media (display-mode:standalone) {
   .qbar {
     padding-top: env(safe-area-inset-top);
@@ -2866,3 +2825,95 @@ mark {
 .pls-note { margin: 0; padding-left: 8px; border-left: 3px solid var(--accent); font-size: 12.5px; line-height: 1.5; color: var(--ink2); }
 .pls-op .alts { display: flex; gap: 1px; margin-top: 1px; }
 .pls-op .alts img { width: 14px; height: 14px; border-radius: 2px; background: var(--tc); opacity: .85; }
+
+/* ---------- 效果一览：所有盟约效果平铺 ---------- */
+.fxv-bar { margin-bottom: 10px; }
+.fxg { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr)); gap: 8px; }
+.fxc { --c: var(--teal); background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--c); border-radius: 8px; padding: 8px 12px 9px; display: grid; gap: 4px; align-content: start; }
+.fxc header { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.fxc .n { border: 0; background: none; padding: 0; font: inherit; font-size: 16px; font-weight: 700; color: var(--c); cursor: pointer; white-space: nowrap; }
+.fxc .n:hover { text-decoration: underline; }
+.fxc .need { font-size: 12px; color: var(--ink3); white-space: nowrap; }
+.fxc .mine { margin-left: auto; font-size: 11.5px; padding: 0 7px; border-radius: 999px; border: 1px solid var(--c); color: var(--c); white-space: nowrap; }
+.fxc.on { background: color-mix(in srgb, var(--c) 7%, var(--surface)); border-color: color-mix(in srgb, var(--c) 45%, var(--line)); border-left-color: var(--c); }
+.fxc.on .mine { background: var(--c); color: #fff; font-weight: 700; }
+.fxc.off .mine { text-decoration: line-through; }
+.fxc p { margin: 0; font-size: 13px; line-height: 1.55; color: var(--ink2); }
+.fxc p.bn { padding-top: 4px; border-top: 1px dashed var(--line); }
+.fxc.max p.bn { color: var(--ink); }
+.fxg .empty { grid-column: 1 / -1; }
+
+/* ---------- 左右滑动切换 Tab 时的滑入方向 ---------- */
+.pane[data-slide=l] { animation: slide-l .22s ease-out; }
+.pane[data-slide=r] { animation: slide-r .22s ease-out; }
+@keyframes slide-l { from { opacity: 0; transform: translateX(40px); } }
+@keyframes slide-r { from { opacity: 0; transform: translateX(-40px); } }
+
+/* ---------- 当前阵容联动 ---------- */
+.tile.inplan { box-shadow: inset 0 -3px 0 var(--teal); }
+.tile.inplan::before { content: "✓"; position: absolute; top: 2px; left: 2px; z-index: 1; width: 15px; height: 15px; border-radius: 50%; display: grid; place-items: center; background: var(--teal); color: #fff; font-size: 10px; font-weight: 700; line-height: 1; box-shadow: 0 0 0 1.5px var(--surface); }
+.oc.inplan { border-color: var(--teal); border-left-color: var(--tc); }
+.oc .inp { margin-left: auto; font-size: 11px; font-weight: 700; color: #fff; background: var(--teal); border-radius: 999px; padding: 0 7px; white-space: nowrap; }
+.sh-plan { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.sh-plan button, .bplan button, .cv-mine { font: inherit; font-size: 13px; cursor: pointer; border-radius: 6px; padding: 4px 12px; border: 1px solid var(--line2); background: var(--surface); color: var(--ink); }
+.sh-plan .pri, .bplan .pri { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.sh-plan .pri.in { background: var(--surface); color: var(--teal); border-color: var(--teal); }
+.sh-plan .pri:disabled { opacity: .5; cursor: default; }
+.sh-plan .lk { border-color: transparent; background: none; color: var(--ink2); padding-inline: 4px; }
+.sh-plan .lk:hover { color: var(--accent); }
+.cv-mine { margin-left: auto; align-self: center; border-radius: 999px; padding: 2px 12px; font-size: 12.5px; color: var(--ink2); white-space: nowrap; }
+.cv-mine b { font-family: var(--fn); font-size: 14px; color: var(--ink); }
+.cv-mine.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, var(--surface)); color: var(--ink); }
+.cv-mine.max { background: var(--c); color: #fff; }
+.cv-mine.max b { color: #fff; }
+.cv-mine.off { text-decoration: line-through; }
+.bnear { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; }
+.bnear .k, .pl-bm .k { font-size: 12px; color: var(--ink3); }
+.bnear button, .pl-bm .nm { display: inline-flex; align-items: center; gap: 7px; font: inherit; font-size: 13px; cursor: pointer; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 4px 10px; }
+.bnear button.on { border-color: var(--c); box-shadow: inset 0 0 0 1px var(--c); }
+.bnear small, .pl-bm small { font-family: var(--fn); font-size: 12px; color: var(--ink3); }
+.bnear .bar, .pl-bm .bar { display: inline-flex; gap: 2px; }
+.bnear .bar i, .pl-bm .bar i { width: 7px; height: 9px; border-radius: 2px; background: var(--line2); }
+.bnear .bar i.f, .pl-bm .bar i.f { background: var(--c); }
+.bsel .bm { font-style: normal; font: 700 11px var(--fn); min-width: 16px; padding: 0 4px; border-radius: 8px; background: var(--c); color: #fff; text-align: center; }
+.bplan { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.pl-r .g i.bd { color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+.pl-bm-h { margin-top: 12px; }
+.pl-rec > .pl-bm-h:first-child { margin-top: 0; }
+.pl-bm { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 5px 0; border-top: 1px dashed var(--line); }
+.pl-bm .nm { background: var(--surface2); }
+.pl-bm .nm:hover { border-color: var(--c); }
+.pl-bm .miss { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 3px; }
+.pl-bm .miss .k { margin-right: 3px; }
+.pl-bm .miss button { padding: 0; border: 0; background: none; cursor: pointer; line-height: 0; border-radius: 5px; }
+.pl-bm .miss button img { border-radius: 5px; background: var(--tc); border-bottom: 2px solid var(--tc); }
+.pl-bm .miss button:hover img { outline: 2px solid var(--accent); }
+.pl-bm .miss button:disabled { opacity: .45; cursor: default; }
+.pl-bm .done { font-size: 12px; color: var(--teal); font-weight: 700; }
+
+/* ---------- 矮窗口（横屏手机、挂在游戏旁的小窗）----------
+ * 局内只为速查：页头和教程入口收起，搜索框缩成一个图标，整条顶栏只占一行 Tab。
+ * 点图标（或按 /）展开搜索，失焦且没有内容时自动收回。 */
+@media (max-height:520px) {
+  .qhead { display: none; }
+  .qbar .wrap { display: flex; align-items: center; gap: 6px; padding-top: 2px; padding-bottom: 0; }
+  .tabs { order: 1; flex: 1 1 auto; min-width: 0; margin-top: 0; }
+  .search { order: 2; flex: none; width: 34px; height: 30px; padding: 0; gap: 0; justify-content: center; border-color: transparent; background: none; box-shadow: none; cursor: pointer; }
+  .search svg { stroke: var(--ink2); }
+  .search input { flex: 0 0 0; width: 0; padding: 0; opacity: 0; }
+  .search kbd, .search .x, .search.has .x { display: none; }
+  .search:focus-within, .search.has { flex: 0 1 280px; width: auto; padding: 0 4px 0 10px; gap: 8px; border-color: var(--accent); background: var(--surface); cursor: text; }
+  .search:focus-within input, .search.has input { flex: 1; width: auto; opacity: 1; }
+  .search:focus-within .x, .search.has .x { display: block; width: 24px; height: 24px; }
+}
+@media (max-height:520px) and (max-width:639px) {
+  .search:focus-within, .search.has { flex: 1 1 auto; }
+  .qbar .wrap:has(.search:focus-within) .tabs, .qbar .wrap:has(.search.has) .tabs { display: none; }
+}
+@media (max-width: 600px) {
+  .bplan { margin-left: 0; width: 100%; }
+  .cv-mine { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane[data-slide] { animation: none; }
+}
