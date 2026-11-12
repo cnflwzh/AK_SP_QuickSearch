@@ -793,7 +793,7 @@ button.op:hover, button.eq:hover, button.st:hover, button.cv:hover {
   background: var(--c);
 }
 
-.tile.rec::after {
+.tile.rec::after, .tile.core::after {
   content: "★";
   position: absolute;
   top: 1px;
@@ -2679,6 +2679,9 @@ mark {
 /* 阵容槽位 */
 .pl-slots { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; }
 .pl-slot { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 5px 2px 4px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface2); min-width: 0; font-size: 11.5px; animation: tin .25s calc(var(--i, 0) * .03s) both; transition: border-color .15s, transform .15s; }
+.pl-slot.core { border-color: var(--accent); background: var(--accent-soft); }
+.pl-core-mark { color: var(--accent); margin-right: 2px; }
+.pl-row > .pl-core-toggle.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 .pl-slot:hover { border-color: var(--accent); }
 .pl-slot.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); transform: translateY(-2px); }
 .pl-slot .av { position: relative; display: block; width: 100%; max-width: 56px; }
@@ -2803,6 +2806,7 @@ mark {
 .pls-op > img { width: 44px; height: 44px; border-radius: 4px; background: var(--tc); border-bottom: 2px solid var(--tc); }
 .pls-op small { font-size: 10px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pls-op.el::after { content: "精"; position: absolute; top: 1px; right: 1px; font-size: 9px; font-weight: 700; padding: 0 2px; border-radius: 3px; background: var(--accent); color: var(--accent-ink); }
+.pls-op.core { border-color: var(--accent); background: var(--accent-soft); }
 .pls-op.hi { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .pls-op .eqs { position: absolute; left: 1px; top: 30px; display: flex; gap: 1px; }
 .pls-op .eqs img { width: 14px; height: 14px; background: var(--surface); border-radius: 2px; }

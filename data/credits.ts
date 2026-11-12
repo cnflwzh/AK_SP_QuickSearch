@@ -12,7 +12,7 @@ import type { LicenseEntry, UploaderSource, WikiSource } from './types.ts';
  * FURTHER_READING  同 UPLOADERS，列出值得一看但未直接取用内容的攻略
  */
 
-export const ABOUT_VERSION = 4;
+export const ABOUT_VERSION = 5;
 
 /** 开源仓库地址，填写后弹窗里会出现「反馈 / 源码」链接 */
 export const REPO_URL = 'https://github.com/cnflwzh/AK_SP_QuickSearch';
@@ -24,6 +24,26 @@ export const PURPOSE: readonly string[] = [
 ];
 
 export const WIKIS: readonly WikiSource[] = [
+  {
+    name: 'NGA', page: '终极模拟卫戍组排连胜分享 · 2026-11-12',
+    url: 'https://ngabbs.com/read.php?tid=47901793',
+    used: '莱塔尼亚四本成型、伊比利亚低阶六人，以及涤火杰西卡 / 塞雷娅 / 罗比菈塔 / 白铁的坚守维主轴',
+  },
+  {
+    name: '小红书 · 育儿博士', page: '4图轮椅攻略：从小白成为卫戍高手 · 2026-11-11',
+    url: 'https://www.xiaohongshu.com/search_result/6af43dda000000002b02aceb?xsec_token=ABgTpD-cOZqlbfs_cvDxl22eLgAfsP5ho4wZuHPvqdS6o=&xsec_source=',
+    used: '卡西米尔的砾、风丸、瑕光起手，后期玛恩纳 / 史尔特尔与不屈、突袭搭配',
+  },
+  {
+    name: '小红书 · 🌵🌵🌵', page: '卫戍协议 伊比利亚阵营玩法详解 · 2026-11-11',
+    url: 'https://www.xiaohongshu.com/search_result/6af3f3a8000000002b012298?xsec_token=ABVKHOqlYrjrQOjlH_Nwa2DuQnNU9Q4Ox04VdjJGe5l5Y=&xsec_source=',
+    used: '旅骨与海沫 / 温蒂的卖价叠层、低阶六伊阵容、精准与聚合搭配',
+  },
+  {
+    name: '小黑盒', page: '十大流派构筑讨论 · 2026-11-09',
+    url: 'https://www.xiaoheihe.cn/app/bbs/link/196514413',
+    used: '评论区关于阿戈尔聚合 / 灵巧、卡西米尔不屈、白铁升级装备的实战反馈',
+  },
   {
     name: 'PRTS', page: '假想敌：胄', url: 'https://prts.wiki/w/假想敌：胄',
     used: '低生命值阶段的能力修正、刺胄之弹与核心部件的目标和范围',
@@ -117,7 +137,7 @@ export const WIKIS: readonly WikiSource[] = [
   },
 ];
 
-/** 流派页的方向参考。阵容由本项目根据上方 Wiki 数据整理，视频提供核心盟约、开局策略与打法关键词 */
+/** 当前版本的流派参考。阵容与运营结合攻略正文、实战讨论及 Wiki 的干员特质整理。 */
 export const UPLOADERS: readonly UploaderSource[] = [
   {
     name: '小鬼卡比',
@@ -137,12 +157,33 @@ export const UPLOADERS: readonly UploaderSource[] = [
       {
         title: '【卫戍协议∶规程】新版本最爽盟约—乌萨斯公式化运营一图流',
         bv: 'BV1CwWW6aEjh',
-        used: '乌萨斯流派：奥术迅捷、全屏火雨',
+        used: '乌萨斯的六本家 + 霍尔海雅 + 青枳终盘，四本晋升奖励选冻河、迅捷叠层与青枳替换',
       },
       {
         title: '【卫戍协议∶规程】新版本轮椅盟约！奥术精准莱塔尼亚公式化运营一图流',
         bv: 'BV1UhWW6kE6t',
-        used: '莱塔尼亚流派：奥术精准',
+        used: '莱塔尼亚的奥术 / 精准搭配及过渡思路',
+      },
+      {
+        title: '【卫戍协议∶规程】奥精聚莱塔尼亚一图流',
+        bv: 'BV1BvWP6MEwG',
+        used: '四本找纯烬艾雅法拉与薇薇安娜，精准、奥术、聚合的人口分配',
+      },
+      {
+        title: '【卫戍协议∶规程】复奏一本流轮椅打法一图流',
+        bv: 'BV1FoWj6kEBs',
+        used: '莱塔尼亚八人终盘、复奏转型节奏，以及华法琳与霍尔海雅的叠层主轴',
+      },
+    ],
+  },
+  {
+    name: '我是谁压实度',
+    uid: 28860267,
+    videos: [
+      {
+        title: '保三争二的强力阵营？新版卫戍阿戈尔教学！',
+        bv: 'BV1k8WL63EeU',
+        used: '阿戈尔的克莱门莎主输出、吞噬站位与聚合 / 灵巧搭配的实战讨论',
       },
     ],
   },

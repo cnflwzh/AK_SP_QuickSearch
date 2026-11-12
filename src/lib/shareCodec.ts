@@ -105,20 +105,21 @@ export function readShareText(reader: BitReader, length: number, mode: TextMode)
 
 const toBase64 = (bytes: Uint8Array): string => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
-/** 返回自带文字模式的 URL 安全载荷；压缩后确实更短时才使用 raw DEFLATE。 */
-export function packSharePayload(payload: Uint8Array, mode: TextMode): string {
+/** 返回 URL 安全载荷；hasCore 标记位流含核心字段，压缩更短时使用 raw DEFLATE；超限抛出异常。 */
+export function packSharePayload(payload: Uint8Array, mode: TextMode, hasCore = false): string {
   if (payload.length > MAX_PAYLOAD) throw new Error('Share data too large');
   const compressed = deflateSync(payload, COMPRESSION);
+  const flags = mode | (hasCore ? 8 : 0);
   return compressed.length < payload.length
-    ? BASE64[mode | 4] + toBase64(compressed)
-    : BASE64[mode] + toBase64(payload);
+    ? BASE64[flags | 4] + toBase64(compressed)
+    : BASE64[flags] + toBase64(payload);
 }
 
 /** 解码不超过 768 字节的载荷；多留一字节检测解压溢出，禁止压缩流扩大内存分配。 */
-export function unpackSharePayload(token: string): { reader: BitReader; mode: TextMode } {
+export function unpackSharePayload(token: string): { reader: BitReader; mode: TextMode; hasCore: boolean } {
   if (token.length < 2 || token.length > 1025 || !/^[A-Za-z0-9_-]+$/.test(token)) throw new Error('Invalid share token');
   const flags = BASE64.indexOf(token[0]);
-  if (flags > 6 || (flags & 3) === 3) throw new Error('Unknown share format');
+  if ((flags & ~15) || (flags & 3) === 3) throw new Error('Unknown share format');
   const body = token.slice(1);
   const bytes = Uint8Array.from(atob(body.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - body.length % 4) % 4)), char => char.charCodeAt(0));
   if (toBase64(bytes) !== body) throw new Error('Invalid base64 padding');
@@ -126,5 +127,5 @@ export function unpackSharePayload(token: string): { reader: BitReader; mode: Te
   if (payload.length > MAX_PAYLOAD) throw new Error('Share data too large');
   // fflate 允许终止块后的字节；限定为本编码器的规范输出，拒绝夹带或截断的压缩流。
   if ((flags & 4) && toBase64(deflateSync(payload, COMPRESSION)) !== body) throw new Error('Noncanonical compressed data');
-  return { reader: new BitReader(payload), mode: (flags & 3) as TextMode };
+  return { reader: new BitReader(payload), mode: (flags & 3) as TextMode, hasCore: !!(flags & 8) };
 }

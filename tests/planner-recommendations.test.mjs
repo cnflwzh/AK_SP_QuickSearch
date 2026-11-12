@@ -20,12 +20,13 @@ test('a valid manual choice is honoured even without shared covenants', () => {
   assert.equal(banReplace(ops, ['炎'], { 夕: candidate.name }).ops[0].name, candidate.name);
 });
 
-test('replacements retain equipment, recompute granted covenants and reset elite', () => {
-  const ops = [{ ...newSlot('夕'), elite: true, eq: ['变形同构体', '炎国短刀'] }, newSlot('黍')];
+test('replacements retain equipment, recompute granted covenants and reset elite and core flags', () => {
+  const ops = [{ ...newSlot('夕'), elite: true, core: true, eq: ['变形同构体', '炎国短刀'] }, newSlot('黍')];
   const before = structuredClone(ops);
   const result = banReplace(ops, ['炎'], { 夕: '艾丝黛尔' });
   assert.equal(result.ops[0].name, '艾丝黛尔');
   assert.equal(result.ops[0].elite, false);
+  assert.equal(result.ops[0].core, false);
   assert.deepEqual(result.ops[0].eq, ops[0].eq);
   assert.ok(covenantStats(result.ops).find(s => s.name === '炎').granted.includes('艾丝黛尔'));
   assert.deepEqual(ops, before);

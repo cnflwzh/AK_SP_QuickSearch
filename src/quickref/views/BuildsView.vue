@@ -36,7 +36,7 @@ const p = computed(() => current.value);
 const base = computed(() => p.value.plan.base ? buildByName(p.value.plan.base) : undefined);
 const coreBase = computed(() => p.value.plan.base ? CORE_BUILDS[p.value.plan.base] : undefined);
 const accent = computed(() => presetColor(p.value));
-const carries = computed(() => new Set(base.value?.carries ?? []));
+const carries = computed(() => new Set(p.value.plan.ops.filter(slot => slot.core).map(slot => slot.name)));
 const lineup = computed(() => p.value.plan.ops.map(o => OPERATOR[o.name]).filter((o): o is Operator => !!o));
 const withAlts = computed(() => p.value.plan.ops.filter(o => o.alt.length));
 const stats = computed(() => covenantStats(p.value.plan.ops, p.value.plan.layers));
@@ -151,14 +151,14 @@ onUnmounted(() => window.removeEventListener('hashchange', readHash));
       <div class="bpick"><span class="k">点选被 ban 的</span><button v-for="s in bannable" :key="s.name" type="button" :class="['bc', { on: runBans.includes(s.name) }]" :style="{ '--c': color(s.name) }" @click="toggleBan(s.name)">{{ s.name }}</button></div>
       <template v-if="ban">
         <div v-for="pk in ban.picks" :key="pk.replaces" class="bpk">
-          <span class="av off" :data-t="OPERATOR[pk.replaces].tier" :title="`${pk.replaces} 不会出现`"><img :src="avatarSrc(pk.replaces)" alt="" width="36" height="36"><small>{{ pk.replaces }}</small></span>
+          <span class="av off" :data-t="OPERATOR[pk.replaces].tier" :data-op="pk.replaces" :title="`${pk.replaces} 不会出现`"><img :src="avatarSrc(pk.replaces)" alt="" width="36" height="36"><small>{{ pk.replaces }}</small></span>
           <b class="ar">→</b>
           <button type="button" class="av to" :data-t="OPERATOR[pk.name].tier" :data-op="pk.name" @click="actions.openDetail('op', pk.name)"><img :src="avatarSrc(pk.name)" alt="" width="36" height="36"><small>{{ pk.name }}</small></button>
           <span class="g"><i v-for="c in pk.gains" :key="c" :style="{ '--c': color(c) }">{{ c }}</i></span>
-          <span v-if="pk.alts.length" class="alts"><span class="k">或</span><button v-for="a in pk.alts" :key="a" type="button" :data-t="OPERATOR[a].tier" :title="`换成 ${a}`" @click="pickAlt(pk.replaces, a)"><img :src="avatarSrc(a)" alt="" width="28" height="28"></button></span>
+          <span v-if="pk.alts.length" class="alts"><span class="k">或</span><button v-for="a in pk.alts" :key="a" type="button" :data-t="OPERATOR[a].tier" :data-op="a" :aria-label="`换成 ${a}`" @click="pickAlt(pk.replaces, a)"><img :src="avatarSrc(a)" alt="" width="28" height="28"></button></span>
         </div>
         <div v-for="n in ban.removed.filter(n => !ban!.picks.some(pk => pk.replaces === n))" :key="n" class="bpk">
-          <span class="av off" :data-t="OPERATOR[n].tier"><img :src="avatarSrc(n)" alt="" width="36" height="36"><small>{{ n }}</small></span>
+          <span class="av off" :data-t="OPERATOR[n].tier" :data-op="n"><img :src="avatarSrc(n)" alt="" width="36" height="36"><small>{{ n }}</small></span>
           <span class="hint">找不到能补回盟约的替代</span>
         </div>
         <div class="bres">

@@ -65,7 +65,7 @@ function swapAlt(i: number): void {
   const s = slot.value; if (!s || inPlan.value.has(s.alt[i])) return;
   const next = s.alt[i];
   s.alt.splice(i, 1, s.name);
-  s.name = next; s.elite = false;
+  s.name = next; s.elite = false; s.core = false;
   touch();
 }
 function pickStrategy(name: string): void { plan.value.strategy = plan.value.strategy === name ? '' : name; picking.value = ''; touch(); }
@@ -179,10 +179,10 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
       <section class="pl-card pl-lineup">
         <h4>阵容<span class="tag">{{ ops.length }} / {{ MAX_OPS }}</span><span class="hint">点头像编辑 · 小头像是备选</span></h4>
         <div class="pl-slots">
-          <button v-for="(s, i) in ops" :key="s.name" type="button" :class="['pl-slot', { on: editing === i, el: s.elite }]" :data-t="OPERATOR[s.name].tier" :data-op="s.name" :style="{ '--i': i }" @click="editSlot(i)">
+          <button v-for="(s, i) in ops" :key="s.name" type="button" :class="['pl-slot', { on: editing === i, el: s.elite, core: s.core }]" :data-t="OPERATOR[s.name].tier" :data-op="s.name" :style="{ '--i': i }" @click="editSlot(i)">
             <i class="no">{{ i + 1 }}</i>
             <span class="av"><img :src="avatarSrc(s.name)" alt="" width="56" height="56"><b class="tr" :title="`${OPERATOR[s.name].tier} 阶`">{{ TIER_LABELS[OPERATOR[s.name].tier] }}</b></span>
-            <span class="nm">{{ s.name }}</span>
+            <span class="nm"><b v-if="s.core" class="pl-core-mark" title="核心干员" aria-label="核心干员">★</b>{{ s.name }}</span>
             <span class="dots"><u v-for="c in OPERATOR[s.name].covenants" :key="c" :style="{ '--c': color(c) }"></u></span>
             <span v-if="s.eq.length" class="eqs"><img v-for="(e, k) in s.eq" :key="k" :src="equipIconSrc(e)" alt="" width="16" height="16"></span>
             <span v-if="s.alt.length" class="alts"><img v-for="a in s.alt" :key="a" :src="avatarSrc(a)" :data-t="OPERATOR[a].tier" alt="" width="18" height="18"></span>
@@ -194,6 +194,7 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
           <div class="pl-row">
             <b>{{ slot.name }}</b>
             <Segmented :labels="['初始', '精锐']" :active="slot.elite ? 1 : 0" attr="ple" @change="slot.elite = $event === 1; touch()"/>
+            <button type="button" :class="['pl-core-toggle', { on: slot.core }]" :aria-pressed="slot.core" aria-label="核心干员" @click="slot.core = !slot.core; touch()">{{ slot.core ? '★ 核心' : '☆ 核心' }}</button>
             <span class="pl-move"><button type="button" aria-label="左移" :disabled="editing === 0" @click="move(-1)">‹</button><button type="button" aria-label="右移" :disabled="editing === ops.length - 1" @click="move(1)">›</button></span>
             <button type="button" class="dg" @click="removeSlot">移出</button>
           </div>

@@ -24,8 +24,8 @@ export const LAYER_SLIDER = 1000;
 export const MAX_LAYERS = 9999;
 const ISOMORPH = '变形同构体';
 
-/** alt：主选抓不到时依次考虑的备选，只作参考，不计入盟约统计 */
-export interface PlanOp { name: string; elite: boolean; eq: string[]; alt: string[] }
+/** core：用户标注的核心干员，仅用于展示；alt：主选抓不到时的备选名单，不计入盟约统计。 */
+export interface PlanOp { name: string; elite: boolean; core: boolean; eq: string[]; alt: string[] }
 /** layers：各盟约自己的层数（只记效果随层数变化的盟约） */
 export type Layers = Record<string, number>;
 /** base：改自哪个内置流派（同名内置流派由这份修改版代替）；没有 = 自建流派 */
@@ -87,6 +87,7 @@ export function covenantStats(ops: readonly PlanOp[], layers: Layers = {}): Cove
   if (eliteMembers.size) members.set('绝技', eliteMembers);
   const harmony = members.has('调和');
   const elites = eliteMembers.size;
+  // 强化状态随层数变化，只更新数值和提示，避免拖动层数时列表跳位。
   return ALL_COVENANTS.filter(name => members.has(name)).map(name => {
     const cov = COVENANTS[name], core = isCoreCovenant(name);
     const list = [...members.get(name)!];
@@ -104,7 +105,7 @@ export function covenantStats(ops: readonly PlanOp[], layers: Layers = {}): Cove
       name, core, members: list, granted: [...(granted.get(name) ?? [])], extra, count, need: cov.need,
       bonusNeed, bonusLayers, bonusElite, bonusCount, active, bonusActive, next, broken,
     };
-  }).sort((a, b) => +b.active - +a.active || +b.bonusActive - +a.bonusActive || +b.core - +a.core || b.count - a.count);
+  }).sort((a, b) => +b.active - +a.active || +b.core - +a.core || b.count - a.count);
 }
 
 /** 把 "(23+0.9×层)" 换成该层数下的数值 */
@@ -177,9 +178,9 @@ function lineupEvaluator(ops: readonly PlanOp[], layers: Layers, bans: ReadonlyS
   };
 }
 
-/** 新人保留该位置的装备，精锐须重新合成；备选不计入实际阵容。 */
+/** 新人保留该位置的装备；精锐和原干员的核心标记清除，备选不计入实际阵容。 */
 function replacement(slot: PlanOp, name: string): PlanOp {
-  return { name, elite: false, eq: [...slot.eq], alt: [] };
+  return { name, elite: false, core: false, eq: [...slot.eq], alt: [] };
 }
 function slotAffinity(slot: PlanOp, op: Operator): number {
   const original = OPERATOR[slot.name], alt = slot.alt.indexOf(op.name);
@@ -362,7 +363,7 @@ export function equipNotes(ops: readonly PlanOp[]): EquipNote[] {
 
 /* ---------- 分享码 ----------
  * 紧凑格式：WS + 一字符模式 + Base64URL 位流；链接省略 WS。
- * 模式低两位选择 UTF-8 / UTF-16 / 固定 Huffman，bit2 表示 raw DEFLATE。
+ * 模式低两位选择 UTF-8 / UTF-16 / 固定 Huffman，bit2 表示 raw DEFLATE，bit3 表示包含核心标记。
  * 数值按实际范围打包；层数根据当前最大值选择位宽，盟约按稀疏列表或位图存储。
  * 仅解析当前格式；名称、说明的空格、换行、emoji 都原样保留。
  */
@@ -395,11 +396,12 @@ export const cleanLayers = (layers: unknown): Layers => Object.fromEntries(Objec
   .filter(([c]) => Object.hasOwn(COVENANTS, c) && usesLayers(c)).map(([c, n]) => [c, clampLayers(n)]).filter(([, n]) => n));
 
 /**
- * 生成可直接复制的分享码，保留八人阵容、顺序、装备、备选、层数及完整说明。
+ * 生成可直接复制的分享码，保留八人阵容、顺序、核心标记、装备、备选、层数及完整说明。
  * 同时比较三种文字编码及可选 DEFLATE，返回最短结果；超出编码容量时抛出异常。
  */
 export function encodePlan(plan: Shared): string {
   const ops = cleanOps(plan.ops);
+  const hasCore = ops.some(slot => slot.core);
   const name = plan.name.slice(0, 16), note = plan.note.slice(0, MAX_NOTE), text = name + note;
   const layers = Object.entries(cleanLayers(plan.layers)).sort(([a], [b]) => COV_NO.get(a)! - COV_NO.get(b)!);
   let best = '';
@@ -411,6 +413,7 @@ export function encodePlan(plan: Shared): string {
     for (const slot of ops) {
       writer.write(OP_NO.get(slot.name)!, 8);
       writer.write(+slot.elite, 1);
+      if (hasCore) writer.write(+slot.core, 1);
       const sameEquip = slot.eq.length === 2 && slot.eq[0] === slot.eq[1];
       writer.write(sameEquip ? 3 : slot.eq.length, 2);
       writer.write(slot.alt.length, 2);
@@ -433,7 +436,7 @@ export function encodePlan(plan: Shared): string {
       for (const [, n] of layers) writer.write(n, width);
     }
     if (!writeShareText(writer, text, mode)) continue;
-    const candidate = packSharePayload(writer.finish(), mode);
+    const candidate = packSharePayload(writer.finish(), mode, hasCore);
     if (!best || candidate.length < best.length) best = candidate;
   }
   return CODE_PREFIX + best;
@@ -447,7 +450,7 @@ export function decodePlan(input: string): Decoded | null {
   const token = link?.[1] ?? input.match(/(?:^|[^A-Za-z0-9_-])WS([A-Za-z0-9_-]+)/)?.[1];
   if (!token) return null;
   try {
-    const { reader, mode } = unpackSharePayload(token);
+    const { reader, mode, hasCore } = unpackSharePayload(token);
     const count = reader.read(4), strategyNo = reader.read(6), nameLength = reader.read(5), noteLength = reader.read(8);
     if (count > MAX_OPS || nameLength > 16 || noteLength > MAX_NOTE || (strategyNo && !ST_BY_NO.has(strategyNo))) return null;
     const ops: PlanOp[] = [];
@@ -457,7 +460,8 @@ export function decodePlan(input: string): Decoded | null {
       return name;
     };
     for (let k = 0; k < count; k++) {
-      const name = readOp(), elite = !!reader.read(1), eqKind = reader.read(2), altCount = reader.read(2);
+      const name = readOp(), elite = !!reader.read(1), core = hasCore && !!reader.read(1);
+      const eqKind = reader.read(2), altCount = reader.read(2);
       if (ops.some(o => o.name === name)) return null;
       const eq: string[] = [], alt: string[] = [];
       for (let e = 0; e < (eqKind === 3 ? 1 : eqKind); e++) {
@@ -471,7 +475,7 @@ export function decodePlan(input: string): Decoded | null {
         if (candidate === name || alt.includes(candidate)) return null;
         alt.push(candidate);
       }
-      ops.push({ name, elite, eq, alt });
+      ops.push({ name, elite, core, eq, alt });
     }
     const layers: Layers = {};
     if (reader.read(1)) {
@@ -513,7 +517,7 @@ const write = (key: string, value: string): boolean => { try { localStorage.setI
 
 export const newId = (): string => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 export const blankPlan = (name = '新阵容'): Plan => ({ id: newId(), name, ops: [], strategy: '', note: '', layers: {}, updated: Date.now() });
-export const newSlot = (name: string): PlanOp => ({ name, elite: false, eq: [], alt: [] });
+export const newSlot = (name: string): PlanOp => ({ name, elite: false, core: false, eq: [], alt: [] });
 
 /** 内置流派转成方案：终盘阵容、首选策略，要点逐行写进说明 */
 export function builtinPlan(name: string): Plan | null {
@@ -521,7 +525,7 @@ export function builtinPlan(name: string): Plan | null {
   if (!build) return null;
   return {
     id: `b:${name}`, base: name, name: name.slice(0, 16), updated: 0, layers: {},
-    ops: cleanOps(build.lineup.map(newSlot)),
+    ops: cleanOps(build.lineup.map(name => ({ ...newSlot(name), core: build.carries?.includes(name) ?? false, alt: build.alternatives?.[name] ?? [] }))),
     strategy: build.strategies.find(s => Object.hasOwn(STRATEGY, s)) ?? '',
     note: build.tips.join('\n').slice(0, MAX_NOTE),
   };
@@ -534,14 +538,15 @@ const record = (value: unknown): value is Record<string, unknown> => !!value && 
 const knownOp = (name: unknown): name is string => typeof name === 'string' && Object.hasOwn(OPERATOR, name);
 const knownEq = (name: unknown): name is string => typeof name === 'string' && Object.hasOwn(EQUIP, name);
 
-/** 分享和本地存档共同遵守八人、两装备、三备选的约束，同名主选只保留一次。 */
-function cleanOps(value: unknown): PlanOp[] {
+/** 规范化干员数据；旧存档未记录核心标记时继承预设，显式取消的标记保留为 false。 */
+function cleanOps(value: unknown, defaultCores: readonly string[] = []): PlanOp[] {
   const result: PlanOp[] = [], seen = new Set<string>();
   if (!Array.isArray(value)) return result;
   for (const slot of value) {
     if (!record(slot) || !knownOp(slot.name) || seen.has(slot.name)) continue;
     seen.add(slot.name);
     result.push({ name: slot.name, elite: !!slot.elite,
+      core: typeof slot.core === 'boolean' ? slot.core : defaultCores.includes(slot.name),
       eq: Array.isArray(slot.eq) ? slot.eq.filter(knownEq).slice(0, MAX_EQ) : [],
       alt: Array.isArray(slot.alt) ? [...new Set(slot.alt.filter(knownOp))].filter(n => n !== slot.name).slice(0, MAX_ALT) : [],
     });
@@ -552,14 +557,15 @@ function cleanOps(value: unknown): PlanOp[] {
 /** 单条损坏存档被略过，其余方案仍可读取。 */
 function clean(value: unknown): Plan | null {
   if (!record(value)) return null;
+  const base = typeof value.base === 'string' && buildByName(value.base) ? value.base : undefined;
   return {
     id: typeof value.id === 'string' && value.id ? value.id : newId(),
     name: typeof value.name === 'string' && value.name ? value.name.slice(0, 16) : '阵容',
     updated: typeof value.updated === 'number' && Number.isFinite(value.updated) ? value.updated : Date.now(),
     strategy: typeof value.strategy === 'string' && Object.hasOwn(STRATEGY, value.strategy) ? value.strategy : '',
     note: typeof value.note === 'string' ? value.note.slice(0, MAX_NOTE) : '',
-    layers: cleanLayers(value.layers), ops: cleanOps(value.ops),
-    ...(typeof value.base === 'string' && buildByName(value.base) ? { base: value.base } : {}),
+    layers: cleanLayers(value.layers), ops: cleanOps(value.ops, base ? buildByName(base)!.carries : []),
+    ...(base ? { base } : {}),
   };
 }
 export function loadPlans(): Plan[] {

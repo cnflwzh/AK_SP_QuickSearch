@@ -49,6 +49,8 @@ export interface Covenant {
 
 /** 核心与混搭流派共用的阵容、推荐和运营说明。 */
 export interface BuildDetails {
+  /** 主选干员名到同位置备选名单；载入预设时写入规划器的备选栏。 */
+  readonly alternatives?: Readonly<Record<string, readonly string[]>>;
   readonly tagline: string;
   readonly lineup: readonly string[];
   readonly strategies: readonly string[];

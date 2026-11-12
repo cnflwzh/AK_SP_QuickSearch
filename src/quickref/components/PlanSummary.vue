@@ -13,10 +13,10 @@ const cost = computed(() => planCost(props.ops));
   <div class="pls">
     <div v-if="title" class="pls-t"><b>{{ title }}</b><span>{{ ops.length }} 人 · {{ stats.filter(s => s.active).length }} 盟约</span></div>
     <div class="pls-ops">
-      <span v-for="slot in ops" :key="slot.name" :class="['pls-op', { el: slot.elite, hi: highlight?.has(slot.name) }]" :data-t="OPERATOR[slot.name]?.tier" :data-op="slot.name">
+      <span v-for="slot in ops" :key="slot.name" :class="['pls-op', { el: slot.elite, core: slot.core, hi: highlight?.has(slot.name) }]" :data-t="OPERATOR[slot.name]?.tier" :data-op="slot.name">
         <img :src="avatarSrc(slot.name)" alt="" width="44" height="44" loading="lazy">
         <b class="tr">{{ TIER_LABELS[OPERATOR[slot.name]?.tier ?? 0] }}</b>
-        <small>{{ slot.name }}</small>
+        <small><b v-if="slot.core" class="pl-core-mark" title="核心干员" aria-label="核心干员">★</b>{{ slot.name }}</small>
         <span v-if="slot.eq.length" class="eqs"><img v-for="(e, i) in slot.eq" :key="i" :src="equipIconSrc(e)" :data-eq="e" alt="" width="14" height="14"></span>
         <span v-if="slot.alt.length" class="alts"><img v-for="a in slot.alt" :key="a" :src="avatarSrc(a)" :data-t="OPERATOR[a]?.tier" :data-op="a" alt="" width="14" height="14"></span>
       </span>
