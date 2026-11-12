@@ -15,6 +15,24 @@ const CORE_CACHE = 'wsq-core-' + VERSION;
 const IMAGE_CACHE = 'wsq-img-__IMAGE_VERSION__';
 const FONT_CACHE = 'wsq-font-local-v1';
 const ALLOWED = new Set([...CORE, ...IMAGES].map(path => new URL(path, self.registration.scope).href));
+const APP_SHELL = new URL('index.html', self.registration.scope).href;
+const GUIDE_SHELL = new URL('guide.html', self.registration.scope).href;
+const isAppPath = path => /^\/(?:index(?:\.html)?\/?|(?:overview|builds|covenants|operators|equipment|strategies|leaders|numbers)(?:\/.*)?)?$/.test(path);
+const isGuidePath = path => /^\/guide(?:\.html)?\/?$/.test(path);
+
+/** All quick-reference URLs share one shell; filters must not create unbounded HTML cache entries. */
+function navigationShell(url) {
+  if (isAppPath(url.pathname)) return APP_SHELL;
+  if (isGuidePath(url.pathname)) return GUIDE_SHELL;
+  return null;
+}
+
+async function storeResponse(cache, url, response) {
+  if (!response.ok) return;
+  const shell = navigationShell(url);
+  if (shell && !response.headers.get('content-type')?.includes('text/html')) return;
+  await cache.put(shell || url.href, await stripRedirect(response));
+}
 
 /*
  * Cloudflare Pages 会把 /guide.html 重定向到 /guide。
@@ -35,9 +53,11 @@ async function fromCache(request) {
   // Static same-origin resources are identical for module CORS and ordinary fetches.
   // Preview servers may send Vary: Origin; visited-resource backfills omit that header.
   const options = { ignoreSearch: true, ignoreVary: true };
-  const hit = await caches.match(request, options);
-  if (hit) return hit;
   const url = new URL(request.url);
+  const key = request.mode === 'navigate' ? navigationShell(url) || request : request;
+  const current = await caches.open(CORE_CACHE);
+  const hit = await current.match(key, options) || await caches.match(key, options);
+  if (hit) return hit;
   return caches.match(new URL(alternatePath(url.pathname), url).href, options);
 }
 
@@ -56,7 +76,7 @@ self.addEventListener('message', event => {
       try {
         const url = new URL(value);
         if (url.origin !== location.origin) return false;
-        return ALLOWED.has(url.href)
+        return !!navigationShell(url) || ALLOWED.has(url.href)
           || ALLOWED.has(new URL(alternatePath(url.pathname), url).href)
           || /\/assets\/fonts\/[a-z]+-[a-f0-9]{16}\.woff2$/.test(url.pathname);
       } catch { return false; }
@@ -66,21 +86,23 @@ self.addEventListener('message', event => {
       while (next < urls.length) {
         const url = new URL(urls[next++]);
         const cache = await caches.open(cacheName(url));
-        if (await cache.match(url.href)) continue;
+        if (await cache.match(navigationShell(url) || url.href)) continue;
         try {
           const response = await fetch(url.href, { cache: 'force-cache', priority: 'low' });
-          if (response.ok) await cache.put(url.href, await stripRedirect(response));
+          await storeResponse(cache, url, response);
         } catch { /* 网络中断时，已保存的其他资源仍可离线使用。 */ }
       }
     }));
   })());
 });
 
-// 删除旧版本缓存
+// Keep one previous code generation for tabs still running that generation's lazy imports.
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
-    const keep = [CORE_CACHE, IMAGE_CACHE, FONT_CACHE];
-    for (const key of await caches.keys()) {
+    const keys = await caches.keys();
+    const previousCore = keys.filter(key => key.startsWith('wsq-core-') && key !== CORE_CACHE).slice(-1);
+    const keep = [CORE_CACHE, IMAGE_CACHE, FONT_CACHE, ...previousCore];
+    for (const key of keys) {
       if (key.startsWith('wsq-') && !keep.includes(key)) await caches.delete(key);
     }
     await self.clients.claim();
@@ -101,11 +123,13 @@ function networkFirst(event) {
   return fetch(request).then(async res => {
     if (res.ok && res.type === 'basic') {
       const copy = await stripRedirect(res.clone());
-      event.waitUntil(caches.open(CORE_CACHE).then(cache => cache.put(request, copy)));
+      event.waitUntil(caches.open(CORE_CACHE).then(cache => storeResponse(cache, new URL(request.url), copy)));
     }
+    // Hashed chunks removed by a deployment may still exist in the previous visited cache.
+    if (!res.ok && request.destination === 'script') return await fromCache(request) || res;
     return res;
   }).catch(async () =>
-    (await fromCache(request)) || (request.mode === 'navigate' ? caches.match('index.html') : Response.error()));
+    (await fromCache(request)) || Response.error());
 }
 
 self.addEventListener('fetch', event => {

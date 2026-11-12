@@ -1,4 +1,6 @@
-/** Content and controls first, visible images next, fonts and visited-only caching last. */
+import { settleInitialFonts } from './lib/fonts.ts';
+
+/** Mount content and controls first; visited-only offline caching starts after first paint. */
 const screen = document.getElementById('load-screen');
 const slow = setTimeout(() => { if (screen) screen.dataset.state = 'slow'; }, 15000);
 const painted = () => new Promise<void>(resolve => {
@@ -22,6 +24,7 @@ try {
   const { initPeek } = await import('./lib/peek.ts');
   const disposePeek = initPeek();
   import.meta.hot?.dispose(disposePeek);
+  await settleInitialFonts();
   clearTimeout(slow);
   document.body.classList.remove('is-loading');
   document.body.removeAttribute('aria-busy');

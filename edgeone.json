@@ -10,6 +10,70 @@
     {
       "source": "/index",
       "destination": "/index.html"
+    },
+    {
+      "source": "/overview",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/overview/*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/builds",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/builds/*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/covenants",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/covenants/*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/operators",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/operators/*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/equipment",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/equipment/*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/strategies",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/strategies/*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/leaders",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/leaders/*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/numbers",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/numbers/*",
+      "destination": "/index.html"
     }
   ],
   "headers": [
@@ -122,6 +186,150 @@
         {
           "key": "Cache-Control",
           "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/overview",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/overview/*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/builds",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/builds/*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/covenants",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/covenants/*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/operators",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/operators/*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/equipment",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/equipment/*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/strategies",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/strategies/*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/leaders",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/leaders/*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/numbers",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/numbers/*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
         }
       ]
     }

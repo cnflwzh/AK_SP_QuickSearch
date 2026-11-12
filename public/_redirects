@@ -1,0 +1,19 @@
+# Application routes only: missing assets must remain 404 responses.
+/overview /index.html 200
+/overview/* /index.html 200
+/builds /index.html 200
+/builds/* /index.html 200
+/covenants /index.html 200
+/covenants/* /index.html 200
+/operators /index.html 200
+/operators/* /index.html 200
+/equipment /index.html 200
+/equipment/* /index.html 200
+/strategies /index.html 200
+/strategies/* /index.html 200
+/leaders /index.html 200
+/leaders/* /index.html 200
+/numbers /index.html 200
+/numbers/* /index.html 200
+/index /index.html 200
+/guide /guide.html 200

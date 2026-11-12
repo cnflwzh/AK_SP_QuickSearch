@@ -96,8 +96,9 @@ test('share codes, full links, fragments and copied text resolve to the same pla
   const code = roundTrip(plan);
   const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'location');
   try {
-    Object.defineProperty(globalThis, 'location', { configurable: true, value: { origin: 'https://sp.enjoyacg.com', pathname: '/' } });
+    Object.defineProperty(globalThis, 'location', { configurable: true, value: { origin: 'https://sp.enjoyacg.com', pathname: '/builds/yan/edit' } });
     const url = shareUrl(code);
+    assert.equal(new URL(url).pathname, '/', 'sharing always uses the public entry, independent of the editor route');
     assert.equal(url, `https://sp.enjoyacg.com/#p=${code.slice(2)}`);
     for (const input of [url, new URL(url).hash, `阵容分享：${url}\n`, ` ${code}\n`]) assert.deepEqual(decodePlan(input)?.plan, plan);
   } finally {

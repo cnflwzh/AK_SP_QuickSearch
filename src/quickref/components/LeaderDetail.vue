@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed } from 'vue';
 import { LEADER_MAP, LEADER_BATTLEFIELDS, MODES, ROUND_TIME, type Leader } from '../../../data/index.ts';
 import { leaderSrc } from '../../lib/assets.ts';
 import { wan } from '../../lib/dom.ts';
 import { abilityLabel, counterClass, damageClass, leaderFx, patrols } from '../../lib/leader.ts';
+import { routeQuery, updateQuery } from '../../router/navigation.ts';
+import { queryText } from '../../router/location.ts';
 import { state, setLeader } from '../state.ts';
 import Segmented from './Segmented.vue';
 import LeaderMap from './LeaderMap.vue';
@@ -20,7 +22,10 @@ const max = computed(() => Math.max(...rows.value.map(r => Math.max(r.hp, r.hidd
 const now = computed(() => rows.value[state.mode]);
 const dps = (hp: number) => wan(Math.ceil(hp / LIMIT));
 /** 0 领袖回合 · 1 隐秘核心回合 */
-const view = ref(0);
+const view = computed({
+  get: () => queryText(routeQuery.value, 'round') === 'hidden' ? 1 : 0,
+  set: (value: number) => { void updateQuery({ round: value ? 'hidden' : null, skill: null }); },
+});
 const hiddenView = computed(() => !!view.value && !!props.leader.hiddenStage);
 const stage = computed(() => hiddenView.value ? props.leader.hiddenStage! : props.leader.stage);
 /** 0 我方站位 · 1 敌人路线 */
@@ -30,11 +35,8 @@ const terrain = computed(() => mapMode.value
   : LEADER_BATTLEFIELDS[0]);
 const sides = ['left', 'all', 'right'] as const;
 const side = computed(() => sides[state.leaderMapSide] ?? 'left');
-const sceneIndex = ref(0);
-watch(() => props.leader.id, () => { view.value = 0; sceneIndex.value = 0; });
-watch(view, () => { sceneIndex.value = 0; });
 const layout = computed(() => mapMode.value ? null : hiddenView.value ? props.leader.hiddenLayout ?? props.leader.layout : props.leader.layout);
-const scene = computed(() => layout.value?.zones[sceneIndex.value] ?? layout.value?.zones[0]);
+const scene = computed(() => layout.value?.zones.find(zone => zone.label === queryText(routeQuery.value, 'skill')) ?? layout.value?.zones[0]);
 const targetMarks = computed(() => layout.value?.slots.filter(slot => scene.value?.targets?.some(([x, y]) => x === slot.at[0] && y === slot.at[1])).map(slot => slot.mark).filter(Boolean) ?? []);
 const ROLES = [['坦', '阻挡 / 承伤'], ['输', '主输出'], ['疗', '治疗'], ['空', '对空 / 远程'], ['群', '群攻']] as const;
 const ROLE_CLASS: Record<string, string> = { 坦: 'tk', 输: 'dp', 疗: 'hl', 空: 'aa', 群: 'ao' };
@@ -85,7 +87,7 @@ const portrait = computed(() => leaderSrc(props.leader.name));
       <h4>站位图<span class="lwsw"><Segmented :labels="['部署站位', '敌人路线']" :active="mapMode" attr="lwm" @change="mapMode = $event"/><Segmented v-if="leader.hiddenStage" :labels="['领袖', '隐秘核心']" :active="view" attr="lwv" @change="view = $event"/></span></h4>
       <p class="leader-section-note">该站位图中的干员摆放以及敌人行进路线仅供站位参考，并不代表实际游玩中的真实内容。</p>
       <div v-if="layout" class="map-skills" role="group" aria-label="选择技能范围">
-        <button v-for="(z, i) in layout.zones" :key="z.label" type="button" :class="{ on: scene === z, hc: z.tone === 'hc' }" :aria-pressed="scene === z" @click="sceneIndex = i">{{ z.label }}</button>
+        <button v-for="(z, i) in layout.zones" :key="z.label" type="button" :class="{ on: scene === z, hc: z.tone === 'hc' }" :aria-pressed="scene === z" @click="updateQuery({ skill: z.label })">{{ z.label }}</button>
       </div>
       <div v-if="mapMode" class="map-controls">
         <select v-model="state.leaderTerrain" class="map-picker" aria-label="选择实际场地">

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { ALL_COVENANTS, COVENANTS, isCoreCovenant } from '../../../data/index.ts';
 import { atLayers } from '../../lib/planner.ts';
 import { color, fx, bonusHeadcount, bonusText } from '../format.ts';
@@ -11,8 +11,14 @@ import Segmented from '../components/Segmented.vue';
  * 盟约效果一览：所有盟约的激活 / 强化效果平铺成卡片，局内扫一眼就能查到。
  * 本局流派里有的盟约标出人数进度；填过层数的按该层数代入数值。
  */
+import { routeQuery, updateQuery } from '../../router/navigation.ts';
+import { queryText } from '../../router/location.ts';
 const actions = useQuickrefActions();
-const filter = ref(0);
+const groups = ['', 'core', 'addon'];
+const filter = computed({
+  get: () => Math.max(0, groups.indexOf(queryText(routeQuery.value, 'group'))),
+  set: (index: number) => { void updateQuery({ group: groups[index] || null }); },
+});
 const labels = ['全部', '核心', '附加'];
 const list = computed(() => ALL_COVENANTS.filter(name => filter.value === 0 || isCoreCovenant(name) === (filter.value === 1)));
 const cards = computed(() => list.value.map(name => {

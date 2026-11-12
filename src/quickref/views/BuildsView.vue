@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, h, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 import { CORE_BUILDS, COVENANTS, OPERATOR, EQUIP, STRATEGY, buildByName, type Operator } from '../../../data/index.ts';
 import { round1 } from '../../lib/dom.ts';
 import { avatarSrc } from '../../lib/assets.ts';
 import { atLayers, banReplace, blankPlan, covenantStats, decodePlan, type Decoded } from '../../lib/planner.ts';
-import { state, useQuickrefActions } from '../state.ts';
+import { useQuickrefActions } from '../state.ts';
 import {
-  presets, current, editing, runKey, runBans, saveError, presetColor, selectPreset, newPreset, copyPreset, removePreset, restorePreset,
+  presetOf, presets, current, editing, runKey, runBans, saveError, presetColor, selectPreset, newPreset, copyPreset, removePreset, restorePreset,
   startEdit, finishEdit, setRun, toggleBan, addPlan,
 } from '../planStore.ts';
 import { color, fx, bonusHeadcount, bonusText } from '../format.ts';
@@ -17,13 +17,35 @@ import PlanSummary from '../components/PlanSummary.vue';
  * 流派：内置流派和我的流派都是预设。默认只读查看，局内扫一眼；点「编辑」进入规划器。
  * 「本局打这套」把它设为本局流派，盟约 / 效果 / 干员页随之高亮。
  */
-const PlannerView = defineAsyncComponent({
-  loader: () => import('./PlannerView.vue'),
-  loadingComponent: { render: () => h('div', { class: 'empty', role: 'status' }, '正在加载编辑器…') },
-  errorComponent: { render: () => h('div', { class: 'empty', role: 'alert' }, [
-    '编辑器加载失败。', h('button', { type: 'button', onClick: () => location.reload() }, '重新加载'),
-  ]) },
-});
+import { lazyView } from '../../lib/lazyView.ts';
+import { currentRoute, routeQuery, updateQuery, navigate, buildLocation } from '../../router/navigation.ts';
+import { buildKey } from '../../router/entities.ts';
+import { queryText } from '../../router/location.ts';
+import { routeNotice } from '../../router/index.ts';
+const PlannerView = lazyView(() => import('./PlannerView.vue'));
+
+/** URL changes select an existing draft. Preparing an edit never writes back to the URL. */
+watch([() => currentRoute.value.params.id, () => currentRoute.value.name], () => {
+  if (currentRoute.value.meta.tab !== 'bd') return;
+  const key = buildKey(String(currentRoute.value.params.id ?? 'yan'));
+  if (!presetOf(key)) {
+    routeNotice.value = '本机没有这套流派，请使用分享链接导入。';
+    void navigate(buildLocation(presets.value[0].key), true);
+    return;
+  }
+  selectPreset(key);
+  if (currentRoute.value.name === 'build-edit') startEdit(key);
+  else finishEdit();
+}, { immediate: true });
+onUnmounted(finishEdit);
+function selectBuild(key: string): void { void navigate(buildLocation(key)); }
+function editBuild(key: string): void { void navigate(buildLocation(key, true)); }
+function createBuild(): void { editBuild(newPreset()); }
+function duplicateBuild(key: string): void {
+  const created = copyPreset(key);
+  if (created) selectBuild(created);
+}
+function completeEdit(): void { selectBuild(current.value.key); }
 const actions = useQuickrefActions();
 
 /* ---------- 列表 ---------- */
@@ -59,7 +81,11 @@ const strategies = computed(() => [...new Set([p.value.plan.strategy, ...(base.v
 const equipment = computed(() => [...new Set([...p.value.plan.ops.flatMap(o => o.eq), ...(base.value?.equipment ?? [])])].filter(e => EQUIP[e]));
 const main = computed(() => coreBase.value ? COVENANTS[p.value.plan.base!].scaling[0] : undefined);
 const isRun = computed(() => runKey.value === p.value.key);
-function remove(): void { if (confirm(`删除「${p.value.plan.name}」？`)) removePreset(p.value.key); }
+function remove(): void {
+  if (!confirm(`删除「${p.value.plan.name}」？`)) return;
+  removePreset(p.value.key);
+  void navigate(buildLocation(current.value.key), true);
+}
 function restore(): void { if (confirm(`放弃对「${p.value.key}」的修改，恢复内置版本？`)) restorePreset(p.value.key); }
 
 /* ---------- 盟约被 ban：被 ban 盟约的干员不会出现，给出替代 ---------- */
@@ -75,43 +101,44 @@ function pickAlt(replaces: string, name: string): void {
 function saveBan(): void {
   const result = ban.value; if (!result) return;
   const source = p.value.plan, st = STRATEGY[source.strategy];
-  addPlan({
+  const key = addPlan({
     ...blankPlan(`${source.name.slice(0, 13)}·替`), ops: JSON.parse(JSON.stringify(result.ops)),
     strategy: st && runBans.value.includes(st.category) ? '' : source.strategy, note: source.note, layers: { ...source.layers },
   });
-  setRun(state.build);
+  setRun(key);
+  selectBuild(key);
 }
 
 /* ---------- 导入：分享码 / 链接 ---------- */
-const importOpen = ref(false);
+const importOpen = computed({
+  get: () => queryText(routeQuery.value, 'panel') === 'import' || (currentRoute.value.hash.startsWith('#p=') && queryText(routeQuery.value, 'panel') !== 'closed'),
+  set: (open: boolean) => {
+    void updateQuery({ panel: open ? 'import' : currentRoute.value.hash.startsWith('#p=') ? 'closed' : null });
+  },
+});
 const importText = ref('');
 const imported = computed<Decoded | null>(() => importText.value.trim() ? decodePlan(importText.value) : null);
 function acceptImport(): void {
   const d = imported.value; if (!d) return;
-  addPlan({ ...blankPlan(d.plan.name || '导入的流派'), ops: d.plan.ops, strategy: d.plan.strategy, note: d.plan.note, layers: d.plan.layers });
-  // 确认导入后再清理地址；预览期间保留完整链接，方便微信转交外部浏览器。
-  if (location.hash.startsWith('#p=')) history.replaceState(history.state, '', location.pathname + location.search);
-  importText.value = ''; importOpen.value = false;
+  const key = addPlan({ ...blankPlan(d.plan.name || '导入的流派'), ops: d.plan.ops, strategy: d.plan.strategy, note: d.plan.note, layers: d.plan.layers });
+  // Only explicit import consumes the fragment; preview survives WeChat -> browser handoff.
+  void navigate({ path: buildLocation(key), query: {}, hash: '' }, true);
+  importText.value = '';
 }
-/** 分享链接只打开预览；读取本身不消费分享码，重新打开或转交浏览器仍可恢复阵容。 */
-function readHash(): void {
-  if (!location.hash.startsWith('#p=')) return;
-  finishEdit();
-  importText.value = location.hash; importOpen.value = true;
-  window.scrollTo({ top: 0 });
-}
-onMounted(() => { readHash(); window.addEventListener('hashchange', readHash); });
-onUnmounted(() => window.removeEventListener('hashchange', readHash));
+watch(() => currentRoute.value.hash, hash => {
+  if (hash.startsWith('#p=')) importText.value = hash;
+}, { immediate: true });
+
 </script>
 <template>
   <div class="bsel">
-    <button v-for="x in coreList" :key="x.key" type="button" :class="{ on: x.key === p.key, run: x.key === runKey }" :style="{ '--c': presetColor(x) }" :data-bd="x.key" @click="selectPreset(x.key)">{{ x.plan.name }}<i v-if="x.modified" class="md" title="已修改">✎</i></button>
+    <button v-for="x in coreList" :key="x.key" type="button" :class="{ on: x.key === p.key, run: x.key === runKey }" :style="{ '--c': presetColor(x) }" :data-bd="x.key" @click="selectBuild(x.key)">{{ x.plan.name }}<i v-if="x.modified" class="md" title="已修改">✎</i></button>
     <span class="sp"></span>
-    <button v-for="x in mixedList" :key="x.key" type="button" :class="{ on: x.key === p.key, run: x.key === runKey }" style="--c:var(--accent)" :data-bd="x.key" @click="selectPreset(x.key)">{{ x.plan.name }}<i v-if="x.modified" class="md" title="已修改">✎</i></button>
+    <button v-for="x in mixedList" :key="x.key" type="button" :class="{ on: x.key === p.key, run: x.key === runKey }" style="--c:var(--accent)" :data-bd="x.key" @click="selectBuild(x.key)">{{ x.plan.name }}<i v-if="x.modified" class="md" title="已修改">✎</i></button>
     <span class="sp"></span>
     <span class="bk">我的</span>
-    <button v-for="x in mine" :key="x.key" type="button" :class="['my', { on: x.key === p.key, run: x.key === runKey }]" style="--c:var(--accent)" :data-bd="x.key" @click="selectPreset(x.key)">{{ x.plan.name }}</button>
-    <button type="button" class="add" @click="newPreset">＋ 新建</button>
+    <button v-for="x in mine" :key="x.key" type="button" :class="['my', { on: x.key === p.key, run: x.key === runKey }]" style="--c:var(--accent)" :data-bd="x.key" @click="selectBuild(x.key)">{{ x.plan.name }}</button>
+    <button type="button" class="add" @click="createBuild">＋ 新建</button>
     <button type="button" :class="['add', { on: importOpen }]" @click="importOpen = !importOpen">导入</button>
   </div>
 
@@ -126,7 +153,7 @@ onUnmounted(() => window.removeEventListener('hashchange', readHash));
     <p v-else-if="importText.trim()" class="pl-warn">认不出这个分享码</p>
   </section>
 
-  <PlannerView v-if="editing" @done="finishEdit"/>
+  <PlannerView v-if="editing" @done="completeEdit"/>
 
   <div v-else class="panel" :style="{ '--c': accent }">
     <div class="ph">
@@ -135,8 +162,8 @@ onUnmounted(() => window.removeEventListener('hashchange', readHash));
       <span v-if="p.modified" class="tag">已修改</span>
       <span class="bact">
         <button type="button" :class="['pri', { in: isRun }]" :disabled="!p.plan.ops.length" @click="setRun(isRun ? '' : p.key)">{{ isRun ? '✓ 本局 · 结束' : '▶ 本局打这套' }}</button>
-        <button type="button" @click="startEdit(p.key)">编辑</button>
-        <button type="button" @click="copyPreset(p.key)">复制</button>
+        <button type="button" @click="editBuild(p.key)">编辑</button>
+        <button type="button" @click="duplicateBuild(p.key)">复制</button>
         <button v-if="p.modified" type="button" @click="restore">恢复默认</button>
         <button v-if="!p.builtin" type="button" class="dg" @click="remove">删除</button>
       </span>

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, useId, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue';
 import { LEADER_MOVEMENTS, type LayoutZone, type LeaderBattlefield, type LeaderLayout, type LeaderStage, type MapPos, type MovementBranches, type OpRole, type ZoneShape } from '../../../data/index.ts';
 import { groundRoute, movementTimeline } from '../../lib/leader-map.ts';
-import { prefersReducedMotion } from '../../lib/dom.ts';
+import { whileVisible } from '../../lib/visibility.ts';
 
 /** 地形与路线按场地更新；技能切换只更新覆盖层。SVG 自行播放，动画帧不触发 Vue 寻路或重绘。 */
 const props = defineProps<{
@@ -14,7 +14,11 @@ const C = 48, H = 6.55 * C;
 const center = ([x, y]: MapPos): [number, number] => [(x + .5) * C, (y + .5) * C];
 const path = (points: readonly MapPos[]): string => points.map((p, i) => `${i ? 'L' : 'M'}${center(p).join(',')}`).join(' ');
 const plan = computed(() => !!props.layout);
-const animate = computed(() => !prefersReducedMotion && !plan.value);
+// Keep the SMIL nodes mounted when offscreen; pausing preserves their playback position.
+const reducedMotion = ref(matchMedia('(prefers-reduced-motion: reduce)').matches);
+const animate = computed(() => !reducedMotion.value && !plan.value);
+let visible = false;
+let stopVisibility: (() => void) | undefined;
 const side = computed(() => plan.value ? 'left' : props.side);
 const viewBox = computed(() => `${side.value === 'right' ? 6.1 * C : 0} 0 ${(side.value === 'all' ? 17 : 10.9) * C} ${H}`);
 const tiles = computed(() => props.terrain.grid.flatMap((row, y) => [...row].map((ch, x) => ({ x, y, ch })))
@@ -78,13 +82,25 @@ function linePath(points: readonly MapPos[]): string {
 }
 function playback(): void {
   if (!svg.value) return;
-  if (!animate.value) svg.value.pauseAnimations(); else svg.value.unpauseAnimations();
+  if (!animate.value || !visible) svg.value.pauseAnimations(); else svg.value.unpauseAnimations();
 }
 function restart(): void {
   svg.value?.setCurrentTime(0);
   playback();
 }
-onMounted(restart);
+const motion = matchMedia('(prefers-reduced-motion: reduce)');
+const updateMotion = () => { reducedMotion.value = motion.matches; };
+onMounted(() => {
+  restart();
+  if (svg.value) stopVisibility = whileVisible(svg.value, () => {
+    visible = true;
+    playback();
+    return () => { visible = false; playback(); };
+  });
+  motion.addEventListener('change', updateMotion);
+});
+onBeforeUnmount(() => { stopVisibility?.(); motion.removeEventListener('change', updateMotion); });
+watch(animate, playback, { flush: 'post' });
 watch([() => props.stage, () => props.terrain, () => props.side, plan], restart, { flush: 'post' });
 </script>
 

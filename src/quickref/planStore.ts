@@ -10,7 +10,8 @@ import { computed, reactive, ref, watch } from 'vue';
 import { BUILD_NAMES, CORE_BUILDS, ALL_COVENANTS } from '../../data/index.ts';
 import { color } from './format.ts';
 import { blankPlan, builtinPlan, covenantStats, loadPlans, newId, samePlan, savePlans, type CovenantStat, type Plan } from '../lib/planner.ts';
-import { state, setBuild } from './state.ts';
+// The route adapter selects a preset; this store does not depend on the browser router.
+const selectedPresetKey = ref(BUILD_NAMES[0]);
 
 /** 用户的方案：自建流派和内置流派的修改版 */
 // 旧版规划页会自动建一个空的“我的阵容”，没动过的就不带进流派列表
@@ -56,21 +57,25 @@ export const presetOf = (key: string): Preset | undefined => presets.value.find(
 /** 核心流派用盟约色，其余用强调色 */
 export const presetColor = (preset: Preset): string => preset.builtin && CORE_BUILDS[preset.key] ? color(preset.key) : 'var(--accent)';
 /** 流派页正在看的预设 */
-export const current = computed(() => presetOf(state.build) ?? presets.value[0]);
+export const current = computed(() => presetOf(selectedPresetKey.value) ?? presets.value[0]);
 export const myPresets = computed(() => presets.value.filter(p => !p.builtin));
 
 const clone = (plan: Plan): Plan => JSON.parse(JSON.stringify(plan)) as Plan;
-function select(key: string): void { finishEdit(); setBuild(key); }
+function select(key: string): void {
+  if (key === selectedPresetKey.value) return;
+  finishEdit();
+  selectedPresetKey.value = presetOf(key) ? key : BUILD_NAMES[0];
+}
 export { select as selectPreset };
 
-/** 新方案放在“我的流派”最前面并选中 */
-export function addPlan(next: Plan): void { plans.unshift(next); select(next.id); }
-export function newPreset(): void { addPlan(blankPlan(`我的流派 ${myPresets.value.length + 1}`)); startEdit(plans[0].id); }
-export function copyPreset(key: string): void {
+/** Adds a saved plan at the front and returns its local ID; navigation belongs to the caller. */
+export function addPlan(next: Plan): string { plans.unshift(next); select(next.id); return next.id; }
+export function newPreset(): string { return addPlan(blankPlan(`我的流派 ${myPresets.value.length + 1}`)); }
+export function copyPreset(key: string): string | undefined {
   const source = presetOf(key); if (!source) return;
   const copy = { ...clone(source.plan), id: newId(), name: source.plan.name.slice(0, 13) + ' 副本', updated: Date.now() };
   delete copy.base;
-  addPlan(copy);
+  return addPlan(copy);
 }
 export function removePreset(key: string): void {
   const i = plans.findIndex(p => p.id === key && !p.base);
@@ -78,7 +83,7 @@ export function removePreset(key: string): void {
   if (editingId.value === key) editingId.value = '';
   plans.splice(i, 1);
   if (runKey.value === key) setRun('');
-  if (state.build === key) setBuild(BUILD_NAMES[0]);
+  if (selectedPresetKey.value === key) select(BUILD_NAMES[0]);
 }
 /** 丢掉内置流派的修改版 */
 export function restorePreset(name: string): void {
@@ -98,11 +103,12 @@ export const touch = (): void => { plan.value.updated = Date.now(); };
 /** 进入编辑；内置流派先复制一份修改版 */
 export function startEdit(key: string): void {
   const preset = presetOf(key); if (!preset) return;
+  select(key);
+  if (editing.value && editingId.value === preset.plan.id) return;
   if (preset.builtin && !preset.modified) {
     plans.push({ ...clone(preset.plan), id: newId(), updated: Date.now() });
     editingId.value = plans[plans.length - 1].id;
   } else editingId.value = preset.plan.id;
-  setBuild(key);
 }
 /** 退出编辑；修改版改回和内置一样时丢弃 */
 export function finishEdit(): void {
@@ -110,10 +116,6 @@ export function finishEdit(): void {
   editingId.value = '';
   if (edited?.base && samePlan(edited, BUILTIN.get(edited.base)!)) plans.splice(plans.indexOf(edited), 1);
 }
-// 通过本局横条、详情链接等路径切换预设，也必须结束上一套的编辑。
-const stopSelection = watch(() => state.build, key => {
-  if (editing.value && key !== (plan.value.base ?? plan.value.id)) finishEdit();
-}, { flush: 'sync' });
 /** 规划器内部：正在编辑的阵容 */
 export const planOps = computed(() => plan.value.ops);
 export const inPlan = computed(() => new Set(planOps.value.map(o => o.name)));
@@ -149,7 +151,7 @@ export const runStat = computed(() => new Map(runStats.value.map(s => [s.name, s
 
 /** 开发热更新时也释放模块级监听器，避免每次更新叠加存档任务。 */
 if (import.meta.hot) import.meta.hot.dispose(() => {
-  saveOnExit(); stopSaving(); stopSelection(); stopRun(); stopBans();
+  saveOnExit(); stopSaving(); stopRun(); stopBans();
   window.removeEventListener('pagehide', saveOnExit);
   document.removeEventListener('visibilitychange', saveOnHidden);
 });

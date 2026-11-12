@@ -3,6 +3,7 @@ import { markRaw, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRe
 import { OPERATORS } from '../../data/index';
 import { whileVisible } from '../lib/visibility';
 import Markup from './components/Markup';
+import { decodeFragment } from '../lib/url.ts';
 import { placeholders } from './placeholders';
 
 const props = defineProps<{ ready: () => void; failed: (error: unknown) => void }>();
@@ -45,7 +46,7 @@ function loadChapter(id: string): Promise<void> {
   pending.set(id, task);
   return task;
 }
-const hashSection = () => document.getElementById(decodeURIComponent(location.hash.slice(1)))?.closest<HTMLElement>('.chap');
+const hashSection = () => document.getElementById(decodeFragment(location.hash))?.closest<HTMLElement>('.chap');
 const backgroundLoad = (id: string) => { void loadChapter(id).catch(() => {}); };
 function navigate(event: MouseEvent) {
   const link = (event.target as Element).closest<HTMLAnchorElement>('a[href^="#"]');
@@ -80,7 +81,7 @@ onMounted(async () => {
     // A deep anchor inside an unloaded chapter is replaced with the Vue view.
     // Restore that exact anchor after rendering, without stealing a later jump.
     void loadChapter(section.id).then(() => {
-      if (location.hash === hash) document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView();
+      if (location.hash === hash) document.getElementById(decodeFragment(hash))?.scrollIntoView();
     }).catch(() => {});
   };
   addEventListener('hashchange', onHash);
@@ -93,7 +94,7 @@ onMounted(async () => {
   try {
     await Promise.all([...initial].map(section => loadChapter(section.id)));
     await nextTick();
-    if (target) document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView();
+    if (target) document.getElementById(decodeFragment(location.hash))?.scrollIntoView();
     props.ready();
   } catch (error) { props.failed(error); }
 });
@@ -122,7 +123,7 @@ onBeforeUnmount(() => { mounted = false; cleanup.forEach(dispose => dispose()); 
 </header>
 
 <nav class="top"><div class="wrap" id="nav" @click="navigate">
-  <a href="index.html" class="home"><i>◂</i>速查</a>  <a href="#c1" :class="{ on: active === 'c1' }"><i>01</i>入门</a><a href="#c2" :class="{ on: active === 'c2' }"><i>02</i>招募与升本</a><a href="#c3" :class="{ on: active === 'c3' }"><i>03</i>刷怪</a><a href="#c4" :class="{ on: active === 'c4' }"><i>04</i>盟约进阶</a><a href="#c5" :class="{ on: active === 'c5' }"><i>05</i>流派</a><a href="#c6" :class="{ on: active === 'c6' }"><i>06</i>图鉴</a>
+  <a href="/index.html" class="home"><i>◂</i>速查</a>  <a href="#c1" :class="{ on: active === 'c1' }"><i>01</i>入门</a><a href="#c2" :class="{ on: active === 'c2' }"><i>02</i>招募与升本</a><a href="#c3" :class="{ on: active === 'c3' }"><i>03</i>刷怪</a><a href="#c4" :class="{ on: active === 'c4' }"><i>04</i>盟约进阶</a><a href="#c5" :class="{ on: active === 'c5' }"><i>05</i>流派</a><a href="#c6" :class="{ on: active === 'c6' }"><i>06</i>图鉴</a>
 </div></nav>
 
 
