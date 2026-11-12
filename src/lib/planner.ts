@@ -506,7 +506,7 @@ export function decodePlan(input: string): Decoded | null {
 }
 
 /** 链接的 #p= 已标明用途，省去只用于识别独立分享码的 WS 前缀。 */
-export const shareUrl = (code: string): string => `${location.origin}${location.pathname}#p=${code.slice(CODE_PREFIX.length)}`;
+export const shareUrl = (code: string): string => `${location.origin}/#p=${code.slice(CODE_PREFIX.length)}`;
 
 
 /* ---------- 本地存档 ---------- */

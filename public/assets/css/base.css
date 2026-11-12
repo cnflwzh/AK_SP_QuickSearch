@@ -30,7 +30,15 @@
   --t6: #5d341e;
   --fd: "ZCOOL QingKe HuangYou","Noto Sans SC",sans-serif;
   --fn: "Saira Condensed","Noto Sans SC",sans-serif;
+  --fb: "Noto Sans SC",system-ui,sans-serif;
   color-scheme: light;
+}
+
+/* A font that misses the initial loading budget must not rearrange visible content later. */
+:root[data-fonts="fallback"] {
+  --fd: system-ui,sans-serif;
+  --fn: system-ui,sans-serif;
+  --fb: system-ui,sans-serif;
 }
 
 @media (prefers-color-scheme:dark) {
@@ -97,14 +105,14 @@ body {
   padding-bottom: var(--safe-area-bottom);
   background: var(--bg);
   color: var(--ink);
-  font: 15px/1.6 "Noto Sans SC",system-ui,sans-serif;
+  font: 15px/1.6 var(--fb);
   background-image: linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
   background-size: 32px 32px;
   overflow-x: hidden;
 }
 
 /* layout */
-/* 遮罩仅使用系统字体；数据就绪即移除，不等待装饰字体。 */
+/* 遮罩仅使用系统字体；页面初始化为缓存字体保留一个有上限的就绪窗口。 */
 body.is-loading {
   overflow: hidden;
 }
@@ -191,7 +199,7 @@ button, select, input {
 }
 
 svg text {
-  font-family: "Noto Sans SC",sans-serif;
+  font-family: var(--fb);
 }
 
 .num {

@@ -16,7 +16,7 @@ try { commit = execFileSync('git', ['rev-parse', '--verify', 'HEAD^{commit}'], {
 if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(commit)) throw new Error('Cannot determine build commit.');
 
 export default defineConfig({
-  base: './',
+  base: '/',
   plugins: [vue({ template: { compilerOptions: { whitespace: 'preserve' } } }), {
     name: 'site-build-metadata',
     transformIndexHtml: {

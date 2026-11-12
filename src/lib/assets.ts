@@ -1,7 +1,7 @@
 /** 图片资源路径。名称查不到时返回空字符串，调用方据此省略 <img> */
 import { OPERATOR, EQUIP, STRATEGY, LEADER } from '../../data/index.ts';
 
-const IMG = 'assets/img';
+const IMG = '/assets/img';
 
 export const avatarSrc = (name: string): string => OPERATOR[name] ? `${IMG}/avatars/${OPERATOR[name].avatar}.webp` : '';
 export const equipIconSrc = (name: string): string => EQUIP[name] ? `${IMG}/equipment/${EQUIP[name].icon}.webp` : '';

@@ -12,7 +12,6 @@ test('preset storage retains configured drafts, flushes on exit and follows cros
   globalThis.document = new EventTarget();
   globalThis.localStorage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
   const store = await import('../src/quickref/planStore.ts');
-  const { setBuild } = await import('../src/quickref/state.ts');
   assert.deepEqual(store.plans.map(p => p.id), [draft.id]);
   assert.equal(store.runKey.value, '');
   assert.deepEqual([...store.runBans.value], ['炎']);
@@ -21,7 +20,10 @@ test('preset storage retains configured drafts, flushes on exit and follows cros
   assert.equal(JSON.parse(values.get('wsq.plans'))[0].note, '最后一次编辑');
   store.startEdit('炎');
   assert.equal(store.editing.value, true);
-  setBuild('乌萨斯');
+  const editingId = store.editingId.value;
+  store.startEdit('炎');
+  assert.equal(store.editingId.value, editingId, 're-entering an edit must reuse the draft');
+  store.selectPreset('乌萨斯');
   assert.equal(store.editing.value, false);
   assert.ok(!store.plans.some(p => p.base === '炎'));
   store.setRun('炎');

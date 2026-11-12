@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { OPERATORS, OPERATOR_TYPES, OPERATOR_TRIGGERS, matchesOperatorTrigger, EQUIPMENT, EQUIPMENT_RECIPES, STRATEGIES, ALL_COVENANTS, TIERS, TIER_LABELS, STRATEGY_CATEGORIES, isCoreCovenant } from '../../../data/index.ts';
+import { updateQuery } from '../../router/navigation.ts';
 import { state } from '../state.ts';
 import { useCatalogEntrance } from '../catalogEntrance.ts';
 import Segmented from '../components/Segmented.vue';
@@ -14,7 +15,7 @@ const operators = computed(() => OPERATORS.filter(o => (!state.opTier || o.tier 
   && (!state.opType || o.type === state.opType)
   && matchesOperatorTrigger(o, state.opTrigger, state.opElite)));
 const operatorFiltersActive = computed(() => !!(state.opTier || state.opCovenant || state.opTrigger || state.opType));
-function clearOperatorFilters(): void { state.opTier = 0; state.opCovenant = ''; state.opTrigger = ''; state.opType = ''; }
+function clearOperatorFilters(): void { void updateQuery({ tier: null, covenant: null, trigger: null, type: null }); }
 // 组合是筛选入口，成品仍保留原来的 VI 阶，不增加重复装备。
 const COMBO_FILTER = TIERS.length + 1;
 const equipment = computed(() => EQUIPMENT.filter(e => state.eqTier === COMBO_FILTER

@@ -19,6 +19,9 @@ import PlanSummary from '../components/PlanSummary.vue';
  * 流派编辑（规划器）：从全部干员里排 8 人，实时看盟约进度、效果和补位推荐；
  * 编辑的是流派页当前选中的预设，可用分享码 / 链接 / 图片分享，或与另一套对比。
  */
+import { routeQuery, updateQuery } from '../../router/navigation.ts';
+import { CATEGORY_IDS, queryText } from '../../router/location.ts';
+import { covenantId, covenantName, buildId, buildKey } from '../../router/entities.ts';
 const emit = defineEmits<{ done: [] }>();
 watch(editingId, () => { editing.value = -1; picking.value = ''; });
 
@@ -88,9 +91,18 @@ const present = computed(() => new Set(stats.value.filter(s => !s.bonusActive &&
 const GAIN: Record<string, string> = { on: '激活', bonus: '强化', up: '+1', off: '失效' };
 
 /* ---------- 干员池 ---------- */
-const poolTier = ref(0);
-const poolCovenant = ref('');
-const poolQuery = ref('');
+const poolTier = computed({
+  get: () => Number(queryText(routeQuery.value, 'poolTier')) || 0,
+  set: (value: number) => { void updateQuery({ poolTier: value || null }); },
+});
+const poolCovenant = computed({
+  get: () => covenantName(queryText(routeQuery.value, 'poolCovenant')),
+  set: (value: string) => { void updateQuery({ poolCovenant: covenantId(value) || null }); },
+});
+const poolQuery = computed({
+  get: () => queryText(routeQuery.value, 'poolQuery'),
+  set: (value: string) => { void updateQuery({ poolQuery: value || null }, true); },
+});
 const pool = computed(() => {
   const q = normalize(poolQuery.value);
   return OPERATORS.filter(o => (!poolTier.value || o.tier === poolTier.value)
@@ -99,11 +111,17 @@ const pool = computed(() => {
 });
 const poolGroups = computed(() => TIERS.map(tier => ({ tier, items: pool.value.filter(o => o.tier === tier) })).filter(g => g.items.length));
 const eqGroups = TIERS.map(tier => ({ tier, items: EQUIPMENT.filter(e => e.tier === tier) }));
-const stCategory = ref(0);
+const stCategory = computed({
+  get: () => Math.max(0, CATEGORY_IDS.indexOf(queryText(routeQuery.value, 'strategyCategory') as typeof CATEGORY_IDS[number])),
+  set: (index: number) => { void updateQuery({ strategyCategory: CATEGORY_IDS[index] || null }); },
+});
 const stList = computed(() => { const c = STRATEGY_CATEGORIES[stCategory.value]; return STRATEGIES.filter(s => c === '全部' || (c === '阵营' ? isCoreCovenant(s.category) : s.category === c)); });
 
 /* ---------- 分享 / 导入 / 对比 ---------- */
-const panel = ref<'' | 'share' | 'compare'>('');
+const panel = computed({
+  get: () => queryText(routeQuery.value, 'panel'),
+  set: (value: string) => { void updateQuery({ panel: value || null }); },
+});
 const openPanel = (name: typeof panel.value): void => { panel.value = panel.value === name ? '' : name; };
 const code = computed(() => encodePlan(plan.value));
 const link = computed(() => shareUrl(code.value));
@@ -130,7 +148,10 @@ async function saveImage(): Promise<void> {
   } catch { imageError.value = '图片生成失败，请重试或复制分享链接。'; }
   finally { imageBusy.value = false; }
 }
-const other = ref('');
+const other = computed({
+  get: () => buildKey(queryText(routeQuery.value, 'compare')),
+  set: (key: string) => { void updateQuery({ compare: key ? buildId(key) : null }); },
+});
 const otherPlan = computed<Plan | null>(() => presets.value.find(x => x.key === other.value)?.plan ?? null);
 const onlyMine = computed(() => new Set(ops.value.map(o => o.name).filter(n => !otherPlan.value?.ops.some(o => o.name === n))));
 const onlyOther = computed(() => new Set((otherPlan.value?.ops ?? []).map(o => o.name).filter(n => !inPlan.value.has(n))));

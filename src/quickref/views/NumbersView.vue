@@ -2,23 +2,25 @@
 import { computed, ref, watch } from 'vue';
 import { MODES, DECISION_ROUNDS, ROUND_TIME, LEADERS, DISPATCH_LEVELS, DISPATCH_BY_MODE, BOUNTIES, TIER_STATS, TIER_LABELS, TRAINING, OWN_OPERATOR_BONUS, COVENANTS, CORE_COVENANTS, ADDON_COVENANTS } from '../../../data/index.ts';
 import { wan, round1 } from '../../lib/dom.ts';
+import { updateQuery } from '../../router/navigation.ts';
+import { covenantId } from '../../router/entities.ts';
 import { state } from '../state.ts';
 import { color } from '../format.ts';
 import Segmented from '../components/Segmented.vue';
 const presets = [0, 30, 60, 100, 150, 200, 300];
-const layers = computed(() => state.layers[state.calculatorCovenant] ?? 60);
+const layers = computed(() => state.calculatorLayers);
 const inputText = ref(String(layers.value));
 watch(layers, value => { inputText.value = String(value); });
 const options = [ { label: '核心', names: CORE_COVENANTS.filter(n => COVENANTS[n].scaling.length) }, { label: '附加', names: ADDON_COVENANTS.filter(n => COVENANTS[n].scaling.length) } ];
 /** Keeps number/range/presets synchronized without replacing other numeric panels. */
 function draw(value: number): void {
   if (!Number.isFinite(value)) return;
-  state.layers[state.calculatorCovenant] = Math.max(0, Math.min(300, Math.round(value)));
-  inputText.value = String(layers.value);
+  const normalized = Math.max(0, Math.min(300, Math.round(value)));
+  inputText.value = String(normalized);
+  void updateQuery({ layers: normalized }, true);
 }
 function changeCovenant(event: Event): void {
-  state.calculatorCovenant = (event.target as HTMLSelectElement).value;
-  draw(state.layers[state.calculatorCovenant] ?? 60);
+  void updateQuery({ covenant: covenantId((event.target as HTMLSelectElement).value) });
 }
 function inputLayers(event: Event): void {
   const input = event.target as HTMLInputElement;

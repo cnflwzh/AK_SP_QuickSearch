@@ -233,7 +233,7 @@
   display: none;
 }
 
-.tabs button {
+.tabs a {
   flex: none;
   border: 0;
   background: none;
@@ -247,24 +247,24 @@
   align-items: baseline;
 }
 
-.tabs button i {
+.tabs a i {
   font-style: normal;
   font-family: var(--fn);
   font-size: 12px;
   color: var(--ink3);
 }
 
-.tabs button.on {
+.tabs a.on {
   color: var(--ink);
   border-bottom-color: var(--accent);
   font-weight: 500;
 }
 
-.tabs button:hover {
+.tabs a:hover {
   color: var(--ink);
 }
 
-.qbar.searching .tabs button.on {
+.qbar.searching .tabs a.on {
   border-bottom-color: transparent;
   font-weight: 400;
   color: var(--ink2);
@@ -353,7 +353,7 @@
 }
 
 /* clickable chips */
-button.op, button.eq, button.st, button.cv {
+:is(button,a).op, :is(button,a).eq, :is(button,a).st, :is(button,a).cv {
   cursor: pointer;
   font: inherit;
   font-size: 13px;
@@ -361,15 +361,15 @@ button.op, button.eq, button.st, button.cv {
   transition: border-color .15s,transform .15s;
 }
 
-button.cv {
+:is(button,a).cv {
   font-size: 12.5px;
 }
 
-button.eq {
+:is(button,a).eq {
   background: transparent;
 }
 
-button.op:hover, button.eq:hover, button.st:hover, button.cv:hover {
+:is(button,a).op:hover, :is(button,a).eq:hover, :is(button,a).st:hover, :is(button,a).cv:hover {
   border-color: var(--accent);
   transform: translateY(-1px);
 }
@@ -1049,6 +1049,11 @@ em.c.on {
   display: grid;
   grid-template-columns: repeat(auto-fill,minmax(min(100%,290px),1fr));
   gap: 8px;
+}
+
+/* Isolate each card's layout while retaining its real height for browser scroll restoration. */
+.qg > .oc {
+  contain: layout style;
 }
 
 .oc {
@@ -1982,7 +1987,7 @@ mark {
   .rtl span {
     font-size: 10px;
   }
-  .tabs button {
+  .tabs a {
     padding: 9px 11px 10px;
   }
 }
@@ -2036,11 +2041,11 @@ mark {
   .tabs {
     margin-top: 2px;
   }
-  .tabs button {
+  .tabs a {
     padding: 6px 10px 7px;
     font-size: 14px;
   }
-  .tabs button i {
+  .tabs a i {
     display: none;
   }
   #view {
@@ -2127,7 +2132,7 @@ mark {
     width: 22px;
     height: 22px;
   }
-  button.op, button.eq, button.st {
+  :is(button,a).op, :is(button,a).eq, :is(button,a).st {
     font-size: 12.5px;
   }
   .bar {
@@ -2892,10 +2897,10 @@ mark {
 @keyframes slide-l { from { opacity: 0; transform: translateX(36px); } }
 @keyframes slide-r { from { opacity: 0; transform: translateX(-36px); } }
 /* 当前 Tab 的下划线从中间展开 */
-.tabs button { position: relative; }
-.tabs button.on { border-bottom-color: transparent; }
-.tabs button.on::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: -2px; height: 2px; border-radius: 2px; background: var(--accent); animation: tab-ul .25s cubic-bezier(.2, .7, .3, 1); }
-.qbar.searching .tabs button.on::after { display: none; }
+.tabs a { position: relative; }
+.tabs a.on { border-bottom-color: transparent; }
+.tabs a.on::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: -2px; height: 2px; border-radius: 2px; background: var(--accent); animation: tab-ul .25s cubic-bezier(.2, .7, .3, 1); }
+.qbar.searching .tabs a.on::after { display: none; }
 @keyframes tab-ul { from { transform: scaleX(0); } }
 
 /* 干员 / 装备 / 策略：卡片依次浮现，档位标题从左滑入 */
@@ -3016,6 +3021,11 @@ mark {
   .bpk .alts { margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .pane[data-slide], .tabs button.on::after, .qg > .oc[data-catalog-enter], .pane .tierh { animation: none; }
+  .pane[data-slide], .tabs a.on::after, .qg > .oc[data-catalog-enter], .pane .tierh { animation: none; }
   .qg > .oc[data-catalog-enter=pending] { opacity: 1; }
 }
+
+/* Navigation retains the existing control appearance while exposing real URLs. */
+.tabs a, a.cv, a.op, a.eq, a.st, a.lwr, a.oc, a.tile { text-decoration: none; }
+.tabs a { font-family: inherit; }
+.route-message { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }

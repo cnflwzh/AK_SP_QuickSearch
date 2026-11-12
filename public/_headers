@@ -27,3 +27,37 @@
 
 /assets/fonts/*.woff2
   Cache-Control: public, max-age=31536000, immutable
+
+# URL-driven quick-reference pages
+/overview
+  Cache-Control: no-cache
+/overview/*
+  Cache-Control: no-cache
+/builds
+  Cache-Control: no-cache
+/builds/*
+  Cache-Control: no-cache
+/covenants
+  Cache-Control: no-cache
+/covenants/*
+  Cache-Control: no-cache
+/operators
+  Cache-Control: no-cache
+/operators/*
+  Cache-Control: no-cache
+/equipment
+  Cache-Control: no-cache
+/equipment/*
+  Cache-Control: no-cache
+/strategies
+  Cache-Control: no-cache
+/strategies/*
+  Cache-Control: no-cache
+/leaders
+  Cache-Control: no-cache
+/leaders/*
+  Cache-Control: no-cache
+/numbers
+  Cache-Control: no-cache
+/numbers/*
+  Cache-Control: no-cache
