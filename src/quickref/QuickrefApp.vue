@@ -36,10 +36,13 @@ function clearSearch(): void { clearTimeout(searchTimer); query.value = ''; rend
 function search(event: Event): void {
   query.value = (event.target as HTMLInputElement).value;
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => { renderedQuery.value = query.value.trim(); }, 90);
+  searchTimer = setTimeout(() => { slide.value = ''; renderedQuery.value = query.value.trim(); }, 90);
 }
 /** Keeps pane identity stable for filter/search updates, then scrolls only for navigation. */
 async function show(tab: TabId, scroll = true): Promise<void> {
+  // 新页面从它在 Tab 栏里的方向滑入：往右的 Tab 从右边进，往左的从左边进
+  const from = TAB_IDS.indexOf(state.tab), to = TAB_IDS.indexOf(tab);
+  if (from !== to || renderedQuery.value) slide.value = to > from ? 'l' : to < from ? 'r' : '';
   clearSearch(); setTab(tab); await nextTick();
   // Tab 栏可横向滚动：切换后把当前 Tab 带进可见范围
   const bar = tabBar.value, on = bar?.querySelector<HTMLElement>('button.on');
@@ -84,7 +87,7 @@ function clearAndFocus(): void {
   clearSearch();
   if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
 }
-function pickTab(tab: TabId): void { slide.value = ''; void show(tab, false); }
+function pickTab(tab: TabId): void { void show(tab, false); }
 
 /* ---------- 左右滑动切换大 Tab ----------
  * 只认又快又明显的横向滑动；起点落在输入控件、地图或任何能横向滚动的区域里时不触发，
@@ -109,9 +112,7 @@ function touchEnd(event: TouchEvent): void {
   const dx = event.changedTouches[0].clientX - start.x, dy = event.changedTouches[0].clientY - start.y;
   if (Math.abs(dx) < 64 || Math.abs(dx) < Math.abs(dy) * 2 || event.timeStamp - start.at > 700) return;
   const next = tabs[tabs.findIndex(tab => tab.id === state.tab) + (dx < 0 ? 1 : -1)];
-  if (!next) return;
-  slide.value = dx < 0 ? 'l' : 'r';
-  void show(next.id);
+  if (next) void show(next.id);
 }
 function keydown(event: KeyboardEvent): void {
   // 规划器包含方案名、搜索框和长说明，输入时让 / 保留为普通字符。

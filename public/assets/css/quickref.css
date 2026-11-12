@@ -2844,10 +2844,23 @@ mark {
 .fxg .empty { grid-column: 1 / -1; }
 
 /* ---------- 左右滑动切换 Tab 时的滑入方向 ---------- */
-.pane[data-slide=l] { animation: slide-l .22s ease-out; }
-.pane[data-slide=r] { animation: slide-r .22s ease-out; }
-@keyframes slide-l { from { opacity: 0; transform: translateX(40px); } }
-@keyframes slide-r { from { opacity: 0; transform: translateX(-40px); } }
+/* 点 Tab 和左右滑动共用：新页面从 Tab 所在方向滑入 */
+.pane[data-slide=l] { animation: slide-l .28s cubic-bezier(.2, .7, .3, 1); }
+.pane[data-slide=r] { animation: slide-r .28s cubic-bezier(.2, .7, .3, 1); }
+@keyframes slide-l { from { opacity: 0; transform: translateX(36px); } }
+@keyframes slide-r { from { opacity: 0; transform: translateX(-36px); } }
+/* 当前 Tab 的下划线从中间展开 */
+.tabs button { position: relative; }
+.tabs button.on { border-bottom-color: transparent; }
+.tabs button.on::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: -2px; height: 2px; border-radius: 2px; background: var(--accent); animation: tab-ul .25s cubic-bezier(.2, .7, .3, 1); }
+.qbar.searching .tabs button.on::after { display: none; }
+@keyframes tab-ul { from { transform: scaleX(0); } }
+
+/* 干员 / 装备 / 策略：卡片依次浮现，档位标题从左滑入 */
+.qg > .oc { animation: oc-in .32s cubic-bezier(.2, .7, .3, 1) calc(min(var(--i, 0), 16) * .025s) both; }
+@keyframes oc-in { from { opacity: 0; transform: translateY(10px) scale(.97); } }
+.pane .tierh { animation: tierh-in .3s ease-out both; }
+@keyframes tierh-in { from { opacity: 0; transform: translateX(-12px); } }
 
 /* ---------- 本局联动 ---------- */
 .tile.inplan { box-shadow: inset 0 -3px 0 var(--teal); }
@@ -2960,5 +2973,5 @@ mark {
   .bpk .alts { margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .pane[data-slide] { animation: none; }
+  .pane[data-slide], .tabs button.on::after, .qg > .oc, .pane .tierh { animation: none; }
 }
