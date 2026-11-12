@@ -2,7 +2,7 @@ import { inject, reactive, type InjectionKey } from 'vue';
 import { COVENANTS, LEADER } from '../../data/index.ts';
 
 /** 顺序即 Tab 栏从左到右的顺序，左右滑动也按它切换 */
-export const TAB_IDS = ['fx', 'cv', 'op', 'bd', 'eq', 'st', 'ld', 'nu'] as const;
+export const TAB_IDS = ['fx', 'bd', 'cv', 'op', 'eq', 'st', 'ld', 'nu'] as const;
 export type TabId = typeof TAB_IDS[number];
 export type DetailKind = 'op' | 'eq' | 'st';
 export interface DetailSelection { kind: DetailKind; name: string }

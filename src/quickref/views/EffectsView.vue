@@ -13,10 +13,8 @@ import Segmented from '../components/Segmented.vue';
  */
 const actions = useQuickrefActions();
 const filter = ref(0);
-const mine = computed(() => ALL_COVENANTS.filter(name => runStat.value.has(name)));
-const labels = computed(() => ['全部', '核心', '附加', `本局 ${mine.value.length}`]);
-const list = computed(() => filter.value === 3 ? mine.value
-  : ALL_COVENANTS.filter(name => filter.value === 0 || isCoreCovenant(name) === (filter.value === 1)));
+const labels = ['全部', '核心', '附加'];
+const list = computed(() => ALL_COVENANTS.filter(name => filter.value === 0 || isCoreCovenant(name) === (filter.value === 1)));
 const cards = computed(() => list.value.map(name => {
   const cov = COVENANTS[name], stat = runStat.value.get(name);
   const layers = stat ? run.value?.plan.layers[name] ?? 0 : 0;
@@ -43,7 +41,6 @@ const cards = computed(() => list.value.map(name => {
         <p v-html="c.effect"></p>
         <p v-if="c.bonus" class="bn"><span class="tag a">{{ c.bonusLabel }}</span> <span v-html="c.bonus"></span></p>
       </article>
-      <div v-if="!cards.length" class="empty">还没选本局流派，去「流派」里点「本局打这套」</div>
     </div>
   </div>
 </template>
