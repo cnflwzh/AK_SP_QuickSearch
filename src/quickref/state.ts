@@ -12,6 +12,8 @@ export interface QuickrefState {
   layers: Record<string, number>; mode: number; pickerOpen: boolean;
   /** 领袖页正在看的领袖名；空字符串 = 列表。记住它：一局只有一个领袖，重开页面直接回到详情 */
   leader: string;
+  /** 同一局切换领袖时保留所选场地、观察侧与地图模式。 */
+  leaderTerrain: string; leaderMapSide: number; leaderMapMode: number;
 }
 const store = {
   get(key: string): string | null { try { return localStorage.getItem('wsq.' + key); } catch { return null; } },
@@ -33,6 +35,7 @@ export const state = reactive<QuickrefState>({
   calculatorCovenant: COVENANTS[covenant].scaling.length ? covenant : '乌萨斯',
   layers: {}, mode: 1, pickerOpen: false,
   leader: LEADER[storedLeader] ? storedLeader : '',
+  leaderTerrain: '01', leaderMapSide: 0, leaderMapMode: 0,
 });
 /** Updates the selected covenant and remembers it; scalable covenants also prime the calculator. */
 export function setCovenant(name: string): void {

@@ -2517,6 +2517,39 @@ mark {
   .lwsw { flex-basis: 100%; justify-content: flex-start; }
 }
 
+/* 场地与路线控制：只更新地图，保留技能和数值区的位置。 */
+.map-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin: 0 0 10px; position: relative; z-index: 2; }
+.map-controls .seg { flex-shrink: 0; }
+.map-picker { position: static; min-width: 100px; }
+.map-picker summary { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 34px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface2); color: var(--ink); cursor: pointer; list-style: none; font-size: 12px; }
+.map-picker summary::-webkit-details-marker { display: none; }
+.map-options { position: absolute; inset: calc(100% + 5px) 0 auto; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); box-shadow: 0 8px 25px #0002; max-height: 360px; overflow: auto; }
+.map-options button { display: grid; gap: 4px; min-width: 0; padding: 5px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface2); color: var(--ink2); font-size: 11px; cursor: pointer; }
+.map-options button.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.map-options svg { width: 100%; height: auto; display: block; }
+.map-options .mini-tile { fill: #dce6e2; }
+.map-options .wall { fill: #4c6264; }
+.map-options .barrier, .map-options .mini-platform { fill: #8daba5; }
+.map-options .gate { fill: #3987d1; }
+.map-options .special { fill: #b6b38f; }
+.map-options .mini-crate { fill: #b77b2a; }
+.map-playback { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.map-playback button, .map-playback select { min-height: 32px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface2); color: var(--ink2); font-size: 11px; cursor: pointer; }
+.map-controls button:focus-visible, .map-controls summary:focus-visible, .map-controls select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lwm .map-platform rect { fill: #a8b7b5; stroke: #677e7b; stroke-width: 2; }
+.lwm .map-platform path { stroke: #677e7b; stroke-width: 3; }
+.lwm .infection .tile-top { fill: color-mix(in srgb, var(--red) 18%, var(--surface)); }
+.lwm .mire .tile-top { fill: color-mix(in srgb, #827347 25%, var(--surface)); }
+.lwm .grass .tile-top { fill: color-mix(in srgb, var(--green) 22%, var(--surface)); }
+.lwm .speed .tile-top { fill: color-mix(in srgb, var(--accent) 20%, var(--surface)); }
+.lwm .terrain-symbol { fill: var(--ink3); font-size: 13px; opacity: .8; }
+.lwm .route.ground, .lwm .route.flying { opacity: .4; }
+@media (max-width: 600px) {
+  .map-playback { flex-basis: 100%; justify-content: flex-end; }
+  .map-playback button, .map-playback select, .map-picker summary { min-height: 38px; }
+  .map-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 /* 随行敌人 */
 .lwe { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 0; }
 .lwe li {

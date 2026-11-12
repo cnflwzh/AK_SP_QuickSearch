@@ -187,14 +187,13 @@ export type MapPos = readonly [x: number, y: number];
 /**
  * 地图标记。
  * boss  领袖本体   part  领袖的部件 / 同场首领（剑与锤、碎铳之簧、弦）   unit  走特殊路线的随行敌人
- * path  从 at 出发依次经过的点；loop 为 true 时循环巡逻
+ * movement 保存完整出生段、巡逻段和跨场传送；at 是静态站位图的默认位置。
  */
 export interface StageMark {
   readonly name: string;
   readonly kind: 'boss' | 'part' | 'unit';
   readonly at: MapPos;
-  readonly path?: readonly MapPos[];
-  readonly loop?: boolean;
+  readonly movement?: MovementBranches;
 }
 
 /** 联合领袖关卡静态刷出的全场随行数量；技能额外召唤不计入 count。 */
@@ -257,3 +256,33 @@ export interface UploaderSource {
 export type LicenseEntry = readonly [subject: string, license: string];
 export type PinyinReadings = string | readonly string[];
 export type PinyinIndex = Readonly<Record<string, PinyinReadings>>;
+
+/** 领袖战场的实际地形；坐标与 MapPos 一致，crates/platforms 为初始可见设施。 */
+export interface LeaderBattlefield {
+  readonly id: string;
+  readonly name: string;
+  readonly grid: readonly string[];
+  readonly crates: readonly MapPos[];
+  readonly platforms: readonly MapPos[];
+}
+
+/** 一段连续运动；wait 是此段开始前的离场等待秒数，段间跳转按传送处理。 */
+export interface MovementLeg {
+  readonly points: readonly MapPos[];
+  readonly wait?: number;
+}
+
+/** 基础移动配置；speed 为格/秒，delay 为出场延时，loopFrom 指定重复的巡逻段。 */
+export interface EnemyMovement {
+  readonly speed: number;
+  readonly flying: boolean;
+  readonly delay: number;
+  readonly legs: readonly MovementLeg[];
+  readonly loopFrom?: number;
+}
+
+/** left/right 为游戏数据中的实际分支；只有 left 时路线由全场共享，不镜像生成。 */
+export interface MovementBranches {
+  readonly left: EnemyMovement;
+  readonly right?: EnemyMovement;
+}
