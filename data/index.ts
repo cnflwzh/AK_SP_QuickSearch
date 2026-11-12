@@ -11,6 +11,7 @@ import { CORE_BUILDS, MIXED_BUILDS } from './builds.ts';
 import { LEADERS } from './leaders.ts';
 
 export * from './operators.ts';
+export * from './operator-filters.ts';
 export * from './equipment.ts';
 export * from './strategies.ts';
 export * from './covenants.ts';

@@ -2635,6 +2635,7 @@ nav.top a.on {
 
 @media (display-mode:standalone) {
   nav.top {
+    background: var(--bg);
     padding-top: env(safe-area-inset-top);
   }
 }

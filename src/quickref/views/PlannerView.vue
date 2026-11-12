@@ -226,7 +226,6 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
         <div class="pl-stats">
           <span><b>{{ cost.recruit }}</b>招募</span>
           <span><b>{{ cost.equipment }}</b>装备</span>
-          <span><b>Lv{{ cost.maxTier || '—' }}</b>调度中心</span>
           <span><b>{{ active.length }}</b>激活盟约</span>
           <span><b>{{ cost.elites }}</b>精锐</span>
         </div>

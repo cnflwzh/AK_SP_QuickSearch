@@ -24,6 +24,6 @@ const cost = computed(() => planCost(props.ops));
     <div v-if="STRATEGY[strategy]" class="pls-st" :data-st="strategy"><img :src="portraitSrc(strategy)" alt="" width="22" height="22">{{ strategy }}</div>
     <p v-if="note" class="pls-note">{{ note }}</p>
     <PlanCovenants :stats="stats" :layers="layers" :compact="compact"/>
-    <div class="pls-c"><span>招募 <b>{{ cost.recruit }}</b></span><span>装备 <b>{{ cost.equipment }}</b></span><span>调度中心 <b>Lv{{ cost.maxTier || '—' }}</b></span></div>
+    <div class="pls-c"><span>招募 <b>{{ cost.recruit }}</b></span><span>装备 <b>{{ cost.equipment }}</b></span></div>
   </div>
 </template>

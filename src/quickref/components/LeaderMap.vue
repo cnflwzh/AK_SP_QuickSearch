@@ -7,7 +7,7 @@ import { prefersReducedMotion } from '../../lib/dom.ts';
 /** 地形与路线按场地更新；技能切换只更新覆盖层。SVG 自行播放，动画帧不触发 Vue 寻路或重绘。 */
 const props = defineProps<{
   stage: LeaderStage; layout?: LeaderLayout | null; scene?: LayoutZone; portrait: string;
-  terrain: LeaderBattlefield; side: 'left' | 'right' | 'all'; rate: number; paused: boolean; replay: number;
+  terrain: LeaderBattlefield; side: 'left' | 'right' | 'all';
 }>();
 const uid = useId(), svg = ref<SVGSVGElement>();
 const C = 48, H = 6.55 * C;
@@ -53,7 +53,7 @@ const marks = computed(() => {
       const at = plan.value && props.scene?.bossAt ? props.scene.bossAt : movement?.legs[0].points[0] ?? m.at;
       const key = at.join(','), n = positions.get(key) ?? 0; positions.set(key, n + 1);
       const [cx, cy] = center(at);
-      const timeline = movement ? movementTimeline(movement, props.terrain, props.rate).map(leg => ({ ...leg, path: path(leg.points) })) : [];
+      const timeline = movement ? movementTimeline(movement, props.terrain).map(leg => ({ ...leg, path: path(leg.points) })) : [];
       return { name: m.name, kind: m.kind, key: `${index}-${branch}`, cx, cy: cy + (plan.value ? n * C * .58 : 0),
         speed: movement?.speed, timeline, route: timeline.map(leg => leg.path).join(' ') };
     });
@@ -78,15 +78,14 @@ function linePath(points: readonly MapPos[]): string {
 }
 function playback(): void {
   if (!svg.value) return;
-  if (props.paused || !animate.value) svg.value.pauseAnimations(); else svg.value.unpauseAnimations();
+  if (!animate.value) svg.value.pauseAnimations(); else svg.value.unpauseAnimations();
 }
 function restart(): void {
   svg.value?.setCurrentTime(0);
   playback();
 }
 onMounted(restart);
-watch([() => props.stage, () => props.terrain, () => props.side, () => props.rate, () => props.replay, plan], restart, { flush: 'post' });
-watch(() => props.paused, playback);
+watch([() => props.stage, () => props.terrain, () => props.side, plan], restart, { flush: 'post' });
 </script>
 
 <template>
