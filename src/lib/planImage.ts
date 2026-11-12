@@ -98,6 +98,13 @@ export async function planImage(plan: Plan, link: string): Promise<Blob | null> 
     ctx.fillStyle = TIER[tier]; round(ctx, x, y, 72, 72, 6); ctx.fill();
     const img = images[i];
     if (img) { ctx.save(); round(ctx, x, y, 72, 72, 6); ctx.clip(); ctx.drawImage(img, x, y, 72, 72); ctx.restore(); }
+    if (slot.core) {
+      ctx.save();
+      ctx.strokeStyle = ACCENT; ctx.lineWidth = 2; round(ctx, x, y, 72, 72, 6); ctx.stroke();
+      ctx.fillStyle = ACCENT; round(ctx, x + 52, y + 52, 18, 18, 4); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = `700 13px ${FONT}`; ctx.textAlign = 'center';
+      ctx.fillText('★', x + 61, y + 66); ctx.restore();
+    }
     // 等阶：左上角罗马数字（右上角是精锐，左下角是装备）
     ctx.fillStyle = 'rgba(0,0,0,.62)'; round(ctx, x + 2, y + 2, 20, 16, 4); ctx.fill();
     ctx.fillStyle = '#fff'; ctx.font = `700 11px ${FONT}`; ctx.textAlign = 'center';

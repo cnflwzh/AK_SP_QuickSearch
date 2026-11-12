@@ -1,7 +1,8 @@
 import { inject, reactive, type InjectionKey } from 'vue';
-import { COVENANTS, BUILD_NAMES, LEADER } from '../../data/index.ts';
+import { COVENANTS, LEADER } from '../../data/index.ts';
 
-export const TAB_IDS = ['cv', 'op', 'eq', 'st', 'ld', 'bd', 'pl', 'nu'] as const;
+/** 顺序即 Tab 栏从左到右的顺序，左右滑动也按它切换 */
+export const TAB_IDS = ['fx', 'bd', 'cv', 'op', 'eq', 'st', 'ld', 'nu'] as const;
 export type TabId = typeof TAB_IDS[number];
 export type DetailKind = 'op' | 'eq' | 'st';
 export interface DetailSelection { kind: DetailKind; name: string }
@@ -18,16 +19,18 @@ const store = {
   get(key: string): string | null { try { return localStorage.getItem('wsq.' + key); } catch { return null; } },
   set(key: string, value: string): void { try { localStorage.setItem('wsq.' + key, value); } catch { /* Storage may be unavailable in private browsing. */ } },
 };
-/** 打开分享链接（#p=分享码）时直接进入规划页 */
+/** 打开分享链接（#p=分享码）时直接进入流派页的导入预览；旧版的“规划”Tab 已并入流派 */
 const sharedPlan = typeof location !== 'undefined' && location.hash.startsWith('#p=');
-const storedTab = sharedPlan ? 'pl' : store.get('tab');
+const savedTab = store.get('tab');
+const storedTab = sharedPlan || savedTab === 'pl' ? 'bd' : savedTab;
 const storedCovenant = store.get('cv') || '乌萨斯';
+/** 流派页选中的预设：内置流派名或自建流派 id，找不到时由 planStore 回退到第一套 */
 const storedBuild = store.get('bd') || '乌萨斯';
 const covenant = COVENANTS[storedCovenant] ? storedCovenant : '乌萨斯';
 const storedLeader = store.get('ld') || '';
 export const state = reactive<QuickrefState>({
-  tab: TAB_IDS.includes(storedTab as TabId) ? storedTab as TabId : 'cv',
-  covenant, build: BUILD_NAMES.includes(storedBuild) ? storedBuild : '乌萨斯',
+  tab: TAB_IDS.includes(storedTab as TabId) ? storedTab as TabId : 'fx',
+  covenant, build: storedBuild,
   opTier: 0, opCovenant: '', opElite: false, eqTier: 0, stCategory: 0,
   calculatorCovenant: COVENANTS[covenant].scaling.length ? covenant : '乌萨斯',
   layers: {}, mode: 1, pickerOpen: false,

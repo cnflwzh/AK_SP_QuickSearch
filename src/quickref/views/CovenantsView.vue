@@ -4,6 +4,8 @@ import { COVENANTS, CORE_COVENANTS, ADDON_COVENANTS, CORE_BUILDS, EQUIPMENT, STR
 import { avatarSrc } from '../../lib/assets.ts';
 import { color, fx, bonusHeadcount, bonusText, stackText } from '../format.ts';
 import { state, useQuickrefActions } from '../state.ts';
+import { runKey, runStat } from '../planStore.ts';
+import RunBanner from '../components/RunBanner.vue';
 import Chip from '../components/Chip.vue';
 import OperatorTile from '../components/OperatorTile.vue';
 const actions = useQuickrefActions();
@@ -23,16 +25,18 @@ const groups = computed(() => [
 const equipment = computed(() => EQUIPMENT.filter(e => e.covenant === name.value));
 const strategies = computed(() => STRATEGIES.filter(s => s.category === name.value));
 const builds = computed(() => [...(build.value ? [name.value] : []), ...Object.entries(CORE_BUILDS).filter(([, b]) => b.addons.includes(name.value)).map(([c]) => c)]);
+const mine = computed(() => runStat.value.get(name.value));
 const bonusLabel = computed(() => { const head = bonusHeadcount(covenant.value.bonus); return head ? head + (core.value ? ' 名不同' : ' 名') : '强化'; });
 </script>
 <template>
+  <RunBanner :focus="name"/>
   <div class="cvwrap">
     <div id="cvside" :class="['cvside', { open: state.pickerOpen }]">
       <button type="button" class="cvtg" data-cvtg :style="{ '--c': color(name) }" @click="state.pickerOpen = !state.pickerOpen"><b>{{ name }}</b><span :class="['tag', core ? 'a' : 't']">{{ core ? '核心' : '附加' }}</span><i>▾</i></button>
-      <div id="cvp" class="cvp"><h5>核心</h5><button v-for="item in CORE_COVENANTS" :key="item" type="button" :class="['cvb', { on: item === name }]" :style="{ '--c': color(item) }" :data-pick="item" :aria-pressed="item === name" @click="actions.pickCovenant(item)">{{ item }}<span>{{ rosterOf(item).length }}</span></button><h5>附加</h5><button v-for="item in ADDON_COVENANTS" :key="item" type="button" :class="['cvb', { on: item === name }]" :style="{ '--c': color(item) }" :data-pick="item" :aria-pressed="item === name" @click="actions.pickCovenant(item)">{{ item }}<span>{{ rosterOf(item).length }}</span></button></div>
+      <div id="cvp" class="cvp"><h5>核心</h5><button v-for="item in CORE_COVENANTS" :key="item" type="button" :class="['cvb', { on: item === name, inrun: runStat.get(item)?.active }]" :style="{ '--c': color(item) }" :data-pick="item" :aria-pressed="item === name" @click="actions.pickCovenant(item)">{{ item }}<span>{{ rosterOf(item).length }}</span></button><h5>附加</h5><button v-for="item in ADDON_COVENANTS" :key="item" type="button" :class="['cvb', { on: item === name, inrun: runStat.get(item)?.active }]" :style="{ '--c': color(item) }" :data-pick="item" :aria-pressed="item === name" @click="actions.pickCovenant(item)">{{ item }}<span>{{ rosterOf(item).length }}</span></button></div>
     </div>
     <div class="cvd" :data-covenant="name" :style="{ '--c': color(name) }">
-      <div class="cvh" data-key="header"><h2>{{ name }}</h2><span :class="['tag', core ? 'a' : 't']">{{ core ? '核心' : '附加' }}</span><div class="need"><i v-for="index in slots" :key="index" :class="{ o: index > covenant.need }" :style="{ animationDelay: (index - 1) * .05 + 's' }"></i><b>{{ covenant.need }}</b><span class="cnt">人激活</span></div></div>
+      <div class="cvh" data-key="header"><h2>{{ name }}</h2><span :class="['tag', core ? 'a' : 't']">{{ core ? '核心' : '附加' }}</span><div class="need"><i v-for="index in slots" :key="index" :class="{ o: index > covenant.need }" :style="{ animationDelay: (index - 1) * .05 + 's' }"></i><b>{{ covenant.need }}</b><span class="cnt">人激活</span></div><button v-if="mine" type="button" :class="['cv-mine', { on: mine.active, max: mine.bonusActive, off: mine.broken }]" :title="mine.members.join('、')" @click="actions.openBuild(runKey)">本局 <b>{{ mine.count }}</b> / {{ covenant.need }}<template v-if="mine.broken"> · 失效</template><template v-else-if="mine.bonusActive"> · 强化</template><template v-else-if="mine.active"> · 激活</template> ▸</button></div>
       <div class="efx" data-key="effects"><div class="ef" v-html="`<span class='tag'>${covenant.need} 人</span> ${fx(covenant.effect)}`"></div><div v-if="covenant.bonus" class="ef bonus" v-html="`<span class='tag a'>${bonusLabel}</span> ${fx(bonusText(covenant.bonus))}`"></div></div>
       <div v-if="roster.length" class="roster" data-key="roster">
         <div class="lg"><span class="cnt">{{ roster.length }} 名</span><template v-if="build"><span><b>★</b> 终盘阵容</span><span class="tag a" style="padding:0 6px">核心</span></template></div>

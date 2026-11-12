@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { nextTick } from 'vue';
+import { blankPlan } from '../src/lib/planner.ts';
+import { STRATEGIES } from '../data/index.ts';
+
+test('preset storage retains configured drafts, flushes on exit and follows cross-page selection', async () => {
+  const draft = { ...blankPlan('我的阵容'), strategy: STRATEGIES[0].name, layers: { 炎: 40 } };
+  const values = new Map([['wsq.plans', JSON.stringify([draft, blankPlan('我的阵容')])], ['wsq.run', 'missing'], ['wsq.bans', '["炎","炎","missing"]']]);
+  globalThis.matchMedia = () => ({ matches: false });
+  globalThis.window = new EventTarget();
+  globalThis.document = new EventTarget();
+  globalThis.localStorage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
+  const store = await import('../src/quickref/planStore.ts');
+  const { setBuild } = await import('../src/quickref/state.ts');
+  assert.deepEqual(store.plans.map(p => p.id), [draft.id]);
+  assert.equal(store.runKey.value, '');
+  assert.deepEqual([...store.runBans.value], ['炎']);
+  store.plans[0].note = '最后一次编辑';
+  window.dispatchEvent(new Event('pagehide'));
+  assert.equal(JSON.parse(values.get('wsq.plans'))[0].note, '最后一次编辑');
+  store.startEdit('炎');
+  assert.equal(store.editing.value, true);
+  setBuild('乌萨斯');
+  assert.equal(store.editing.value, false);
+  assert.ok(!store.plans.some(p => p.base === '炎'));
+  store.setRun('炎');
+  assert.equal(values.get('wsq.run'), '炎');
+  store.setRun('missing');
+  assert.equal(store.runKey.value, '炎');
+  await nextTick();
+  store.flushSave();
+});

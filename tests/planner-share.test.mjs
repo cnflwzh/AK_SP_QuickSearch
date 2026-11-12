@@ -11,7 +11,7 @@ const empty = () => ({ name: '', note: '', ops: [], strategy: '', layers: {} });
 const base64 = bytes => Buffer.from(bytes).toString('base64url');
 function roundTrip(plan) {
   const code = encodePlan(plan);
-  assert.match(code, /^WS[ABCEFG][A-Za-z0-9_-]+$/);
+  assert.match(code, /^WS[ABCEFGIJKMNO][A-Za-z0-9_-]+$/);
   assert.deepEqual(decodePlan(code)?.plan, plan);
   return code;
 }
@@ -31,11 +31,11 @@ test('built-in lineups and every operator, equipment and strategy survive sharin
   for (const strategy of STRATEGIES) roundTrip({ ...empty(), strategy: strategy.name });
 });
 
-test('full roster preserves order, elite flags, two equipment and three alternates', () => {
+test('full roster preserves order, elite and core flags, two equipment and three alternates', () => {
   const plan = {
     ...empty(), name: '满编测试', note: '每个干员的装备、备选和精锐状态都应保留。',
     ops: OPERATORS.slice(0, 8).map((op, i) => ({
-      name: op.name, elite: i % 2 === 0,
+      name: op.name, elite: i % 2 === 0, core: i % 3 === 0,
       eq: EQUIPMENT.slice(i * 2, i * 2 + 2).map(e => e.name),
       alt: OPERATORS.slice(8 + i * 3, 11 + i * 3).map(o => o.name),
     })),
@@ -119,7 +119,7 @@ test('500 reproducible mixed lineups round-trip without information loss', () =>
       const alt = [];
       const count = random(4);
       while (alt.length < count) { const candidate = pool[random(pool.length)].name; if (!alt.includes(candidate)) alt.push(candidate); }
-      return { name, elite: !!random(2), eq: Array.from({ length: random(3) }, () => EQUIPMENT[random(EQUIPMENT.length)].name), alt };
+      return { name, elite: !!random(2), core: !!random(2), eq: Array.from({ length: random(3) }, () => EQUIPMENT[random(EQUIPMENT.length)].name), alt };
     });
     roundTrip({ name: text(random(17)), note: text(random(151)), ops,
       strategy: random(3) ? STRATEGIES[random(STRATEGIES.length)].name : '',
