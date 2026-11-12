@@ -22,7 +22,7 @@ export const shortName = (leader: Pick<Leader, 'name'>): string => leader.name
   .replace(/^假想敌：/, '').replace(/^盐风主教/, '').replace(/，.*$/, '').replace(/[“”]/g, '');
 
 /** 领袖回合会巡逻进玩家半场（铳、鳍、矩兽） */
-export const patrols = (leader: Pick<Leader, 'stage'>): boolean => leader.stage.marks.some(m => m.kind === 'boss' && m.loop);
+export const patrols = (leader: Pick<Leader, 'stage'>): boolean => leader.stage.marks.some(m => m.kind === 'boss' && m.movement?.left.loopFrom !== undefined);
 
 const COUNTER_CLASS: Readonly<Record<CounterTag, string>> = {
   分散: 'sp', 阻挡: 'bl', 集火: 'fo', 法抗: 'ar', 对空: 'air', 限时: 'tm', 避让: 'av', 续航: 'su', 控制: 'cc',

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { LEADER_MAP, MODES, ROUND_TIME, type Leader } from '../../../data/index.ts';
+import { LEADER_MAP, LEADER_BATTLEFIELDS, MODES, ROUND_TIME, type Leader } from '../../../data/index.ts';
 import { leaderSrc } from '../../lib/assets.ts';
-import { wan } from '../../lib/dom.ts';
+import { prefersReducedMotion, wan } from '../../lib/dom.ts';
 import { abilityLabel, counterClass, damageClass, leaderFx, patrols } from '../../lib/leader.ts';
 import { state, setLeader } from '../state.ts';
 import Segmented from './Segmented.vue';
@@ -24,7 +24,23 @@ const view = ref(0);
 const hiddenView = computed(() => !!view.value && !!props.leader.hiddenStage);
 const stage = computed(() => hiddenView.value ? props.leader.hiddenStage! : props.leader.stage);
 /** 0 我方站位 · 1 敌人路线 */
-const mapMode = ref(0);
+const mapMode = computed({ get: () => state.leaderMapMode, set: value => { state.leaderMapMode = value; } });
+const terrain = computed(() => mapMode.value
+  ? LEADER_BATTLEFIELDS.find(map => map.id === state.leaderTerrain) ?? LEADER_BATTLEFIELDS[0]
+  : LEADER_BATTLEFIELDS[0]);
+const sides = ['left', 'all', 'right'] as const;
+const side = computed(() => sides[state.leaderMapSide] ?? 'left');
+const paused = ref(false), rate = ref(1), replay = ref(0);
+const mapPicker = ref<HTMLDetailsElement>(), pickerOpen = ref(false);
+/** 只改变路线地形；示例部署始终保留在原始场地 01。 */
+function chooseTerrain(id: string): void {
+  state.leaderTerrain = id;
+  if (mapPicker.value) mapPicker.value.open = false;
+}
+function restartRoute(): void { replay.value++; paused.value = false; }
+const mapChoices = LEADER_BATTLEFIELDS.map(map => ({
+  ...map, tiles: map.grid.flatMap((row, y) => [...row].map((ch, x) => ({ x, y, ch }))),
+}));
 const sceneIndex = ref(0);
 watch(() => props.leader.id, () => { view.value = 0; sceneIndex.value = 0; });
 watch(view, () => { sceneIndex.value = 0; });
@@ -82,8 +98,29 @@ const portrait = computed(() => leaderSrc(props.leader.name));
       <div v-if="layout" class="map-skills" role="group" aria-label="选择技能范围">
         <button v-for="(z, i) in layout.zones" :key="z.label" type="button" :class="{ on: scene === z, hc: z.tone === 'hc' }" :aria-pressed="scene === z" @click="sceneIndex = i">{{ z.label }}</button>
       </div>
-      <div class="map-terrain-key"><b>{{ LEADER_MAP.name }}</b><span><i class="terrain-road"></i>地面</span><span title="地面敌人不可通行，可部署干员"><i class="terrain-barrier"></i>地形障碍</span><span><i class="terrain-crate"></i>阻隔工事</span><span><i class="terrain-wall"></i>禁行</span></div>
-      <LeaderMap :stage="stage" :layout="layout" :scene="scene" :portrait="portrait"/>
+      <div v-if="mapMode" class="map-controls">
+        <details ref="mapPicker" class="map-picker" @toggle="pickerOpen = ($event.target as HTMLDetailsElement).open">
+          <summary>{{ terrain.name }}<span aria-hidden="true">⌄</span></summary>
+          <div v-if="pickerOpen" class="map-options" role="group" aria-label="选择实际场地">
+            <button v-for="option in mapChoices" :key="option.id" type="button" :class="{ on: option.id === terrain.id }" :aria-pressed="option.id === terrain.id" @click="chooseTerrain(option.id)">
+              <svg viewBox="0 0 170 60" aria-hidden="true">
+                <rect v-for="t in option.tiles" :key="t.x + ',' + t.y" :x="t.x * 10" :y="t.y * 10" width="9" height="9" :class="['mini-tile', { wall: t.ch === '#', barrier: 'BHb'.includes(t.ch), gate: t.ch === 'E', special: 'IMGV'.includes(t.ch) }]"/>
+                <rect v-for="([x, y], i) in option.crates" :key="'c' + i" :x="x * 10 + 1" :y="y * 10 + 1" width="7" height="7" class="mini-crate"/>
+                <rect v-for="([x, y], i) in option.platforms" :key="'p' + i" :x="x * 10 + 1" :y="y * 10 + 1" width="7" height="7" class="mini-platform"/>
+              </svg>
+              <span>{{ option.name }}</span>
+            </button>
+          </div>
+        </details>
+        <Segmented :labels="['左侧', '全场', '右侧']" :active="state.leaderMapSide" attr="map-side" @change="state.leaderMapSide = $event"/>
+        <div v-if="!prefersReducedMotion" class="map-playback" role="group" aria-label="路线播放">
+          <button type="button" :aria-pressed="paused" @click="paused = !paused">{{ paused ? '继续' : '暂停' }}</button>
+          <button type="button" @click="restartRoute">重播</button>
+          <select v-model.number="rate" aria-label="路线播放速度"><option :value="1">1× 基础移速</option><option :value="2">2×</option><option :value="4">4×</option></select>
+        </div>
+      </div>
+      <div class="map-terrain-key"><b>{{ mapMode ? terrain.name : LEADER_MAP.name }}</b><span><i class="terrain-road"></i>地面</span><span title="地面敌人不可通行，可部署干员"><i class="terrain-barrier"></i>地形障碍</span><span><i class="terrain-crate"></i>阻隔工事</span><span><i class="terrain-wall"></i>禁行</span></div>
+      <LeaderMap :stage="stage" :layout="layout" :scene="scene" :portrait="portrait" :terrain="terrain" :side="side" :rate="rate" :paused="paused" :replay="replay"/>
       <div v-if="scene" class="map-reading" aria-live="polite">
         <div v-if="targetMarks.length" class="map-targets"><span>目标</span><b v-for="mark in targetMarks" :key="mark">{{ mark }}</b></div>
         <p>{{ scene.hint }}</p>

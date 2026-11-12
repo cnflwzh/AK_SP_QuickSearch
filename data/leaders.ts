@@ -1,4 +1,5 @@
 import type { Leader, MapPos, StageEscort } from './types.ts';
+import { LEADER_BATTLEFIELDS, LEADER_MOVEMENTS } from './leader-movement.ts';
 
 /**
  * 领袖（最终回合首领）。
@@ -17,7 +18,7 @@ import type { Leader, MapPos, StageEscort } from './types.ts';
  *
  * stage / hiddenStage 取自关卡文件 levels/activities/act3autochess/
  *   level_act3autochess_h07_xx.json（领袖回合）与 h08_xx.json（隐秘核心回合），并交叉核对 _s 独立模拟版本。
- *   h07/h08 是波次与路线模板；实际地形取标准场地 01 的 m01_sub_03 联合战场。
+ *   h07/h08 是波次与路线模板；实际地形及完整移动指令见 leader-movement.ts。
  *   随行数量取联合模拟 h07/h08 全场的静态 SPAWN 总数，额外技能召唤另计。
  * counters 由能力描述、随行敌人与路线推导，by 写明依据。
  * layout 根据机制整理我方站位；范围取自 enemy_database 与 PRTS 技能解析（管 1.8 格、弦 3 格）。
@@ -33,16 +34,8 @@ import type { Leader, MapPos, StageEscort } from './types.ts';
  * 地面路线根据关卡检查点绕过地形；飞行路线保留原检查点。
  */
 export const LEADER_MAP = {
+  ...LEADER_BATTLEFIELDS[0],
   name: '标准场地 01',
-  grid: [
-    '#################',
-    '#B....._o_.....B#',
-    '#B.BBB.___.BBB.B#',
-    '#B.BBB.___.BBB.B#',
-    'E..###..o..###..E',
-    '#ibbbbb###bbbbbi#',
-  ],
-  crates: [[3, 2], [3, 3], [4, 3], [13, 2], [13, 3], [12, 3]] as readonly MapPos[],
   spawn: [8, 4] as MapPos,
   exit: [0, 4] as MapPos,
   transfer: [1, 5] as MapPos,
@@ -131,15 +124,15 @@ export const LEADERS: readonly Leader[] = [
       { skill: '末日布道', text: '持续把所有<“碎铳之簧”>拉向自身，期间簧大幅加速并免疫伤害，对经过的我方单位造成物理伤害' },
     ],
     stage: {
-      marks: [{ name: '铳', kind: 'boss', at: [8, 2], path: [[7, 1], [1, 4], [7, 3]], loop: true }],
+      marks: [{ name: '铳', kind: 'boss', at: LEADER_MOVEMENTS.gun.left.legs[0].points[0], movement: LEADER_MOVEMENTS.gun }],
       escorts: [{ name: '愧悔魂灵圣杯', count: 2, fly: true, note: '分摊周围地面敌人受到的部分伤害' }],
     },
     hiddenStage: {
       marks: [
-        { name: '铳', kind: 'boss', at: [8, 2], path: [[7, 1], [1, 4], [7, 3]], loop: true },
-        { name: '碎铳之簧', kind: 'part', at: [7, 2], path: [[7, 4], [7, 1], [1, 4]], loop: true },
-        { name: '碎铳之簧', kind: 'part', at: [8, 2], path: [[7, 1], [1, 4], [7, 4]], loop: true },
-        { name: '碎铳之簧', kind: 'part', at: [9, 2], path: [[1, 4], [7, 4], [7, 1]], loop: true },
+        { name: '铳', kind: 'boss', at: LEADER_MOVEMENTS.gunCore.left.legs[0].points[0], movement: LEADER_MOVEMENTS.gunCore },
+        { name: '碎铳之簧', kind: 'part', at: LEADER_MOVEMENTS.springA.left.legs[0].points[0], movement: LEADER_MOVEMENTS.springA },
+        { name: '碎铳之簧', kind: 'part', at: LEADER_MOVEMENTS.springB.left.legs[0].points[0], movement: LEADER_MOVEMENTS.springB },
+        { name: '碎铳之簧', kind: 'part', at: LEADER_MOVEMENTS.springC.left.legs[0].points[0], movement: LEADER_MOVEMENTS.springC },
       ],
       escorts: [{ name: '假想敌：淤困', count: 2, note: '被阻挡时寄生目标：持续法术伤害，受到的{元素损伤}增加' }],
     },
@@ -305,7 +298,7 @@ export const LEADERS: readonly Leader[] = [
     stage: {
       marks: [
         { name: '阿利斯泰尔', kind: 'boss', at: [8, 3] },
-        { name: '萨科塔昂首', kind: 'unit', at: [8, 1], path: [[7, 2], [5, 2], [4, 3], [2, 3], [1, 4], [1, 5]] },
+        { name: '萨科塔昂首', kind: 'unit', at: LEADER_MOVEMENTS.sakota.left.legs[0].points[0], movement: LEADER_MOVEMENTS.sakota },
       ],
       escorts: [{ name: '“萨科塔昂首”', count: 2, fly: true, note: '【祈祷邀约】降低全场我方单位攻击速度；生命首次低于一半时{恐惧}' }],
     },
@@ -505,13 +498,13 @@ export const LEADERS: readonly Leader[] = [
     ],
     stage: {
       marks: [
-        { name: '鳍', kind: 'boss', at: [8, 2], path: [[7, 1], [1, 4], [7, 3]], loop: true },
-        { name: '纤核漂游者', kind: 'unit', at: [8, 4], path: [[6, 1], [5, 4], [3, 1], [1, 5]] },
+        { name: '鳍', kind: 'boss', at: LEADER_MOVEMENTS.fin.left.legs[0].points[0], movement: LEADER_MOVEMENTS.fin },
+        { name: '纤核漂游者', kind: 'unit', at: LEADER_MOVEMENTS.fiber.left.legs[0].points[0], movement: LEADER_MOVEMENTS.fiber },
       ],
       escorts: [{ name: '纤核漂游者', count: 6, fly: true, note: '优先攻击高台单位，攻击附带{神经损伤}' }],
     },
     hiddenStage: {
-      marks: [{ name: '鳍', kind: 'boss', at: [8, 2], path: [[7, 1], [1, 4], [7, 3]], loop: true }],
+      marks: [{ name: '鳍', kind: 'boss', at: LEADER_MOVEMENTS.finCore.left.legs[0].points[0], movement: LEADER_MOVEMENTS.finCore }],
       escorts: [{ name: '假想敌：淤困', count: 2, note: '被阻挡时寄生目标：持续法术伤害，受到的{元素损伤}增加' }],
     },
     counters: [
@@ -556,7 +549,7 @@ export const LEADERS: readonly Leader[] = [
     ],
     hiddenAbilities: [],
     stage: {
-      marks: [{ name: '矩兽', kind: 'boss', at: [8, 2], path: [[7, 1], [1, 4], [7, 3]], loop: true }],
+      marks: [{ name: '矩兽', kind: 'boss', at: LEADER_MOVEMENTS.beast.left.legs[0].points[0], movement: LEADER_MOVEMENTS.beast }],
       escorts: [{ name: '山海众秘使', count: 4, note: '{隐匿}；隐匿失效后的下一次攻击伤害更高' }],
     },
     hiddenStage: null,
