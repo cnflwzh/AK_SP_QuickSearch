@@ -52,7 +52,7 @@ function addEquip(name: string): void {
 }
 function dropEquip(i: number): void { slot.value?.eq.splice(i, 1); touch(); }
 /* 备选：主选抓不到时的次级选择。点备选 = 和主选互换（看换人后的盟约），× = 移除 */
-const altSuggest = computed(() => slot.value ? alternatesFor(slot.value, ops.value) : []);
+const altSuggest = computed(() => slot.value ? alternatesFor(slot.value, ops.value, 8, plan.value.layers) : []);
 function addAlt(name: string): void {
   const s = slot.value;
   if (!s || s.alt.length >= MAX_ALT || name === s.name || s.alt.includes(name) || inPlan.value.has(name)) return;
@@ -80,7 +80,7 @@ function setLayers(name: string, value: number): void {
 }
 const active = computed(() => stats.value.filter(s => s.active));
 const cost = computed(() => planCost(ops.value));
-const recs = computed(() => suggestions(ops.value));
+const recs = computed(() => suggestions(ops.value, 8, plan.value.layers));
 const notes = computed(() => equipNotes(ops.value));
 const strategy = computed(() => STRATEGY[plan.value.strategy]);
 /** 阵容里已有的盟约：干员池里能推进它们的干员加星 */

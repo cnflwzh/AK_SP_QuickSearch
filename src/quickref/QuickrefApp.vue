@@ -46,7 +46,7 @@ async function show(tab: TabId, scroll = true): Promise<void> {
   clearSearch(); setTab(tab); await nextTick();
   // Tab 栏可横向滚动：切换后把当前 Tab 带进可见范围
   const bar = tabBar.value, on = bar?.querySelector<HTMLElement>('button.on');
-  if (bar && on) bar.scrollTo({ left: on.offsetLeft - (bar.clientWidth - on.offsetWidth) / 2, behavior: scrollBehavior() });
+  if (bar && on) bar.scrollTo({ left: bar.scrollLeft + on.getBoundingClientRect().left - bar.getBoundingClientRect().left - (bar.clientWidth - on.offsetWidth) / 2, behavior: scrollBehavior() });
   if (scroll && view.value) { const top = topOf(view.value) - 4; if (window.scrollY > top) window.scrollTo({ top, behavior: scrollBehavior() }); }
 }
 function flashOperator(name: string): boolean {
@@ -54,7 +54,9 @@ function flashOperator(name: string): boolean {
   if (!targets.length) return false;
   const first = targets[0], bounds = first.getBoundingClientRect();
   if (bounds.top < (searchBar.value?.offsetHeight ?? 0) || bounds.bottom > window.innerHeight) first.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
-  for (const target of targets) { target.classList.remove('flash'); void target.offsetWidth; target.classList.add('flash'); }
+  for (const target of targets) target.classList.remove('flash');
+  void first.offsetWidth; // 合并布局读取，避免每个匹配项都强制重排。
+  for (const target of targets) target.classList.add('flash');
   return true;
 }
 function openDetail(kind: DetailKind, name: string): void {
@@ -95,7 +97,7 @@ function pickTab(tab: TabId): void { void show(tab, false); }
 let swipeStart: { x: number; y: number; at: number } | null = null;
 function swipeBlocked(target: EventTarget | null): boolean {
   for (let el = target instanceof Element ? target : null; el && el !== view.value; el = el.parentElement) {
-    if (el.matches('input, textarea, select, [data-noswipe]')) return true;
+    if (el.matches('input, textarea, select, [contenteditable], [role=slider], dialog, svg.lwm, [data-noswipe]')) return true;
     if (el.scrollWidth > el.clientWidth + 1 && /auto|scroll/.test(getComputedStyle(el).overflowX)) return true;
   }
   return false;

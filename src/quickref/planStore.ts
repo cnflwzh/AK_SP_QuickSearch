@@ -7,29 +7,32 @@
  * - 本局被 ban 的盟约由玩家自己勾，只用于给出替代方案。
  */
 import { computed, reactive, ref, watch } from 'vue';
-import { BUILD_NAMES, CORE_BUILDS } from '../../data/index.ts';
+import { BUILD_NAMES, CORE_BUILDS, ALL_COVENANTS } from '../../data/index.ts';
 import { color } from './format.ts';
 import { blankPlan, builtinPlan, covenantStats, loadPlans, newId, samePlan, savePlans, type CovenantStat, type Plan } from '../lib/planner.ts';
 import { state, setBuild } from './state.ts';
 
 /** 用户的方案：自建流派和内置流派的修改版 */
 // 旧版规划页会自动建一个空的“我的阵容”，没动过的就不带进流派列表
-export const plans = reactive<Plan[]>(loadPlans().filter(p => p.ops.length || p.note || p.name !== '我的阵容'));
+export const plans = reactive<Plan[]>(loadPlans().filter(p => p.ops.length || p.note || p.strategy || Object.keys(p.layers).length || p.base || p.name !== '我的阵容'));
 
 /* ---------- 存档：连续修改合并写入，离页时立即落盘 ---------- */
 export const saveError = ref(false);
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let dirty = false;
-export function flushSave(): void {
+export function flushSave(force = false): void {
   clearTimeout(saveTimer); saveTimer = undefined;
-  if (!dirty) return;
+  if (!dirty && !force) return;
   const saved = savePlans(plans); saveError.value = !saved; dirty = !saved;
 }
 function scheduleSave(): void { dirty = true; clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 250); }
-watch(plans, scheduleSave, { deep: true });
+const stopSaving = watch(plans, scheduleSave, { deep: true });
+// 离页事件可能先于 Vue 的批量 watch 执行，直接保存当前数据，避免漏掉最后一次修改。
+const saveOnExit = (): void => flushSave(true);
+const saveOnHidden = (): void => { if (document.visibilityState === 'hidden') saveOnExit(); };
 if (typeof window !== 'undefined') {
-  window.addEventListener('pagehide', flushSave);
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSave(); });
+  window.addEventListener('pagehide', saveOnExit);
+  document.addEventListener('visibilitychange', saveOnHidden);
 }
 
 /* ---------- 预设列表 ---------- */
@@ -107,6 +110,10 @@ export function finishEdit(): void {
   editingId.value = '';
   if (edited?.base && samePlan(edited, BUILTIN.get(edited.base)!)) plans.splice(plans.indexOf(edited), 1);
 }
+// 通过本局横条、详情链接等路径切换预设，也必须结束上一套的编辑。
+const stopSelection = watch(() => state.build, key => {
+  if (editing.value && key !== (plan.value.base ?? plan.value.id)) finishEdit();
+}, { flush: 'sync' });
 /** 规划器内部：正在编辑的阵容 */
 export const planOps = computed(() => plan.value.ops);
 export const inPlan = computed(() => new Set(planOps.value.map(o => o.name)));
@@ -115,20 +122,23 @@ export const planStats = computed(() => covenantStats(planOps.value, plan.value.
 /* ---------- 本局 ---------- */
 const read = (key: string): string => { try { return localStorage.getItem(key) ?? ''; } catch { return ''; } };
 const write = (key: string, value: string): void => { try { localStorage.setItem(key, value); } catch { /* 隐私模式下不可用 */ } };
-const storedBans = ((): string[] => { try { const v: unknown = JSON.parse(read('wsq.bans') || '[]'); return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []; } catch { return []; } })();
+const storedBans = ((): string[] => { try { const v: unknown = JSON.parse(read('wsq.bans') || '[]'); return Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === 'string' && ALL_COVENANTS.includes(x) && x !== '绝技'))] : []; } catch { return []; } })();
 
-export const runKey = ref(read('wsq.run'));
+const storedRun = read('wsq.run');
+export const runKey = ref(presetOf(storedRun) ? storedRun : '');
 /** 本局被 ban 的盟约（玩家自己勾的，只用于替代推荐） */
 export const runBans = ref<string[]>(storedBans);
-watch(runKey, key => write('wsq.run', key));
-watch(runBans, bans => write('wsq.bans', JSON.stringify(bans)), { deep: true });
+const stopRun = watch(runKey, key => write('wsq.run', key), { flush: 'sync' });
+const stopBans = watch(runBans, bans => write('wsq.bans', JSON.stringify(bans)), { deep: true, flush: 'sync' });
 export const run = computed(() => runKey.value ? presetOf(runKey.value) : undefined);
 /** 换一套流派或结束本局；结束时清掉勾选的 ban */
 export function setRun(key: string): void {
+  if (key && !presetOf(key)) return;
   runKey.value = key;
   if (!key) runBans.value = [];
 }
 export function toggleBan(name: string): void {
+  if (!ALL_COVENANTS.includes(name) || name === '绝技') return;
   const i = runBans.value.indexOf(name);
   if (i >= 0) runBans.value.splice(i, 1); else runBans.value.push(name);
 }
@@ -136,3 +146,10 @@ export const runOps = computed(() => run.value?.plan.ops ?? []);
 export const inRun = computed(() => new Set(runOps.value.map(o => o.name)));
 export const runStats = computed<CovenantStat[]>(() => run.value ? covenantStats(run.value.plan.ops, run.value.plan.layers) : []);
 export const runStat = computed(() => new Map(runStats.value.map(s => [s.name, s])));
+
+/** 开发热更新时也释放模块级监听器，避免每次更新叠加存档任务。 */
+if (import.meta.hot) import.meta.hot.dispose(() => {
+  saveOnExit(); stopSaving(); stopSelection(); stopRun(); stopBans();
+  window.removeEventListener('pagehide', saveOnExit);
+  document.removeEventListener('visibilitychange', saveOnHidden);
+});

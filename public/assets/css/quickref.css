@@ -2890,9 +2890,10 @@ mark {
 @keyframes tab-ul { from { transform: scaleX(0); } }
 
 /* 干员 / 装备 / 策略：卡片依次浮现，档位标题从左滑入 */
-.qg > .oc { animation: oc-in .32s cubic-bezier(.2, .7, .3, 1) calc(min(var(--i, 0), 16) * .025s) both; }
+.qg > .oc[data-catalog-enter=pending] { opacity: 0; }
+.qg > .oc[data-catalog-enter=active] { animation: oc-in .32s cubic-bezier(.2, .7, .3, 1) calc(var(--entry-order, 0) * .025s) backwards; }
 @keyframes oc-in { from { opacity: 0; transform: translateY(10px) scale(.97); } }
-.pane .tierh { animation: tierh-in .3s ease-out both; }
+.pane .tierh { animation: tierh-in .3s ease-out backwards; }
 @keyframes tierh-in { from { opacity: 0; transform: translateX(-12px); } }
 
 /* ---------- 本局联动 ---------- */
@@ -2977,7 +2978,7 @@ mark {
 .balt b { color: var(--ink); }
 .bfx { margin-top: 14px; }
 .bfx h5 .hint { margin-left: 8px; font-weight: 400; font-size: 11.5px; color: var(--ink3); }
-.bfx .fxc { animation: bfx-in .3s ease-out both; }
+.bfx .fxc { animation: bfx-in .3s ease-out backwards; }
 @keyframes bfx-in { from { opacity: 0; transform: translateY(6px); } }
 @media (prefers-reduced-motion: reduce) { .bfx .fxc { animation: none; } }
 
@@ -3006,5 +3007,6 @@ mark {
   .bpk .alts { margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .pane[data-slide], .tabs button.on::after, .qg > .oc, .pane .tierh { animation: none; }
+  .pane[data-slide], .tabs button.on::after, .qg > .oc[data-catalog-enter], .pane .tierh { animation: none; }
+  .qg > .oc[data-catalog-enter=pending] { opacity: 1; }
 }

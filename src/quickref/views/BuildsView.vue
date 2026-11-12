@@ -39,7 +39,9 @@ const accent = computed(() => presetColor(p.value));
 const carries = computed(() => new Set(base.value?.carries ?? []));
 const lineup = computed(() => p.value.plan.ops.map(o => OPERATOR[o.name]).filter((o): o is Operator => !!o));
 const withAlts = computed(() => p.value.plan.ops.filter(o => o.alt.length));
-const stats = computed(() => covenantStats(p.value.plan.ops, p.value.plan.layers).filter(s => s.name !== '绝技'));
+const stats = computed(() => covenantStats(p.value.plan.ops, p.value.plan.layers));
+// 绝技由精锐数产生，可以显示效果，但不是可被 ban 的原生盟约。
+const bannable = computed(() => stats.value.filter(s => s.name !== '绝技'));
 /** 这套要用的盟约：终盘阵容里激活的 */
 const needs = computed(() => stats.value.filter(s => s.active));
 /** 已成型盟约的效果；方案里填过层数的按层数代入 */
@@ -62,12 +64,14 @@ function restore(): void { if (confirm(`放弃对「${p.value.key}」的修改�
 
 /* ---------- 盟约被 ban：被 ban 盟约的干员不会出现，给出替代 ---------- */
 const banOpen = ref(false);
-const myBans = computed(() => runBans.value.filter(b => stats.value.some(s => s.name === b)));
+const myBans = computed(() => runBans.value.filter(b => bannable.value.some(s => s.name === b)));
 const forced = ref<Record<string, string>>({});
 watch(() => [p.value.key, runBans.value.join()], () => { forced.value = {}; });
-const ban = computed(() => myBans.value.length ? banReplace(p.value.plan.ops, runBans.value, forced.value) : null);
-const banAfter = computed(() => ban.value ? covenantStats(ban.value.ops).filter(s => s.active && s.name !== '绝技') : []);
-function pickAlt(replaces: string, name: string): void { forced.value = { ...forced.value, [replaces]: name }; }
+const ban = computed(() => myBans.value.length ? banReplace(p.value.plan.ops, runBans.value, forced.value, p.value.plan.layers) : null);
+const banAfter = computed(() => ban.value ? covenantStats(ban.value.ops, p.value.plan.layers).filter(s => s.active) : []);
+function pickAlt(replaces: string, name: string): void {
+  forced.value = { ...Object.fromEntries(Object.entries(forced.value).filter(([, chosen]) => chosen !== name)), [replaces]: name };
+}
 function saveBan(): void {
   const result = ban.value; if (!result) return;
   const source = p.value.plan, st = STRATEGY[source.strategy];
@@ -144,7 +148,7 @@ onUnmounted(() => window.removeEventListener('hashchange', readHash));
     </div>
 
     <div v-if="banOpen || myBans.length" class="bban">
-      <div class="bpick"><span class="k">点选被 ban 的</span><button v-for="s in stats" :key="s.name" type="button" :class="['bc', { on: runBans.includes(s.name) }]" :style="{ '--c': color(s.name) }" @click="toggleBan(s.name)">{{ s.name }}</button></div>
+      <div class="bpick"><span class="k">点选被 ban 的</span><button v-for="s in bannable" :key="s.name" type="button" :class="['bc', { on: runBans.includes(s.name) }]" :style="{ '--c': color(s.name) }" @click="toggleBan(s.name)">{{ s.name }}</button></div>
       <template v-if="ban">
         <div v-for="pk in ban.picks" :key="pk.replaces" class="bpk">
           <span class="av off" :data-t="OPERATOR[pk.replaces].tier" :title="`${pk.replaces} 不会出现`"><img :src="avatarSrc(pk.replaces)" alt="" width="36" height="36"><small>{{ pk.replaces }}</small></span>

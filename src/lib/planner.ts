@@ -114,128 +114,219 @@ export const atLayers = (text: string, layers: number): string =>
     return String(/^%\s*概率/.test(text.slice(offset + match.length)) ? Math.min(100, value) : value);
   });
 
-/* ---------- 补位推荐 ---------- */
+/* ---------- 阵容评价与补位推荐 ---------- */
 
 export interface Suggestion { op: Operator; score: number; gains: { covenant: string; kind: 'on' | 'bonus' | 'up' | 'off' }[] }
+const COV_INDEX = new Map(ALL_COVENANTS.map((name, i) => [name, i]));
+const HARMONY_INDEX = COV_INDEX.get('调和')!;
+const ELITE_INDEX = COV_INDEX.get('绝技')!;
+const COV_RULES = ALL_COVENANTS.map(name => ({
+  name, core: isCoreCovenant(name), need: COVENANTS[name].need,
+  bonusNeed: name === '绝技' ? 5 : bonusNeedOf(COVENANTS[name].bonus) || (isCoreCovenant(name) ? 6 : 0),
+  bonusLayers: bonusLayersOf(COVENANTS[name].bonus), solo: name === '独行',
+}));
+const OP_INDEX = new Map(OPERATORS.map((op, i) => [op.name, i]));
+const OP_BITS = OPERATORS.map((_, i) => 1n << BigInt(i));
 
-/** 对每个没上场的干员，算加入后跨过的门槛：激活 > 强化 > 只加人数；会让【独行】失效的扣分 */
-export function suggestions(ops: readonly PlanOp[], limit = 8): Suggestion[] {
-  if (ops.length >= MAX_OPS) return [];
-  const taken = new Set(ops.map(o => o.name));
-  const before = new Map(covenantStats(ops).map(s => [s.name, s]));
-  const out: Suggestion[] = [];
-  for (const op of OPERATORS) {
-    if (taken.has(op.name)) continue;
-    const gains: Suggestion['gains'] = [];
-    let score = 0;
-    // 与主面板使用同一套计算，调和同时影响激活和六人强化。
-    for (const next of covenantStats([...ops, newSlot(op.name)])) {
-      const was = before.get(next.name);
-      if (next.broken && was?.active) { gains.push({ covenant: next.name, kind: 'off' }); score -= 4; }
-      else if (next.active && !was?.active) { gains.push({ covenant: next.name, kind: 'on' }); score += 6; }
-      else if (next.bonusActive && !was?.bonusActive) { gains.push({ covenant: next.name, kind: 'bonus' }); score += 5; }
-      else if (was && !next.broken && next.next > 0 && next.count > was.count) {
-        gains.push({ covenant: next.name, kind: 'up' }); score += next.active ? 1.2 : 1.5;
-      }
-    }
-    if (score > 0) out.push({ op, score: score + op.tier * .01, gains });
+function slotCovenants(slot: PlanOp): number[] {
+  const { own, granted } = covenantsOf(slot);
+  return [...new Set([...own, ...granted])].map(name => COV_INDEX.get(name)!);
+}
+function lineupCounts(ops: readonly PlanOp[]): Uint8Array {
+  const counts = new Uint8Array(ALL_COVENANTS.length), seen = new Set<string>();
+  for (const slot of ops) {
+    if (seen.has(slot.name) || !OPERATOR[slot.name]) continue;
+    seen.add(slot.name);
+    for (const index of slotCovenants(slot)) counts[index]++;
+    if (slot.elite) counts[ELITE_INDEX]++;
   }
-  return out.sort((a, b) => b.score - a.score).slice(0, limit);
+  return counts;
 }
 
 /**
- * 某个位置的备选推荐：和主选共享盟约越多、等阶越接近越靠前；排除场上和已列的备选。
- * 共享核心盟约权重更高，因为核心盟约断人会直接掉档。
+ * 用整队状态评价候选：优先保住已有核心的激活/强化，再保附加盟约，
+ * 尚未成型的盟约只给有限进度分，超过目标门槛的人数不继续加分。
+ * 与 covenantStats 共用门槛来源，并计入调和、独行、精锐和装备赋予的盟约。
  */
-export function alternatesFor(slot: PlanOp, ops: readonly PlanOp[], limit = 8): Operator[] {
-  const main = OPERATOR[slot.name]; if (!main) return [];
-  const taken = new Set([...ops.map(o => o.name), ...slot.alt]);
-  return OPERATORS
-    .filter(op => !taken.has(op.name))
-    .map(op => {
-      const shared = op.covenants.filter(c => main.covenants.includes(c));
-      return { op, score: shared.reduce((s, c) => s + (isCoreCovenant(c) ? 3 : 2), 0) - Math.abs(op.tier - main.tier) * .6 };
-    })
-    .filter(x => x.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit).map(x => x.op);
+function lineupEvaluator(ops: readonly PlanOp[], layers: Layers, bans: ReadonlySet<string> = new Set()): (counts: Uint8Array) => number {
+  const original = new Map(covenantStats(ops, layers).map(stat => [stat.name, stat]));
+  const goals = COV_RULES.map(rule => {
+    const was = original.get(rule.name);
+    return {
+      ...rule, banned: bans.has(rule.name),
+      activation: was?.active ? rule.core ? 1000 : 120 : rule.core ? 90 : 12,
+      bonus: was?.bonusActive ? rule.core ? 700 : 80 : rule.core ? 50 : 8,
+      progress: was ? rule.core ? 30 : 10 : 1,
+      target: was ? Math.min(Math.max(was.count, rule.need), rule.bonusNeed || rule.need) : rule.need,
+    };
+  });
+  return counts => {
+    let score = 0;
+    const harmony = counts[HARMONY_INDEX] > 0;
+    for (let i = 0; i < goals.length; i++) {
+      const goal = goals[i], members = counts[i];
+      if (!members || goal.banned) continue;
+      const count = members + (goal.core && harmony ? 1 : 0);
+      if (goal.solo && count !== 1) continue;
+      const active = count >= goal.need;
+      const bonus = active && (goal.bonusNeed ? count >= goal.bonusNeed : goal.bonusLayers > 0 && (layers[goal.name] ?? 0) >= goal.bonusLayers);
+      score += (active ? goal.activation : 0) + (bonus ? goal.bonus : 0);
+      score += goal.progress * Math.min(count, goal.target) / goal.target;
+    }
+    return score;
+  };
 }
 
-/* ---------- 盟约被 ban ----------
- * 被 ban 盟约的干员整局都不会出现：带这些盟约的位置全部空出，
- * 再从剩下的干员里补人，尽量把其余盟约补回原来的人数。 */
+/** 新人保留该位置的装备，精锐须重新合成；备选不计入实际阵容。 */
+function replacement(slot: PlanOp, name: string): PlanOp {
+  return { name, elite: false, eq: [...slot.eq], alt: [] };
+}
+function slotAffinity(slot: PlanOp, op: Operator): number {
+  const original = OPERATOR[slot.name], alt = slot.alt.indexOf(op.name);
+  // type 是叠层/作战/整备等特质类型，不是职业或战力评级。
+  return (alt >= 0 ? 6 - alt : 0) + (op.type === original.type ? 1.5 : 0) - Math.abs(op.tier - original.tier) * .45;
+}
+function changedCovenants(before: readonly CovenantStat[], after: readonly CovenantStat[]): Suggestion['gains'] {
+  const previous = new Map(before.map(stat => [stat.name, stat]));
+  return after.flatMap(next => {
+    const was = previous.get(next.name);
+    const kind: Suggestion['gains'][number]['kind'] | null = was?.active && !next.active ? 'off'
+      : next.active && !was?.active ? 'on'
+      : next.bonusActive && !was?.bonusActive ? 'bonus'
+      : was && !next.broken && next.next > 0 && next.count > was.count ? 'up' : null;
+    return kind ? [{ covenant: next.name, kind }] : [];
+  });
+}
 
+/** 返回加入后改善整队盟约的干员；layers 使用当前方案层数，函数不修改阵容。 */
+export function suggestions(ops: readonly PlanOp[], limit = 8, layers: Layers = {}): Suggestion[] {
+  if (ops.length >= MAX_OPS) return [];
+  const taken = new Set(ops.map(slot => slot.name)), before = covenantStats(ops, layers);
+  const evaluate = lineupEvaluator(ops, layers), initial = evaluate(lineupCounts(ops));
+  return OPERATORS.filter(op => !taken.has(op.name)).map(op => {
+    const lineup = [...ops, newSlot(op.name)];
+    return { op, score: evaluate(lineupCounts(lineup)) - initial,
+      gains: changedCovenants(before, covenantStats(lineup, layers)) };
+  }).filter(result => result.score > 0 && result.gains.some(gain => gain.kind !== 'off'))
+    .sort((a, b) => b.score - a.score || a.op.tier - b.op.tier || OP_INDEX.get(a.op.name)! - OP_INDEX.get(b.op.name)!)
+    .slice(0, limit);
+}
+
+/** 在原位置实际换人后评价整队，计入该位置装备；优先保住成型盟约，再比较备选、特质类型和等阶。 */
+export function alternatesFor(slot: PlanOp, ops: readonly PlanOp[], limit = 8, layers: Layers = {}): Operator[] {
+  if (!OPERATOR[slot.name]) return [];
+  const taken = new Set([...ops.map(op => op.name), ...slot.alt]);
+  const evaluate = lineupEvaluator(ops, layers);
+  return OPERATORS.filter(op => !taken.has(op.name)).map(op => {
+    const lineup = ops.map(current => current.name === slot.name ? replacement(slot, op.name) : current);
+    return { op, score: evaluate(lineupCounts(lineup)) + slotAffinity(slot, op) };
+  }).sort((a, b) => b.score - a.score || OP_INDEX.get(a.op.name)! - OP_INDEX.get(b.op.name)!)
+    .slice(0, limit).map(result => result.op);
+}
+
+/* ---------- 盟约被 ban ---------- */
 export interface BanPick {
-  /** 补上的干员 */
   name: string;
-  /** 顶替的原阵容干员 */
   replaces: string;
-  /** 同一位置的其他候选，点选可替换 */
   alts: string[];
-  /** 这名干员帮着补回人数的盟约 */
   gains: string[];
 }
 export interface BanResult {
-  /** 因带被 ban 盟约而空出的干员 */
   removed: string[];
   picks: BanPick[];
-  /** 替换后的阵容，保持原来的站位顺序 */
   ops: PlanOp[];
-  /** 原本激活、换人后仍补不回来的盟约（不含被 ban 的） */
+  /** 原本激活、换人后失效的盟约；被 ban 的盟约不计。 */
   lost: string[];
 }
-
 export const isBanned = (name: string, bans: ReadonlySet<string>): boolean => !!OPERATOR[name]?.covenants.some(c => bans.has(c));
 
+type ReplacementCandidate = { name: string; bit: bigint; covenants: number[]; affinity: number };
+type ReplacementSearch = { choices: string[]; counts: Uint8Array; used: bigint; affinity: number; score: number };
+const REPLACEMENT_BEAM = 24;
+
 /**
- * 按等阶从高到低逐个补位：候选干员每补回一个缺人的盟约加分（核心 3、附加 2），
- * 正好跨过激活 / 强化门槛再加 3；没有可补的就凑阵容里已有人的其他盟约；
- * 原位置的备选优先，等阶差越大越扣分。
- * forced：用户为某个位置手动选的候选（键为被顶替的干员）。
+ * 对所有空位联合搜索，每层保留 24 套不同的候选阵容，计算量有固定上限。
+ * forced 先锁定并预留干员，避免前面的自动推荐抢走后面手选的人；
+ * layers 参与强化门槛计算。返回原站位顺序，保留装备，排除被 ban 与重复干员。
+ * 此搜索以整队盟约和位置适配度评分，不修改输入。
  */
-export function banReplace(ops: readonly PlanOp[], bans: readonly string[], forced: Readonly<Record<string, string>> = {}): BanResult {
-  const ban = new Set(bans);
-  const removed = ops.filter(slot => isBanned(slot.name, ban));
-  const target = new Map(covenantStats(ops).filter(s => !ban.has(s.name) && s.name !== '绝技').map(s => [s.name, s]));
-  const lineup = ops.filter(slot => !isBanned(slot.name, ban)).map(slot => ({ ...slot, eq: [...slot.eq], alt: slot.alt.filter(a => !isBanned(a, ban)) }));
-  const picks: BanPick[] = [];
-  for (const slot of [...removed].sort((a, b) => OPERATOR[b.name].tier - OPERATOR[a.name].tier)) {
-    const taken = new Set(lineup.map(s => s.name));
-    const now = new Map(covenantStats(lineup).map(s => [s.name, s.count]));
-    const tier = OPERATOR[slot.name].tier;
-    const scored = OPERATORS.filter(op => !taken.has(op.name) && !isBanned(op.name, ban)).map(op => {
-      let score = op.tier * .01;
-      const gains: string[] = [];
-      for (const c of op.covenants) {
-        const want = target.get(c), have = now.get(c) ?? 0;
-        if (want && have < want.count) {
-          gains.push(c);
-          score += isCoreCovenant(c) ? 3 : 2;
-          if (have + 1 === want.need || (want.bonusNeed && have + 1 === want.bonusNeed)) score += 3;
-        } else if (have > 0 && have < COVENANTS[c].need) {
-          // 原阵容里没这个盟约要补时，退而凑一个阵容里已有人的新盟约
-          gains.push(c);
-          score += have + 1 >= COVENANTS[c].need ? 2 : .8;
-        }
-      }
-      const alt = slot.alt.includes(op.name);
-      if (alt) score += 3;
-      return { op, score: score - Math.abs(op.tier - tier) * .4, gains, keep: alt || gains.length > 0 };
-    }).filter(x => x.keep).sort((a, b) => b.score - a.score);
-    const choice = scored.find(x => x.op.name === forced[slot.name]) ?? scored[0];
-    if (!choice) continue;
-    picks.push({ name: choice.op.name, replaces: slot.name, alts: scored.filter(x => x !== choice).slice(0, 3).map(x => x.op.name), gains: choice.gains });
-    lineup.push(newSlot(choice.op.name));
+export function banReplace(ops: readonly PlanOp[], bans: readonly string[], forced: Readonly<Record<string, string>> = {}, layers: Layers = {}): BanResult {
+  const banned = new Set(bans);
+  const removed = ops.filter(slot => isBanned(slot.name, banned));
+  if (!removed.length) return { removed: [], picks: [], lost: [], ops: ops.map(slot => ({ ...slot, eq: [...slot.eq], alt: [...slot.alt] })) };
+  const kept = ops.filter(slot => !isBanned(slot.name, banned));
+  const evaluate = lineupEvaluator(ops, layers, banned);
+  const taken = new Set(kept.map(slot => slot.name));
+  const assignments = new Map<string, string>();
+  // 先处理全部有效手选；同名冲突按原站位顺序保留一个，UI 会把最新选择设为唯一锁定。
+  for (const slot of removed) {
+    const name = forced[slot.name];
+    if (OPERATOR[name] && !isBanned(name, banned) && !taken.has(name)) { assignments.set(slot.name, name); taken.add(name); }
   }
-  const byRemoved = new Map(picks.map(p => [p.replaces, p.name]));
+  const seeded = [...kept, ...removed.filter(slot => assignments.has(slot.name)).map(slot => replacement(slot, assignments.get(slot.name)!))];
+  const pending = removed.filter(slot => !assignments.has(slot.name))
+    .sort((a, b) => OPERATOR[b.name].tier - OPERATOR[a.name].tier || OP_INDEX.get(a.name)! - OP_INDEX.get(b.name)!);
+  const available = OPERATORS.filter(op => !taken.has(op.name) && !isBanned(op.name, banned));
+  const counts = lineupCounts(seeded);
+  let beam: ReplacementSearch[] = [{ choices: [], counts, used: 0n, affinity: 0, score: evaluate(counts) }];
+  for (const slot of pending) {
+    const candidates: ReplacementCandidate[] = available.map(op => ({
+      name: op.name, bit: OP_BITS[OP_INDEX.get(op.name)!], covenants: slotCovenants(replacement(slot, op.name)), affinity: slotAffinity(slot, op),
+    }));
+    const expanded: ReplacementSearch[] = [];
+    for (const state of beam) {
+      let added = false;
+      for (const candidate of candidates) {
+        if (state.used & candidate.bit) continue;
+        const next = state.counts.slice();
+        for (const index of candidate.covenants) next[index]++;
+        const affinity = state.affinity + candidate.affinity;
+        expanded.push({ choices: [...state.choices, candidate.name], counts: next, used: state.used | candidate.bit,
+          affinity, score: evaluate(next) + affinity });
+        added = true;
+      }
+      // 候选全部耗尽时保留未填空位，不能重用干员或偷偷引入被 ban 的干员。
+      if (!added) expanded.push({ ...state, choices: [...state.choices, ''] });
+    }
+    expanded.sort((a, b) => b.score - a.score);
+    const seen = new Map<bigint, Set<string>>();
+    beam = [];
+    for (const state of expanded) {
+      const signature = state.counts.join(',');
+      const variants = seen.get(state.used) ?? new Set<string>();
+      if (variants.has(signature)) continue;
+      variants.add(signature); seen.set(state.used, variants);
+      beam.push(state);
+      if (beam.length === REPLACEMENT_BEAM) break;
+    }
+  }
+  pending.forEach((slot, index) => { const name = beam[0]?.choices[index]; if (name) assignments.set(slot.name, name); });
+  const selected = new Set([...kept.map(slot => slot.name), ...assignments.values()]);
   const result = ops.flatMap(slot => {
-    if (!isBanned(slot.name, ban)) return [lineup.find(s => s.name === slot.name)!];
-    const next = byRemoved.get(slot.name);
-    return next ? [{ ...newSlot(next), alt: slot.alt.filter(a => a !== next && !isBanned(a, ban)) }] : [];
+    const name = assignments.get(slot.name);
+    if (isBanned(slot.name, banned) && !name) return [];
+    return [{ ...(name ? replacement(slot, name) : slot), eq: [...slot.eq],
+      alt: slot.alt.filter(alt => alt !== (name ?? slot.name) && !selected.has(alt) && !isBanned(alt, banned)) }];
   });
-  const after = new Set(covenantStats(result).filter(s => s.active).map(s => s.name));
-  return { removed: removed.map(s => s.name), picks, ops: result, lost: [...target.values()].filter(s => s.active && !after.has(s.name)).map(s => s.name) };
+  const finalStats = covenantStats(result, layers);
+  const picks = removed.flatMap(slot => {
+    const name = assignments.get(slot.name);
+    if (!name) return [];
+    const without = result.filter(op => op.name !== name);
+    const withoutStats = new Map(covenantStats(without, layers).map(stat => [stat.name, stat]));
+    const gains = finalStats.filter(stat => !banned.has(stat.name) && !stat.broken &&
+      ((stat.active && !withoutStats.get(stat.name)?.active) || (stat.bonusActive && !withoutStats.get(stat.name)?.bonusActive)))
+      .map(stat => stat.name);
+    const alternatives = OPERATORS.filter(op => !selected.has(op.name) && !isBanned(op.name, banned)).map(op => ({
+      name: op.name, score: evaluate(lineupCounts([...without, replacement(slot, op.name)])) + slotAffinity(slot, op),
+    })).sort((a, b) => b.score - a.score).slice(0, MAX_ALT).map(candidate => candidate.name);
+    return [{ name, replaces: slot.name, alts: alternatives, gains }];
+  });
+  const active = new Set(finalStats.filter(stat => stat.active).map(stat => stat.name));
+  return { removed: removed.map(slot => slot.name), picks, ops: result,
+    lost: covenantStats(ops, layers).filter(stat => stat.active && !banned.has(stat.name) && !active.has(stat.name)).map(stat => stat.name) };
 }
+
 
 /* ---------- 费用、装备 ---------- */
 
