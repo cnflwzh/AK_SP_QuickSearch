@@ -16,10 +16,25 @@ interface ParseResponse {
 
 const CACHE_DURATION = 10 * 60_000;
 const CACHE_LIMIT = 6;
+const READER_SKIN = 'vector';
 const articleCache = new Map<string, { article: PrtsArticle; savedAt: number }>();
+
+/** 从指定的 PRTS 官方站点读取 JSON；网络、HTTP 或 JSON 解码失败时抛出错误。 */
+async function requestArticle(origin: string, name: string, signal: AbortSignal): Promise<ParseResponse> {
+  signal.throwIfAborted();
+  const endpoint = new URL('/api.php', origin);
+  endpoint.search = new URLSearchParams({
+    action: 'parse', page: name, prop: 'text|revid', format: 'json', origin: '*', redirects: '1',
+    useskin: READER_SKIN,
+  }).toString();
+  const response = await fetch(endpoint, { credentials: 'omit', signal });
+  if (!response.ok) throw new Error(`PRTS returned HTTP ${response.status}`);
+  return await response.json() as ParseResponse;
+}
 
 /**
  * 按完整干员名获取匿名公开正文，最近六篇在当前会话中缓存十分钟。
+ * 主站请求失败时尝试官方移动站；两次请求共用二十秒时限与取消信号。
  * 切换干员或关闭阅读器时通过 signal 取消；网络或接口异常会抛出 Error。
  */
 export async function fetchPrtsArticle(name: string, signal: AbortSignal): Promise<PrtsArticle> {
@@ -31,18 +46,20 @@ export async function fetchPrtsArticle(name: string, signal: AbortSignal): Promi
     return cached.article;
   }
 
-  const endpoint = new URL('https://prts.wiki/api.php');
-  endpoint.search = new URLSearchParams({
-    action: 'parse', page: name, prop: 'text|revid', format: 'json', origin: '*', redirects: '1',
-  }).toString();
   const request = new AbortController();
   const cancel = () => request.abort(signal.reason);
   signal.addEventListener('abort', cancel, { once: true });
   const timeout = setTimeout(() => request.abort(new DOMException('PRTS request timed out', 'TimeoutError')), 20_000);
   try {
-    const response = await fetch(endpoint, { credentials: 'omit', signal: request.signal });
-    if (!response.ok) throw new Error(`PRTS returned HTTP ${response.status}`);
-    const result = await response.json() as ParseResponse;
+    let result: ParseResponse;
+    try {
+      result = await requestArticle('https://prts.wiki', name, request.signal);
+    } catch {
+      // 部分手机请求收到的主站响应缺少 CORS 头，官方移动接口仍可读取。
+      // 按实际请求失败回退，不依赖 UA；关闭侧栏或超时后不再启动备用请求。
+      request.signal.throwIfAborted();
+      result = await requestArticle('https://m.prts.wiki', name, request.signal);
+    }
     const html = result.parse?.text?.['*'];
     if (typeof html !== 'string' || !html.trim()) throw new Error(result.error?.info || 'PRTS returned an empty article');
     signal.throwIfAborted();
@@ -253,7 +270,7 @@ export function createPrtsReaderDocument(article: PrtsArticle, styles: string, t
   base.href = article.url;
   const stylesheet = document.createElement('link');
   stylesheet.rel = 'stylesheet';
-  stylesheet.href = 'https://prts.wiki/load.php?lang=zh-cn&modules=site.styles&only=styles&skin=vector';
+  stylesheet.href = `https://prts.wiki/load.php?lang=zh-cn&modules=site.styles&only=styles&skin=${READER_SKIN}`;
   document.head.append(policy, base, stylesheet);
   for (const css of [...templateStyles, styles]) {
     const style = document.createElement('style');
