@@ -4,11 +4,11 @@
 .numbers-tools .nt-heading h4 { margin: 0; }
 .numbers-tools button { cursor: pointer; }
 .numbers-tools button:disabled { opacity: .4; cursor: not-allowed; }
-.numbers-tools input[type=number] { min-width: 0; width: 100%; padding: 4px 8px; border: 1px solid var(--line2); border-radius: 6px; background: var(--surface); font: 600 18px var(--fn); }
+.numbers-tools input[type=number] { min-width: 0; width: 100%; min-height: 38px; padding: 6px 10px; border: 1px solid var(--line2); border-radius: 6px; background: var(--surface); font: 600 18px var(--fn); }
 .numbers-tools input[type=search] { width: 100%; }
 .numbers-tools input[type=checkbox] { accent-color: var(--accent); margin: 0; }
 .numbers-tools caption { text-align: left; font-weight: 500; color: var(--ink2); padding: 8px 0; }
-.nt-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.nt-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
 .nt-heading h4 small { font-size: 12px; font-weight: 400; color: var(--ink3); margin-left: 5px; }
 .nt-toolbar { justify-content: space-between; }
 .nt-toolbar .nt-section-title { margin: 0; font-size: 14px; color: var(--ink2); font-weight: 500; }

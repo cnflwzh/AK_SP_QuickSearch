@@ -17,26 +17,31 @@
 .ra-danger, .ra-warning { color: var(--red); }
 .ra-muted { color: var(--ink3); font-size: 11px; }
 .ra-empty { padding: 16px 4px; font-size: 13px; color: var(--ink3); line-height: 1.7; }
-.ra-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.ra-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 .ra-toolbar h2 { flex-shrink: 0; }
 .ra-level { padding-left: 10px; border-left: 1px solid var(--line); }
-.ra-level select { width: 76px; color: var(--accent); font-weight: 700; }
-.ra-strategy-button { display: inline-flex; align-items: center; gap: 6px; min-width: 0; padding: 2px 8px 2px 2px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface2); color: var(--ink); min-height: 34px; font: inherit; font-size: 12px; }
-.ra-strategy-button img { border-radius: 4px; }
-.ra-strategy-button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ra-strategy-button small { color: var(--ink3); }
+.ra-level select { width: 82px; color: var(--accent); font-weight: 700; }
+.workbench-controls .ra-toolbar select:not([multiple]), .ra-toolbar .btn { min-height: 34px; padding-block: 3px; font-size: 13px; }
+.ra-toolbar .btn { padding-inline: 12px; border-radius: 6px; }
+.ra-strategy-control { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; }
+.ra-strategy-button { min-width: 112px; max-width: 220px; font-family: inherit; }
+.ra-strategy-button img { flex: 0 0 24px; width: 24px; height: 24px; border-radius: 4px; }
+.ra-strategy-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ra-clear-strategy { border: 1px solid var(--line); background: var(--surface2); }
 .ra-toolbar-actions { margin-left: auto; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
-.ra-pool-button { max-width: 100%; font-size: 12px; }
+.ra-pool-button { min-width: 118px; max-width: 100%; }
+.ra-pool-button > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ra-direction-note { margin: 0 0 8px; font-size: 11px; color: var(--teal); }
 .ra-pool-settings { display: grid; gap: 12px; padding: 4px 0; }
 .ra-pool-settings > p { margin: 0; font-size: 12px; line-height: 1.7; }
-.ra-pool-direction { display: flex; flex-wrap: wrap; gap: 12px; }
+.ra-pool-direction { display: flex; flex-wrap: wrap; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface2); }
 .ra-pool-direction label { display: grid; gap: 6px; flex: 1 1 180px; min-width: 0; font-size: 12px; }
-.ra-pool-direction select { width: 100%; min-width: 0; }
+.ra-pool-direction select { width: 100%; min-width: 0; background-color: var(--surface); }
 .ra-pool-group { border: 0; padding: 0; margin: 0; min-width: 0; }
 .ra-pool-group legend { padding: 0 0 6px; color: var(--ink3); font-size: 12px; }
 .ra-pool-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.ra-pool-chips button { padding: 6px 10px; border: 1px solid var(--line); border-radius: 5px; color: var(--ink2); background: var(--surface2); font: inherit; font-size: 12px; }
+.ra-pool-chips button { min-height: 36px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink2); background: var(--surface2); font: inherit; font-size: 12px; transition: border-color .15s, background-color .15s; }
+.ra-pool-chips button:hover { border-color: var(--c, var(--accent)); }
 .ra-pool-chips button.banned { border-color: var(--c, var(--accent)); color: var(--c, var(--accent)); background: color-mix(in srgb, var(--c, var(--accent)) 10%, var(--surface)); }
 .ra-pool-conflict { margin: 6px 0; padding: 8px 10px; border-left: 3px solid var(--accent); border-radius: 4px; background: var(--accent-soft); color: var(--ink); font-size: 12px; }
 .ra-status { display: flex; justify-content: space-between; gap: 10px; min-height: 26px; padding: 5px 3px; font-size: 11px; line-height: 1.5; color: var(--ink3); }
@@ -156,22 +161,23 @@
 .ra-overlay.wide { width: min(780px, calc(100vw - 24px)); }
 .ra-overlay[open] { display: flex; flex-direction: column; animation: ra-reveal .16s ease-out; }
 .ra-overlay::backdrop { background: #14252266; }
-.ra-overlay-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+.ra-overlay-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--surface2); flex-shrink: 0; }
 .ra-overlay-header h2 { font-size: 16px; }
-.ra-overlay-body { padding: 12px 16px; overflow-y: auto; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--line2) transparent; overscroll-behavior: contain; }
+.ra-overlay-body { padding: 16px; overflow-y: auto; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--line2) transparent; overscroll-behavior: contain; }
 .ra-overlay.wide .ra-overlay-body { height: min(65dvh, 570px); display: flex; flex-direction: column; }
 .ra-picker { display: flex; flex: 1; flex-direction: column; min-height: 0; gap: 8px; }
-.ra-picker-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.ra-picker-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .ra-search { flex: 1; min-width: 0; }
 .ra-search input { width: 100%; min-height: 38px; font-size: 14px; }
-.ra-picker-controls select { width: 108px; }
+.ra-picker-controls select { width: 116px; }
 .ra-picker-status { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-shrink: 0; min-height: 20px; font-size: 11px; color: var(--ink3); }
 .ra-picker-status > span:last-child { color: var(--teal); }
 .ra-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); grid-auto-rows: max-content; align-content: start; gap: 7px; overflow-y: auto; min-height: 0; padding: 2px; scrollbar-width: thin; scrollbar-color: var(--line2) transparent; overscroll-behavior: contain; }
-.ra-picker-card { min-width: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--surface2); overflow: hidden; }
+.ra-picker-card { min-width: 0; border: 1px solid var(--line); border-radius: 7px; background: var(--surface2); overflow: hidden; transition: border-color .15s; }
+.ra-picker-card:focus-within { border-color: var(--accent); }
 .ra-picker-card.chosen { border-color: var(--teal); background: var(--teal-soft); }
-.ra-pick-entity { width: 100%; display: flex; align-items: center; flex-direction: column; gap: 4px; padding: 8px 4px 4px; border: 0; background: transparent; color: var(--ink); font-family: inherit; }
-.ra-pick-entity:hover { background: var(--accent-soft); }
+.ra-pick-entity { width: 100%; display: flex; align-items: center; flex-direction: column; gap: 6px; padding: 10px 6px 6px; border: 0; background: transparent; color: var(--ink); font-family: inherit; }
+.ra-pick-entity:not(:disabled):hover { background: var(--accent-soft); }
 .ra-picker-picture { position: relative; width: 48px; height: 48px; }
 .ra-picker-picture img { width: 100%; height: 100%; border-radius: 4px; object-fit: cover; }
 .ra-picker-picture :is(i, b) { position: absolute; color: #fff; background: var(--tc, var(--teal)); border-radius: 2px; padding: 0 3px; font: 600 11px var(--fn); }
@@ -179,7 +185,7 @@
 .ra-picker-picture b { top: -3px; right: -4px; background: var(--teal); }
 .ra-pick-entity strong { font-size: 12px; line-height: 18px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ra-pick-entity small { font-size: 10px; color: var(--ink3); line-height: 14px; height: 28px; overflow: hidden; }
-.ra-picker-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 3px; padding: 0 6px; font-size: 9px; color: var(--accent); }
+.ra-picker-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 3px; padding: 2px 8px; border-top: 1px solid var(--line); font-size: 10px; color: var(--accent); }
 .ra-picker-card-footer .ra-text-button { font-size: 10px; min-height: 27px; }
 @container run-advisor (max-width: 800px) {
   .ra-workspace { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'field'; }
@@ -195,12 +201,13 @@
   .ra-side-tabs > button { max-width: 100%; }
 }
 @container run-advisor (max-width: 480px) {
-  .ra-toolbar { gap: 6px; flex-wrap: wrap; padding: 8px; }
+  .ra-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; padding: 8px 10px; }
   .ra-toolbar h2 { font-size: 16px; }
-  .ra-level { border: 0; padding: 0; }
-  .ra-level select { width: 65px; }
-  .ra-strategy-button { max-width: 140px; }
-  .ra-toolbar-actions { flex: 1 0 100%; justify-content: flex-end; gap: 12px; }
+  .ra-level { justify-self: end; border: 0; padding: 0; }
+  .ra-level select { width: 74px; }
+  .ra-strategy-button { flex: 1; min-width: 0; max-width: none; }
+  .ra-pool-button { min-width: 0; }
+  .ra-toolbar-actions { grid-column: 1 / -1; justify-content: flex-end; gap: 12px; margin-left: 0; padding-top: 8px; border-top: 1px solid var(--line); }
   .ra-status > span:last-child:not(:first-child) { display: none; }
   .ra-field-panel { padding: 8px; }
   .ra-section-heading > .ra-muted { display: none; }
@@ -222,6 +229,9 @@
   .ra-overlay.wide .ra-overlay-body { height: 64dvh; }
   .ra-picker-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
   .ra-picker-status { flex-wrap: wrap; gap: 2px; }
+  .workbench-controls .ra-toolbar select:not([multiple]), .ra-toolbar .btn { min-height: 36px; }
+  .ra-pool-chips button { min-height: 42px; }
+  .ra-picker-controls > label:last-child:not(:first-child) { flex: 0 0 auto; }
 }
 @keyframes ra-reveal { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-@media (prefers-reduced-motion: reduce) { .ra-overlay[open] { animation: none; } .ra-slot { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .ra-overlay[open] { animation: none; } .ra-slot, .ra-pool-chips button, .ra-picker-card { transition: none; } }

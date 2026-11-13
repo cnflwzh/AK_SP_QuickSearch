@@ -34,7 +34,7 @@ function dismissBackdrop(event: MouseEvent): void {
 
 <template>
   <Teleport to="body">
-    <dialog ref="dialog" class="ra-overlay" :class="{ wide }" :aria-labelledby="titleId"
+    <dialog ref="dialog" class="ra-overlay workbench-controls" :class="{ wide }" :aria-labelledby="titleId"
       @cancel.prevent="$emit('close')" @click="dismissBackdrop">
       <header class="ra-overlay-header">
         <h2 :id="titleId">{{ title }}</h2>

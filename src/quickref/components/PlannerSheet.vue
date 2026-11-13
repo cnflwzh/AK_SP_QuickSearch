@@ -52,7 +52,7 @@ onBeforeUnmount(() => {
 <template>
   <Teleport to="body">
     <dialog
-      ref="dialog" class="pl pl-sheet" aria-labelledby="planner-sheet-title"
+      ref="dialog" class="pl pl-sheet workbench-controls" aria-labelledby="planner-sheet-title"
       :style="{ '--planner-viewport-height': viewportHeight, '--planner-viewport-bottom': viewportBottom }"
       @cancel.prevent="emit('close')" @keydown.esc.stop.prevent="emit('close')" @click.self="emit('close')"
     >

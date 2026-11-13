@@ -18,6 +18,7 @@ import PlanSummary from '../components/PlanSummary.vue';
 import PlanSharePanel from '../components/PlanSharePanel.vue';
 import PlannerSheet from '../components/PlannerSheet.vue';
 import { useCompactPlanner } from '../planner/useCompactPlanner.ts';
+import '../workbench.css';
 /**
  * 流派编辑（规划器）：从全部干员里排 8 人，实时看盟约进度、效果和补位推荐；
  * 编辑的是流派页当前选中的预设，可用分享码 / 链接 / 图片分享，或与另一套对比。
@@ -225,7 +226,7 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
 
 </script>
 <template>
-  <div ref="root" :class="['pl', { 'pl-compact': compact }]">
+  <div ref="root" :class="['pl', 'workbench-controls', { 'pl-compact': compact }]">
     <PlannerSheet :open="compact && !!mobilePanel" :title="mobileTitle" :context="`${mobilePanel}:${slot?.name ?? ''}`" content-id="planner-mobile-content" :can-go-back="mobileCanGoBack" @close="closeMobilePanel" @back="backToSlot"/>
     <!-- 方案栏 -->
     <div class="pl-bar">
@@ -320,9 +321,10 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
         </div>
 
         <div class="pl-st">
-          <button type="button" :class="['pl-st-b', { on: picking === 'st' }]" :aria-expanded="picking === 'st'" :aria-controls="picking === 'st' ? 'planner-strategies' : undefined" :data-st="strategy?.name" @click="openPicker('st')">
+          <button type="button" :class="['pl-st-b', 'control-disclosure', { on: picking === 'st' }]" :aria-expanded="picking === 'st'" :aria-controls="picking === 'st' ? 'planner-strategies' : undefined" :data-st="strategy?.name" @click="openPicker('st')">
             <img v-if="strategy" :src="portraitSrc(strategy.name)" alt="" width="36" height="36"><span v-else class="ph">+</span>
             <span><small>策略</small><b>{{ strategy ? `${strategy.name}` : '选择策略' }}</b></span>
+            <span class="control-chevron" aria-hidden="true"></span>
           </button>
           <p v-if="strategy" v-html="fx(strategy.effect)"></p>
         </div>

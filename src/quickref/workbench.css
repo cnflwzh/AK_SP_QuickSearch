@@ -1,0 +1,88 @@
+/* 流派编辑与小工具共用控件外观；通过容器显式启用，避免影响教程和速查卡片。 */
+.workbench-controls {
+  --control-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='m2.5 4.5 3.5 3.5 3.5-3.5' fill='none' stroke='%237a8b88' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.workbench-controls :is(select, input[type=search]) {
+  min-height: 38px;
+  border: 1px solid var(--line2);
+  border-radius: 6px;
+  background-color: var(--surface2);
+  padding: 7px 11px;
+  font-family: var(--fb);
+  font-size: 13px;
+  line-height: 1.5;
+  transition: border-color .15s ease, background-color .15s ease;
+}
+
+/* 保留原生选单和键盘操作，只替换收起时的箭头；为文字单独预留箭头位置。 */
+.workbench-controls select:not([multiple]) {
+  appearance: none;
+  padding-right: 34px;
+  background-image: var(--control-chevron);
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+  background-size: 12px 12px;
+  cursor: pointer;
+}
+
+.workbench-controls select:disabled { opacity: .5; cursor: not-allowed; }
+.workbench-controls select option { background: var(--surface); color: var(--ink); }
+.workbench-controls :is(select, input[type=search]):focus-visible {
+  border-color: var(--accent);
+  background-color: var(--surface);
+}
+
+/* 同一枚箭头用于打开面板的按钮与折叠标题，不依赖字体中的符号字形。 */
+.workbench-controls .control-chevron {
+  display: inline-block;
+  flex: 0 0 12px;
+  width: 12px;
+  height: 12px;
+  color: var(--ink3);
+  background: currentColor;
+  mask: var(--control-chevron) center / contain no-repeat;
+}
+.workbench-controls .control-disclosure { gap: 12px; }
+.workbench-controls .control-disclosure > .control-chevron { margin-left: auto; }
+.workbench-controls .control-disclosure[aria-expanded=true] { border-color: var(--accent); }
+.workbench-controls .control-disclosure[aria-expanded=true] > .control-chevron { transform: rotate(180deg); }
+
+.workbench-controls :is(.nt-fold, .nt-inline-details, .pl-note-fold, .ra-method) > summary {
+  position: relative;
+  list-style: none;
+  padding-right: 24px;
+  min-height: 28px;
+  align-content: center;
+}
+.workbench-controls :is(.nt-fold, .nt-inline-details, .pl-note-fold, .ra-method) > summary::-webkit-details-marker { display: none; }
+.workbench-controls :is(.nt-fold, .nt-inline-details, .pl-note-fold, .ra-method) > summary::after {
+  content: '';
+  position: absolute;
+  top: calc(50% - 6px);
+  right: 2px;
+  width: 12px;
+  height: 12px;
+  background: var(--ink3);
+  mask: var(--control-chevron) center / contain no-repeat;
+  transition: transform .15s ease;
+}
+.workbench-controls :is(.nt-fold, .nt-inline-details, .pl-note-fold, .ra-method)[open] > summary::after { transform: rotate(180deg); }
+
+@media (hover: hover) {
+  .workbench-controls :is(select, input[type=search]):not(:disabled):hover { border-color: var(--accent); }
+}
+@media (max-width: 800px), (pointer: coarse) {
+  .workbench-controls :is(select, input[type=search]) { min-height: 42px; }
+  /* 输入时保持手机视口稳定，避免 iOS 因小字号自动放大。 */
+  .workbench-controls input[type=search] { font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workbench-controls :is(select, input[type=search]),
+  .workbench-controls summary::after { transition: none; }
+}
+@media (forced-colors: active) {
+  .workbench-controls select:not([multiple]) { appearance: auto; background-image: none; padding-right: 11px; }
+  .workbench-controls .control-chevron,
+  .workbench-controls summary::after { background: CanvasText; }
+}

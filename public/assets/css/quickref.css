@@ -2642,14 +2642,14 @@ mark {
 .pl { display: grid; gap: 12px; }
 .pl button { font: inherit; color: inherit; cursor: pointer; }
 .pl button:disabled { cursor: default; }
-.pl-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pl-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .pl-bar > select { max-width: 160px; }
-.pl-name { flex: 1 1 120px; min-width: 0; font-family: inherit; font-size: 15px; font-weight: 600; color: var(--ink); background: transparent; border: 1px solid transparent; border-bottom-color: var(--line2); border-radius: 0; padding: 4px 2px; }
-.pl-name:focus { outline: none; border-bottom-color: var(--accent); }
-.pl-acts { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.pl-name { flex: 1 1 120px; min-width: 0; min-height: 38px; font-family: inherit; font-size: 15px; font-weight: 600; color: var(--ink); background: var(--surface); border: 1px solid var(--line2); border-radius: 6px; padding: 6px 10px; }
+.pl-name:focus { border-color: var(--accent); }
+.pl-acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .pl-acts .sep { width: 1px; height: 18px; background: var(--line); margin: 0 2px; }
 .pl-acts button, .pl-row > button, .pl-code button, .pl-move button {
-  border: 1px solid var(--line2); background: var(--surface); border-radius: 6px; padding: 4px 10px; font-size: 13px;
+  border: 1px solid var(--line2); background: var(--surface); border-radius: 6px; min-height: 36px; padding: 5px 12px; font-size: 13px;
   transition: border-color .15s, background .15s;
 }
 .pl-acts button:hover, .pl-row > button:hover, .pl-code button:hover { border-color: var(--accent); }
@@ -2682,7 +2682,7 @@ mark {
 .pl-fx { grid-area: fx; }
 .pl-pool { grid-area: pool; position: sticky; top: 108px; max-height: calc(100vh - 120px); overflow: auto; overscroll-behavior: contain; }
 .pl-card { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 10px 12px 12px; min-width: 0; animation: tin .3s both; }
-.pl-card h4 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 8px; font-size: 13.5px; }
+.pl-card h4 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; font-size: 13.5px; }
 .pl-card h4 .tag { font-weight: 400; }
 
 /* 阵容槽位 */
@@ -2726,21 +2726,22 @@ mark {
 .pl-pick-g button img { border-radius: 4px; background: var(--tc); }
 .pl-pick.stp { margin-top: 8px; }
 .pl-pick.stp .seg { justify-self: start; }
-.pl-pick.stp button { display: flex; flex-direction: column; align-items: center; width: 62px; line-height: 1.2; padding: 4px 2px; gap: 2px; }
-.pl-pick.stp button.on { border-color: var(--accent); background: var(--accent-soft); }
+.pl-pick.stp .pl-pick-g { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 6px; }
+.pl-pick.stp .pl-pick-g button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-width: 0; min-height: 78px; padding: 8px 4px; font-size: 11px; line-height: 1.4; }
+.pl-pick.stp .pl-pick-g button.on { border-color: var(--accent); background: var(--accent-soft); }
 .pl-pick.stp button img { border-radius: 50%; background: var(--surface2); }
 .pl-pick.stp small { font-size: 10.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .pl-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin-top: 10px; }
 .pl-stats span { display: flex; flex-direction: column; align-items: center; padding: 5px 2px; border-radius: 6px; background: var(--surface2); font-size: 11px; color: var(--ink3); }
 .pl-stats b { font: 600 19px/1.1 var(--fn); color: var(--ink); }
-.pl-st { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.pl-st { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
 .pl-st-b { display: flex; align-items: center; gap: 8px; flex: none; border: 1px solid var(--line2); background: var(--surface); border-radius: 22px; padding: 3px 12px 3px 3px; text-align: left; }
 .pl-st-b.on, .pl-st-b:hover { border-color: var(--accent); }
 .pl-st-b img, .pl-st-b .ph { width: 36px; height: 36px; border-radius: 50%; background: var(--surface2); display: grid; place-items: center; color: var(--ink3); font-size: 18px; }
 .pl-st-b small { display: block; font-size: 10.5px; color: var(--ink3); }
 .pl-st-b b { font-size: 13px; }
-.pl-st p { margin: 0; font-size: 12.5px; color: var(--ink2); line-height: 1.5; }
+.pl-st p { flex: 1 1 180px; margin: 0; font-size: 12.5px; color: var(--ink2); line-height: 1.6; }
 
 /* 盟约进度 */
 .plc { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
@@ -2780,7 +2781,7 @@ mark {
 /* 效果 */
 .pl-layer { display: flex; align-items: center; gap: 6px; margin: 0 0 3px; font-size: 12px; color: var(--ink3); }
 .pl-layer input[type=range] { flex: 1; min-width: 0; max-width: 260px; accent-color: var(--c); }
-.pl-layer input[type=number] { width: 4.6em; font: 600 13px var(--fn); color: var(--ink); text-align: right; padding: 1px 4px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
+.pl-layer input[type=number] { width: 4.6em; min-height: 32px; font: 600 15px var(--fn); color: var(--ink); text-align: right; padding: 3px 6px; border: 1px solid var(--line2); border-radius: 5px; background: var(--surface); }
 .pl-fxl { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .pl-fxl li { display: grid; grid-template-columns: 4.6em minmax(0, 1fr); gap: 8px; padding-left: 8px; border-left: 3px solid var(--c); animation: tin .25s both; }
 .pl-fxl li.none { display: block; border: 0; padding: 0; color: var(--ink3); font-size: 12.5px; }
@@ -2795,9 +2796,10 @@ mark {
 .pl-notes .grant { color: var(--teal); }
 
 /* 干员池 */
-.pl-filter { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+.pl-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
 .pl-filter input { flex: 1 1 110px; }
 .pl-filter .seg { margin: 0; }
+.pl-filter .seg button { min-height: 30px; }
 .pl-pool .tierh { margin: 10px 0 6px; }
 .pl-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 5px; }
 .pl-tiles .tile { width: auto; }
@@ -2846,6 +2848,7 @@ mark {
 .pl-compact .pl-note-fold { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 10px; }
 .pl-compact .pl-note-fold summary { cursor: pointer; font-size: 13px; }
 .pl-compact .pl-note-fold summary .hint { margin-left: 8px; }
+.pl-compact .pl-name { min-height: 42px; font-size: 16px; }
 .pl-mobile-actions {
   position: sticky;
   bottom: 0;
@@ -2886,8 +2889,8 @@ mark {
 /* 规划：流派说明与备选 */
 .pl-note { position: relative; display: block; margin: 10px 0 0; }
 .pl-note .k { display: block; margin-bottom: 4px; font-size: 12px; color: var(--ink3); }
-.pl-note textarea { width: 100%; resize: vertical; min-height: 5.2em; font: inherit; font-size: 13px; line-height: 1.5; color: var(--ink); background: var(--surface2); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 6px; padding: 6px 44px 6px 10px; }
-.pl-note textarea:focus { outline: none; border-color: var(--accent); }
+.pl-note textarea { width: 100%; resize: vertical; min-height: 5.2em; font: inherit; font-size: 13px; line-height: 1.6; color: var(--ink); background: var(--surface2); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 6px; padding: 10px 12px 26px; }
+.pl-note textarea:focus { border-color: var(--accent); }
 .pl-note textarea::placeholder { color: var(--ink3); }
 .pl-note small { position: absolute; right: 8px; bottom: 6px; font: 600 11px var(--fn); color: var(--ink3); }
 .pl-slot .alts { display: flex; gap: 2px; justify-content: center; margin-top: 2px; padding-top: 3px; border-top: 1px dashed var(--line2); width: 100%; }
@@ -3000,7 +3003,7 @@ mark {
 
 /* 流派查看 */
 .bact { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.bact button, .bres .pri, .bbtn { font: inherit; font-size: 13px; cursor: pointer; border-radius: 6px; padding: 4px 12px; border: 1px solid var(--line2); background: var(--surface); color: var(--ink); }
+.bact button, .bres .pri, .bbtn { font: inherit; font-size: 13px; cursor: pointer; border-radius: 6px; min-height: 36px; padding: 5px 12px; border: 1px solid var(--line2); background: var(--surface); color: var(--ink); }
 .bact .pri, .bres .pri { background: var(--c); border-color: var(--c); color: #fff; font-weight: 700; }
 .bact .pri.in { background: var(--surface); color: var(--c); }
 .bact button.on { border-color: var(--c); color: var(--c); background: var(--surface2); }

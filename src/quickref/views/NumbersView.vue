@@ -7,6 +7,7 @@ import Segmented from '../components/Segmented.vue';
 import LayerTools from '../numbers/LayerTools.vue';
 import ExtraRules from '../numbers/ExtraRules.vue';
 import '../numbers/numbers.css';
+import '../workbench.css';
 
 const panels = {
   advisor: defineAsyncComponent(() => import('../advisor/RunAdvisor.vue')),
@@ -24,7 +25,7 @@ function selectTool(index: number): void {
 </script>
 
 <template>
-  <div class="numbers-tools">
+  <div class="numbers-tools workbench-controls">
     <!-- 工具标题沿用现有 h4 样式，由 aria-level 表达页面与卡片的标题层级。 -->
     <nav class="bar" aria-label="小工具">
       <Segmented :labels="toolLabels" :active="activeIndex" attr="number-tool" @change="selectTool"/>

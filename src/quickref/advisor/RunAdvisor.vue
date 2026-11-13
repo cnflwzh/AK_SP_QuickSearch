@@ -149,13 +149,20 @@ function clearStrategy(): void {
           <option v-for="level in 6" :key="level" :value="level">{{ level }} 本</option>
         </select>
       </label>
-      <button type="button" class="ra-strategy-button" @click="openPicker('strategy')">
-        <img v-if="run.strategy" :src="portraitSrc(run.strategy)" alt="" width="28" height="28">
-        <span>{{ run.strategy || '选择策略' }}</span><small>⌄</small>
+      <div class="ra-strategy-control">
+        <button type="button" class="btn ra-strategy-button control-disclosure" aria-haspopup="dialog"
+          :aria-expanded="picker?.target === 'strategy'" @click="openPicker('strategy')">
+          <img v-if="run.strategy" :src="portraitSrc(run.strategy)" alt="" width="28" height="28">
+          <span class="ra-strategy-label">{{ run.strategy || '选择策略' }}</span>
+          <span class="control-chevron" aria-hidden="true"></span>
+        </button>
+        <button v-if="run.strategy" type="button" class="ra-icon-button ra-clear-strategy"
+          aria-label="清除策略" @click="clearStrategy">×</button>
+      </div>
+      <button type="button" class="btn ra-pool-button control-disclosure" aria-haspopup="dialog"
+        :aria-expanded="poolSettingsOpen" @click="poolSettingsOpen = true">
+        <span>{{ poolLabel }}</span><span class="control-chevron" aria-hidden="true"></span>
       </button>
-      <button v-if="run.strategy" type="button" class="ra-icon-button ra-clear-strategy"
-        aria-label="清除策略" @click="clearStrategy">×</button>
-      <button type="button" class="btn ra-pool-button" @click="poolSettingsOpen = true">{{ poolLabel }} ⌄</button>
       <div class="ra-toolbar-actions">
         <button type="button" class="ra-text-button" :disabled="!canUndo" @click="advisor.undo">撤销</button>
         <button type="button" class="btn" @click="startNewRun">新开一局</button>
