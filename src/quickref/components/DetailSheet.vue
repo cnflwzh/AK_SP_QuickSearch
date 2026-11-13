@@ -5,6 +5,7 @@ import { avatarSrc, equipIconSrc, portraitSrc } from '../../lib/assets.ts';
 import { color, fx, peekFx, hpWidth, bonusHeadcount, bonusText } from '../format.ts';
 import { useQuickrefActions, type DetailSelection } from '../state.ts';
 import Chip from './Chip.vue';
+import PrtsLink from './PrtsLink.vue';
 const props = defineProps<{ selection: DetailSelection | null }>();
 const actions = useQuickrefActions();
 const dialog = ref<HTMLDialogElement | null>(null);
@@ -37,7 +38,7 @@ onBeforeUnmount(() => dialog.value?.close());
 <template>
   <dialog id="sheet" ref="dialog" aria-labelledby="detail-title" :class="['sheet', { 'with-side': !!operator }]" :data-viewing="operator?.name ?? ''" @click.self="actions.closeDetail()" @cancel.prevent="actions.closeDetail()">
     <div v-if="selection" ref="main" class="sh-main">
-      <div v-if="operator" class="sh-h" :data-t="operator.tier"><img v-if="avatarSrc(operator.name)" class="pic" :src="avatarSrc(operator.name)" alt="" width="80" height="80"><div><div class="row"><i class="tn">{{ TIER_LABELS[operator.tier] }} 阶</i><span class="stars">{{ '★'.repeat(operator.stars) }}</span><span class="tag">{{ operator.type }}</span></div><h3 id="detail-title">{{ operator.name }}</h3><div class="row"><Chip v-for="name in operator.covenants" :key="name" kind="cv" :name="name"/></div></div><button type="button" class="sh-x" data-close aria-label="关闭" @click="actions.closeDetail()">✕</button></div>
+      <div v-if="operator" class="sh-h" :data-t="operator.tier"><img v-if="avatarSrc(operator.name)" class="pic" :src="avatarSrc(operator.name)" alt="" width="80" height="80"><div><div class="row"><i class="tn">{{ TIER_LABELS[operator.tier] }} 阶</i><span class="stars">{{ '★'.repeat(operator.stars) }}</span><span class="tag">{{ operator.type }}</span></div><div class="operator-detail-title"><h3 id="detail-title">{{ operator.name }}</h3><PrtsLink :name="operator.name"/></div><div class="row"><Chip v-for="name in operator.covenants" :key="name" kind="cv" :name="name"/></div></div><button type="button" class="sh-x" data-close aria-label="关闭" @click="actions.closeDetail()">✕</button></div>
       <div v-else-if="equipment" class="sh-h" :data-t="equipment.tier"><img v-if="equipIconSrc(equipment.name)" class="pic e" :src="equipIconSrc(equipment.name)" alt="" width="80" height="80"><div><div class="row"><i class="tn">{{ TIER_LABELS[equipment.tier] }} 阶</i><span class="tag a">{{ equipment.price }} 资金</span></div><h3 id="detail-title">{{ equipment.name }}</h3><div class="row"><Chip v-if="equipment.covenant" kind="cv" :name="equipment.covenant"/></div></div><button type="button" class="sh-x" data-close aria-label="关闭" @click="actions.closeDetail()">✕</button></div>
       <div v-else-if="strategy" class="sh-h"><img v-if="portraitSrc(strategy.name)" class="pic s" :src="portraitSrc(strategy.name)" alt="" width="88" height="88"><div><div class="row"><Chip v-if="isCoreCovenant(strategy.category)" kind="cv" :name="strategy.category"/><span v-else class="tag">{{ strategy.category }}</span><span :class="['tag', { t: strategy.unlock === '初始' }]">{{ strategy.unlock }}</span></div><h3 id="detail-title">{{ strategy.name }}</h3><div class="hpbig"><b>{{ strategy.hp }}</b><div class="trk"><div :style="{ width: hpWidth(strategy.hp) + '%' }"></div></div></div></div><button type="button" class="sh-x" data-close aria-label="关闭" @click="actions.closeDetail()">✕</button></div>
       <div class="sh-b">
@@ -57,3 +58,7 @@ onBeforeUnmount(() => dialog.value?.close());
     <aside v-if="operator" class="sh-side" aria-label="盟约效果"><div class="sd-k">盟约效果</div><section v-for="(name, index) in operator.covenants" :key="name" class="sd-c" :data-key="name" :style="{ '--c': color(name), '--i': index }"><button type="button" class="sd-h" :data-cv="name" data-peek="off" :title="`查看${name}盟约页`" @click="actions.openCovenant(name)"><b>{{ name }}</b><span>{{ isCoreCovenant(name) ? '核心' : '附加' }} · {{ rosterOf(name).length }} 名</span><em>▸</em></button><div class="pk-row"><span>{{ COVENANTS[name].need }} 人</span><div v-html="peekFx(COVENANTS[name].effect)"></div></div><div v-if="COVENANTS[name].bonus" class="pk-row a"><span>{{ bonusHeadcount(COVENANTS[name].bonus) ? bonusHeadcount(COVENANTS[name].bonus) + ' 名' : '强化' }}</span><div v-html="peekFx(bonusText(COVENANTS[name].bonus))"></div></div></section></aside>
   </dialog>
 </template>
+
+<style scoped>
+.operator-detail-title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+</style>

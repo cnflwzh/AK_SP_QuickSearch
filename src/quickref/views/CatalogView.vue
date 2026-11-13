@@ -35,7 +35,7 @@ const equipmentGroups = computed(() => TIERS.map(tier => ({ tier, items: equipme
       <button v-if="operatorFiltersActive" type="button" class="filter-clear" @click="clearOperatorFilters">重置</button>
       <span class="cnt">{{ operators.length }} 名</span>
     </div>
-    <template v-for="group in operatorGroups" :key="group.tier"><div class="tierh" :data-key="`heading:${group.tier}`" :data-t="group.tier"><i>{{ TIER_LABELS[group.tier] }}</i><span>{{ group.items.length }}</span></div><div class="qg" :data-key="`tier:${group.tier}`"><OperatorCard v-enter v-for="operator in group.items" :key="operator.name" :operator="operator" :show-elite="state.opElite"/></div></template>
+    <template v-for="group in operatorGroups" :key="group.tier"><div class="tierh" :data-key="`heading:${group.tier}`" :data-t="group.tier"><i>{{ TIER_LABELS[group.tier] }}</i><span>{{ group.items.length }}</span></div><div class="qg" :data-key="`tier:${group.tier}`"><OperatorCard v-enter v-for="operator in group.items" :key="operator.name" :operator="operator" :show-elite="state.opElite" show-wiki-link/></div></template>
     <div v-if="!operators.length" class="empty">—</div>
   </template>
   <template v-else-if="kind === 'eq'">

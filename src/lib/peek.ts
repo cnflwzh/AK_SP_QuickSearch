@@ -255,6 +255,13 @@ function cancelPress() {
 }
 
 function onPointerDown(e: PointerEvent) {
+  // Wiki 链接使用浏览器原生点击与长按菜单，不消耗一次触摸来关闭速览。
+  if (e.target instanceof Element && e.target.closest('[data-prts-link]')) {
+    cancelPress();
+    swallowClick = false;
+    hide();
+    return;
+  }
   if (e.pointerType === 'mouse') {
     hide();
     return;
