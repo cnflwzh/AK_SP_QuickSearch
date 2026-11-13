@@ -3,8 +3,8 @@ import { onBeforeUnmount, onMounted } from 'vue';
 import { whileVisible } from '../../lib/visibility';
 import { jointDefense } from '../chapters/enemiesView';
 import Markup from './Markup';
-const reduced = matchMedia('(prefers-reduced-motion: reduce)');
-const content = jointDefense(reduced.matches);
+// Keep the same SVG nodes so whileVisible can resume animation if the OS preference changes.
+const content = jointDefense(false);
 let dispose: (() => void) | undefined;
 onMounted(() => {
   const svg = document.querySelector<SVGSVGElement>('#joint');
@@ -14,4 +14,4 @@ onMounted(() => {
 });
 onBeforeUnmount(() => dispose?.());
 </script>
-<template><Markup as="svg" class="svgbox" id="joint" viewBox="0 0 520 220" :html="content" /></template>
+<template><Markup as="svg" class="svgbox" id="joint" viewBox="0 0 520 220" role="img" aria-label="联合模拟联防示意" aria-describedby="joint-defense-description" :html="content" /></template>

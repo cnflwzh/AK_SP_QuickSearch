@@ -54,14 +54,14 @@ const strategyContent = computed(() => strategies(strategyCategory.value));
 
   <h3 class="bh"><span>4.3</span>特质触发时机</h3>
   <div class="card">
-    <div class="trig" id="trig"><div class="zone z1">休整期内</div><div class="zone z2">边界</div><div class="zone z3">作战阶段</div><button v-for="([label], i) in TRIGGERS" :key="label" type="button" :data-i="i" :class="{ on: trigger === i }" @click="trigger = i"><b>{{ triggerLists[i].length }}</b>{{ label }}</button></div>
+    <div class="trig" id="trig"><div class="zone z1">休整期内</div><div class="zone z2">边界</div><div class="zone z3">作战阶段</div><button v-for="([label], i) in TRIGGERS" :key="label" type="button" :data-i="i" :class="{ on: trigger === i }" :aria-pressed="trigger === i" aria-controls="tlist" @click="trigger = i"><b>{{ triggerLists[i].length }}</b>{{ label }}</button></div>
     <div class="tlist" id="tlist"><div v-for="operator in triggerLists[trigger]" :key="operator.name" :data-key="operator.name"><Markup :html="op(operator.name)" />{{ traitText(operator.trait) }}</div></div>
   </div>
 
   <h3 class="bh" id="s44"><span>4.4</span>站位关系</h3>
   <div class="g2">
     <div class="card">
-      <div class="row" style="justify-content:space-between;margin-bottom:12px"><Segmented id="posseg" :labels="POSITIONS.map(p => p[0])" v-model="position" /><label class="row" style="font-size:13px;gap:6px"><input type="checkbox" id="mirror" v-model="mirror">右侧镜像</label></div>
+      <div class="row" style="justify-content:space-between;margin-bottom:12px"><Segmented id="posseg" aria-label="站位关系" :labels="POSITIONS.map(p => p[0])" v-model="position" /><label class="row" style="font-size:13px;gap:6px"><input type="checkbox" id="mirror" v-model="mirror">右侧镜像</label></div>
       <div class="pos" id="pos"><div v-for="(cell, i) in positionCells" :key="i" :class="{ me: cell.me, on: cell.on }">{{ cell.me ? (mirror ? '◀' : '▶') : '' }}</div></div>
     </div>
     <div class="card"><h4 id="posTitle">{{ keyword }} · {{ positionOperators.length }} 名</h4><div class="row" id="posOps"><Markup v-for="operator in positionOperators" :key="operator.name" :html="op(operator.name)" /><span v-if="keyword === '周围四格'" class="cv" style="--c:var(--accent)">灵巧盟约</span><span v-if="keyword === '周围八格'" class="cv" style="--c:var(--accent)">灵巧 40 层</span></div></div>
@@ -78,13 +78,13 @@ const strategyContent = computed(() => strategies(strategyCategory.value));
         <p id="cvBase" style="font-size:13px;color:var(--ink2);margin:12px 0 0">{{ calculation.cvBase }}</p>
         <p id="cvBig" style="font-size:13px;color:var(--ink);margin:6px 0 0">{{ calculation.cvBig }}</p>
       </div>
-      <Markup as="svg" class="svgbox" id="cvChart" viewBox="0 0 440 260" :html="calculation.cvChart" />
+      <Markup as="svg" class="svgbox" id="cvChart" viewBox="0 0 440 260" role="img" :aria-label="`${covenant}层数与效果曲线`" aria-describedby="covenant-chart-description cvBase cvBig" :html="calculation.cvChart" />
     </div>
   </div>
 
   <h3 class="bh"><span>4.6</span>策略（开局指挥）</h3>
   <div class="card">
-    <div class="row" style="justify-content:space-between"><Segmented id="stseg" :labels="STRATEGY_CATEGORIES" v-model="strategyCategory" /><span class="cnt" id="stcnt">{{ strategyContent.stcnt }}</span></div>
+    <div class="row" style="justify-content:space-between"><Segmented id="stseg" aria-label="策略类别" :labels="STRATEGY_CATEGORIES" v-model="strategyCategory" /><span class="cnt" id="stcnt">{{ strategyContent.stcnt }}</span></div>
     <Markup as="div" class="stg" id="stg" :html="strategyContent.stg" />
   </div>
 

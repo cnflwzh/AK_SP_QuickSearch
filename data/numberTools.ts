@@ -6,8 +6,10 @@ export const NUMBER_TOOLS = [
 ] as const;
 export type NumberTool = typeof NUMBER_TOOLS[number]['id'];
 
-/** 输入保护边界，非游戏内层数上限。和 URL 校验使用同一个值。 */
+/** 数值工具共用的输入保护边界，非游戏内层数上限。 */
 export const NUMBER_INPUT_LIMIT = 9999;
+/** 层数滑块和数字输入共用的可调上限。 */
+export const LAYER_INPUT_LIMIT = 999;
 
 export interface LayerBreakpoint {
   readonly layers: number;

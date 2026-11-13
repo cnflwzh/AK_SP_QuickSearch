@@ -13,7 +13,7 @@ function sparkline(name: string) {
   const max = Math.max(...values);
   const min = Math.min(...values);
   const points = values.map((v, x) => `${(x / 150 * 300).toFixed(1)},${(56 - (v - min) / ((max - min) || 1) * 50).toFixed(1)}`);
-  return html`<svg class="spark" viewBox="0 0 300 60" preserveAspectRatio="none">
+  return html`<svg class="spark" viewBox="0 0 300 60" preserveAspectRatio="none" aria-hidden="true" focusable="false">
     <path class="a" d="M0,60 L${points.join(' L')} L300,60Z"/><path d="M${points.join(' L')}"/>
   </svg>
   <div class="row" style="justify-content:space-between;font-size:12px;color:var(--ink3)">

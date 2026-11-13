@@ -111,24 +111,7 @@ onBeforeUnmount(() => dialog.value?.close());
 /* 取消原先给盟约效果预留的高度；干员信息可使用整张卡片，内容较短时自然收起。 */
 .split .sh-main { flex: 0 1 auto; max-height: var(--detail-max-height); overflow: auto; }
 
-.sheet :is(.sh-main, .sh-side) {
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--ink3) 45%, transparent) transparent;
-}
 .sh-side:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-/* Chromium / Safari 使用圆角细滑块；其余浏览器使用上方的标准滚动条属性。 */
-@supports selector(::-webkit-scrollbar) {
-  .sheet :is(.sh-main, .sh-side) { scrollbar-width: auto; scrollbar-color: auto; }
-  .sheet :is(.sh-main, .sh-side)::-webkit-scrollbar { width: 6px; height: 6px; }
-  .sheet :is(.sh-main, .sh-side)::-webkit-scrollbar-track { background: transparent; }
-  .sheet :is(.sh-main, .sh-side)::-webkit-scrollbar-thumb {
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--ink3) 45%, transparent);
-  }
-  .sheet :is(.sh-main, .sh-side)::-webkit-scrollbar-thumb:hover { background: var(--ink3); }
-  .sheet :is(.sh-main, .sh-side)::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
-  .sheet :is(.sh-main, .sh-side)::-webkit-scrollbar-corner { background: transparent; }
-}
 
 /* 按左侧实际宽度调整详情布局，避免沿用整个浏览器宽度挤压两栏。 */
 @container detail-area (max-width: 560px) {

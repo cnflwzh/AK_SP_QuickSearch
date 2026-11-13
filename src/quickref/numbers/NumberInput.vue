@@ -7,7 +7,9 @@ const props = withDefaults(defineProps<{
   label: string;
   placeholder?: string;
   nullable?: boolean;
-}>(), { nullable: false });
+  /** 覆盖当前工具的输入上限，默认使用通用数值边界。 */
+  max?: number;
+}>(), { nullable: false, max: NUMBER_INPUT_LIMIT });
 const emit = defineEmits<{ change: [value: number | null] }>();
 const draft = ref(props.value === null ? '' : String(props.value));
 watch(() => props.value, value => {
@@ -23,14 +25,14 @@ function read(event: Event): void {
     if (props.nullable) emit('change', null);
     return;
   }
-  if (Number.isInteger(input.valueAsNumber) && input.valueAsNumber >= 0 && input.valueAsNumber <= NUMBER_INPUT_LIMIT) {
+  if (Number.isInteger(input.valueAsNumber) && input.valueAsNumber >= 0 && input.valueAsNumber <= props.max) {
     emit('change', input.valueAsNumber);
   }
 }
 function commit(event: Event): void {
   const input = event.target as HTMLInputElement;
   const value = draft.value === '' && props.nullable ? null
-    : Number.isFinite(input.valueAsNumber) ? Math.max(0, Math.min(NUMBER_INPUT_LIMIT, Math.round(input.valueAsNumber)))
+    : Number.isFinite(input.valueAsNumber) ? Math.max(0, Math.min(props.max, Math.round(input.valueAsNumber)))
       : props.value ?? (props.nullable ? null : 0);
   draft.value = value === null ? '' : String(value);
   input.value = draft.value;
@@ -39,6 +41,6 @@ function commit(event: Event): void {
 </script>
 
 <template>
-  <input type="number" inputmode="numeric" min="0" :max="NUMBER_INPUT_LIMIT" step="1"
+  <input type="number" inputmode="numeric" min="0" :max="max" step="1"
     :value="draft" :aria-label="label" :placeholder="placeholder" @input="read" @blur="commit" @keydown.enter="commit">
 </template>

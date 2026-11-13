@@ -53,7 +53,7 @@ function soloLevelChart(out: Record<string, string>) {
   s += label(5, '盟约26/26', 0) + label(9, '追加敌人', 0) + label(15, '开绝境', 0) + label(9, '开险境', 14);
   s += '<text class="axl" x="4" y="186">等级</text><text class="axl" x="4" y="201">强度</text>';
 
-  out.lvchart = s;
+  out.lvchart = `<desc id="solo-level-description">${SOLO_LEVELS.map(level => `规程 ${level.level}：效率 ${level.efficiency}%，强度加成 ${level.strength}`).join('；')}</desc>` + s;
   out.lvmiss = ['阿戈尔', '卡西米尔', '灵巧', '奇迹', '投资人', '突袭', '独行', '绝技'].map(cv).join('');
 }
 
@@ -107,7 +107,7 @@ function unlockGraph(out: Record<string, string>) {
       + `<text x="${x}" y="${jointY + 5}" text-anchor="middle" style="fill:var(--ink);font-size:14px;font-weight:700">${name}</text>`;
   });
 
-  out.unlock = s;
+  out.unlock = '<desc id="unlock-description">联合难度依次为标准、险境、绝境、终极，绝境通关三次解锁终极。个人规程 9 解锁联合险境，规程 15 解锁联合绝境。联合险境、绝境、终极分别关联个人规程 3、7、13；击败隐秘核心或高血量通关可额外跳级，至规程 15。</desc>' + s;
 }
 
 /** Return the time-axis markup and caption for the selected difficulty index. */
@@ -171,7 +171,7 @@ export function creditChart(i: number) {
       + `<text class="axl" x="${x + (bw - 6) / 2}" y="206" text-anchor="middle" style="fill:var(--red)">领袖</text>`;
     s += `<text class="axl" x="${x0}" y="219">通过回合数</text>`;
 
-    out.crchart = s;
+    out.crchart = `<desc id="credit-chart-description">${MODES[i]}难度。${CREDIT.map((credit, index) => `通过 ${index + 1} 回合：${Math.round(credit * m)} 认证`).join('；')}；击败领袖：${base + bonus} 认证。</desc>` + s;
     out.crsum = '×' + Math.round(m * 100) + '% · 击败领袖额外 +' + bonus;
   return out;
 }
@@ -197,7 +197,7 @@ function seasonShopBar(out: Record<string, string>) {
       + `<text class="axl" x="${tx}" y="${above ? 40 : 116}" text-anchor="${anchor}" style="fill:var(--ink);font-size:13px">${v}</text>`
       + `<text class="axl" x="${tx}" y="${above ? 22 : 132}" text-anchor="${anchor}">${title}${reward ? ' · ' + reward : ''}</text>`;
   });
-  out.shopbar = s;
+  out.shopbar = `<desc id="season-shop-description">${MARKS.map(([value, title, reward]) => `${value} 认证：${title}${reward ? '，' + reward : ''}`).join('；')}</desc>` + s;
 }
 
 

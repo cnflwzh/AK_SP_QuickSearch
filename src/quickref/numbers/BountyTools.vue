@@ -1,16 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, toRefs } from 'vue';
+import LiveStatus from '../../lib/LiveStatus.vue';
 import { BOUNTIES } from '../../../data/rules.ts';
 import { enemyIconSrc } from '../../lib/assets.ts';
 import { nameScore, normalize } from '../../lib/match.ts';
-import { queryText } from '../../router/location.ts';
-import { routeQuery, updateQuery } from '../../router/navigation.ts';
 import Segmented from '../components/Segmented.vue';
+import { useNumberToolsState } from './useNumberToolsState.ts';
 
-const filters = [{ id: '', label: '全部' }, { id: 'single', label: '单次' }, { id: 'multi', label: '多轮' }];
-const search = computed(() => queryText(routeQuery.value, 'bountyQuery'));
-const payout = computed(() => queryText(routeQuery.value, 'payout'));
-const sort = computed(() => queryText(routeQuery.value, 'sort'));
+const filters = [{ id: '', label: '全部' }, { id: 'single', label: '单次' }, { id: 'multi', label: '多轮' }] as const;
+const { search, payout, sort } = toRefs(useNumberToolsState().bounty);
 const bounties = computed(() => {
   const query = normalize(search.value);
   const filtered = BOUNTIES.filter(item => (!query || nameScore(item.name, query) > 0)
@@ -21,12 +19,12 @@ const bounties = computed(() => {
 
 <template>
   <div class="nt-bounties">
-    <div class="bar nt-toolbar"><h4 class="nt-section-title">悬赏收益</h4><span class="nt-muted">{{ bounties.length }} 项</span></div>
+    <div class="bar nt-toolbar"><h4 class="nt-section-title" aria-level="2">悬赏收益</h4><span class="nt-muted">{{ bounties.length }} 项</span></div>
     <section class="nc">
       <div class="bar nt-bounty-controls">
-        <input type="search" :value="search" placeholder="搜索悬赏敌人" aria-label="搜索悬赏敌人" @input="updateQuery({ bountyQuery: ($event.target as HTMLInputElement).value || null }, true)">
-        <Segmented :labels="filters.map(filter => filter.label)" :active="filters.findIndex(filter => filter.id === payout)" attr="bounty-payout" @change="updateQuery({ payout: filters[$event].id || null })"/>
-        <select :value="sort" aria-label="悬赏排序" @change="updateQuery({ sort: ($event.target as HTMLSelectElement).value || null })"><option value="">默认顺序</option><option value="reward">资金从高到低</option></select>
+        <input v-model="search" type="search" placeholder="搜索悬赏敌人" aria-label="搜索悬赏敌人">
+        <Segmented :labels="filters.map(filter => filter.label)" :active="filters.findIndex(filter => filter.id === payout)" attr="bounty-payout" @change="payout = filters[$event].id"/>
+        <select v-model="sort" aria-label="悬赏排序"><option value="">默认顺序</option><option value="reward">资金从高到低</option></select>
       </div>
       <div class="nt-bounty-heading"><span>悬赏敌人</span><span>资金</span><span>发放时机</span></div>
       <div class="nt-bounty-list">
@@ -35,7 +33,8 @@ const bounties = computed(() => {
           <strong>+{{ bounty.funds }}</strong><span class="tag">{{ bounty.when }}</span>
         </div>
       </div>
-      <div v-if="!bounties.length" class="nt-no-results"><p>没有匹配的悬赏</p><button type="button" class="btn" @click="updateQuery({ bountyQuery: null, payout: null }, true)">清空筛选</button></div>
+      <div v-if="!bounties.length" class="nt-no-results"><p>没有匹配的悬赏</p><button type="button" class="btn" @click="search = ''; payout = ''">清空筛选</button></div>
     </section>
+    <LiveStatus :message="bounties.length ? `悬赏筛选结果：${bounties.length} 项` : '没有匹配的悬赏'"/>
   </div>
 </template>

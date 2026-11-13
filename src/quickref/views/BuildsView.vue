@@ -132,19 +132,19 @@ watch(() => currentRoute.value.hash, hash => {
 </script>
 <template>
   <div class="bsel">
-    <button v-for="x in coreList" :key="x.key" type="button" :class="{ on: x.key === p.key, run: x.key === runKey }" :style="{ '--c': presetColor(x) }" :data-bd="x.key" @click="selectBuild(x.key)">{{ x.plan.name }}<i v-if="x.modified" class="md" title="已修改">✎</i></button>
+    <button v-for="x in coreList" :key="x.key" type="button" :class="{ on: x.key === p.key, run: x.key === runKey }" :style="{ '--c': presetColor(x) }" :data-bd="x.key" :aria-pressed="x.key === p.key" @click="selectBuild(x.key)">{{ x.plan.name }}<i v-if="x.modified" class="md" title="已修改">✎</i></button>
     <span class="sp"></span>
-    <button v-for="x in mixedList" :key="x.key" type="button" :class="{ on: x.key === p.key, run: x.key === runKey }" style="--c:var(--accent)" :data-bd="x.key" @click="selectBuild(x.key)">{{ x.plan.name }}<i v-if="x.modified" class="md" title="已修改">✎</i></button>
+    <button v-for="x in mixedList" :key="x.key" type="button" :class="{ on: x.key === p.key, run: x.key === runKey }" style="--c:var(--accent)" :data-bd="x.key" :aria-pressed="x.key === p.key" @click="selectBuild(x.key)">{{ x.plan.name }}<i v-if="x.modified" class="md" title="已修改">✎</i></button>
     <span class="sp"></span>
     <span class="bk">我的</span>
-    <button v-for="x in mine" :key="x.key" type="button" :class="['my', { on: x.key === p.key, run: x.key === runKey }]" style="--c:var(--accent)" :data-bd="x.key" @click="selectBuild(x.key)">{{ x.plan.name }}</button>
+    <button v-for="x in mine" :key="x.key" type="button" :class="['my', { on: x.key === p.key, run: x.key === runKey }]" style="--c:var(--accent)" :data-bd="x.key" :aria-pressed="x.key === p.key" @click="selectBuild(x.key)">{{ x.plan.name }}</button>
     <button type="button" class="add" @click="createBuild">＋ 新建</button>
-    <button type="button" :class="['add', { on: importOpen }]" @click="importOpen = !importOpen">导入</button>
+    <button type="button" :class="['add', { on: importOpen }]" :aria-expanded="importOpen" :aria-controls="importOpen ? 'build-import' : undefined" @click="importOpen = !importOpen">导入</button>
   </div>
 
   <p v-if="saveError" class="pl-warn" role="status">本地保存失败，请先复制分享码保留流派。</p>
 
-  <section v-if="importOpen" class="pl-panel bimp">
+  <section v-if="importOpen" id="build-import" class="pl-panel bimp">
     <input v-model="importText" class="pl-paste" placeholder="粘贴分享码或链接" aria-label="分享码">
     <template v-if="imported">
       <PlanSummary :ops="imported.plan.ops" :strategy="imported.plan.strategy" :note="imported.plan.note" :layers="imported.plan.layers" :title="imported.plan.name || '导入的流派'"/>
@@ -176,7 +176,7 @@ watch(() => currentRoute.value.hash, hash => {
     </div>
 
     <div v-if="banOpen || myBans.length" class="bban">
-      <div class="bpick"><span class="k">点选被 ban 的</span><button v-for="s in bannable" :key="s.name" type="button" :class="['bc', { on: runBans.includes(s.name) }]" :style="{ '--c': color(s.name) }" @click="toggleBan(s.name)">{{ s.name }}</button></div>
+      <div class="bpick"><span class="k">点选被 ban 的</span><button v-for="s in bannable" :key="s.name" type="button" :class="['bc', { on: runBans.includes(s.name) }]" :aria-pressed="runBans.includes(s.name)" :style="{ '--c': color(s.name) }" @click="toggleBan(s.name)">{{ s.name }}</button></div>
       <template v-if="ban">
         <div v-for="pk in ban.picks" :key="pk.replaces" class="bpk">
           <span class="av off" :data-t="OPERATOR[pk.replaces].tier" :data-op="pk.replaces" :title="`${pk.replaces} 不会出现`"><img :src="avatarSrc(pk.replaces)" alt="" width="36" height="36"><small>{{ pk.replaces }}</small></span>

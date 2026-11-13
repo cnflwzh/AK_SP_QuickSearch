@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, toRefs } from 'vue';
+import LiveStatus from '../../lib/LiveStatus.vue';
 import { OPERATORS } from '../../../data/operators.ts';
 import { DISPATCH_BY_MODE, DISPATCH_MODES, operatorPrice, TIER_LABELS } from '../../../data/rules.ts';
 import { SHOP_MODE_IDS } from '../../../data/numberTools.ts';
@@ -7,25 +8,23 @@ import type { Operator } from '../../../data/types.ts';
 import { avatarSrc } from '../../lib/assets.ts';
 import { nameScore, normalize } from '../../lib/match.ts';
 import { synthesisTier } from '../../lib/numberTools.ts';
-import { queryText } from '../../router/location.ts';
-import { cardLocation, routeQuery, updateQuery } from '../../router/navigation.ts';
+import { cardLocation } from '../../router/navigation.ts';
 import { useQuickrefActions } from '../state.ts';
 import NavigationLink from '../components/NavigationLink.vue';
 import RefreshBudget from './RefreshBudget.vue';
 import { useWishlist } from './useWishlist.ts';
+import { useNumberToolsState, type ShopMode } from './useNumberToolsState.ts';
 
 const actions = useQuickrefActions();
 const { targets, names, maxTargets, saveFailed, add, remove } = useWishlist();
 const copied = ref(false);
 const copyFallback = ref('');
-const search = computed(() => queryText(routeQuery.value, 'operatorQuery'));
-const showAllResults = ref(false);
-const onlyAvailable = ref(false);
-const level = computed(() => Number(queryText(routeQuery.value, 'level') || 4));
-const shopMode = computed(() => queryText(routeQuery.value, 'shopMode') || 'advanced');
+const recruitState = useNumberToolsState().recruit;
+const { search, showAllResults, onlyAvailable, level, shopMode } = toRefs(recruitState);
+const budget = recruitState.budget;
 const modeIndex = computed(() => Math.max(0, SHOP_MODE_IDS.findIndex(mode => mode === shopMode.value)));
 const levels = computed(() => DISPATCH_BY_MODE[modeIndex.value]);
-const target = computed(() => OPERATORS.find(operator => operator.avatar === queryText(routeQuery.value, 'target')));
+const target = computed(() => OPERATORS.find(operator => operator.name === recruitState.targetName));
 const rewardTier = computed(() => synthesisTier(level.value));
 const searchResults = computed(() => {
   const query = normalize(search.value);
@@ -36,18 +35,21 @@ const searchResults = computed(() => {
 const visibleResults = computed(() => showAllResults.value ? searchResults.value : searchResults.value.slice(0, 12));
 
 function selectTarget(operator: Operator): void {
-  void updateQuery({ target: operator.avatar, operatorQuery: null });
+  recruitState.targetName = operator.name;
+  search.value = '';
 }
 function searchOperators(event: Event): void {
   showAllResults.value = false;
-  void updateQuery({ operatorQuery: (event.target as HTMLInputElement).value || null }, true);
+  search.value = (event.target as HTMLInputElement).value;
 }
 function changeLevel(nextLevel: number): void {
   // 当前升级价属于当前等级，升/降级后需要重新填写，不沿用上一等级价格。
-  void updateQuery({ level: nextLevel, upgrade: null });
+  level.value = nextLevel;
+  budget.upgrade = null;
 }
 function changeMode(event: Event): void {
-  void updateQuery({ shopMode: (event.target as HTMLSelectElement).value, upgrade: null });
+  shopMode.value = (event.target as HTMLSelectElement).value as ShopMode;
+  budget.upgrade = null;
 }
 function addTarget(operator: Operator): void { add(operator.name); copied.value = false; copyFallback.value = ''; }
 function removeTarget(name: string): void { remove(name); copied.value = false; copyFallback.value = ''; }
@@ -57,22 +59,28 @@ async function copyTargets(): Promise<void> {
   try { await navigator.clipboard.writeText(text); copied.value = true; copyFallback.value = ''; }
   catch { copied.value = false; copyFallback.value = text; }
 }
+const searchSummary = computed(() => {
+  if (!normalize(search.value)) return '';
+  return searchResults.value.length
+    ? `「${search.value}」找到 ${searchResults.value.length} 名干员，已显示 ${visibleResults.value.length} 名`
+    : `没有匹配「${search.value}」的干员`;
+});
 </script>
 
 <template>
   <div class="nt-recruit">
     <div class="bar nt-toolbar">
-      <h4 class="nt-section-title">找牌与升本</h4>
+      <h4 class="nt-section-title" aria-level="2">找牌与升本</h4>
       <select :value="shopMode" aria-label="调度模式" @change="changeMode">
         <option v-for="(id, index) in SHOP_MODE_IDS" :key="id" :value="id">{{ DISPATCH_MODES[index] }}</option>
       </select>
     </div>
     <section class="nc nt-recruit-grid" aria-label="目标干员与刷新预算">
       <section class="nt-operator-search">
-        <header class="nt-heading"><h4>目标干员</h4><span class="nt-muted">名字 / 拼音 / 盟约</span></header>
+        <header class="nt-heading"><h4 aria-level="3">目标干员</h4><span class="nt-muted">名字 / 拼音 / 盟约</span></header>
         <div class="bar nt-search-row">
           <input type="search" :value="search" placeholder="找谁？" aria-label="查找目标干员" @input="searchOperators">
-          <button v-if="search" type="button" class="btn nt-text-button" @click="updateQuery({ operatorQuery: null }, true)">清空</button>
+          <button v-if="search" type="button" class="btn nt-text-button" @click="search = ''">清空</button>
         </div>
         <template v-if="search">
           <label class="nt-checkbox"><input v-model="onlyAvailable" type="checkbox">仅看当前等级可刷 <small>{{ searchResults.length }} 名</small></label>
@@ -105,11 +113,11 @@ async function copyTargets(): Promise<void> {
         </div>
       </section>
 
-      <RefreshBudget :level="level"/>
+      <RefreshBudget v-model:funds="budget.funds" v-model:upgrade="budget.upgrade" v-model:reserve="budget.reserveOverride" :level="level" :target="target"/>
     </section>
 
     <section v-if="targets.length" class="nc nt-wishlist">
-      <header class="nt-heading"><h4>待找清单 <small>{{ targets.length }}/{{ maxTargets }}</small></h4><button type="button" class="btn nt-text-button" @click="copyTargets">{{ copied ? '已复制' : '复制给队友' }}</button></header>
+      <header class="nt-heading"><h4 aria-level="3">待找清单 <small>{{ targets.length }}/{{ maxTargets }}</small></h4><button type="button" class="btn nt-text-button" @click="copyTargets">{{ copied ? '已复制' : '复制给队友' }}</button></header>
       <div class="nt-target-list">
         <div v-for="operator in targets" :key="operator.name" class="nt-target-item">
           <button type="button" class="nt-select-operator" @click="selectTarget(operator)"><img :src="avatarSrc(operator.name)" alt="" width="36" height="36" loading="lazy" decoding="async"><span><b>{{ operator.name }}</b><small>{{ operator.tier }} 级起 · {{ operatorPrice(operator) }} 资金</small></span></button>
@@ -121,7 +129,7 @@ async function copyTargets(): Promise<void> {
     </section>
 
     <section class="nc nt-dispatch">
-      <header class="nt-heading"><h4>当前等级</h4><span class="nt-muted">升级价每回合 −1</span></header>
+      <header class="nt-heading"><h4 aria-level="3">当前等级</h4><span class="nt-muted">升级价每回合 −1</span></header>
       <div class="nt-table-scroll">
         <table class="nt-dispatch-table">
           <thead><tr><th scope="col">调度中心</th><th v-for="row in levels" :key="row.level" scope="col" :class="{ current: level === row.level }">
@@ -137,5 +145,6 @@ async function copyTargets(): Promise<void> {
       </div>
       <p class="nt-footnote">合成奖励：当前等级 +1 阶，最高 VI 阶，随机三选一</p>
     </section>
+    <LiveStatus :message="searchSummary"/>
   </div>
 </template>

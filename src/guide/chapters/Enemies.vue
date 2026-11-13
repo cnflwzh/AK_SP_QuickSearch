@@ -47,7 +47,7 @@ const content = enemyContent();
 
   <h3 class="bh"><span>3.4</span>领袖生命值</h3>
   <div class="card">
-    <div class="row" style="justify-content:space-between;margin-bottom:12px"><Segmented id="ldseg" :labels="MODES" v-model="leaderMode" /><div class="legend" style="margin:0"><span><i style="background:var(--red)"></i>领袖</span><span><i style="background:repeating-linear-gradient(45deg,var(--ink3) 0 3px,transparent 3px 6px)"></i>隐秘核心</span></div></div>
+    <div class="row" style="justify-content:space-between;margin-bottom:12px"><Segmented id="ldseg" aria-label="领袖难度" :labels="MODES" v-model="leaderMode" /><div class="legend" style="margin:0"><span><i style="background:var(--red)"></i>领袖</span><span><i style="background:repeating-linear-gradient(45deg,var(--ink3) 0 3px,transparent 3px 6px)"></i>隐秘核心</span></div></div>
     <Markup as="div" class="ldr" id="ldr" :html="leaderHp(leaderMode)" />
     <div class="row mt"><span class="tag">隐秘核心：击败领袖后达成特定条件出现</span><span class="tag">极速模拟：第 9 回合领袖</span><span class="tag">其他：第 14 回合领袖</span></div>
   </div>

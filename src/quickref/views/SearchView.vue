@@ -8,6 +8,7 @@ import LeaderRow from '../components/LeaderRow.vue';
 import OperatorCard from '../components/OperatorCard.vue';
 import EquipmentCard from '../components/EquipmentCard.vue';
 import StrategyCard from '../components/StrategyCard.vue';
+import LiveStatus from '../../lib/LiveStatus.vue';
 const props = defineProps<{ query: string }>();
 const operatorLimit = ref(60);
 watch(() => props.query, () => { operatorLimit.value = 60; });
@@ -35,12 +36,23 @@ const results = computed(() => {
   };
 });
 const empty = computed(() => !!normalizedQuery.value && Object.values(results.value).every(list => !list.length));
+const resultSummary = computed(() => {
+  if (!normalizedQuery.value) return '';
+  if (empty.value) return `没有匹配「${props.query}」的结果`;
+  const counts = [
+    [results.value.covenants.length, '个盟约'], [results.value.builds.length, '个流派'],
+    [results.value.operators.length, '名干员'], [results.value.equipment.length, '件装备'],
+    [results.value.strategies.length, '个策略'], [results.value.leaders.length, '名领袖'],
+  ] as const;
+  return `「${props.query}」找到` + counts.filter(([count]) => count > 0).map(([count, label]) => `${count} ${label}`).join('，');
+});
 </script>
 <template>
   <div v-if="empty" class="empty">没有匹配「{{ query }}」</div>
-  <template v-if="results.covenants.length + results.builds.length"><div class="sec" data-key="heading:盟约 / 流派">盟约 / 流派<span class="n">{{ results.covenants.length + results.builds.length }}</span></div><div class="row" data-key="covenants"><Chip v-for="name in results.covenants" :key="`cv:${name}`" kind="cv" :name="name"/><Chip v-for="name in results.builds" :key="`build:${name}`" kind="build" :name="name"/></div></template>
-  <template v-if="results.operators.length"><div class="sec" data-key="heading:干员">干员<span class="n">{{ results.operators.length }}</span></div><div class="qg" data-key="operators"><OperatorCard v-for="operator in results.operators.slice(0, operatorLimit)" :key="operator.name" :operator="operator"/></div><button v-if="operatorLimit < results.operators.length" type="button" class="filter-clear" @click="operatorLimit += 60">显示更多干员（{{ operatorLimit }} / {{ results.operators.length }}）</button></template>
-  <template v-if="results.equipment.length"><div class="sec" data-key="heading:装备">装备<span class="n">{{ results.equipment.length }}</span></div><div class="qg" data-key="equipment"><EquipmentCard v-for="item in results.equipment" :key="item.name" :item="item"/></div></template>
-  <template v-if="results.strategies.length"><div class="sec" data-key="heading:策略">策略<span class="n">{{ results.strategies.length }}</span></div><div class="qg" data-key="strategies"><StrategyCard v-for="strategy in results.strategies" :key="strategy.name" :strategy="strategy"/></div></template>
-  <template v-if="results.leaders.length"><div class="sec" data-key="heading:领袖">领袖<span class="n">{{ results.leaders.length }}</span></div><div class="lwl" data-key="leaders"><LeaderRow v-for="leader in results.leaders" :key="leader.id" :leader="leader" :mode="state.mode"/></div></template>
+  <template v-if="results.covenants.length + results.builds.length"><div class="sec" role="heading" aria-level="2" data-key="heading:盟约 / 流派">盟约 / 流派<span class="n">{{ results.covenants.length + results.builds.length }}</span></div><div class="row" data-key="covenants"><Chip v-for="name in results.covenants" :key="`cv:${name}`" kind="cv" :name="name"/><Chip v-for="name in results.builds" :key="`build:${name}`" kind="build" :name="name"/></div></template>
+  <template v-if="results.operators.length"><div class="sec" role="heading" aria-level="2" data-key="heading:干员">干员<span class="n">{{ results.operators.length }}</span></div><div class="qg" data-key="operators"><OperatorCard v-for="operator in results.operators.slice(0, operatorLimit)" :key="operator.name" :operator="operator"/></div><button v-if="operatorLimit < results.operators.length" type="button" class="filter-clear" @click="operatorLimit += 60">显示更多干员（{{ operatorLimit }} / {{ results.operators.length }}）</button></template>
+  <template v-if="results.equipment.length"><div class="sec" role="heading" aria-level="2" data-key="heading:装备">装备<span class="n">{{ results.equipment.length }}</span></div><div class="qg" data-key="equipment"><EquipmentCard v-for="item in results.equipment" :key="item.name" :item="item"/></div></template>
+  <template v-if="results.strategies.length"><div class="sec" role="heading" aria-level="2" data-key="heading:策略">策略<span class="n">{{ results.strategies.length }}</span></div><div class="qg" data-key="strategies"><StrategyCard v-for="strategy in results.strategies" :key="strategy.name" :strategy="strategy"/></div></template>
+  <template v-if="results.leaders.length"><div class="sec" role="heading" aria-level="2" data-key="heading:领袖">领袖<span class="n">{{ results.leaders.length }}</span></div><div class="lwl" data-key="leaders"><LeaderRow v-for="leader in results.leaders" :key="leader.id" :leader="leader" :mode="state.mode"/></div></template>
+  <LiveStatus :message="resultSummary"/>
 </template>

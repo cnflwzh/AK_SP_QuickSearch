@@ -85,7 +85,8 @@ onMounted(() => {
 onBeforeUnmount(() => { dispose?.(); clearTimeout(blinkTimer); });
 </script>
 <template>
-  <svg ref="svg" class="svgbox" id="leak" viewBox="0 0 640 170">
+  <svg ref="svg" class="svgbox" id="leak" viewBox="0 0 640 170" role="img" aria-label="漏怪与目标生命演示" aria-describedby="leak-description">
+    <desc id="leak-description">敌人从右侧出现，向左侧目标移动。越过防线的敌人抵达目标时扣除生命；上方显示目标剩余生命、本回合扣血和剩余作战时间。</desc>
     <rect class="lane" x="30" y="70" width="600" height="40" rx="4" />
     <rect class="base" x="10" y="62" width="26" height="56" rx="4" />
     <text class="lbl" x="23" y="134" text-anchor="middle">目标</text>

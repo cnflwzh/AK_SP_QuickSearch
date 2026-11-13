@@ -5,6 +5,7 @@ import { whileVisible } from '../lib/visibility';
 import Markup from './components/Markup';
 import { decodeFragment } from '../lib/url.ts';
 import { placeholders } from './placeholders';
+import SkipLink from '../lib/SkipLink.vue';
 
 const props = defineProps<{ ready: () => void; failed: (error: unknown) => void }>();
 const loaders: Record<string, () => Promise<{ default: Component }>> = {
@@ -101,6 +102,7 @@ onMounted(async () => {
 onBeforeUnmount(() => { mounted = false; cleanup.forEach(dispose => dispose()); });
 </script>
 <template>
+<SkipLink target-id="guide-content" sticky-header="nav.top"/>
 <header class="wrap hero">
   <div>
     <div class="kicker">ARKNIGHTS · STRONGHOLD PROTOCOL</div>
@@ -122,12 +124,12 @@ onBeforeUnmount(() => { mounted = false; cleanup.forEach(dispose => dispose()); 
   </svg>
 </header>
 
-<nav class="top"><div class="wrap" id="nav" @click="navigate">
-  <a href="/index.html" class="home"><i>◂</i>速查</a>  <a href="#c1" :class="{ on: active === 'c1' }"><i>01</i>入门</a><a href="#c2" :class="{ on: active === 'c2' }"><i>02</i>招募与升本</a><a href="#c3" :class="{ on: active === 'c3' }"><i>03</i>刷怪</a><a href="#c4" :class="{ on: active === 'c4' }"><i>04</i>盟约进阶</a><a href="#c5" :class="{ on: active === 'c5' }"><i>05</i>流派</a><a href="#c6" :class="{ on: active === 'c6' }"><i>06</i>图鉴</a>
+<nav class="top" aria-label="教程章节"><div class="wrap" id="nav" @click="navigate">
+  <a href="/index.html" class="home"><i>◂</i>速查</a>  <a href="#c1" :class="{ on: active === 'c1' }" :aria-current="active === 'c1' ? 'location' : undefined"><i>01</i>入门</a><a href="#c2" :class="{ on: active === 'c2' }" :aria-current="active === 'c2' ? 'location' : undefined"><i>02</i>招募与升本</a><a href="#c3" :class="{ on: active === 'c3' }" :aria-current="active === 'c3' ? 'location' : undefined"><i>03</i>刷怪</a><a href="#c4" :class="{ on: active === 'c4' }" :aria-current="active === 'c4' ? 'location' : undefined"><i>04</i>盟约进阶</a><a href="#c5" :class="{ on: active === 'c5' }" :aria-current="active === 'c5' ? 'location' : undefined"><i>05</i>流派</a><a href="#c6" :class="{ on: active === 'c6' }" :aria-current="active === 'c6' ? 'location' : undefined"><i>06</i>图鉴</a>
 </div></nav>
 
 
-<main class="wrap">
+<main id="guide-content" class="wrap" tabindex="-1" aria-label="图解教程内容">
   <section v-for="id in ids" :key="id" class="chap" :id="id" :aria-busy="busy[id] ? 'true' : undefined" :data-loaded="components[id] ? 'true' : undefined">
     <button v-if="errors[id]" type="button" class="btn chapter-retry" @click="backgroundLoad(id)">重新加载本章</button>
     <component v-if="components[id]" :is="components[id]" />

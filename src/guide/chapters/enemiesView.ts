@@ -25,7 +25,7 @@ export function jointDefense(prefersReducedMotion: boolean) {
     if (prefersReducedMotion) return;
     const leaked = i === 1 ? 3 : 5;
     for (let k = 0; k < leaked; k++) {
-      s += `<circle r="4.5" fill="var(--red)"><animateMotion dur="2.6s" begin="${k * .45}s" repeatCount="indefinite"><mpath href="#jp${i}"/></animateMotion></circle>`;
+      s += `<circle class="joint-enemy" r="4.5" fill="var(--red)"><animateMotion dur="2.6s" begin="${k * .45}s" repeatCount="indefinite"><mpath href="#jp${i}"/></animateMotion></circle>`;
     }
   });
   // 完美通关的玩家：绿线进入战场
@@ -33,7 +33,7 @@ export function jointDefense(prefersReducedMotion: boolean) {
     const y = 49 + i * 52;
     s += `<path d="M132,${y} C240,${y} 300,${i ? 190 : 150} ${i ? 465 : 405},${i ? 176 : 138}" fill="none" stroke="var(--green)" stroke-width="1.5" marker-end="url(#ah)" opacity=".8"/>`;
   });
-  out.joint = s;
+  out.joint = `<desc id="joint-defense-description">${PLAYERS.map(([name, result]) => `${name}：${result}`).join('；')}。漏怪合并到联防战场，由完美通关的玩家 A 和 D 清理。</desc>` + s;
 return out.joint;
 }
 /** Format leader and hidden-core HP bars for the difficulty index. */

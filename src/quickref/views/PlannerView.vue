@@ -164,15 +164,15 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
     <div class="pl-bar">
       <input v-model="plan.name" class="pl-name" maxlength="16" aria-label="流派名" @input="touch">
       <span class="pl-acts">
-        <button type="button" :class="{ on: panel === 'share' }" @click="openPanel('share')">分享</button>
-        <button type="button" :class="{ on: panel === 'compare' }" @click="openPanel('compare')">对比</button>
+        <button type="button" :class="{ on: panel === 'share' }" :aria-expanded="panel === 'share'" :aria-controls="panel === 'share' ? 'planner-share' : undefined" @click="openPanel('share')">分享</button>
+        <button type="button" :class="{ on: panel === 'compare' }" :aria-expanded="panel === 'compare'" :aria-controls="panel === 'compare' ? 'planner-compare' : undefined" @click="openPanel('compare')">对比</button>
         <i class="sep"></i>
         <button type="button" class="pri" @click="emit('done')">完成</button>
       </span>
     </div>
 
     <!-- 分享 -->
-    <section v-if="panel === 'share'" class="pl-panel">
+    <section v-if="panel === 'share'" id="planner-share" class="pl-panel">
       <div class="pl-code"><span class="k">分享码</span><code>{{ code }}</code><button type="button" @click="copy(code, 'code')">{{ copied === 'code' ? '已复制' : '复制' }}</button></div>
       <div class="pl-code"><span class="k">链接</span><code>{{ link }}</code><button type="button" @click="copy(link, 'link')">{{ copied === 'link' ? '已复制' : '复制' }}</button></div>
       <div class="pl-code"><span class="k">图片</span><span class="hint">干员、装备、盟约，附二维码，扫码即导入</span><button type="button" :disabled="imageBusy || !ops.length" @click="saveImage">{{ imageBusy ? '生成中…' : '生成图片' }}</button></div>
@@ -181,7 +181,7 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
     <p v-if="imageError && panel === 'share'" class="pl-warn" role="status">{{ imageError }}</p>
 
     <!-- 对比 -->
-    <section v-if="panel === 'compare'" class="pl-panel">
+    <section v-if="panel === 'compare'" id="planner-compare" class="pl-panel">
       <select v-model="other" aria-label="对比对象">
         <option value="">选择要对比的流派</option>
         <option v-for="x in presets.filter(x => x.plan.id !== plan.id)" :key="x.key" :value="x.key">{{ x.builtin ? '' : '我的 · ' }}{{ x.plan.name }}</option>
@@ -200,7 +200,7 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
       <section class="pl-card pl-lineup">
         <h4>阵容<span class="tag">{{ ops.length }} / {{ MAX_OPS }}</span><span class="hint">点头像编辑 · 小头像是备选</span></h4>
         <div class="pl-slots">
-          <button v-for="(s, i) in ops" :key="s.name" type="button" :class="['pl-slot', { on: editing === i, el: s.elite, core: s.core }]" :data-t="OPERATOR[s.name].tier" :data-op="s.name" :style="{ '--i': i }" @click="editSlot(i)">
+          <button v-for="(s, i) in ops" :key="s.name" type="button" :class="['pl-slot', { on: editing === i, el: s.elite, core: s.core }]" :aria-expanded="editing === i" :aria-controls="editing === i ? 'planner-slot-editor' : undefined" :data-t="OPERATOR[s.name].tier" :data-op="s.name" :style="{ '--i': i }" @click="editSlot(i)">
             <i class="no">{{ i + 1 }}</i>
             <span class="av"><img :src="avatarSrc(s.name)" alt="" width="56" height="56"><b class="tr" :title="`${OPERATOR[s.name].tier} 阶`">{{ TIER_LABELS[OPERATOR[s.name].tier] }}</b></span>
             <span class="nm"><b v-if="s.core" class="pl-core-mark" title="核心干员" aria-label="核心干员">★</b>{{ s.name }}</span>
@@ -211,7 +211,7 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
           <span v-for="k in MAX_OPS - ops.length" :key="`e${k}`" class="pl-slot empty"><i class="no">{{ ops.length + k }}</i>+</span>
         </div>
 
-        <div v-if="slot" class="pl-edit">
+        <div v-if="slot" id="planner-slot-editor" class="pl-edit">
           <div class="pl-row">
             <b>{{ slot.name }}</b>
             <Segmented :labels="['初始', '精锐']" :active="slot.elite ? 1 : 0" attr="ple" @change="slot.elite = $event === 1; touch()"/>
@@ -223,7 +223,7 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
           <div class="pl-row pl-eqs">
             <span class="k">装备</span>
             <button v-for="(e, k) in slot.eq" :key="k" type="button" class="pl-eq" :data-t="EQUIP[e].tier" :data-eq="e" @click="dropEquip(k)"><img :src="equipIconSrc(e)" alt="" width="22" height="22">{{ e }}<i>×</i></button>
-            <button v-if="slot.eq.length < MAX_EQ" type="button" :class="['pl-eq', 'add', { on: picking === 'eq' }]" @click="picking = picking === 'eq' ? '' : 'eq'">+ 装备</button>
+            <button v-if="slot.eq.length < MAX_EQ" type="button" :class="['pl-eq', 'add', { on: picking === 'eq' }]" :aria-expanded="picking === 'eq'" :aria-controls="picking === 'eq' ? 'planner-equipment' : undefined" @click="picking = picking === 'eq' ? '' : 'eq'">+ 装备</button>
           </div>
           <div class="pl-row pl-alts">
             <span class="k">备选</span>
@@ -231,13 +231,13 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
               <button type="button" :disabled="inPlan.has(a)" :title="inPlan.has(a) ? '已在阵容里' : '换上场'" @click="swapAlt(k)"><img :src="avatarSrc(a)" alt="" width="24" height="24">{{ a }}<b>⇄</b></button>
               <button type="button" class="x" aria-label="移除备选" @click="dropAlt(k)">×</button>
             </span>
-            <button v-if="slot.alt.length < MAX_ALT" type="button" :class="['pl-eq', 'add', { on: picking === 'alt' }]" @click="picking = picking === 'alt' ? '' : 'alt'">+ 备选</button>
+            <button v-if="slot.alt.length < MAX_ALT" type="button" :class="['pl-eq', 'add', { on: picking === 'alt' }]" :aria-expanded="picking === 'alt'" :aria-controls="picking === 'alt' ? 'planner-alternatives' : undefined" @click="picking = picking === 'alt' ? '' : 'alt'">+ 备选</button>
           </div>
-          <div v-if="picking === 'alt'" class="pl-pick pl-altpick">
+          <div v-if="picking === 'alt'" id="planner-alternatives" class="pl-pick pl-altpick">
             <span class="hint">同盟约、等阶相近 · 也可以在干员列表里点选</span>
             <div class="pl-pick-g"><button v-for="o in altSuggest" :key="o.name" type="button" :data-t="o.tier" :data-op="o.name" @click="addAlt(o.name)"><img :src="avatarSrc(o.name)" alt="" width="34" height="34" loading="lazy"><small>{{ o.name }}</small><span class="dots"><u v-for="c in o.covenants" :key="c" :style="{ '--c': color(c) }"></u></span></button></div>
           </div>
-          <div v-if="picking === 'eq'" class="pl-pick">
+          <div v-if="picking === 'eq'" id="planner-equipment" class="pl-pick">
             <div v-for="g in eqGroups" :key="g.tier" class="pl-pick-g"><i class="tier" :data-t="g.tier">{{ TIER_LABELS[g.tier] }}</i>
               <button v-for="e in g.items" :key="e.name" type="button" :data-t="e.tier" :data-eq="e.name" :title="e.name" @click="addEquip(e.name)"><img :src="equipIconSrc(e.name)" alt="" width="30" height="30" loading="lazy"></button>
             </div>
@@ -252,15 +252,15 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
         </div>
 
         <div class="pl-st">
-          <button type="button" :class="['pl-st-b', { on: picking === 'st' }]" :data-st="strategy?.name" @click="picking = picking === 'st' ? '' : 'st'">
+          <button type="button" :class="['pl-st-b', { on: picking === 'st' }]" :aria-expanded="picking === 'st'" :aria-controls="picking === 'st' ? 'planner-strategies' : undefined" :data-st="strategy?.name" @click="picking = picking === 'st' ? '' : 'st'">
             <img v-if="strategy" :src="portraitSrc(strategy.name)" alt="" width="36" height="36"><span v-else class="ph">+</span>
             <span><small>策略</small><b>{{ strategy ? `${strategy.name}` : '选择策略' }}</b></span>
           </button>
           <p v-if="strategy" v-html="fx(strategy.effect)"></p>
         </div>
-        <div v-if="picking === 'st'" class="pl-pick stp">
+        <div v-if="picking === 'st'" id="planner-strategies" class="pl-pick stp">
           <Segmented :labels="STRATEGY_CATEGORIES" :active="stCategory" attr="plsc" @change="stCategory = $event"/>
-          <div class="pl-pick-g"><button v-for="s in stList" :key="s.name" type="button" :class="{ on: s.name === plan.strategy }" :data-st="s.name" @click="pickStrategy(s.name)"><img :src="portraitSrc(s.name)" alt="" width="34" height="34" loading="lazy"><small>{{ s.name }}</small></button></div>
+          <div class="pl-pick-g"><button v-for="s in stList" :key="s.name" type="button" :class="{ on: s.name === plan.strategy }" :aria-pressed="s.name === plan.strategy" :data-st="s.name" @click="pickStrategy(s.name)"><img :src="portraitSrc(s.name)" alt="" width="34" height="34" loading="lazy"><small>{{ s.name }}</small></button></div>
         </div>
         <label class="pl-note"><span class="k">流派说明</span><textarea v-model="plan.note" :maxlength="MAX_NOTE" rows="4" placeholder="核心思路、靠谁输出、前期怎么过渡、几层转型、抓不到核心时怎么换" aria-label="流派说明" @input="touch"></textarea><small>{{ plan.note.length }}/{{ MAX_NOTE }}</small></label>
       </section>
@@ -316,7 +316,7 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
         <template v-for="g in poolGroups" :key="g.tier">
           <div class="tierh" :data-t="g.tier"><i>{{ TIER_LABELS[g.tier] }}</i><span>{{ g.items.length }}</span></div>
           <div class="pl-tiles">
-            <button v-for="o in g.items" :key="o.name" type="button" :class="['tile', { in: inPlan.has(o.name), alt: slot?.alt.includes(o.name), rec: !inPlan.has(o.name) && o.covenants.some(c => present.has(c)) }]" :data-t="o.tier" :data-op="o.name" :disabled="picking === 'alt' ? inPlan.has(o.name) || !!slot?.alt.includes(o.name) : !inPlan.has(o.name) && ops.length >= MAX_OPS" @click="toggle(o.name)">
+            <button v-for="o in g.items" :key="o.name" type="button" :class="['tile', { in: inPlan.has(o.name), alt: slot?.alt.includes(o.name), rec: !inPlan.has(o.name) && o.covenants.some(c => present.has(c)) }]" :data-t="o.tier" :data-op="o.name" :aria-pressed="picking === 'alt' ? !!slot?.alt.includes(o.name) : inPlan.has(o.name)" :disabled="picking === 'alt' ? inPlan.has(o.name) || !!slot?.alt.includes(o.name) : !inPlan.has(o.name) && ops.length >= MAX_OPS" @click="toggle(o.name)">
               <img :src="avatarSrc(o.name)" alt="" width="80" height="80" loading="lazy" decoding="async">
               <span>{{ o.name }}</span><span class="dots"><u v-for="c in o.covenants" :key="c" :style="{ '--c': color(c) }"></u></span>
             </button>

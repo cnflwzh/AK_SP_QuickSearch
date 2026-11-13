@@ -87,7 +87,10 @@ export function calculator(name: string, L: number) {
       + `<circle class="dot" cx="${xs(L)}" cy="${ys(f(L))}" r="6"/>`
       + `<text class="axl" x="${x0}" y="12" style="fill:var(--ink2)">${main.label}（${main.unit}）</text>`
       + `<text class="axl" x="${W - 12}" y="${y0 - 6}" text-anchor="end">层数</text>`;
-    out.cvChart = s;
+    const description = `横轴为 0 至 300 层，纵轴为${main.label}，单位${main.unit || '无'}。当前 ${L} 层：`
+      + c.scaling.map(value => `${value.label} ${round1(value.at(L))}${value.unit}`).join('，')
+      + `。${main.label}在 0 层为 ${round1(f(0))}${main.unit}，300 层为 ${round1(f(300))}${main.unit}。`;
+    out.cvChart = `<desc id="covenant-chart-description">${description}</desc>` + s;
 return out;
 }
 /** Format the selected strategy category and result count. */

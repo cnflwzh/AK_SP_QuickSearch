@@ -24,18 +24,18 @@ const credits = computed(() => creditChart(creditMode.value));
   <div class="g2">
     <div class="card"><h4>联合模拟 · 认证效率</h4><Markup as="div" id="diff" :html="content.diff" /></div>
     <div class="card"><h4>个人模拟 · 规程等级 1–20</h4>
-      <Markup as="svg" class="svgbox" id="lvchart" viewBox="0 0 640 210" :html="content.lvchart" />
+      <Markup as="svg" class="svgbox" id="lvchart" viewBox="0 0 640 210" role="img" aria-label="个人模拟规程等级与认证效率" aria-describedby="solo-level-description" :html="content.lvchart" />
       <div class="row mt"><span class="tag">Lv1–4 缺席</span><Markup as="span" id="lvmiss" class="row" :html="content.lvmiss" /></div>
       <div class="row mt"><span class="tag a">极速模拟 100%</span><span class="tag">无限决策时间</span><span class="tag">可离开 24h</span><span class="tag">开局核心盟约二选一</span></div>
     </div>
   </div>
-  <div class="card mt"><h4>解锁关系</h4><Markup as="svg" class="svgbox" id="unlock" viewBox="0 0 680 230" :html="content.unlock" />
+  <div class="card mt"><h4>解锁关系</h4><Markup as="svg" class="svgbox" id="unlock" viewBox="0 0 680 230" role="img" aria-label="个人与联合模拟解锁关系" aria-describedby="unlock-description" :html="content.unlock" />
     <div class="legend"><span><i style="background:var(--teal)"></i>个人 → 联合</span><span><i style="background:var(--accent)"></i>联合 → 个人</span><span><i style="background:var(--ink3)"></i>击败隐秘核心 / 高血量通关：额外跳级（至规程15）</span></div>
   </div>
 
   <h3 class="bh"><span>1.3</span>回合时间轴</h3>
   <div class="card">
-    <div class="row" style="justify-content:space-between"><Segmented id="tlseg" :labels="MODES" v-model="timelineMode" /><span class="cnt" id="tlinfo">{{ timeline.tlinfo }}</span></div>
+    <div class="row" style="justify-content:space-between"><Segmented id="tlseg" aria-label="回合时间轴难度" :labels="MODES" v-model="timelineMode" /><span class="cnt" id="tlinfo">{{ timeline.tlinfo }}</span></div>
     <Markup as="div" class="tl" id="tl" :html="timeline.tl" />
     <div class="legend"><span><i style="background:color-mix(in srgb,var(--teal) 70%,transparent)"></i>作战时限（秒）</span><span><i style="background:var(--red)"></i>领袖回合</span><span><i style="background:var(--ink3)"></i>隐秘核心 ??</span><span><i style="background:var(--accent);transform:rotate(45deg) scale(.8)"></i>机变 / 悬赏决策（联合）</span></div>
   </div>
@@ -43,11 +43,11 @@ const credits = computed(() => creditChart(creditMode.value));
   <h3 class="bh"><span>1.4</span>认证收益</h3>
   <div class="g2">
     <div class="card"><h4>通过回合数 → 认证</h4>
-      <div class="row" style="justify-content:space-between"><Segmented id="crseg" :labels="MODES" v-model="creditMode" /><span class="cnt" id="crsum">{{ credits.crsum }}</span></div>
-      <Markup as="svg" class="svgbox" id="crchart" viewBox="0 0 600 220" :html="credits.crchart" />
+      <div class="row" style="justify-content:space-between"><Segmented id="crseg" aria-label="认证收益难度" :labels="MODES" v-model="creditMode" /><span class="cnt" id="crsum">{{ credits.crsum }}</span></div>
+      <Markup as="svg" class="svgbox" id="crchart" viewBox="0 0 600 220" role="img" :aria-label="`${MODES[creditMode]}通过回合数与认证收益`" aria-describedby="credit-chart-description" :html="credits.crchart" />
     </div>
     <div class="card"><h4>赛季商店进度</h4>
-      <Markup as="svg" class="svgbox" id="shopbar" viewBox="0 0 600 150" :html="content.shopbar" />
+      <Markup as="svg" class="svgbox" id="shopbar" viewBox="0 0 600 150" role="img" aria-label="赛季商店认证进度" aria-describedby="season-shop-description" :html="content.shopbar" />
       <div class="row mt"><span class="tag">作战认证上限 6250 / 序列</span><span class="tag a">关键目标 +2500</span><span class="tag r">赛季结束清零</span></div>
       <div class="row mt"><span class="tag t">奖杯：仅联合模拟</span><span class="tag">0 / 10 / 30 / 60 / 100 / 150 / 200 / 300+</span></div>
     </div>

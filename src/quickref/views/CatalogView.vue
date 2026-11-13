@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import LiveStatus from '../../lib/LiveStatus.vue';
 import { OPERATORS, OPERATOR_TYPES, OPERATOR_TRIGGERS, matchesOperatorTrigger, EQUIPMENT, EQUIPMENT_RECIPES, STRATEGIES, ALL_COVENANTS, TIERS, TIER_LABELS, STRATEGY_CATEGORIES, isCoreCovenant } from '../../../data/index.ts';
 import { updateQuery } from '../../router/navigation.ts';
 import { state } from '../state.ts';
@@ -35,14 +36,15 @@ const equipmentGroups = computed(() => TIERS.map(tier => ({ tier, items: equipme
       <button v-if="operatorFiltersActive" type="button" class="filter-clear" @click="clearOperatorFilters">重置</button>
       <span class="cnt">{{ operators.length }} 名</span>
     </div>
-    <template v-for="group in operatorGroups" :key="group.tier"><div class="tierh" :data-key="`heading:${group.tier}`" :data-t="group.tier"><i>{{ TIER_LABELS[group.tier] }}</i><span>{{ group.items.length }}</span></div><div class="qg" :data-key="`tier:${group.tier}`"><OperatorCard v-enter v-for="operator in group.items" :key="operator.name" :operator="operator" :show-elite="state.opElite" show-wiki-link/></div></template>
+    <template v-for="group in operatorGroups" :key="group.tier"><div class="tierh" role="heading" aria-level="2" :data-key="`heading:${group.tier}`" :data-t="group.tier"><i>{{ TIER_LABELS[group.tier] }}</i><span>{{ group.items.length }}</span></div><div class="qg" :data-key="`tier:${group.tier}`"><OperatorCard v-enter v-for="operator in group.items" :key="operator.name" :operator="operator" :show-elite="state.opElite" show-wiki-link/></div></template>
     <div v-if="!operators.length" class="empty">—</div>
   </template>
   <template v-else-if="kind === 'eq'">
     <div class="bar" data-key="filters"><Segmented :labels="['全部', ...TIER_LABELS.slice(1), '组合']" :active="state.eqTier" attr="eqt" @change="state.eqTier = $event"/><span class="cnt">{{ equipment.length }} 件</span></div>
-    <template v-for="group in equipmentGroups" :key="group.tier"><div class="tierh" :data-key="`heading:${group.tier}`" :data-t="group.tier"><i>{{ TIER_LABELS[group.tier] }}</i><span>{{ group.items.length }}</span></div><div class="qg" :data-key="`tier:${group.tier}`"><EquipmentCard v-enter v-for="item in group.items" :key="item.name" :item="item"/></div></template>
+    <template v-for="group in equipmentGroups" :key="group.tier"><div class="tierh" role="heading" aria-level="2" :data-key="`heading:${group.tier}`" :data-t="group.tier"><i>{{ TIER_LABELS[group.tier] }}</i><span>{{ group.items.length }}</span></div><div class="qg" :data-key="`tier:${group.tier}`"><EquipmentCard v-enter v-for="item in group.items" :key="item.name" :item="item"/></div></template>
   </template>
   <template v-else>
     <div class="bar"><Segmented :labels="STRATEGY_CATEGORIES" :active="state.stCategory" attr="stc" @change="state.stCategory = $event"/><span class="cnt">{{ strategies.length }} 名</span></div><div class="qg"><StrategyCard v-enter v-for="strategy in strategies" :key="strategy.name" :strategy="strategy"/></div>
   </template>
+  <LiveStatus :message="kind === 'op' ? `筛选结果：${operators.length} 名干员` : kind === 'eq' ? `筛选结果：${equipment.length} 件装备` : `筛选结果：${strategies.length} 个策略`"/>
 </template>
