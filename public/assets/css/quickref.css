@@ -271,6 +271,8 @@
 }
 
 #view {
+  /* Wiki 分栏会缩窄内容区；页内布局以可用宽度为准。 */
+  container: quickref-view / inline-size;
   padding-block: 18px 40px;
   min-height: 60vh;
 }
@@ -1891,13 +1893,10 @@ mark {
   }
 }
 
-@media (max-width:860px) {
+@container quickref-view (max-width:860px) {
   .cvwrap {
     grid-template-columns: minmax(0,1fr);
     gap: 10px;
-  }
-  .cvside {
-    position: static;
   }
   .cvside {
     position: relative;
@@ -2603,7 +2602,7 @@ mark {
 .lr b { color: var(--ink); font-family: var(--fn); }
 .lc-ab.hc .lr.sk > span { color: var(--hc); background: color-mix(in srgb, var(--hc) 14%, transparent); }
 
-@media (max-width: 860px) {
+@container quickref-view (max-width: 860px) {
   .lwd {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas: "h" "ab" "ct" "mp" "hp";
@@ -2611,7 +2610,7 @@ mark {
   }
 }
 
-@media (max-width: 600px) {
+@container quickref-view (max-width: 600px) {
   .lwd-h {
     grid-template-columns: auto 48px minmax(0, 1fr);
     gap: 10px;
@@ -2825,11 +2824,11 @@ mark {
 .pls-c { display: flex; gap: 12px; font-size: 11.5px; color: var(--ink3); }
 .pls-c b { color: var(--ink); font-family: var(--fn); font-size: 14px; }
 
-@media (max-width: 860px) {
+@container quickref-view (max-width: 860px) {
   .pl-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "lineup" "cov" "rec" "pool" "fx"; }
   .pl-pool { position: static; max-height: none; overflow: visible; }
 }
-@media (max-width: 600px) {
+@container quickref-view (max-width: 600px) {
   .pl-slots { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .pl-stats b { font-size: 16px; }
   .pl-cmp { grid-template-columns: minmax(0, 1fr); }

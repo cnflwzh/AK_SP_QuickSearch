@@ -1,8 +1,18 @@
 <script setup lang="ts">
 import { operatorWikiUrl } from '../../lib/prts.ts';
+import { useWikiPanel } from '../wikiPanel.ts';
 
 /** 干员目录和详情共用的 Wiki 外链，name 为完整干员名称。 */
-defineProps<{ name: string }>();
+const props = defineProps<{ name: string }>();
+const wikiPanel = useWikiPanel();
+
+/** 宽屏点击或触摸进入侧栏；组合键和窄屏继续使用原生外链。 */
+function openWiki(event: MouseEvent): void {
+  if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+  if (wikiPanel?.open(props.name)) {
+    event.preventDefault();
+  }
+}
 </script>
 
 <template>
@@ -11,12 +21,12 @@ defineProps<{ name: string }>();
     class="prts-link"
     target="_blank"
     rel="noopener noreferrer"
-    :aria-label="`在新标签页打开${name}的 PRTS Wiki`"
-    :title="`${name} · PRTS Wiki（新标签页）`"
+    :aria-label="`${wikiPanel?.available.value ? '在右侧打开' : '在新标签页打开'}${name}的 PRTS Wiki`"
+    :title="`${name} · PRTS Wiki（${wikiPanel?.available.value ? '右侧阅读' : '新标签页'}）`"
     :data-op="name"
     data-peek="off"
     data-prts-link
-    @click.stop
+    @click.stop="openWiki"
     @auxclick.stop
   >
     PRTS
@@ -43,4 +53,7 @@ defineProps<{ name: string }>();
 .prts-link svg { flex: none; }
 .prts-link:hover { background: var(--teal-soft); }
 .prts-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (pointer: coarse) {
+  .prts-link { min-width: 44px; min-height: 44px; }
+}
 </style>
