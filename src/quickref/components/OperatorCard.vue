@@ -9,7 +9,7 @@ import { useQuickrefActions } from '../state.ts';
 import { inRun } from '../planStore.ts';
 import Chip from './Chip.vue';
 import { useWikiPanel } from '../wikiPanel.ts';
-/** Wiki 入口由干员目录显式开启，搜索结果等复用场景保持简洁。 */
+/** 干员目录和搜索结果通过 showWikiLink 开启同一套 Wiki 角标。 */
 defineProps<{ operator: Operator; showElite?: boolean; showWikiLink?: boolean }>();
 const actions = useQuickrefActions();
 const wikiPanel = useWikiPanel();

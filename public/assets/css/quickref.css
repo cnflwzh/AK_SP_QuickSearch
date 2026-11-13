@@ -790,6 +790,8 @@
   display: block;
 }
 
+.tile-avatar { position: relative; flex: none; }
+
 .tile span {
   max-width: 100%;
   overflow: hidden;
@@ -2693,8 +2695,8 @@ mark {
 .pl-slot.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); transform: translateY(-2px); }
 .pl-slot .av { position: relative; display: block; width: 100%; max-width: 56px; }
 .pl-slot .av img { display: block; width: 100%; aspect-ratio: 1; height: auto; border-radius: 5px; background: var(--tc); border-bottom: 3px solid var(--tc); }
-.pl-slot .tr, .pls-op .tr { position: absolute; font: 700 10px/1 var(--fn); color: #fff; background: var(--tc); border-radius: 3px; box-shadow: 0 0 0 1px rgba(255,255,255,.7); pointer-events: none; }
-.pl-slot .tr { left: -2px; bottom: 1px; padding: 2px 4px; }
+.pl-slot .tr, .pls-op .tr, .tile .tr { position: absolute; font: 700 10px/1 var(--fn); color: #fff; background: var(--tc); border-radius: 3px; box-shadow: 0 0 0 1px rgba(255,255,255,.7); pointer-events: none; }
+.pl-slot .tr, .tile .tr { left: -2px; bottom: 1px; padding: 2px 4px; }
 .pls-op .tr { left: 1px; top: 1px; padding: 1px 3px; font-size: 9px; }
 .pl-slot .nm { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pl-slot .no { position: absolute; top: 2px; left: 4px; font: 600 10px var(--fn); color: var(--ink3); font-style: normal; z-index: 1; }
@@ -2823,6 +2825,7 @@ mark {
 .pls-c b { color: var(--ink); font-family: var(--fn); font-size: 14px; }
 
 @container quickref-view (max-width: 860px) {
+  .bsel.is-editing { display: none; }
   .pl-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "lineup" "cov" "rec" "pool" "fx"; }
   .pl-pool { position: static; max-height: none; overflow: visible; }
 }
@@ -2834,6 +2837,48 @@ mark {
   .pl-bar > select { max-width: none; flex: 1 1 100%; order: 2; }
   .pl-acts { order: 3; }
 }
+
+/* 手机规划：总览与层数分开查看，选择器移动到同一个底部面板。 */
+.pl-compact .pl-grid { display: flex; flex-direction: column; gap: 12px; }
+.pl-compact .pl-grid > section { width: 100%; }
+.pl-compact .pl-slots { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.pl-compact .pl-acts .sep { display: none; }
+.pl-compact .pl-note-fold { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 10px; }
+.pl-compact .pl-note-fold summary { cursor: pointer; font-size: 13px; }
+.pl-compact .pl-note-fold summary .hint { margin-left: 8px; }
+.pl-mobile-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 12;
+  display: grid;
+  grid-template-columns: .8fr 1.3fr 1fr .8fr;
+  gap: 6px;
+  padding: 10px 0 max(10px, var(--safe-area-bottom));
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+}
+.pl-mobile-actions button { min-height: 44px; min-width: 0; padding: 6px 4px; font-size: 13px; border: 1px solid var(--line2); border-radius: 6px; background: var(--surface); white-space: nowrap; }
+.pl-mobile-actions button.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.pl-sheet .pl-edit, .pl-sheet .pl-pool { margin: 0; padding: 0; border: 0; background: transparent; animation: none; }
+.pl-sheet .pl-pool { position: static; max-height: none; overflow: visible; }
+.pl-sheet .pl-edit > .pl-row { gap: 8px; }
+.pl-sheet .pl-row > button, .pl-sheet .pl-move button, .pl-sheet .seg button, .pl-sheet .pl-alt button { min-height: 40px; }
+.pl-sheet .pl-pick { max-height: none; overflow: visible; }
+.pl-sheet .pl-pick-g { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }
+.pl-sheet .pl-pick-g > .tier { grid-column: 1 / -1; width: fit-content; }
+.pl-sheet .pl-pick-g > button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; line-height: 1.25; min-width: 0; width: 100%; min-height: 74px; padding: 8px 4px; }
+.pl-sheet .pl-pick-g > button small { max-width: 100%; font-size: 11px; }
+.pl-sheet .pl-pick-g > button img { width: 36px; height: 36px; }
+.pl-sheet .pl-filter { position: sticky; top: -12px; z-index: 2; background: var(--surface); padding: 12px 0 8px; margin: 0; }
+.pl-sheet input[type=search] { min-height: 42px; font-size: 16px; }
+.pl-sheet .pl-filter input { flex: 1 1 150px; }
+.pl-sheet .pl-filter select { flex: 1 1 120px; min-width: 0; min-height: 42px; }
+.pl-sheet .pl-filter .seg { flex: 1 1 100%; display: flex; }
+.pl-sheet .pl-filter .seg button { flex: 1; padding-inline: 4px; }
+.pl-sheet .pl-tiles { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); }
+.pl-sheet .pl-tiles .tile { min-height: 84px; }
+.pl-selected { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.pl-selected button { border: 1px solid var(--line2); border-radius: 5px; background: var(--surface2); padding: 6px 8px; min-height: 36px; font-size: 12px; }
 @media (prefers-reduced-motion: reduce) {
   .pl-panel, .pl-card, .pl-slot, .pl-edit, .plc li, .pl-r, .pl-fxl li { animation: none; }
 }
@@ -2958,6 +3003,7 @@ mark {
 .bact button, .bres .pri, .bbtn { font: inherit; font-size: 13px; cursor: pointer; border-radius: 6px; padding: 4px 12px; border: 1px solid var(--line2); background: var(--surface); color: var(--ink); }
 .bact .pri, .bres .pri { background: var(--c); border-color: var(--c); color: #fff; font-weight: 700; }
 .bact .pri.in { background: var(--surface); color: var(--c); }
+.bact button.on { border-color: var(--c); color: var(--c); background: var(--surface2); }
 .bact .pri:disabled { opacity: .45; cursor: default; }
 .bact .dg { color: #c0392b; }
 .bneed { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: -2px 0 12px; }

@@ -13,6 +13,8 @@ import { color, fx, bonusHeadcount, bonusText } from '../format.ts';
 import Chip from '../components/Chip.vue';
 import OperatorTile from '../components/OperatorTile.vue';
 import PlanSummary from '../components/PlanSummary.vue';
+import PlanSharePanel from '../components/PlanSharePanel.vue';
+import OperatorRequestButton from '../components/OperatorRequestButton.vue';
 /**
  * 流派：内置流派和我的流派都是预设。默认只读查看，局内扫一眼；点「编辑」进入规划器。
  * 「本局打这套」把它设为本局流派，盟约 / 效果 / 干员页随之高亮。
@@ -23,6 +25,7 @@ import { buildKey } from '../../router/entities.ts';
 import { queryText } from '../../router/location.ts';
 import { routeNotice } from '../../router/index.ts';
 const PlannerView = lazyView(() => import('./PlannerView.vue'));
+const PlanBackupPanel = lazyView(() => import('../components/PlanBackupPanel.vue'));
 
 /** URL changes select an existing draft. Preparing an edit never writes back to the URL. */
 watch([() => currentRoute.value.params.id, () => currentRoute.value.name], () => {
@@ -109,13 +112,15 @@ function saveBan(): void {
   selectBuild(key);
 }
 
+/* ---------- 工具面板；分享链接的片段在显式导入前保留 ---------- */
+const activePanel = computed(() => queryText(routeQuery.value, 'panel') || (currentRoute.value.hash.startsWith('#p=') ? 'import' : ''));
+const importOpen = computed(() => activePanel.value === 'import');
+function togglePanel(name: 'import' | 'backup' | 'share'): void {
+  const closedPanel = currentRoute.value.hash.startsWith('#p=') ? 'closed' : null;
+  void updateQuery({ panel: activePanel.value === name ? closedPanel : name });
+}
+
 /* ---------- 导入：分享码 / 链接 ---------- */
-const importOpen = computed({
-  get: () => queryText(routeQuery.value, 'panel') === 'import' || (currentRoute.value.hash.startsWith('#p=') && queryText(routeQuery.value, 'panel') !== 'closed'),
-  set: (open: boolean) => {
-    void updateQuery({ panel: open ? 'import' : currentRoute.value.hash.startsWith('#p=') ? 'closed' : null });
-  },
-});
 const importText = ref('');
 const imported = computed<Decoded | null>(() => importText.value.trim() ? decodePlan(importText.value) : null);
 function acceptImport(): void {
@@ -131,7 +136,7 @@ watch(() => currentRoute.value.hash, hash => {
 
 </script>
 <template>
-  <div class="bsel">
+  <div :class="['bsel', { 'is-editing': editing && !importOpen && activePanel !== 'backup' }]">
     <button v-for="x in coreList" :key="x.key" type="button" :class="{ on: x.key === p.key, run: x.key === runKey }" :style="{ '--c': presetColor(x) }" :data-bd="x.key" :aria-pressed="x.key === p.key" @click="selectBuild(x.key)">{{ x.plan.name }}<i v-if="x.modified" class="md" title="已修改">✎</i></button>
     <span class="sp"></span>
     <button v-for="x in mixedList" :key="x.key" type="button" :class="{ on: x.key === p.key, run: x.key === runKey }" style="--c:var(--accent)" :data-bd="x.key" :aria-pressed="x.key === p.key" @click="selectBuild(x.key)">{{ x.plan.name }}<i v-if="x.modified" class="md" title="已修改">✎</i></button>
@@ -139,10 +144,13 @@ watch(() => currentRoute.value.hash, hash => {
     <span class="bk">我的</span>
     <button v-for="x in mine" :key="x.key" type="button" :class="['my', { on: x.key === p.key, run: x.key === runKey }]" style="--c:var(--accent)" :data-bd="x.key" :aria-pressed="x.key === p.key" @click="selectBuild(x.key)">{{ x.plan.name }}</button>
     <button type="button" class="add" @click="createBuild">＋ 新建</button>
-    <button type="button" :class="['add', { on: importOpen }]" :aria-expanded="importOpen" :aria-controls="importOpen ? 'build-import' : undefined" @click="importOpen = !importOpen">导入</button>
+    <button type="button" :class="['add', { on: importOpen }]" :aria-expanded="importOpen" :aria-controls="importOpen ? 'build-import' : undefined" @click="togglePanel('import')">导入</button>
+    <button type="button" :class="['add', { on: activePanel === 'backup' }]" :aria-expanded="activePanel === 'backup'" :aria-controls="activePanel === 'backup' ? 'build-backup' : undefined" @click="togglePanel('backup')">备份与恢复</button>
   </div>
 
   <p v-if="saveError" class="pl-warn" role="status">本地保存失败，请先复制分享码保留流派。</p>
+
+  <PlanBackupPanel v-if="activePanel === 'backup'" id="build-backup"/>
 
   <section v-if="importOpen" id="build-import" class="pl-panel bimp">
     <input v-model="importText" class="pl-paste" placeholder="粘贴分享码或链接" aria-label="分享码">
@@ -162,12 +170,16 @@ watch(() => currentRoute.value.hash, hash => {
       <span v-if="p.modified" class="tag">已修改</span>
       <span class="bact">
         <button type="button" :class="['pri', { in: isRun }]" :disabled="!p.plan.ops.length" @click="setRun(isRun ? '' : p.key)">{{ isRun ? '✓ 本局 · 结束' : '▶ 本局打这套' }}</button>
+        <button type="button" :class="{ on: activePanel === 'share' }" :aria-expanded="activePanel === 'share'" :aria-controls="activePanel === 'share' ? 'build-share' : undefined" @click="togglePanel('share')">分享</button>
         <button type="button" @click="editBuild(p.key)">编辑</button>
         <button type="button" @click="duplicateBuild(p.key)">复制</button>
+        <OperatorRequestButton :names="p.plan.ops.map(slot => slot.name)" :build-name="p.plan.name"/>
         <button v-if="p.modified" type="button" @click="restore">恢复默认</button>
         <button v-if="!p.builtin" type="button" class="dg" @click="remove">删除</button>
       </span>
     </div>
+
+    <PlanSharePanel v-if="activePanel === 'share'" id="build-share" :plan="p.plan"/>
 
     <div v-if="needs.length" class="bneed">
       <span class="k">需要盟约</span>
@@ -200,7 +212,7 @@ watch(() => currentRoute.value.hash, hash => {
     </div>
 
     <div><h5>终盘阵容<template v-if="coreBase"> · <span class="tag a" style="padding:0 6px">核心</span></template></h5>
-      <div v-if="lineup.length" class="tiles"><OperatorTile v-for="operator in lineup" :key="operator.name" :operator="operator" :extra-class="carries.has(operator.name) ? 'core' : ''"/></div>
+      <div v-if="lineup.length" class="tiles"><OperatorTile v-for="operator in lineup" :key="operator.name" :operator="operator" :extra-class="carries.has(operator.name) ? 'core' : ''" show-tier/></div>
       <div v-else class="empty">还没有干员，点「编辑」排阵容</div>
       <div v-if="withAlts.length" class="balt"><span class="k">备选</span><span v-for="o in withAlts" :key="o.name"><b>{{ o.name }}</b> → {{ o.alt.join('、') }}</span></div>
     </div>

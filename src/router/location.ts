@@ -77,7 +77,7 @@ export function normalizeQuery(tab: TabId, query: LocationQueryRaw, entityId = '
     keep('tool', ['recruit', 'bounty']);
   }
   if (tab === 'bd') {
-    keep('panel', editing ? ['share', 'compare', 'import', 'closed'] : ['import', 'closed']);
+    keep('panel', editing ? ['share', 'compare', 'import', 'backup', 'closed'] : ['share', 'import', 'backup', 'closed']);
     if (editing && read('compare')) normalized.compare = read('compare').slice(0, 100);
     if (editing) {
       const poolTier = boundedInteger(read('poolTier'), 0, 0, 6);

@@ -62,7 +62,7 @@ test('secondary pages keep only their own controls and normalization is idempote
     assert.deepEqual(normalizeQuery(tab, result, 'yan', true), result);
   }
   assert.deepEqual(normalizeQuery('eq', { tier: '6', group: 'combo' }), { group: 'combo' });
-  assert.deepEqual(normalizeQuery('bd', { panel: 'share', compare: 'ursus' }, 'yan', false), {});
+  assert.deepEqual(normalizeQuery('bd', { panel: 'share', compare: 'ursus' }, 'yan', false), { panel: 'share' });
 });
 
 test('leader skill and hidden-round parameters follow the selected leader capabilities', () => {
