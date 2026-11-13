@@ -51,7 +51,7 @@ function remove(): void {
         </div>
         <span class="ra-tag">{{ operator.deployed ? '上场' : '整备区' }}</span>
       </div>
-      <div class="ra-inspector-row">
+      <div class="ra-ownership-controls">
         <label v-if="!operator.elite && eliteCopyCount(operator.name) > 2">
           <span class="sr-only">持有张数</span>
           <select :value="operator.copies" @change="advisor.setCopies(operator.name, Number(selectValue($event)))">
@@ -91,6 +91,14 @@ function remove(): void {
           </select>
         </label>
       </div>
+      <section class="ra-inspector-section ra-operator-trait">
+        <div class="ra-section-heading">
+          <h4>{{ operator.elite ? '精锐特质' : '初始特质' }}</h4>
+          <button type="button" class="ra-text-button" @click="$emit('details', 'op', operator.name)">完整详情 ↗</button>
+        </div>
+        <div class="ra-trait-preview"
+          v-html="peekFx(operator.elite ? OPERATOR[operator.name].elite : OPERATOR[operator.name].trait)"></div>
+      </section>
       <div class="ra-inspector-row ra-deployment-actions">
         <button v-if="operator.deployed" type="button" class="btn" @click="advisor.setDeployment(operator.name, false)">
           移入整备区 ↓
@@ -107,9 +115,6 @@ function remove(): void {
         </label>
         <button type="button" class="ra-text-button ra-danger" @click="remove">移除干员</button>
       </div>
-      <div class="ra-trait-preview"
-        v-html="peekFx(operator.elite ? OPERATOR[operator.name].elite : OPERATOR[operator.name].trait)"></div>
-      <button type="button" class="ra-text-button" @click="$emit('details', 'op', operator.name)">打开完整详情 ↗</button>
     </template>
     <template v-else-if="equipment">
       <div class="ra-inspector-identity">

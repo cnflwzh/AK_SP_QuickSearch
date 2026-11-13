@@ -4,7 +4,8 @@ import { STRATEGY, covenantColor } from '../../../data/index.ts';
 import { avatarSrc, equipIconSrc, portraitSrc } from '../../lib/assets.ts';
 import { MAX_SHOP_CANDIDATES, type OwnedEquipment } from '../../lib/runAdvisor.ts';
 import { MAX_OPS } from '../../lib/planner.ts';
-import { useQuickrefActions } from '../state.ts';
+import { currentRoute, openCard } from '../../router/navigation.ts';
+import { queryText } from '../../router/location.ts';
 import { useRunAdvisor } from './useRunAdvisor.ts';
 import AdvisorSlot from './AdvisorSlot.vue';
 import AdvisorOverlay from './AdvisorOverlay.vue';
@@ -16,7 +17,6 @@ import type { AdvisorSelection } from './types.ts';
 import './advisor.css';
 
 const advisor = useRunAdvisor();
-const actions = useQuickrefActions();
 const { run, deployed, reserve, covenants, recommendations, notice, saveFailed, canUndo, goal, unavailableNames, poolConflicts } = advisor;
 const root = ref<HTMLElement>();
 const compact = ref(false);
@@ -26,8 +26,19 @@ const panelView = ref<'advice' | 'edit'>('advice');
 const selection = ref<AdvisorSelection | null>(null);
 const inspectorOpen = ref(false);
 const poolSettingsOpen = ref(false);
+const newRunConfirmationOpen = ref(false);
+const suspendedForDetails = ref(false);
 type PickerTarget = 'strategy' | 'deployed' | 'reserve' | 'equipment' | 'shop' | 'excluded';
 const picker = ref<{ target: PickerTarget; holder: string } | null>(null);
+const canReturnToPanel = computed(() => !!picker.value && (poolSettingsOpen.value || compact.value && inspectorOpen.value && !!selection.value));
+const recordingOperators = computed(() => picker.value?.target === 'deployed' || picker.value?.target === 'reserve');
+const pickerSummary = computed(() => recordingOperators.value
+  ? `上场 ${deployed.value.length}/${MAX_OPS} · 整备 ${reserve.value.length}`
+  : picker.value?.target === 'equipment' ? `已记录 ${run.value.equipment.length} 件`
+  : picker.value?.target === 'excluded' ? `已排除 ${run.value.excludedOperators.length} 名` : '');
+const hasRunData = computed(() => run.value.level !== 1 || !!run.value.strategy || !!run.value.mainCovenant
+  || !!run.value.mainTarget || !!run.value.operators.length || !!run.value.equipment.length || !!run.value.shop.length
+  || !!run.value.bannedCovenants.length || !!run.value.excludedOperators.length);
 const eliteNames = computed(() => run.value.operators.filter(operator => operator.elite).map(operator => operator.name));
 const fieldSlots = computed(() => Array.from({ length: MAX_OPS }, (_, index) => deployed.value[index]));
 const equipmentByHolder = computed(() => {
@@ -74,9 +85,15 @@ function releaseTransientUi(): void {
   picker.value = null;
   poolSettingsOpen.value = false;
   inspectorOpen.value = false;
+  newRunConfirmationOpen.value = false;
+  suspendedForDetails.value = false;
 }
 onDeactivated(releaseTransientUi);
 onBeforeUnmount(releaseTransientUi);
+// 查看详情只暂时收起弹窗。关闭详情后复用原选择器，保留搜索、筛选和滚动位置。
+watch(() => queryText(currentRoute.value.query, 'card'), (card, previousCard) => {
+  if (previousCard && !card) suspendedForDetails.value = false;
+});
 watch(() => run.value, () => {
   const current = selection.value;
   if (!current) return;
@@ -100,9 +117,22 @@ function openPicker(target: PickerTarget, holder = ''): void {
   picker.value = { target, holder };
 }
 function closeOverlay(): void {
-  if (picker.value) picker.value = null;
-  else if (poolSettingsOpen.value) poolSettingsOpen.value = false;
-  else inspectorOpen.value = false;
+  picker.value = null;
+  poolSettingsOpen.value = false;
+  inspectorOpen.value = false;
+  newRunConfirmationOpen.value = false;
+}
+function finishPicker(): void {
+  if (picker.value?.target === 'shop') {
+    mobileView.value = 'shop';
+    panelView.value = 'advice';
+  }
+  if (canReturnToPanel.value) picker.value = null;
+  else closeOverlay();
+}
+function removeCandidate(name: string): void {
+  if (picker.value?.target === 'shop') advisor.removeShopCandidate(name);
+  else if (picker.value?.target === 'excluded') advisor.toggleExcludedOperator(name);
 }
 function selectCandidate(name: string): void {
   const current = picker.value;
@@ -120,18 +150,22 @@ function selectCandidate(name: string): void {
     advisor.recruit(name, current.target === 'reserve' ? 'reserve' : 'auto');
   }
 }
-/** 先退出工具弹层，再交给站内详情；避免原生模态相互遮挡。 */
+/** 暂停当前模态后打开站内详情；加载失败时恢复原面板，不丢弃录入上下文。 */
 async function openDetails(kind: 'op' | 'eq' | 'st', name: string): Promise<void> {
-  picker.value = null;
-  poolSettingsOpen.value = false;
-  inspectorOpen.value = false;
+  suspendedForDetails.value = !!picker.value || poolSettingsOpen.value || compact.value && inspectorOpen.value;
   await nextTick();
-  actions.openDetail(kind, name);
+  await openCard(kind, name);
+  if (!queryText(currentRoute.value.query, 'card')) suspendedForDetails.value = false;
+}
+function requestNewRun(): void {
+  if (hasRunData.value) newRunConfirmationOpen.value = true;
+  else startNewRun();
 }
 function startNewRun(): void {
   clearSelection();
-  picker.value = null;
-  poolSettingsOpen.value = false;
+  closeOverlay();
+  mobileView.value = 'lineup';
+  storageView.value = 'reserve';
   advisor.reset();
 }
 function clearStrategy(): void {
@@ -165,7 +199,7 @@ function clearStrategy(): void {
       </button>
       <div class="ra-toolbar-actions">
         <button type="button" class="ra-text-button" :disabled="!canUndo" @click="advisor.undo">撤销</button>
-        <button type="button" class="btn" @click="startNewRun">新开一局</button>
+        <button type="button" class="btn" aria-haspopup="dialog" @click="requestNewRun">新开一局</button>
       </div>
     </header>
     <div class="ra-status">
@@ -299,12 +333,25 @@ function clearStrategy(): void {
       </section>
     </div>
 
-    <AdvisorOverlay v-if="picker || poolSettingsOpen || compact && inspectorOpen && selection"
-      :title="picker ? pickerTitle : poolSettingsOpen ? '本局方向与禁用' : selectedTitle" :wide="!!picker || poolSettingsOpen" @close="closeOverlay">
-      <AdvisorPicker v-if="picker" :key="picker.target" :kind="pickerKind"
+    <AdvisorOverlay v-if="picker || poolSettingsOpen || newRunConfirmationOpen || compact && inspectorOpen && selection"
+      :open="!suspendedForDetails" :can-go-back="canReturnToPanel"
+      :title="newRunConfirmationOpen ? '新开一局' : picker ? pickerTitle : poolSettingsOpen ? '本局方向与禁用' : selectedTitle"
+      :wide="!!picker || poolSettingsOpen" @close="closeOverlay" @back="picker = null">
+      <div v-if="newRunConfirmationOpen" class="ra-reset-confirmation">
+        <p>清空本局的阵容、装备、商店和禁用设置，重新从 1 本开始？</p>
+        <div class="ra-reset-actions">
+          <button type="button" class="btn" @click="closeOverlay">保留本局</button>
+          <button type="button" class="btn p" @click="startNewRun">确认新开</button>
+        </div>
+      </div>
+      <AdvisorPicker v-else-if="picker" :key="picker.target" :kind="pickerKind"
         :selected="selectedPickerNames" :disabled-names="disabledPickerNames" :excluded-names="excludedPickerNames" :level="run.level"
+        :can-deselect="picker.target === 'shop' || picker.target === 'excluded'"
+        :max-selected="picker.target === 'shop' ? MAX_SHOP_CANDIDATES : undefined"
+        :owned-operators="run.operators" :recording="recordingOperators" :summary="pickerSummary" :can-undo="canUndo"
+        :done-label="picker.target === 'shop' ? '查看建议' : '完成'"
         :action="picker.target === 'excluded' ? '排除' : picker.target === 'strategy' ? '选择' : '添加'" :notice="notice"
-        @select="selectCandidate" @details="openDetails"/>
+        @select="selectCandidate" @remove="removeCandidate" @details="openDetails" @done="finishPicker" @undo="advisor.undo"/>
       <AdvisorPoolSettings v-else-if="poolSettingsOpen" @exclude-operator="openPicker('excluded')"/>
       <AdvisorInspector v-else-if="selection" :selection="selection"
         @add-equipment="holder => openPicker('equipment', holder)" @details="openDetails" @removed="clearSelection"/>

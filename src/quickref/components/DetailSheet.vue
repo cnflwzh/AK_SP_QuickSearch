@@ -61,18 +61,22 @@ onBeforeUnmount(() => dialog.value?.close());
   <div :class="['detail-layer', { split: splitView && !!selection }]" @click.self="actions.closeDetail()">
   <dialog id="sheet" ref="dialog" aria-labelledby="detail-title" :class="['sheet', { 'operator-sheet': !!operator, 'with-side': showCovenantEffects }]" :data-viewing="operator?.name ?? ''" @click.self="actions.closeDetail()" @cancel.prevent="actions.closeDetail()" @keydown.esc.stop.prevent="actions.closeDetail()">
     <div v-if="selection" ref="main" class="sh-main">
-      <div v-if="operator" class="sh-h" :data-t="operator.tier">
+      <div v-if="operator" class="sh-h operator-detail-header" :data-t="operator.tier">
         <img v-if="avatarSrc(operator.name)" class="pic" :src="avatarSrc(operator.name)" alt="" width="80" height="80">
         <div>
           <div class="row"><i class="tn">{{ TIER_LABELS[operator.tier] }} 阶</i><span class="stars">{{ '★'.repeat(operator.stars) }}</span><span class="tag">{{ operator.type }}</span></div>
           <div class="operator-detail-title">
             <h3 id="detail-title">{{ operator.name }}</h3>
-            <PrtsLink :name="operator.name"/>
-            <OperatorRequestButton :names="[operator.name]"/>
           </div>
           <div class="row"><Chip v-for="name in operator.covenants" :key="name" kind="cv" :name="name"/></div>
         </div>
-        <button type="button" class="sh-x" data-close aria-label="关闭" @click="actions.closeDetail()">✕</button>
+        <div class="operator-detail-controls">
+          <button type="button" class="sh-x" data-close aria-label="关闭" @click="actions.closeDetail()">✕</button>
+          <div class="operator-detail-actions" role="group" aria-label="干员操作">
+            <OperatorRequestButton :names="[operator.name]"/>
+            <PrtsLink :name="operator.name"/>
+          </div>
+        </div>
       </div>
       <div v-else-if="equipment" class="sh-h" :data-t="equipment.tier"><img v-if="equipIconSrc(equipment.name)" class="pic e" :src="equipIconSrc(equipment.name)" alt="" width="80" height="80"><div><div class="row"><i class="tn">{{ TIER_LABELS[equipment.tier] }} 阶</i><span class="tag a">{{ equipment.price }} 资金</span></div><h3 id="detail-title">{{ equipment.name }}</h3><div class="row"><Chip v-if="equipment.covenant" kind="cv" :name="equipment.covenant"/></div></div><button type="button" class="sh-x" data-close aria-label="关闭" @click="actions.closeDetail()">✕</button></div>
       <div v-else-if="strategy" class="sh-h"><img v-if="portraitSrc(strategy.name)" class="pic s" :src="portraitSrc(strategy.name)" alt="" width="88" height="88"><div><div class="row"><Chip v-if="isCoreCovenant(strategy.category)" kind="cv" :name="strategy.category"/><span v-else class="tag">{{ strategy.category }}</span><span :class="['tag', { t: strategy.unlock === '初始' }]">{{ strategy.unlock }}</span></div><h3 id="detail-title">{{ strategy.name }}</h3><div class="hpbig"><b>{{ strategy.hp }}</b><div class="trk"><div :style="{ width: hpWidth(strategy.hp) + '%' }"></div></div></div></div><button type="button" class="sh-x" data-close aria-label="关闭" @click="actions.closeDetail()">✕</button></div>
@@ -97,6 +101,45 @@ onBeforeUnmount(() => dialog.value?.close());
 
 <style scoped>
 .operator-detail-title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.operator-detail-header > div { min-width: 0; }
+.operator-detail-controls {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+}
+.operator-detail-controls .sh-x { align-self: flex-end; }
+.operator-detail-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.operator-detail-actions :deep(.operator-request),
+.operator-detail-actions :deep(.prts-link) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid var(--line2);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+@media (pointer: coarse) {
+  .operator-detail-actions :deep(.operator-request),
+  .operator-detail-actions :deep(.prts-link) { min-height: 40px; }
+}
+/* 窄屏将右侧操作纵向排列，留足名字和盟约标签的空间。 */
+@media (max-width: 560px) {
+  .operator-detail-actions { flex-direction: column; gap: 4px; }
+  .operator-detail-actions :deep(.operator-request),
+  .operator-detail-actions :deep(.prts-link) { min-width: 64px; padding-inline: 8px; }
+}
 .detail-layer { display: contents; }
 .detail-layer.split {
   position: fixed;
@@ -128,6 +171,9 @@ onBeforeUnmount(() => dialog.value?.close());
 
 /* 按左侧实际宽度调整详情布局，避免沿用整个浏览器宽度挤压两栏。 */
 @container detail-area (max-width: 560px) {
+  .operator-detail-actions { flex-direction: column; gap: 4px; }
+  .operator-detail-actions :deep(.operator-request),
+  .operator-detail-actions :deep(.prts-link) { min-width: 64px; padding-inline: 8px; }
   .split dialog.sheet, .split dialog.sheet.operator-sheet { width: calc(100% - 16px); }
   .split .cmp2 { grid-template-columns: minmax(0, 1fr); }
   .split .sh-h { grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; padding: 12px; }

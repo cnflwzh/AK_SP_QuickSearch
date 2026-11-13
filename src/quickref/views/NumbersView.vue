@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent } from 'vue';
+import { computed, defineAsyncComponent, watch } from 'vue';
 import { NUMBER_TOOLS, type NumberTool } from '../../../data/numberTools.ts';
 import { queryText } from '../../router/location.ts';
 import { routeQuery, updateQuery } from '../../router/navigation.ts';
@@ -8,6 +8,7 @@ import LayerTools from '../numbers/LayerTools.vue';
 import ExtraRules from '../numbers/ExtraRules.vue';
 import '../numbers/numbers.css';
 import '../workbench.css';
+import { advisorPreviewEnabled } from '../experimentalFeatures.ts';
 
 const panels = {
   advisor: defineAsyncComponent(() => import('../advisor/RunAdvisor.vue')),
@@ -15,11 +16,18 @@ const panels = {
   recruit: defineAsyncComponent(() => import('../numbers/RecruitTools.vue')),
   bounty: defineAsyncComponent(() => import('../numbers/BountyTools.vue')),
 };
-const activeTool = computed(() => (queryText(routeQuery.value, 'tool') || 'layers') as NumberTool);
-const toolLabels = NUMBER_TOOLS.map(tool => tool.label);
-const activeIndex = computed(() => NUMBER_TOOLS.findIndex(tool => tool.id === activeTool.value));
+const visibleTools = computed(() => NUMBER_TOOLS.filter(tool => tool.id !== 'advisor' || advisorPreviewEnabled.value));
+const activeTool = computed<NumberTool>(() => {
+  const requested = queryText(routeQuery.value, 'tool');
+  return visibleTools.value.find(tool => tool.id === requested)?.id ?? 'layers';
+});
+const toolLabels = computed(() => visibleTools.value.map(tool => tool.label));
+const activeIndex = computed(() => visibleTools.value.findIndex(tool => tool.id === activeTool.value));
+watch(advisorPreviewEnabled, enabled => {
+  if (!enabled && queryText(routeQuery.value, 'tool') === 'advisor') void updateQuery({ tool: null }, true);
+});
 function selectTool(index: number): void {
-  const id = NUMBER_TOOLS[index]?.id;
+  const id = visibleTools.value[index]?.id;
   if (id) void updateQuery({ tool: id === 'layers' ? null : id });
 }
 </script>

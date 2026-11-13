@@ -141,6 +141,14 @@
 .ra-inspector-identity p { font-size: 11px; line-height: 1.7; color: var(--ink3); margin-top: 3px; }
 .ra-tag { font-size: 10px; padding: 3px 6px; background: var(--accent-soft); color: var(--accent); border-radius: 3px; white-space: nowrap; }
 .ra-inspector-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.ra-ownership-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px; background: var(--surface2); border: 1px solid var(--line); border-radius: 6px; }
+.ra-ownership-controls > label:not(.ra-check) { flex: 1; min-width: 100px; max-width: 150px; }
+.ra-ownership-controls select { width: 100%; }
+.ra-ownership-controls .ra-check { flex: 0 0 auto; min-width: auto; padding-inline: 4px; }
+.ra-ownership-controls > .btn { margin-left: auto; white-space: nowrap; }
+.workbench-controls .ra-ownership-controls select:not([multiple]), .ra-ownership-controls > .btn { min-height: 34px; }
+.ra-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ra-section-heading .ra-text-button { padding: 0; min-height: 28px; font-size: 11px; }
 .ra-inspector-section { display: grid; gap: 7px; }
 .ra-inspector-section h4 small { color: var(--ink3); }
 .ra-check { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; font-size: 12px; cursor: pointer; }
@@ -157,22 +165,41 @@
 .ra-trait-preview { padding: 10px; border-radius: 5px; background: var(--surface2); font-size: 12px; line-height: 1.8; }
 .ra-holder-select { display: grid; gap: 6px; font-size: 12px; color: var(--ink2); }
 .ra-inspector-notice { color: var(--ink3); font-size: 11px; line-height: 1.5; }
-.ra-overlay { padding: 0; width: min(440px, calc(100vw - 24px)); max-width: none; max-height: calc(100dvh - 32px); border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
+.ra-overlay { padding: 0; width: min(440px, calc(100vw - 24px)); max-width: none; max-height: calc(var(--ra-viewport-height, 100dvh) - 24px); border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
 .ra-overlay.wide { width: min(780px, calc(100vw - 24px)); }
 .ra-overlay[open] { display: flex; flex-direction: column; animation: ra-reveal .16s ease-out; }
 .ra-overlay::backdrop { background: #14252266; }
 .ra-overlay-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--surface2); flex-shrink: 0; }
-.ra-overlay-header h2 { font-size: 16px; }
+.ra-overlay-header h2 { flex: 1; min-width: 0; font-size: 16px; }
+.ra-overlay-header h2:focus { outline: none; }
+.ra-overlay-header > button { flex-shrink: 0; }
 .ra-overlay-body { padding: 16px; overflow-y: auto; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--line2) transparent; overscroll-behavior: contain; }
-.ra-overlay.wide .ra-overlay-body { height: min(65dvh, 570px); display: flex; flex-direction: column; }
+.ra-overlay.wide .ra-overlay-body { height: min(70dvh, 600px, calc(var(--ra-viewport-height, 100dvh) - 100px)); display: flex; flex-direction: column; }
+html:has(dialog.ra-overlay[open]) { overflow: hidden; }
+.ra-reset-confirmation { display: grid; gap: 16px; font-size: 13px; line-height: 1.8; }
+.ra-reset-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.ra-reset-actions .btn { min-height: 36px; }
 .ra-picker { display: flex; flex: 1; flex-direction: column; min-height: 0; gap: 8px; }
-.ra-picker-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.ra-picker-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; flex-shrink: 0; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
 .ra-search { flex: 1; min-width: 0; }
 .ra-search input { width: 100%; min-height: 38px; font-size: 14px; }
 .ra-picker-controls select { width: 116px; }
+.ra-picker-covenant select { width: 136px; }
 .ra-picker-status { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-shrink: 0; min-height: 20px; font-size: 11px; color: var(--ink3); }
-.ra-picker-status > span:last-child { color: var(--teal); }
-.ra-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); grid-auto-rows: max-content; align-content: start; gap: 7px; overflow-y: auto; min-height: 0; padding: 2px; scrollbar-width: thin; scrollbar-color: var(--line2) transparent; overscroll-behavior: contain; }
+.ra-picker-status .ra-text-button { min-height: 20px; padding: 0; font-size: 11px; }
+.ra-picker-notice { min-height: 16px; flex-shrink: 0; color: var(--teal); font-size: 11px; line-height: 1.5; }
+.ra-picker-grid { display: grid; flex: 1; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); grid-auto-rows: max-content; align-content: start; gap: 7px; overflow-y: auto; min-height: 0; padding: 2px; scrollbar-width: thin; scrollbar-color: var(--line2) transparent; overscroll-behavior: contain; }
+.ra-picker-grid > .ra-empty { grid-column: 1 / -1; }
+.ra-picker-grid > .ra-empty .btn { margin-top: 8px; }
+.ra-picker-footer { display: grid; gap: 8px; flex-shrink: 0; padding-top: 10px; border-top: 1px solid var(--line); }
+.ra-picker-selected { display: flex; flex-wrap: wrap; gap: 6px; max-height: 72px; overflow-y: auto; }
+.ra-picker-selected button { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%; min-height: 32px; padding: 3px 7px 3px 4px; border: 1px solid var(--line2); border-radius: 5px; color: var(--ink); background: var(--surface2); font: 11px var(--fb); }
+.ra-picker-selected img { flex: 0 0 22px; border-radius: 3px; }
+.ra-picker-selected button > span:first-of-type { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ra-picker-selected button > span:last-child { color: var(--ink3); font-size: 16px; }
+.ra-picker-actions { display: flex; align-items: center; gap: 10px; }
+.ra-picker-actions > span { flex: 1; min-width: 0; }
+.ra-picker-actions .btn { min-height: 36px; }
 .ra-picker-card { min-width: 0; border: 1px solid var(--line); border-radius: 7px; background: var(--surface2); overflow: hidden; transition: border-color .15s; }
 .ra-picker-card:focus-within { border-color: var(--accent); }
 .ra-picker-card.chosen { border-color: var(--teal); background: var(--teal-soft); }
@@ -222,16 +249,19 @@
   .ra-shop-panel { padding: 8px; }
 }
 @media (max-width: 800px) {
-  .ra-overlay { width: 100%; max-width: 100%; max-height: 88dvh; margin: auto 0 0; border-radius: 14px 14px 0 0; border-bottom: 0; padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .ra-overlay { position: fixed; inset: auto 0 var(--ra-viewport-bottom, 0px); width: min(480px, 100%); max-width: 100%; max-height: calc(var(--ra-viewport-height, 100dvh) - 12px); margin: auto auto 0; border-radius: 14px 14px 0 0; border-bottom: 0; padding-bottom: env(safe-area-inset-bottom, 0px); }
   .ra-overlay.wide { width: 100%; }
   .ra-overlay-header { padding: 9px 12px; }
   .ra-overlay-body { padding: 12px; }
-  .ra-overlay.wide .ra-overlay-body { height: 64dvh; }
+  .ra-overlay.wide .ra-overlay-body { height: min(72dvh, calc(var(--ra-viewport-height, 100dvh) - 80px)); }
   .ra-picker-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
   .ra-picker-status { flex-wrap: wrap; gap: 2px; }
   .workbench-controls .ra-toolbar select:not([multiple]), .ra-toolbar .btn { min-height: 36px; }
   .ra-pool-chips button { min-height: 42px; }
   .ra-picker-controls > label:last-child:not(:first-child) { flex: 0 0 auto; }
+  .ra-picker-controls:has(.ra-picker-covenant) .ra-search { flex-basis: 100%; }
+  .ra-picker-controls:has(.ra-picker-covenant) > label:not(.ra-search) { flex: 1; min-width: 0; }
+  .ra-picker-controls:has(.ra-picker-covenant) select { width: 100%; }
 }
 @keyframes ra-reveal { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { .ra-overlay[open] { animation: none; } .ra-slot, .ra-pool-chips button, .ra-picker-card { transition: none; } }
