@@ -1,0 +1,62 @@
+/* 样式仅装入正文 iframe，保持原站模板与速查页面相互隔离。 */
+html {
+  --reader-top: 56px;
+  --color-base: #172523;
+  scroll-padding-top: var(--reader-top);
+  background: #fff;
+  color-scheme: light;
+  scrollbar-width: thin;
+  scrollbar-color: #9caeaa transparent;
+}
+body.mediawiki {
+  margin: 0;
+  padding: var(--reader-top) 18px 24px;
+  min-width: 0;
+  background: #fff;
+  color: #172523;
+  font: 15px/1.75 system-ui, -apple-system, "Noto Sans SC", sans-serif;
+}
+#content {
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+#mw-content-text, .mw-parser-output { min-width: 0; max-width: 100%; }
+.mw-heading { display: block; margin: 24px 0 12px; }
+.mw-heading h2, .mw-heading h3 { margin: 0; color: #172523; line-height: 1.45; }
+.mw-heading h2 { padding-bottom: 6px; border-bottom: 1px solid #d6dfdc; font-size: 23px; }
+.mw-heading h3 { font-size: 19px; }
+.mw-parser-output p { margin: 10px 0; }
+.mw-parser-output a { color: #0c766e; }
+.mw-parser-output img { max-width: 100%; }
+.mw-parser-output table { max-width: 100%; border-collapse: collapse; }
+.mw-parser-output table.wikitable { margin: 12px 0; color: #172523; background: #fff; }
+.mw-parser-output table.prts-table-dark { color: #fff; }
+.mw-parser-output .wikitable > tbody > tr > :is(th, td) { border: 1px solid #cdd8d6; padding: 8px 10px; }
+.mw-parser-output .wikitable > tbody > tr > th { background: #edf2f1; font-weight: 600; }
+.reader-table-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
+.reader-contents { margin: 0 0 20px; padding: 8px 12px; border: 1px solid #d6dfdc; border-radius: 8px; background: #f5f8f7; }
+.reader-contents summary { font-weight: 600; cursor: pointer; }
+.reader-contents ul { padding-left: 22px; }
+.reader-contents .tocnumber { color: #6a7f7a; margin-right: 6px; }
+.reader-original-link { display: inline-block; padding: 6px 10px; border: 1px solid #cdd8d6; border-radius: 6px; text-decoration: none; }
+.reader-credit { margin-top: 24px; font-size: 12px; }
+.reader-math-symbol { display: inline-block; min-width: .85em; font: 700 1em/1 system-ui, sans-serif; text-align: center; }
+[data-reader-tooltip] { cursor: help; }
+[data-reader-tooltip]:focus-visible { outline: 2px solid #b46a07; outline-offset: 2px; }
+[data-reader-tip][data-open] { display: inline-block !important; padding: 6px 8px; margin: 4px; border: 1px solid #cdd8d6; border-radius: 6px; background: #f4f7f6; color: #172523; font-size: 13px; text-align: left; white-space: normal; }
+/* 选择适合半屏宽度的原站表格版本，保留表内完整数据。 */
+.mw-parser-output .nomobile { display: none !important; }
+.mw-parser-output .nodesktop { display: table !important; }
+@media (min-width: 700px) {
+  .mw-parser-output .nomobile { display: table !important; }
+  .mw-parser-output .nodesktop { display: none !important; }
+}
+@media (max-width: 420px) {
+  body.mediawiki { padding-inline: 12px; font-size: 14px; }
+  .mw-heading h2 { font-size: 21px; }
+  .mw-parser-output .wikitable > tbody > tr > :is(th, td) { padding: 6px; }
+}
