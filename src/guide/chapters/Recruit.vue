@@ -60,7 +60,7 @@ const eliteName = ref('乌啾'), poolMode = ref(0);
   <h3 class="bh"><span>2.4</span>卡池与商店</h3>
   <div class="g2">
     <div class="card"><h4>联合模拟 · 4 人共用一个卡池</h4>
-      <Segmented id="poolSeg" :labels="['只有你玩乌萨斯', '队友也玩乌萨斯']" v-model="poolMode" />
+      <Segmented id="poolSeg" aria-label="卡池占用情况" :labels="['只有你玩乌萨斯', '队友也玩乌萨斯']" v-model="poolMode" />
       <Markup as="div" class="pv" id="poolV" :html="poolDiagram(poolMode)" />
       <div class="row mt"><span class="tag a">队友买走的牌，你就刷不到</span><span class="tag">开局先看队友玩什么，避免撞流派</span></div>
     </div>

@@ -3,7 +3,8 @@
 export const $ = <T extends Element = HTMLElement>(selector: string, root: ParentNode = document) => root.querySelector<T>(selector)!;
 export const $$ = <T extends Element = HTMLElement>(selector: string, root: ParentNode = document) => [...root.querySelectorAll<T>(selector)];
 
-export const prefersReducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+/** Read the current OS preference at use time so changing it never requires a reload. */
+export const prefersReducedMotion = (): boolean => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /** 转义后可安全放进 HTML 文本或属性 */
 export const esc = (value: unknown): string => String(value)

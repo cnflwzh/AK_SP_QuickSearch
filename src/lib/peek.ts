@@ -1,6 +1,7 @@
 /**
  * 速览卡片：干员 / 盟约 / 装备 / 策略 / 领袖的小卡片。
  *   - 鼠标：停留片刻显示，移开收起
+ *   - 键盘：已有入口获得键盘焦点时显示，Escape 收起；不增加额外 Tab 停靠点
  *   - 触屏：长按显示，松手后卡片保留，下一次点按任意位置收起；
  *     短按照常打开详情 / 跳转，滑动会取消长按
  *   - 识别规则见 resolve()：带 data-op / data-eq / data-st / data-ld / data-cv 的元素，
@@ -22,6 +23,7 @@ const GAP = 8;               // 卡片与目标的距离
 const MARGIN = 8;            // 卡片与视口边缘的最小距离
 const LONG_PRESS = 450;      // 触屏长按多久显示（比系统长按菜单略短）
 const MOVE_TOLERANCE = 10;   // 长按期间手指移动超过这个距离视为滑动
+const TOOLTIP_ID = 'quickref-peek';
 
 /* ---------- 内容 ---------- */
 
@@ -143,10 +145,13 @@ let card: HTMLDivElement;
 let current: HTMLElement | null = null;          // 当前（或即将）显示速览的元素
 let showTimer: ReturnType<typeof setTimeout>;
 let hideTimer: ReturnType<typeof setTimeout>;
+let describedTarget: HTMLElement | null = null;
+let keyboardTarget: HTMLElement | null = null;
 
 function ensureCard() {
-  if (card) return card;
+  if (card?.isConnected) return card;
   card = document.createElement('div');
+  card.id = TOOLTIP_ID;
   card.className = 'peek';
   card.setAttribute('role', 'tooltip');
   if (supportsPopover) card.popover = 'manual';
@@ -186,8 +191,18 @@ function place(target: HTMLElement, preferAbove: boolean) {
   card.style.left = Math.max(MARGIN, left) + 'px';
 }
 
-function show(target: HTMLElement, [render, name]: CardContent, preferAbove = false) {
+/** Remove only our description token; other help text belongs to the caller. */
+function clearDescription(): void {
+  if (!describedTarget) return;
+  const ids = (describedTarget.getAttribute('aria-describedby') || '').split(/\s+/).filter(id => id && id !== TOOLTIP_ID);
+  if (ids.length) describedTarget.setAttribute('aria-describedby', ids.join(' '));
+  else describedTarget.removeAttribute('aria-describedby');
+  describedTarget = null;
+}
+
+function show(target: HTMLElement, [render, name]: CardContent, preferAbove = false, trigger = target) {
   ensureCard();
+  clearDescription();
   card.innerHTML = render(name);
   if (supportsPopover) {
     // 重新 show 一次，保证排在刚打开的详情弹窗之上
@@ -198,10 +213,17 @@ function show(target: HTMLElement, [render, name]: CardContent, preferAbove = fa
   }
   card.classList.add('on');
   place(target, preferAbove);
+  const ids = new Set((trigger.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean));
+  ids.add(TOOLTIP_ID);
+  trigger.setAttribute('aria-describedby', [...ids].join(' '));
+  describedTarget = trigger;
 }
 
 function hide() {
   clearTimeout(showTimer);
+  clearTimeout(hideTimer);
+  clearDescription();
+  keyboardTarget = null;
   current = null;
   if (!isShown()) return;
   card.classList.remove('on');
@@ -223,11 +245,13 @@ function targetOf(e: Event): [HTMLElement, CardContent] | null {
 
 function onPointerOver(e: PointerEvent) {
   if (e.pointerType !== 'mouse') return;
+  if (e.target instanceof Node && card?.contains(e.target)) { clearTimeout(hideTimer); return; }
   const hit = targetOf(e);
   if (!hit) return;
   const [el, found] = hit;
   clearTimeout(hideTimer);
   if (el === current) return;
+  keyboardTarget = null;
   current = el;
   clearTimeout(showTimer);
   showTimer = setTimeout(() => {
@@ -237,10 +261,48 @@ function onPointerOver(e: PointerEvent) {
 
 function onPointerOut(e: PointerEvent) {
   if (e.pointerType !== 'mouse' || !current) return;
-  if (e.relatedTarget instanceof Node && current.contains(e.relatedTarget)) return;
-  if (!(e.target instanceof Node) || !current.contains(e.target)) return;
+  if (keyboardTarget === document.activeElement) return;
+  const insidePreview = (node: EventTarget | null) => node instanceof Node && (current?.contains(node) || card?.contains(node));
+  if (insidePreview(e.relatedTarget) || !insidePreview(e.target)) return;
   clearTimeout(hideTimer);
   hideTimer = setTimeout(hide, HIDE_DELAY);
+}
+
+/* ---------- 键盘：沿用现有链接 / 按钮的焦点 ---------- */
+
+function onFocusIn(event: FocusEvent): void {
+  const trigger = event.target;
+  // Pointer clicks retain their existing behaviour; only keyboard focus opens a preview.
+  if (!(trigger instanceof HTMLElement) || !trigger.matches(':focus-visible')) return;
+  const hit = targetOf(event);
+  if (!hit) return;
+  hide();
+  const [target, content] = hit;
+  current = target;
+  keyboardTarget = trigger;
+  show(target, content, false, trigger);
+}
+
+function onFocusOut(event: FocusEvent): void {
+  if (event.target === keyboardTarget) hide();
+}
+
+function onKeyDown(event: KeyboardEvent): void {
+  if (event.key === 'Escape' && isShown()) {
+    hide();
+    // Dismiss the preview first; a second Escape can close the underlying dialog.
+    event.preventDefault();
+    event.stopPropagation();
+  } else if (event.key === 'Enter' || event.key === ' ') {
+    hide();
+  }
+}
+
+function onScroll(): void {
+  cancelPress();
+  // Tabbing can scroll a card into view after focusin; retain and reposition its preview.
+  if (keyboardTarget === document.activeElement && current && isShown()) place(current, false);
+  else hide();
 }
 
 /* ---------- 触屏：长按 ---------- */
@@ -255,6 +317,13 @@ function cancelPress() {
 }
 
 function onPointerDown(e: PointerEvent) {
+  // Wiki 链接使用浏览器原生点击与长按菜单，不消耗一次触摸来关闭速览。
+  if (e.target instanceof Element && e.target.closest('[data-prts-link]')) {
+    cancelPress();
+    swallowClick = false;
+    hide();
+    return;
+  }
   if (e.pointerType === 'mouse') {
     hide();
     return;
@@ -299,7 +368,7 @@ function onContextMenu(e: MouseEvent) {
   if (press || (isShown() && (e.target instanceof Element ? e.target.closest<HTMLElement>(TARGET) : null))) e.preventDefault();
 }
 
-/** Bind shared pointer interactions; return a disposer for HMR/unmount. */
+/** Bind shared pointer and focus interactions; dispose listeners, descriptions and timers on unmount. */
 export function initPeek(): () => void {
   const controller = new AbortController();
   const signal = controller.signal;
@@ -311,8 +380,10 @@ export function initPeek(): () => void {
   document.addEventListener('pointercancel', cancelPress, { signal });
   document.addEventListener('click', onClick, { capture: true, signal });
   document.addEventListener('contextmenu', onContextMenu, { signal });
-  document.addEventListener('keydown', hide, { capture: true, signal });
-  addEventListener('scroll', () => { cancelPress(); hide(); }, { capture: true, signal });
+  document.addEventListener('focusin', onFocusIn, { signal });
+  document.addEventListener('focusout', onFocusOut, { signal });
+  document.addEventListener('keydown', onKeyDown, { capture: true, signal });
+  addEventListener('scroll', onScroll, { capture: true, signal });
   addEventListener('resize', hide, { signal });
   addEventListener('blur', hide, { signal });
   return () => { controller.abort(); cancelPress(); clearTimeout(hideTimer); hide(); card?.remove(); };

@@ -1,5 +1,5 @@
 import type { LocationQuery, LocationQueryRaw } from 'vue-router';
-import { COVENANTS, LEADERS, LEADER_BATTLEFIELDS, OPERATOR_TYPES, STRATEGY_CATEGORIES } from '../../data/index.ts';
+import { LEADERS, LEADER_BATTLEFIELDS, OPERATOR_TYPES, STRATEGY_CATEGORIES } from '../../data/index.ts';
 import { covenantId, covenantName, detailFromId } from './entities.ts';
 
 /** The short keys are retained for existing card data attributes and swipe order. */
@@ -47,9 +47,9 @@ export function normalizeQuery(tab: TabId, query: LocationQueryRaw, entityId = '
     const value = boundedInteger(read('tier'), 0, 0, 6);
     if (value) normalized.tier = String(value);
   };
-  const covenant = (scalable = false) => {
+  const covenant = () => {
     const name = covenantName(read('covenant'));
-    if (name && (!scalable || COVENANTS[name].scaling.length)) normalized.covenant = covenantId(name);
+    if (name) normalized.covenant = covenantId(name);
   };
   if (tab === 'fx') keep('group', ['core', 'addon']);
   if (tab === 'op') {
@@ -60,7 +60,7 @@ export function normalizeQuery(tab: TabId, query: LocationQueryRaw, entityId = '
     if (read('group') === 'combo') normalized.group = 'combo'; else tier();
   }
   if (tab === 'st') keep('category', CATEGORY_IDS.slice(1, STRATEGY_CATEGORIES.length));
-  if (tab === 'ld' || tab === 'nu') {
+  if (tab === 'ld') {
     keep('difficulty', DIFFICULTIES.filter(value => value !== 'danger'));
   }
   if (tab === 'ld' && entityId) {
@@ -73,10 +73,8 @@ export function normalizeQuery(tab: TabId, query: LocationQueryRaw, entityId = '
     keep('skill', layout?.zones.slice(1).map(zone => zone.label) ?? []);
   }
   if (tab === 'nu') {
-    covenant(true);
-    if (normalized.covenant === 'ursus') delete normalized.covenant;
-    const layers = boundedInteger(read('layers'), 60, 0, 300);
-    if (layers !== 60) normalized.layers = String(layers);
+    // 路由只标识工具子页；计算输入和工具内筛选由数值页维护，不进入导航历史。
+    keep('tool', ['recruit', 'bounty']);
   }
   if (tab === 'bd') {
     keep('panel', editing ? ['share', 'compare', 'import', 'closed'] : ['import', 'closed']);

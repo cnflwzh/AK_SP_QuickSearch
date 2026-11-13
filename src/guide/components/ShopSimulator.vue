@@ -128,7 +128,7 @@ reset();
         <div class="row">
           <button class="btn p" id="bUp" :disabled="maxed || !!sim.reward" @click="upgrade">升级 <b id="bUpC">{{ maxed ? '—' : sim.cost }}</b></button>
           <button class="btn" id="bRef" :disabled="!!sim.reward" @click="refresh">刷新 <b>1</b></button>
-          <button class="btn" id="bFrz" :class="{ p: sim.frozen }" :disabled="!!sim.reward" @click="freeze">{{ sim.frozen ? '已冻结 ❄' : '冻结' }}</button>
+          <button class="btn" id="bFrz" :class="{ p: sim.frozen }" :aria-pressed="sim.frozen" :disabled="!!sim.reward" @click="freeze">{{ sim.frozen ? '已冻结 ❄' : '冻结' }}</button>
           <button class="btn" id="bNext" @click="nextRound">下一回合 ▸</button>
           <button class="btn" id="bReset" @click="reset">重置</button>
         </div>

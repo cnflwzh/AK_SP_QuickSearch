@@ -29,9 +29,26 @@ test('external filters normalize repeated values, invalid IDs and out-of-range n
   assert.deepEqual(normalizeQuery('op', input), { tier: '3', covenant: 'victoria', trigger: 'battle', type: 'combat', elite: '1', q: '攻击', card: 'op-char_4177_brigid' });
   assert.deepEqual(input, original);
   assert.deepEqual(normalizeQuery('op', { tier: 'NaN', covenant: '__proto__', type: 'unknown', card: 'bad' }), {});
-  assert.deepEqual(normalizeQuery('nu', { layers: '900', difficulty: 'ultimate', covenant: 'dexterity' }), { difficulty: 'ultimate', covenant: 'dexterity', layers: '300' });
-  assert.deepEqual(normalizeQuery('nu', { layers: '60', difficulty: 'danger', covenant: 'ursus' }), {});
-  assert.deepEqual(normalizeQuery('nu', { layers: '-8' }), { layers: '0' });
+});
+
+test('numbers links retain navigation destinations without calculator inputs or local filters', () => {
+  const target = OPERATORS.find(operator => operator.name === '凛御银灰').avatar;
+  const transient = {
+    covenant: 'foresight', layerSection: 'cycle', layers: '80', difficulty: 'ultimate',
+    target, operatorQuery: '银灰', shopMode: 'standard', level: '5', funds: '20', upgrade: '0', reserve: '0',
+    payout: 'multi', sort: 'reward', bountyQuery: '假想敌',
+  };
+  assert.deepEqual(normalizeQuery('nu', transient), {});
+  for (const tool of ['recruit', 'bounty']) {
+    const query = { ...transient, tool, q: '  攻击  ', card: detailId('op', '凛御银灰') };
+    const original = structuredClone(query);
+    const destination = { tool, q: '攻击', card: query.card };
+    assert.deepEqual(normalizeQuery('nu', query), destination);
+    assert.deepEqual(normalizeQuery('nu', destination), destination);
+    assert.deepEqual(query, original);
+  }
+  assert.deepEqual(normalizeQuery('nu', { tool: 'layers' }), {});
+  assert.deepEqual(normalizeQuery('nu', { tool: 'missing', layers: 'NaN', card: 'missing' }), {});
 });
 
 test('secondary pages keep only their own controls and normalization is idempotent', () => {
