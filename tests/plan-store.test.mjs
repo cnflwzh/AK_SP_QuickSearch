@@ -32,4 +32,18 @@ test('preset storage retains configured drafts, flushes on exit and follows cros
   assert.equal(store.runKey.value, '炎');
   await nextTick();
   store.flushSave();
+
+  const beforeRestore = JSON.stringify(store.plans);
+  const beforeStorage = values.get('wsq.plans');
+  const setItem = localStorage.setItem;
+  localStorage.setItem = () => { throw new Error('Quota exceeded'); };
+  assert.throws(() => store.restorePlanBackup([blankPlan('另一台设备')]));
+  assert.equal(JSON.stringify(store.plans), beforeRestore, 'failed restore must preserve current drafts');
+  assert.equal(values.get('wsq.plans'), beforeStorage);
+  localStorage.setItem = setItem;
+  const restored = store.restorePlanBackup([blankPlan('另一台设备')]);
+  assert.equal(restored.additions.length, 1);
+  assert.ok(JSON.parse(values.get('wsq.plans')).some(p => p.name === '另一台设备'));
+  await nextTick();
+  store.flushSave();
 });

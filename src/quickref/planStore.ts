@@ -10,6 +10,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import { BUILD_NAMES, CORE_BUILDS, ALL_COVENANTS } from '../../data/index.ts';
 import { color } from './format.ts';
 import { blankPlan, builtinPlan, covenantStats, loadPlans, newId, samePlan, savePlans, type CovenantStat, type Plan } from '../lib/planner.ts';
+import { mergePlanBackup, type PlanBackupMerge } from '../lib/planBackup.ts';
 // The route adapter selects a preset; this store does not depend on the browser router.
 const selectedPresetKey = ref(BUILD_NAMES[0]);
 
@@ -70,6 +71,18 @@ export { select as selectPreset };
 
 /** Adds a saved plan at the front and returns its local ID; navigation belongs to the caller. */
 export function addPlan(next: Plan): string { plans.unshift(next); select(next.id); return next.id; }
+/** 合并已校验的备份；先写入本地存储，再追加到界面。保存失败抛出错误，现有方案保持原样。 */
+export function restorePlanBackup(incoming: readonly Plan[]): PlanBackupMerge {
+  const result = mergePlanBackup(plans, incoming);
+  if (!result.additions.length) return result;
+  if (!savePlans([...plans, ...result.additions])) {
+    saveError.value = true;
+    throw new Error('本地保存失败，请检查浏览器的存储空间和权限后重试。');
+  }
+  saveError.value = false;
+  plans.push(...result.additions);
+  return result;
+}
 export function newPreset(): string { return addPlan(blankPlan(`我的流派 ${myPresets.value.length + 1}`)); }
 export function copyPreset(key: string): string | undefined {
   const source = presetOf(key); if (!source) return;

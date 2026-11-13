@@ -2,6 +2,7 @@ import { shallowRef } from 'vue';
 import { createRouter, createWebHistory, type RouteLocationNormalized, type RouteRecordRaw } from 'vue-router';
 import { LEADERS } from '../../data/index.ts';
 import { covenantName, detailFromId } from './entities.ts';
+import { advisorPreviewEnabled } from '../quickref/experimentalFeatures.ts';
 import { PAGE_LABELS, PAGE_PATHS, TAB_IDS, normalizeQuery, queryText, sameQuery, type TabId } from './location.ts';
 
 declare module 'vue-router' {
@@ -84,6 +85,7 @@ router.beforeEach(to => {
   if (tab === 'bd' && !id) return { path: '/builds/yan', query: to.query, hash: to.hash };
   if (queryText(to.query, 'card') && !detailFromId(queryText(to.query, 'card'))) routeNotice.value = '未找到这张卡片。';
   const query = normalizeQuery(tab, to.query, id, to.name === 'build-edit');
+  if (tab === 'nu' && query.tool === 'advisor' && !advisorPreviewEnabled.value) delete query.tool;
   // Preserve the caller's push/replace intent while canonicalizing default/empty controls.
   if (!sameQuery(query, to.query)) return { path: to.path, query, hash: to.hash };
 });

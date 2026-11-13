@@ -2,7 +2,7 @@
 import { operatorWikiUrl } from '../../lib/prts.ts';
 import { useWikiPanel } from '../wikiPanel.ts';
 
-/** 干员目录和详情共用的 Wiki 外链，name 为完整干员名称。 */
+/** 干员卡片和详情共用的 Wiki 外链，name 为完整干员名称。 */
 const props = defineProps<{ name: string }>();
 const wikiPanel = useWikiPanel();
 

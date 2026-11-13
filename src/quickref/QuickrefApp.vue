@@ -22,7 +22,7 @@ const TAB_META: Record<TabId, { label: string; count: number | '' }> = {
   fx: { label: '速览', count: '' }, cv: { label: '盟约详情', count: ALL_COVENANTS.length }, op: { label: '干员', count: OPERATORS.length },
   bd: { label: '流派', count: BUILD_COUNT },
   eq: { label: '装备', count: EQUIPMENT.length }, st: { label: '策略', count: STRATEGIES.length },
-  ld: { label: '领袖', count: LEADERS.length }, nu: { label: '数值', count: '' },
+  ld: { label: '领袖', count: LEADERS.length }, nu: { label: '小工具', count: '' },
 };
 const tabs = TAB_IDS.map(id => ({ id, ...TAB_META[id] }));
 const renderedQuery = computed(() => queryText(currentRoute.value.query, 'q'));
