@@ -45,8 +45,6 @@ export const state = reactive({
     set: (tier: number) => { void updateQuery({ group: tier === 7 ? 'combo' : null, tier: tier === 7 ? null : tier || null }); },
   }),
   stCategory: indexControl('category', CATEGORY_IDS),
-  calculatorCovenant: computed(() => covenantName(text('covenant')) || '乌萨斯'),
-  calculatorLayers: computed(() => Number(text('layers') || 60)),
   mode: indexControl('difficulty', DIFFICULTIES, 1),
   leader: computed(() => LEADERS.find(leader => leader.id === currentRoute.value.params.id)?.name ?? ''),
   leaderTerrain: computed({

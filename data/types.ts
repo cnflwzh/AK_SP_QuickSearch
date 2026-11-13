@@ -232,6 +232,8 @@ export interface TrainingType {
 
 export interface Bounty {
   readonly name: string;
+  /** 对应游戏图鉴 ID，同时用于本地敌人头像文件名。 */
+  readonly enemyId: string;
   readonly funds: number;
   readonly when: string;
 }

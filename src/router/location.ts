@@ -1,5 +1,6 @@
 import type { LocationQuery, LocationQueryRaw } from 'vue-router';
-import { COVENANTS, LEADERS, LEADER_BATTLEFIELDS, OPERATOR_TYPES, STRATEGY_CATEGORIES } from '../../data/index.ts';
+import { COVENANTS, LEADERS, LEADER_BATTLEFIELDS, OPERATORS, OPERATOR_TYPES, STRATEGY_CATEGORIES } from '../../data/index.ts';
+import { CYCLE_REWARDS, HEADCOUNT_BREAKPOINTS, NUMBER_INPUT_LIMIT, SHOP_MODE_IDS } from '../../data/numberTools.ts';
 import { covenantId, covenantName, detailFromId } from './entities.ts';
 
 /** The short keys are retained for existing card data attributes and swipe order. */
@@ -73,10 +74,27 @@ export function normalizeQuery(tab: TabId, query: LocationQueryRaw, entityId = '
     keep('skill', layout?.zones.slice(1).map(zone => zone.label) ?? []);
   }
   if (tab === 'nu') {
-    covenant(true);
-    if (normalized.covenant === 'ursus') delete normalized.covenant;
-    const layers = boundedInteger(read('layers'), 60, 0, 300);
+    keep('tool', ['recruit', 'bounty']);
+    covenant();
+    const selectedCovenant = covenantName(read('covenant'));
+    if (read('layerSection') === 'cycle' && selectedCovenant && CYCLE_REWARDS[selectedCovenant]) normalized.layerSection = 'cycle';
+    if (read('layerSection') === 'headcount' && HEADCOUNT_BREAKPOINTS.some(item => item.covenant === selectedCovenant)) normalized.layerSection = 'headcount';
+    const layers = boundedInteger(read('layers'), 60, 0, NUMBER_INPUT_LIMIT);
     if (layers !== 60) normalized.layers = String(layers);
+    keep('shopMode', SHOP_MODE_IDS.slice(1));
+    const level = boundedInteger(read('level'), 4, 1, 6);
+    if (level !== 4) normalized.level = String(level);
+    if (OPERATORS.some(operator => operator.avatar === read('target'))) normalized.target = read('target');
+    for (const key of ['funds', 'upgrade', 'reserve']) {
+      if (read(key).trim() && Number.isFinite(Number(read(key)))) {
+        normalized[key] = String(boundedInteger(read(key), 0, 0, NUMBER_INPUT_LIMIT));
+      }
+    }
+    keep('payout', ['single', 'multi']);
+    keep('sort', ['reward']);
+    for (const key of ['operatorQuery', 'bountyQuery']) {
+      if (read(key).trim()) normalized[key] = read(key).trim().slice(0, 100);
+    }
   }
   if (tab === 'bd') {
     keep('panel', editing ? ['share', 'compare', 'import', 'closed'] : ['import', 'closed']);

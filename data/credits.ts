@@ -97,7 +97,7 @@ export const WIKIS: readonly WikiSource[] = [
     name: 'PRTS',
     page: '敌人一览 · 头像_敌人',
     url: 'https://prts.wiki/w/%E6%95%8C%E4%BA%BA%E4%B8%80%E8%A7%88',
-    used: '领袖头像',
+    used: '领袖与悬赏敌人头像',
   },
   {
     name: 'PRTS',
