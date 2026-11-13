@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { operatorWikiUrl } from '../../lib/prts.ts';
 import { createPrtsReaderDocument, fetchPrtsArticle } from '../../lib/prtsArticle.ts';
 import readerStyles from '../wikiReader.css?raw';
 
@@ -10,8 +11,8 @@ const props = defineProps<{
 }>();
 const frame = ref<HTMLIFrameElement | null>(null);
 const sourceDocument = ref('');
-const state = ref<'loading' | 'ready' | 'error'>('loading');
-const attempt = ref(0);
+const state = ref<'loading' | 'ready' | 'original'>('loading');
+const originalUrl = computed(() => `${operatorWikiUrl(props.operatorName)}#${encodeURIComponent('特性')}`);
 let request: AbortController | undefined;
 let frameEvents: AbortController | undefined;
 let layoutFrame = 0;
@@ -118,7 +119,7 @@ function onFrameLoaded(): void {
   });
 }
 
-watch([() => props.operatorName, attempt], async ([name], _, onCleanup) => {
+watch(() => props.operatorName, async (name, _, onCleanup) => {
   const controller = new AbortController();
   request = controller;
   onCleanup(() => controller.abort());
@@ -132,7 +133,11 @@ watch([() => props.operatorName, attempt], async ([name], _, onCleanup) => {
     controller.signal.throwIfAborted();
     sourceDocument.value = createPrtsReaderDocument(article, readerStyles, props.topInset);
   } catch {
-    if (!controller.signal.aborted) state.value = 'error';
+    if (!controller.signal.aborted) {
+      // 两个正文接口均不可用时，交给浏览器直接导航原网页，不再依赖跨域 fetch。
+      pinnedSection = null;
+      state.value = 'original';
+    }
   }
 }, { immediate: true });
 
@@ -153,14 +158,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="prts-reader" :style="{ '--reader-inset': `${topInset}px` }" :aria-busy="state === 'loading'">
+  <div :class="['prts-reader', { 'is-original': state === 'original' }]" :style="{ '--reader-inset': `${topInset}px` }" :aria-busy="state === 'loading'">
     <div v-if="state === 'loading'" class="reader-status" role="status">正在加载 PRTS…</div>
-    <div v-else-if="state === 'error'" class="reader-status" role="alert">
-      <span>正文加载失败</span><button type="button" @click="attempt++">重试</button>
-    </div>
     <!-- 仅本站父页面管理正文定位；隔离文档不允许运行 PRTS 或正文内的脚本。 -->
     <iframe
       v-if="sourceDocument"
+      key="article"
       ref="frame"
       :srcdoc="sourceDocument"
       :title="`${operatorName} · PRTS Wiki 正文`"
@@ -169,13 +172,23 @@ onBeforeUnmount(() => {
       referrerpolicy="strict-origin-when-cross-origin"
       @load="onFrameLoaded"
     ></iframe>
+    <!-- 原网页使用独立的跨域 iframe；不复用 srcdoc 的节点或放宽其脚本权限。 -->
+    <iframe
+      v-else-if="state === 'original'"
+      :key="originalUrl"
+      :src="originalUrl"
+      :title="`${operatorName} · PRTS Wiki 原网页`"
+      class="prts-original"
+      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+      referrerpolicy="strict-origin-when-cross-origin"
+    ></iframe>
   </div>
 </template>
 
 <style scoped>
 .prts-reader { position: relative; height: 100%; min-height: 0; background: #fff; }
+.prts-reader.is-original { box-sizing: border-box; padding-top: var(--reader-inset); }
 .prts-reader iframe { display: block; width: 100%; height: 100%; border: 0; opacity: 0; pointer-events: none; }
-.prts-reader iframe.ready { opacity: 1; pointer-events: auto; }
+.prts-reader iframe.ready, .prts-reader iframe.prts-original { opacity: 1; pointer-events: auto; }
 .reader-status { position: absolute; z-index: 1; top: var(--reader-inset); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; white-space: nowrap; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink2); font-size: 13px; }
-.reader-status button { border: 1px solid var(--line); border-radius: 5px; padding: 3px 8px; background: var(--surface2); color: var(--teal); cursor: pointer; }
 </style>
