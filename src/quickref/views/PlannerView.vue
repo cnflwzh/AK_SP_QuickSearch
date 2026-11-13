@@ -168,7 +168,7 @@ const notes = computed(() => equipNotes(ops.value));
 const strategy = computed(() => STRATEGY[plan.value.strategy]);
 /** 阵容里已有的盟约：干员池里能推进它们的干员加星 */
 const present = computed(() => new Set(stats.value.filter(s => !s.bonusActive && !s.broken).map(s => s.name)));
-const GAIN: Record<string, string> = { on: '激活', bonus: '强化', up: '+1', off: '失效' };
+const GAIN: Record<string, string> = { on: '激活', bonus: '强化', up: '+1', off: '失效', weaken: '失去强化' };
 
 /* ---------- 干员池 ---------- */
 const poolTier = computed({
@@ -350,7 +350,7 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
         <div class="pl-recs">
           <button v-for="r in recs" :key="r.op.name" type="button" class="pl-r" :data-t="r.op.tier" :data-op="r.op.name" @click="toggle(r.op.name)">
             <img :src="avatarSrc(r.op.name)" alt="" width="40" height="40" loading="lazy">
-            <span><b>{{ r.op.name }}</b><span class="g"><i v-for="g in r.gains" :key="g.covenant" :class="g.kind" :style="{ '--c': color(g.covenant) }">{{ g.covenant }} {{ GAIN[g.kind] }}</i></span></span>
+            <span><b>{{ r.op.name }}</b><span class="g"><i v-for="g in r.gains" :key="g.covenant" :class="g.kind === 'weaken' ? 'off' : g.kind" :style="{ '--c': color(g.covenant) }">{{ g.covenant }} {{ GAIN[g.kind] }}</i></span></span>
           </button>
         </div>
       </section>

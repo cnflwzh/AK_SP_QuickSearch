@@ -9,6 +9,7 @@ import ExtraRules from '../numbers/ExtraRules.vue';
 import '../numbers/numbers.css';
 
 const panels = {
+  advisor: defineAsyncComponent(() => import('../advisor/RunAdvisor.vue')),
   layers: LayerTools,
   recruit: defineAsyncComponent(() => import('../numbers/RecruitTools.vue')),
   bounty: defineAsyncComponent(() => import('../numbers/BountyTools.vue')),
@@ -25,13 +26,13 @@ function selectTool(index: number): void {
 <template>
   <div class="numbers-tools">
     <!-- 工具标题沿用现有 h4 样式，由 aria-level 表达页面与卡片的标题层级。 -->
-    <nav class="bar" aria-label="数值工具">
+    <nav class="bar" aria-label="小工具">
       <Segmented :labels="toolLabels" :active="activeIndex" attr="number-tool" @change="selectTool"/>
     </nav>
     <!-- 仅工具切换产生过渡；临时输入和详情弹窗更新不重建面板。 -->
     <Transition name="number-panel" mode="out-in">
-      <KeepAlive :max="3"><component :is="panels[activeTool]" :key="activeTool"/></KeepAlive>
+      <KeepAlive :max="4"><component :is="panels[activeTool]" :key="activeTool"/></KeepAlive>
     </Transition>
-    <ExtraRules/>
+    <ExtraRules v-if="activeTool !== 'advisor'"/>
   </div>
 </template>

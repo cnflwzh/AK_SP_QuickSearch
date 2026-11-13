@@ -10,7 +10,7 @@ export const PAGE_PATHS: Record<TabId, string> = {
   eq: '/equipment', st: '/strategies', ld: '/leaders', nu: '/numbers',
 };
 export const PAGE_LABELS: Record<TabId, string> = {
-  fx: '速览', bd: '流派', cv: '盟约详情', op: '干员', eq: '装备', st: '策略', ld: '领袖', nu: '数值',
+  fx: '速览', bd: '流派', cv: '盟约详情', op: '干员', eq: '装备', st: '策略', ld: '领袖', nu: '小工具',
 };
 export const DIFFICULTIES = ['standard', 'danger', 'desperate', 'ultimate'] as const;
 export const TRIGGER_IDS: Readonly<Record<string, string>> = {
@@ -73,8 +73,8 @@ export function normalizeQuery(tab: TabId, query: LocationQueryRaw, entityId = '
     keep('skill', layout?.zones.slice(1).map(zone => zone.label) ?? []);
   }
   if (tab === 'nu') {
-    // 路由只标识工具子页；计算输入和工具内筛选由数值页维护，不进入导航历史。
-    keep('tool', ['recruit', 'bounty']);
+    // 路由只标识工具子页；计算输入和本局记录由工具维护，不进入导航历史。
+    keep('tool', ['advisor', 'recruit', 'bounty']);
   }
   if (tab === 'bd') {
     keep('panel', editing ? ['share', 'compare', 'import', 'backup', 'closed'] : ['share', 'import', 'backup', 'closed']);

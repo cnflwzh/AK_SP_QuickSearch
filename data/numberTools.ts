@@ -1,5 +1,6 @@
-/** 数值页的查询入口；ID 用于 URL，文案不参与状态判断。 */
+/** 小工具的查询入口；ID 用于 URL，文案不参与状态判断。 */
 export const NUMBER_TOOLS = [
+  { id: 'advisor', label: '局内抓取' },
   { id: 'layers', label: '层数门槛' },
   { id: 'recruit', label: '找牌升本' },
   { id: 'bounty', label: '悬赏收益' },
