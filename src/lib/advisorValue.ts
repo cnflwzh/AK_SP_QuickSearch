@@ -34,6 +34,10 @@ export function acquisitionValue(operator: Operator, elite: boolean, stats: read
   if (multiplier > 1 && text) reasons.push(`按购入前已激活投资人触发${multiplier}次，不预支新人激活收益`);
   const scaling = /触发后升级|触发\d+次后升级/.test(text);
   for (const { covenant, amount } of gains) {
+    if (context.inactiveCovenants?.has(covenant)) {
+      reasons.push(`${covenant}本局缺席，其获得时层数不计入收益`);
+      continue;
+    }
     score += layerValue(covenant, amount, stats, context);
     reasons.push(`获得时${covenant}+${amount}层${scaling ? '起（成长次数未录入，按最低档）' : ''}${stats.find(s => s.name === covenant)?.active ? '' : '（尚未激活）'}`);
     const threshold = stats.find(s => s.name === covenant)?.bonusLayers;

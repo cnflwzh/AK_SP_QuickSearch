@@ -449,3 +449,18 @@ test('pool bans distinguish a missing core from all missing native addons', asyn
     assert.ok(!item.reasons.some(reason => /激活灵巧|激活突袭/.test(reason)));
   }
 });
+
+test('missing addon layers receive no acquisition value while retained addons still do', async () => {
+  const { acquisitionValue } = await import('../src/lib/advisorValue.ts');
+  const context = { round: 4, level: 6, strategy: '', layers: {}, inactiveCovenants: new Set(['奥术']) };
+  const stats = [{ name: '远见', active: true }];
+  const value = acquisitionValue(OPERATOR['逻各斯'], false, stats, context);
+  assert.equal(value.score, 10); // 仅远见5层×2，缺席奥术不留未来价值
+  assert.match(value.reasons.join(' '), /奥术.*缺席.*不计/);
+  assert.match(value.reasons.join(' '), /远见\+5层/);
+  assert.doesNotMatch(value.reasons.join(' '), /获得时奥术\+/);
+  const run = runWith([], { bannedCovenants: ['奥术'], shop: ['逻各斯'] });
+  const advice = recommendRecruits(run)[0];
+  assert.equal(advice.operator.name, '逻各斯');
+  assert.equal(advice.breakdown.acquisition, 1.25); // 未激活远见仅保留未来价值
+});
