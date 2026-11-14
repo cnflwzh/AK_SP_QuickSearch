@@ -291,3 +291,29 @@ test('recording a promotion reward consumes the choice once and undo restores it
     else delete globalThis.localStorage;
   }
 });
+
+test('front-cell producers count their own known covenants but never invent a neighbour', async () => {
+  const { recurringValue } = await import('../src/lib/advisorValue.ts');
+  const context = { round: 14, level: 6, strategy: '', layers: {} };
+  const stats = [{ name: '远见', active: true }, { name: '灵巧', active: true }, { name: '助力', active: true }];
+  const normal = recurringValue(newSlot('渡桥'), true, stats, context);
+  assert.match(normal.reasons.join(' '), /远见\+2层/);
+  assert.match(normal.reasons.join(' '), /身前.*未/);
+  assert.equal(recurringValue(newSlot('渡桥'), false, stats, context).score, 0);
+  const pallas = recurringValue(newSlot('帕拉斯'), true, stats, context);
+  assert.match(pallas.reasons.join(' '), /灵巧\+9层/);
+  assert.match(pallas.reasons.join(' '), /助力\+9层/);
+  assert.ok(recurringValue({ ...newSlot('渡桥'), elite: true }, true, stats, context).score > normal.score);
+});
+
+test('Silence counts each recorded reserve carrier covenant once and only active effects', async () => {
+  const { recurringValue } = await import('../src/lib/advisorValue.ts');
+  const context = { round: 14, level: 6, strategy: '', layers: {} };
+  const stats = [{ name: '炎', active: true }, { name: '聚合', active: false }];
+  const roster = { field: [newSlot('淬羽赫默')], reserve: [newSlot('拜松'), newSlot('风絮')] };
+  const result = recurringValue(roster.field[0], true, stats, context, roster);
+  assert.match(result.reasons.join(' '), /炎\+2层/);
+  assert.doesNotMatch(result.reasons.join(' '), /聚合\+/);
+  assert.equal(recurringValue(roster.field[0], false, stats, context, roster).score, 0);
+  assert.equal(recurringValue(roster.field[0], true, stats, context, { ...roster, reserve: [] }).score, 0);
+});

@@ -81,7 +81,27 @@ export function recurringValue(slot: PlanOp, deployed: boolean, stats: readonly 
     if (selected && known.length === active.length) gains = [{ covenant: selected.name, amount: +(withoutAcquire.match(/层数\+(\d+)/)?.[1] ?? 0) }];
     else { score += 5 * horizon; reasons.push('可为最高层激活盟约叠层；层数未完整录入，不假定目标'); }
   }
+  // 身前目标尚未录入，但自身部分是确定收益，不能整条特质漏算。
+  const selfAndFront = restText.match(/^<休整期结束时>使自身(?:及|以及)身前一格干员已激活的盟约层数\+(\d+)/);
+  if (selfAndFront) {
+    const covenants = covenantsOf(slot);
+    gains = [...new Set([...covenants.own, ...covenants.granted])]
+      .map(covenant => ({ covenant, amount: +selfAndFront[1] }));
+    reasons.push('仅计自身已激活盟约；身前一格未录入，未假定相邻干员收益');
+  }
   if (roster) {
+    const reserveCovenants = restText.match(/^<休整期结束时>使整备区每名干员已激活的盟约层数\+(\d+)/);
+    if (reserveCovenants) {
+      const amounts = new Map<string, number>();
+      for (const member of roster.reserve) {
+        const covenants = covenantsOf(member);
+        for (const covenant of new Set([...covenants.own, ...covenants.granted])) {
+          amounts.set(covenant, (amounts.get(covenant) ?? 0) + +reserveCovenants[1]);
+        }
+      }
+      gains = [...amounts].map(([covenant, amount]) => ({ covenant, amount }));
+      reasons.push('按已记录整备区干员各自盟约计层；未记录的同名副本不推算');
+    }
     const equipped = restText.match(/^<休整期结束时>场上每有一名携带装备的干员，使已激活的((?:【[^】]+】)+)层数\+(\d+)/);
     const tiers = restText.match(/^<休整期结束时>场上每有一名不同阶的【([^】]+)】干员，使已激活的((?:【[^】]+】)+)层数\+(\d+)/);
     const benched = restText.match(/^<休整期结束时>整备区每有一名干员，使已激活的((?:【[^】]+】)+)层数\+(\d+)/);
