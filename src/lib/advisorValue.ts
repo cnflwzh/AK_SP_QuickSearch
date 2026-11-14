@@ -2,7 +2,7 @@
 import { EQUIPMENT, OPERATOR, type Operator } from '../../data/index.ts';
 import { covenantStats, covenantsOf, type CovenantStat, type Layers, type PlanOp, usesLayers } from './planner.ts';
 
-export interface ValueContext { round: number | null; layers: Layers; level: number; strategy: string }
+export interface ValueContext { round: number | null; layers: Layers; level: number; strategy: string; inactiveCovenants?: ReadonlySet<string> }
 export interface ValueRoster { field: readonly PlanOp[]; reserve: readonly PlanOp[] }
 export interface TraitValue { score: number; reasons: string[] }
 const tags = (text: string) => [...text.matchAll(/【([^】]+)】/g)].map(match => match[1]);
@@ -130,7 +130,7 @@ export function recurringValue(slot: PlanOp, deployed: boolean, stats: readonly 
 
 /** 按整队状态计算策略档位，换下干员同样会失去收益。整备区经济盟约不能给阿米娅凑场上档位。 */
 export function strategyValue(ops: readonly PlanOp[], context: ValueContext): number {
-  const stats = covenantStats(ops, context.layers), elites = ops.filter(slot => slot.elite).length;
+  const stats = covenantStats(ops, context.layers, [], context.inactiveCovenants), elites = ops.filter(slot => slot.elite).length;
   if (context.strategy === '阿米娅') return Math.max(0, Math.min(5, stats.filter(stat => stat.active).length) - 2) * 25;
   if (context.strategy === 'Touch') return elites >= 2 ? 45 : 0;
   if (context.strategy === '伊奥莱塔·罗素') return elites * elites * 3;
@@ -146,7 +146,7 @@ export function strategyValue(ops: readonly PlanOp[], context: ValueContext): nu
 
 /** 有限启发式整队生产力；装备/精锐投入作为换人机会成本，不当作精确战力。 */
 export function teamValue(ops: readonly PlanOp[], reserve: readonly PlanOp[], context: ValueContext): number {
-  const stats = covenantStats(ops, context.layers, reserve);
+  const stats = covenantStats(ops, context.layers, reserve, context.inactiveCovenants);
   return ops.reduce((sum, slot) => sum + recurringValue(slot, true, stats, context, { field: ops, reserve }).score + (slot.elite ? 35 : 0) + slot.eq.length * 12, 0)
     + reserve.reduce((sum, slot) => sum + recurringValue(slot, false, stats, context, { field: ops, reserve }).score, 0) + strategyValue(ops, context);
 }

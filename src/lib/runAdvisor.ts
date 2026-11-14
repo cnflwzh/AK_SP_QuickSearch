@@ -2,6 +2,7 @@
 import { ALL_COVENANTS, BUILD_NAMES, buildByName, OPERATORS, EQUIPMENT, STRATEGIES, isCoreCovenant, operatorPrice, type Operator } from '../../data/index.ts';
 import { covenantStats, createLineupEvaluator, defaultLineupGoal, inferPrimaryCovenant, isBanned, MAX_EQ, MAX_OPS, usesLayers, MAX_LAYERS, type Layers, type CovenantStat, type LineupEvaluation, type LineupGoal, type PlanOp } from './planner.ts';
 
+import { ADVISOR_MODES, RESTRICTED_MODE_COVENANTS, promotionRewardTier, type AdvisorMode, type CandidateSource } from './advisorRules.ts';
 import { acquisitionValue, recurringValue, teamValue, type ValueContext } from './advisorValue.ts';
 
 /** 同名干员合并记录；copies 是尚未合成的张数，精锐只保留一条记录。 */
@@ -16,6 +17,8 @@ export interface OwnedEquipment { id: string; name: string; holder: string; adva
 /** 独立保存的一局；商店名单只表示眼前候选，不代表已经持有。 */
 export interface AdvisorRun {
   level: number;
+  mode: AdvisorMode;
+  candidateSource: CandidateSource;
   round: number | null;
   funds: number | null;
   layers: Layers;
@@ -63,7 +66,7 @@ export const MAX_SHOP_CANDIDATES = 8;
 
 /** 返回一局空记录，默认从 1 本开始；每次调用得到独立数组。 */
 export function newAdvisorRun(): AdvisorRun {
-  return { level: 1, round: null, funds: null, layers: {}, strategy: '', mainCovenant: '', mainTarget: 0, bannedCovenants: [], excludedOperators: [], operators: [], equipment: [], shop: [] };
+  return { level: 1, mode: 'unknown', candidateSource: 'shop', round: null, funds: null, layers: {}, strategy: '', mainCovenant: '', mainTarget: 0, bannedCovenants: [], excludedOperators: [], operators: [], equipment: [], shop: [] };
 }
 /** 星极两张晋升，其余干员三张；输入为数据表中的干员名称。 */
 export function eliteCopyCount(name: string): number { return name === '星极' ? 2 : 3; }
@@ -79,6 +82,8 @@ function integer(value: unknown, fallback: number, max: number): number {
 export function sanitizeAdvisorRun(value: unknown): AdvisorRun {
   const source = record(value), result = newAdvisorRun();
   result.level = integer(source.level, 1, 6);
+  result.mode = ADVISOR_MODES.some(mode => mode.id === source.mode) ? source.mode as AdvisorMode : 'unknown';
+  result.candidateSource = source.candidateSource === 'promotion' ? 'promotion' : 'shop';
   result.round = typeof source.round === 'number' && Number.isFinite(source.round) ? integer(source.round, 1, 14) : null;
   result.funds = typeof source.funds === 'number' && Number.isFinite(source.funds) ? Math.max(0, Math.min(999, Math.round(source.funds))) : null;
   result.layers = Object.fromEntries(Object.entries(record(source.layers)).filter(([name, n]) => ALL_COVENANTS.includes(name) && usesLayers(name) && typeof n === 'number' && Number.isFinite(n)).map(([name, n]) => [name, Math.max(0, Math.min(MAX_LAYERS, Math.round(n as number)))]));
@@ -125,9 +130,13 @@ function validNames(value: unknown, valid: (name: string) => boolean): string[] 
 }
 
 /** 招募池过滤规则；盟约缺席会排除所有带该原生盟约的干员，装备不改变招募资格。 */
-export function createRecruitmentPool(run: Pick<AdvisorRun, 'bannedCovenants' | 'excludedOperators'>): (name: string) => boolean {
-  const bans = new Set(run.bannedCovenants), excluded = new Set(run.excludedOperators);
+export function createRecruitmentPool(run: Pick<AdvisorRun, 'bannedCovenants' | 'excludedOperators'> & Partial<Pick<AdvisorRun, 'mode'>>): (name: string) => boolean {
+  const bans = effectiveBans(run), excluded = new Set(run.excludedOperators);
   return name => operatorsByName.has(name) && !excluded.has(name) && !isBanned(name, bans);
+}
+
+export function effectiveBans(run: Pick<AdvisorRun, 'bannedCovenants'> & Partial<Pick<AdvisorRun, 'mode'>>): ReadonlySet<string> {
+  return new Set([...run.bannedCovenants, ...(run.mode === 'restricted' ? RESTRICTED_MODE_COVENANTS : [])]);
 }
 
 /** 显式选择优先，其次场上投入、专属策略、整备区；证据相同则保持未定方向。 */
@@ -136,8 +145,8 @@ export function runLineupGoal(run: AdvisorRun): LineupGoal | null {
   const available = createRecruitmentPool(run);
   const field = deployedLineup(run).filter(slot => available(slot.name));
   const strategy = strategiesByName.get(run.strategy);
-  const strategyCovenant = strategy && isCoreCovenant(strategy.category) && !run.bannedCovenants.includes(strategy.category) ? strategy.category : '';
-  const covenant = run.mainCovenant || inferPrimaryCovenant(field) || strategyCovenant
+  const strategyCovenant = strategy && isCoreCovenant(strategy.category) && !effectiveBans(run).has(strategy.category) ? strategy.category : '';
+  const covenant = (effectiveBans(run).has(run.mainCovenant) ? '' : run.mainCovenant) || inferPrimaryCovenant(field) || strategyCovenant
     || inferPrimaryCovenant(reserveLineup(run).filter(slot => available(slot.name)));
   return covenant ? { ...defaultLineupGoal(covenant), ...(run.mainTarget ? { target: run.mainTarget } : {}) } : null;
 }
@@ -207,9 +216,9 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
   if (run.operators.some(operator => !available(operator.name))) return [];
   const lineup = deployedLineup(run).filter(slot => available(slot.name));
   const reserve = reserveLineup(run).filter(slot => available(slot.name));
-  const before = covenantStats(lineup, run.layers, reserve);
-  const evaluate = createLineupEvaluator(lineup, run.layers, { goal, reserve, bannedCovenants: new Set(run.bannedCovenants) });
-  const context: ValueContext = { round: run.round, layers: run.layers, level: run.level, strategy: run.strategy };
+  const before = covenantStats(lineup, run.layers, reserve, effectiveBans(run));
+  const evaluate = createLineupEvaluator(lineup, run.layers, { goal, reserve, bannedCovenants: effectiveBans(run) });
+  const context: ValueContext = { round: run.round, layers: run.layers, level: run.level, strategy: run.strategy, inactiveCovenants: effectiveBans(run) };
   const oldValue = teamValue(lineup, reserve, context);
   const marginal = (field: PlanOp[], bench: PlanOp[]) => teamValue(field, bench, context) - oldValue;
   const build = goal ? buildByName(goal.covenant) : undefined;
@@ -218,7 +227,9 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
     ? run.shop.map(name => operatorsByName.get(name)).filter((operator): operator is Operator => !!operator)
     // Pith 指令赠送的辅助干员不在普通商店池，仍可在持有记录中手动录入。
     : OPERATORS.filter(operator => operator.stars > 0 && operator.tier <= run.level && !owned.get(operator.name)?.elite))
-    .filter(operator => available(operator.name));
+    .filter(operator => available(operator.name) && (run.candidateSource !== 'promotion' || operator.stars > 0 && operator.tier === promotionRewardTier(run.level)));
+  // 晋升奖励来自实际三选一，不在未录入候选时凭空生成可选卡。
+  if (run.candidateSource === 'promotion' && !run.shop.length) return [];
   const ranked = candidates.map(operator => {
     const existing = owned.get(operator.name);
     const advice: RecruitAdvice = { operator, kind: 'reserve', label: '备选', score: 0, fitScore: 0, breakdown: { lineup: 0, production: 0, acquisition: 0, collection: 0, fit: 0, economy: 0 }, estimatedPrice: null, affordable: null, reasons: [], losses: [], replace: '' };
@@ -266,7 +277,7 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
         const benchScore = bench.score + marginal(lineup, purchasedReserve);
         // 先扣掉购买后留整备区就能取得的收益，换人必须另有成型或核心输出价值。
         const evaluateDeployment = createLineupEvaluator(lineup, run.layers, {
-          goal, reserve: purchasedReserve, bannedCovenants: new Set(run.bannedCovenants),
+          goal, reserve: purchasedReserve, bannedCovenants: effectiveBans(run),
         });
         const replacements = lineup.map((slot, index) => {
           const next = [...lineup];
@@ -331,8 +342,9 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
       advice.reasons = advice.reasons.filter(reason => reason !== '上场已满，替换后暂无明确盟约收益');
       advice.reasons.push('无需挤掉当前上场位，按获得或整备区特质评估');
     }
-    if (promotes) advice.reasons.push('晋升按精锐获得时触发，不重复计算第三张基础特质；另有高一档免费招募，未假定奖励人选');
+    if (promotes) advice.reasons.push('晋升按精锐获得时触发，不重复计算第三张基础特质；另有调度中心高一阶（最高6阶）免费三选一，未假定奖励人选');
     if (advice.replace) advice.reasons.push('换下位的精锐、装备与持续生产投入已计入机会成本；未模拟站位和实战伤害');
+    if (run.candidateSource === 'promotion') advice.reasons.push(`已录晋升奖励：免费选择，奖励等阶为${promotionRewardTier(run.level)}；不计算抽中概率`);
     const price = recruitPriceRange(run, operator);
     advice.estimatedPrice = price.min === price.max ? price.max : null;
     advice.affordable = run.funds === null ? null : run.funds < price.min ? false : run.funds >= price.max ? true : null;
@@ -340,7 +352,7 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
     if (advice.affordable === false) {
       advice.label = '资金不足';
       advice.losses.push(`至少需要${price.min}资金，当前仅${run.funds}；仍可手动记录已获得的奖励牌`);
-    } else if (run.strategy === '坎诺特' && run.round !== 14 && run.funds !== null && run.funds >= 5 && run.funds - price.min < 5) {
+    } else if (run.candidateSource !== 'promotion' && run.strategy === '坎诺特' && run.round !== 14 && run.funds !== null && run.funds >= 5 && run.funds - price.min < 5) {
       advice.breakdown.economy = -30;
       advice.score -= 30;
       advice.losses.push('买入后不足5资金，可能失去下回合额外1资金');
@@ -362,6 +374,7 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
 
 /** 只采用当前数据可证明的价格区间，不把未知折扣当成免费。 */
 export function recruitPriceRange(run: AdvisorRun, operator: Operator): { min: number; max: number } {
+  if (run.candidateSource === 'promotion') return { min: 0, max: 0 };
   const base = operatorPrice(operator);
   let min = base, max = base;
   if (operator.covenants.includes('远见')) {
@@ -378,8 +391,8 @@ export function recommendDeployments(run: AdvisorRun, limit = 3): DeploymentAdvi
   const available = createRecruitmentPool(run);
   if (run.operators.some(operator => !available(operator.name))) return [];
   const lineup = deployedLineup(run), reserve = reserveLineup(run);
-  const context: ValueContext = { round: run.round, layers: run.layers, level: run.level, strategy: run.strategy };
-  const evaluate = createLineupEvaluator(lineup, run.layers, { goal: runLineupGoal(run), reserve, bannedCovenants: new Set(run.bannedCovenants) });
+  const context: ValueContext = { round: run.round, layers: run.layers, level: run.level, strategy: run.strategy, inactiveCovenants: effectiveBans(run) };
+  const evaluate = createLineupEvaluator(lineup, run.layers, { goal: runLineupGoal(run), reserve, bannedCovenants: effectiveBans(run) });
   const oldValue = teamValue(lineup, reserve, context);
   return reserve.flatMap(candidate => {
     const choices = lineup.length < MAX_OPS ? [-1] : lineup.map((_, i) => i);

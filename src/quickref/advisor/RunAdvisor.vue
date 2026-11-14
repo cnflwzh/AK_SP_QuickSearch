@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { CandidateSource } from '../../lib/advisorRules.ts';
 import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, ref, watch } from 'vue';
 import { STRATEGY, covenantColor } from '../../../data/index.ts';
 import { avatarSrc, equipIconSrc, portraitSrc } from '../../lib/assets.ts';
@@ -37,7 +38,7 @@ const pickerSummary = computed(() => recordingOperators.value
   ? `上场 ${deployed.value.length}/${MAX_OPS} · 整备 ${reserve.value.length}`
   : picker.value?.target === 'equipment' ? `已记录 ${run.value.equipment.length} 件`
   : picker.value?.target === 'excluded' ? `已排除 ${run.value.excludedOperators.length} 名` : '');
-const hasRunData = computed(() => run.value.round !== null || run.value.funds !== null || Object.keys(run.value.layers).length > 0 || run.value.level !== 1 || !!run.value.strategy || !!run.value.mainCovenant
+const hasRunData = computed(() => run.value.mode !== 'unknown' || run.value.candidateSource !== 'shop' || run.value.round !== null || run.value.funds !== null || Object.keys(run.value.layers).length > 0 || run.value.level !== 1 || !!run.value.strategy || !!run.value.mainCovenant
   || !!run.value.mainTarget || !!run.value.operators.length || !!run.value.equipment.length || !!run.value.shop.length
   || !!run.value.bannedCovenants.length || !!run.value.excludedOperators.length);
 const eliteNames = computed(() => run.value.operators.filter(operator => operator.elite).map(operator => operator.name));
@@ -68,7 +69,7 @@ const poolLabel = computed(() => `${goal.value ? `${goal.value.covenant} · ${go
 const shopAdvice = computed(() => new Map(recommendations.value.map((advice, index) => [advice.operator.name, { ...advice, rank: index + 1 }])));
 const adviceEmptyMessage = computed(() => poolConflicts.value.length ? '先修正持有记录与禁用设置的冲突。'
   : run.value.shop.length && run.value.shop.every(name => unavailableNames.value.includes(name)) ? '本轮候选都被排除，请核对商店或禁用设置。'
-  : '当前没有待追目标，可更新本数或录入商店。');
+  : run.value.candidateSource === 'promotion' ? '请录入与当前调度等级匹配的晋升奖励候选（高一阶，最高6阶），或修正候选来源。' : '当前没有待追目标，可更新本数或录入商店。');
 
 let resizeObserver: ResizeObserver | undefined;
 // 使用面板实际宽度，折叠屏与 Wiki 分屏也能进入紧凑模式。
@@ -295,7 +296,7 @@ function clearStrategy(): void {
             @add-equipment="holder => openPicker('equipment', holder)" @details="openDetails" @removed="clearSelection"/>
           <template v-else>
             <div class="ra-advice-heading">
-              <span>{{ run.shop.length ? '只比较本轮商店' : `${run.level} 本可找目标` }}</span>
+              <span>{{ run.candidateSource === 'promotion' ? '晋升免费三选一（只比较已录候选）' : run.shop.length ? '只比较已出现的商店候选' : `${run.level} 本普通刷新目标（不代表已经出现）` }}</span>
               <span>展开看理由 · ＋ 已抓到</span>
             </div>
             <p class="ra-direction-note">{{ goal ? `主攻${goal.covenant} · 目标${goal.target}人${run.mainCovenant ? '' : '（自动）'}` : run.mainCovenant === 'mixed' ? '混搭 · 比较整队收益' : '主轴未定 · 随来牌判断，可手选方向' }}</p>
@@ -310,6 +311,13 @@ function clearStrategy(): void {
       </aside>
 
       <section class="ra-panel ra-shop-panel" aria-label="本轮商店">
+        <label class="ra-muted">候选来源
+          <select :value="run.candidateSource" @change="advisor.setCandidateSource(($event.target as HTMLSelectElement).value as CandidateSource)">
+            <option value="shop">商店 / 特殊刷新（按实际价格核对）</option>
+            <option value="promotion">晋升奖励（免费三选一）</option>
+          </select>
+        </label>
+        <p v-if="run.candidateSource === 'promotion'" class="ra-muted">仅录入眼前三张奖励；选择一张后其余不再保留。不能刷新、冻结或留到下回合。录入不推测抽卡概率。</p>
         <div class="ra-section-heading">
           <h3>商店 <small>{{ run.shop.length ? `${run.shop.length} 张` : '选填' }}</small></h3>
           <span class="ra-muted">录入后只比较这批牌</span>

@@ -234,3 +234,60 @@ test('full-roster suggestions remain finite, deterministic and do not mutate inp
   }
   assert.deepEqual(run, old);
 });
+
+test('verified restricted mode excludes its static pool and disabled covenant effects', async () => {
+  const { effectiveBans } = await import('../src/lib/runAdvisor.ts');
+  const run = runWith([], { mode: 'restricted', shop: ['焰尾', '逻各斯'] });
+  const available = createRecruitmentPool(run);
+  assert.equal(available('焰尾'), false); // 卡西米尔
+  assert.equal(available('逻各斯'), true);
+  assert.ok(!recommendRecruits(run).some(item => item.operator.name === '焰尾'));
+  const elites = ['拜松', '矩'].map(name => ({ ...newSlot(name), elite: true }));
+  assert.ok(covenantStats(elites).some(stat => stat.name === '绝技' && stat.active));
+  assert.ok(!covenantStats(elites, {}, [], effectiveBans(run)).some(stat => stat.name === '绝技'));
+  assert.ok(!createLineupEvaluator([], {}, { bannedCovenants: effectiveBans(run) })(elites).changes.some(change => change.covenant === '绝技'));
+});
+
+test('promotion rewards are free observed choices, capped by shop level not purchased card tier', async () => {
+  const { promotionRewardTier } = await import('../src/lib/advisorRules.ts');
+  assert.equal(promotionRewardTier(6), 6);
+  assert.equal(promotionRewardTier(3), 4);
+  const run = runWith([], { level: 3, funds: 0, candidateSource: 'promotion', shop: ['寒檀'] });
+  const advice = recommendRecruits(run)[0];
+  assert.equal(advice.estimatedPrice, 0);
+  assert.equal(advice.affordable, true);
+  assert.notEqual(advice.label, '资金不足');
+  assert.deepEqual(recommendRecruits({ ...run, shop: [] }), []);
+  assert.deepEqual(recommendRecruits({ ...run, shop: ['矩'] }), []); // reward source is not ordinary low-tier stock
+  assert.equal(sanitizeAdvisorRun({}).candidateSource, 'shop');
+  assert.equal(sanitizeAdvisorRun({}).mode, 'unknown');
+});
+
+test('recording a promotion reward consumes the choice once and undo restores it', async () => {
+  const saved = new Map();
+  const oldStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value) } });
+  try {
+    const { useRunAdvisor } = await import('../src/quickref/advisor/useRunAdvisor.ts');
+    const advisor = useRunAdvisor();
+    advisor.reset();
+    advisor.setLevel(3);
+    advisor.setCandidateSource('promotion');
+    advisor.addShopCandidate('寒檀');
+    advisor.addShopCandidate('涤火杰西卡');
+    advisor.removeShopCandidate('涤火杰西卡');
+    assert.equal(advisor.run.value.candidateSource, 'promotion');
+    assert.deepEqual([...advisor.run.value.shop], ['寒檀']);
+    advisor.addShopCandidate('涤火杰西卡');
+    assert.equal(advisor.recruit('寒檀'), true);
+    assert.equal(advisor.run.value.candidateSource, 'shop');
+    assert.deepEqual([...advisor.run.value.shop], []);
+    advisor.undo();
+    assert.equal(advisor.run.value.candidateSource, 'promotion');
+    assert.deepEqual([...advisor.run.value.shop], ['寒檀', '涤火杰西卡']);
+    assert.equal(advisor.run.value.operators.length, 0);
+  } finally {
+    if (oldStorage) Object.defineProperty(globalThis, 'localStorage', oldStorage);
+    else delete globalThis.localStorage;
+  }
+});

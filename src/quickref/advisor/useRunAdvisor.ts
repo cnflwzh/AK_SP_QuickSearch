@@ -1,9 +1,10 @@
+import { ADVISOR_MODES, promotionRewardTier, type AdvisorMode, type CandidateSource } from '../../lib/advisorRules.ts';
 import { computed, readonly, ref } from 'vue';
 import { ALL_COVENANTS, EQUIPMENT, STRATEGIES, isCoreCovenant } from '../../../data/index.ts';
 import { covenantStats, MAX_EQ, MAX_OPS, MAX_LAYERS, usesLayers } from '../../lib/planner.ts';
 import {
   deployedLineup, eliteCopyCount, MAX_RECORDED_EQUIPMENT, MAX_SHOP_CANDIDATES,
-  newAdvisorRun, operatorsByName, recommendRecruits, recommendDeployments, sanitizeAdvisorRun, createRecruitmentPool, reserveLineup, runLineupGoal,
+  newAdvisorRun, operatorsByName, recommendRecruits, recommendDeployments, sanitizeAdvisorRun, createRecruitmentPool, effectiveBans, reserveLineup, runLineupGoal,
   type AdvisorRun, type RecordedOperator,
 } from '../../lib/runAdvisor.ts';
 
@@ -19,7 +20,7 @@ const run = ref<AdvisorRun>(load());
 const undoSnapshot = ref<AdvisorRun | null>(null);
 const notice = ref('');
 const lineup = computed(() => deployedLineup(run.value));
-const covenants = computed(() => covenantStats(lineup.value, run.value.layers, reserveLineup(run.value)));
+const covenants = computed(() => covenantStats(lineup.value, run.value.layers, reserveLineup(run.value), effectiveBans(run.value)));
 const goal = computed(() => runLineupGoal(run.value));
 const unavailableNames = computed(() => {
   const available = createRecruitmentPool(run.value);
@@ -84,7 +85,8 @@ export function useRunAdvisor() {
       } else {
         draft.operators.push({ name, copies: 1, elite: false, deployed: destination === 'auto' && draft.operators.filter(operator => operator.deployed).length < MAX_OPS });
       }
-      draft.shop = draft.shop.filter(candidate => candidate !== name);
+      draft.shop = draft.candidateSource === 'promotion' ? [] : draft.shop.filter(candidate => candidate !== name);
+      if (draft.candidateSource === 'promotion') draft.candidateSource = 'shop';
     });
   }
   function editOperator(name: string, message: string, edit: (operator: RecordedOperator) => void): void {
@@ -120,6 +122,14 @@ export function useRunAdvisor() {
   }
   function setElite(name: string, elite: boolean): void {
     editOperator(name, `已更新${name}精锐状态`, operator => { operator.elite = elite; operator.copies = 1; });
+  }
+  function setMode(mode: AdvisorMode): void {
+    if (!ADVISOR_MODES.some(item => item.id === mode)) return;
+    change('已更新模式；原持有记录保留，请核对冲突', draft => { draft.mode = mode; });
+  }
+  function setCandidateSource(source: CandidateSource): void {
+    if (source !== 'shop' && source !== 'promotion') return;
+    change('已更新候选来源；请核对当前卡牌是否属于该来源', draft => { draft.candidateSource = source; });
   }
   function setLevel(level: number): void {
     if (!Number.isInteger(level) || level < 1 || level > 6 || level === run.value.level) return;
@@ -202,6 +212,8 @@ export function useRunAdvisor() {
     if (!operatorsByName.has(name) || run.value.shop.includes(name)) return false;
     return change(`已将${name}加入本次商店`, draft => {
       if (!createRecruitmentPool(draft)(name)) return `${name}不在本局招募池，请先调整禁用设置`;
+      if (draft.candidateSource === 'promotion' && operatorsByName.get(name)?.tier !== promotionRewardTier(draft.level)) return `当前晋升奖励应为${promotionRewardTier(draft.level)}阶，请核对调度等级或候选来源`;
+      if (draft.candidateSource === 'promotion' && draft.shop.length >= 3) return '晋升奖励最多录入眼前三名候选';
       if (draft.shop.length >= MAX_SHOP_CANDIDATES) return `最多比较${MAX_SHOP_CANDIDATES}名候选`;
       draft.shop.push(name);
     });
@@ -209,7 +221,7 @@ export function useRunAdvisor() {
   function removeShopCandidate(name: string): void {
     change('已更新商店候选', draft => { draft.shop = draft.shop.filter(candidate => candidate !== name); });
   }
-  function clearShop(): void { change('已清空商店，恢复目标推荐', draft => { draft.shop = []; }); }
+  function clearShop(): void { change('已清空商店，恢复目标推荐', draft => { draft.shop = []; draft.candidateSource = 'shop'; }); }
   /** 清空本局并立即保存；上一局可用 undo 恢复，直到下一次编辑。 */
   function reset(): void { change('已新开一局，可撤销恢复上一局', draft => { Object.assign(draft, newAdvisorRun()); }); }
   /** 恢复最近一次成功编辑前的完整记录，随后清除撤销快照并保存。 */
@@ -223,7 +235,7 @@ export function useRunAdvisor() {
   return {
     run: readonly(run), deployed, reserve, covenants, recommendations, deploymentRecommendations, goal, unavailableNames, poolConflicts,
     notice: readonly(notice), saveFailed: readonly(saveFailed), canUndo: computed(() => undoSnapshot.value !== null),
-    recruit, setDeployment, removeOperator, setCopies, setElite, setLevel, setRound, setFunds, setLayer, setStrategy,
+    recruit, setDeployment, removeOperator, setCopies, setElite, setMode, setCandidateSource, setLevel, setRound, setFunds, setLayer, setStrategy,
     setMainCovenant, setMainTarget, toggleBannedCovenant, toggleExcludedOperator,
     addEquipment, assignEquipment, setEquipmentAdvanced, removeEquipment,
     addShopCandidate, removeShopCandidate, clearShop, reset, undo,

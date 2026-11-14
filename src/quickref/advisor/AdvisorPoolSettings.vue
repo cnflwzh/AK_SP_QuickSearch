@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ADVISOR_MODES, RESTRICTED_MODE_COVENANTS, type AdvisorMode } from '../../lib/advisorRules.ts';
 import { ref } from 'vue';
 import { ALL_COVENANTS, CORE_COVENANTS, ADDON_COVENANTS, covenantColor } from '../../../data/index.ts';
 import { MAX_LAYERS, usesLayers } from '../../lib/planner.ts';
@@ -22,6 +23,12 @@ const groups = [
 
 <template>
   <div class="ra-pool-settings">
+    <label>游戏模式
+      <select :value="run.mode" @change="advisor.setMode(($event.target as HTMLSelectElement).value as AdvisorMode)">
+        <option v-for="mode in ADVISOR_MODES" :key="mode.id" :value="mode.id">{{ mode.label }}</option>
+      </select>
+    </label>
+    <p v-if="run.mode === 'restricted'" class="ra-muted">模式固定缺席：{{ RESTRICTED_MODE_COVENANTS.join('、') }}。仍需补录本局其他缺席信息。</p>
     <div class="ra-pool-direction">
       <label>主盟约
         <select :value="run.mainCovenant" @change="advisor.setMainCovenant(($event.target as HTMLSelectElement).value)">
