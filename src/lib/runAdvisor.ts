@@ -3,7 +3,7 @@ import { ALL_COVENANTS, BUILD_NAMES, buildByName, OPERATORS, EQUIPMENT, STRATEGI
 import { covenantStats, createLineupEvaluator, defaultLineupGoal, inferPrimaryCovenant, isBanned, MAX_EQ, MAX_OPS, usesLayers, MAX_LAYERS, type Layers, type CovenantStat, type LineupEvaluation, type LineupGoal, type PlanOp } from './planner.ts';
 
 import { ADVISOR_MODES, RESTRICTED_MODE_COVENANTS, promotionRewardTier, type AdvisorMode, type CandidateSource } from './advisorRules.ts';
-import { acquisitionValue, recurringValue, teamValue, type ValueContext } from './advisorValue.ts';
+import { acquisitionValue, recurringValue, restCommandOpportunity, teamValue, type ValueContext } from './advisorValue.ts';
 
 /** 同名干员合并记录；copies 是尚未合成的张数，精锐只保留一条记录。 */
 export interface RecordedOperator {
@@ -356,6 +356,8 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
       : advice.kind === 'deploy' ? [...lineup, candidateSlot] : advice.kind === 'replace' ? lineup.map(slot => slot.name === advice.replace ? candidateSlot : slot) : lineup;
     const finalReserve = existing ? reserve.map(slot => slot.name === operator.name ? candidateSlot : slot)
       : advice.kind === 'reserve' ? [...reserve, candidateSlot] : advice.kind === 'replace' ? [...reserve, ...lineup.filter(slot => slot.name === advice.replace)] : reserve;
+    const commandOpportunity = restCommandOpportunity(finalField, finalReserve, context);
+    if (commandOpportunity.target === operator.name) advice.reasons.push(...commandOpportunity.reasons);
     const production = recurringValue(candidateSlot, !!willDeploy, after, context, { field: finalField, reserve: finalReserve });
     if (!existing || promotes) advice.reasons.push(...production.reasons);
     else if (production.score > 0) advice.reasons.push('现有干员已提供持续收益，买入对子不会重复增加这份产出');

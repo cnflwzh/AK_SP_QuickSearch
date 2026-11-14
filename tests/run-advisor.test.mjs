@@ -492,3 +492,17 @@ test('reserve promotion values the new deployment option without charging for an
   assert.ok(advice.breakdown.lineup > 0); // 新增两精锐绝技，而非重复计入原本可免费上场的炎人数
   assert.equal(run.operators[1].deployed, false);
 });
+
+test('Sussurro selects a roster-aware one-trigger target rather than multiplying future production', async () => {
+  const { restCommandOpportunity } = await import('../src/lib/advisorValue.ts');
+  const field = ['涤火杰西卡', '慕斯', 'Miss.Christine'].map(newSlot);
+  field[0].eq = ['维式重锤'];
+  field[1].eq = ['精准狙击镜'];
+  const context = { round: 2, level: 4, strategy: '苏苏洛', layers: {} };
+  const opportunity = restCommandOpportunity(field, [], context);
+  assert.equal(opportunity.target, '涤火杰西卡'); // 两位携带装备者，额外触发维多利亚+4
+  assert.match(opportunity.reasons.join(' '), /维多利亚\+4/);
+  assert.match(opportunity.reasons.join(' '), /指令可用/);
+  assert.equal(opportunity.score, restCommandOpportunity(field, [], { ...context, round: 14 }).score);
+  assert.equal(restCommandOpportunity(field, [], { ...context, strategy: '' }).score, 0);
+});

@@ -160,18 +160,32 @@ export function recurringValue(slot: PlanOp, deployed: boolean, stats: readonly 
 
 }
 
+/** 苏苏洛的可执行目标：只估一次确定的休整结束特质，不预支未来回合或已用指令。 */
+export function restCommandOpportunity(ops: readonly PlanOp[], reserve: readonly PlanOp[], context: ValueContext): TraitValue & { target?: string } {
+  if (context.strategy !== '苏苏洛') return { score: 0, reasons: [] };
+  const stats = covenantStats(ops, context.layers, reserve, context.inactiveCovenants);
+  const candidates = ops.map(slot => {
+    const gains = recurringValue(slot, true, stats, context, { field: ops, reserve }).endOfRestGains ?? [];
+    // 使用同样的保守机会权重；仅一次固定产层，不把持续属性或战斗上限当作复制收益。
+    const score = gains.reduce((total, gain) => total + layerValue(gain.covenant, gain.amount, stats, context, false), 0) * .35;
+    return { target: slot.name, score, reasons: score > 0
+      ? [`若本轮苏苏洛指令可用，可选${slot.name}额外触发一次：${gains.map(gain => `${gain.covenant}+${gain.amount}层`).join('、')}；未假定指令尚未使用`]
+      : [] };
+  });
+  return candidates.sort((a, b) => b.score - a.score)[0] ?? { score: 0, reasons: [] };
+}
+
 /** 按整队状态计算策略档位，换下干员同样会失去收益。整备区经济盟约不能给阿米娅凑场上档位。 */
-export function strategyValue(ops: readonly PlanOp[], context: ValueContext): number {
+export function strategyValue(ops: readonly PlanOp[], context: ValueContext, reserve: readonly PlanOp[] = []): number {
   const stats = covenantStats(ops, context.layers, [], context.inactiveCovenants), elites = ops.filter(slot => slot.elite).length;
   if (context.strategy === '阿米娅') return Math.max(0, Math.min(5, stats.filter(stat => stat.active).length) - 2) * 25;
   if (context.strategy === 'Touch') return elites >= 2 ? 45 : 0;
   if (context.strategy === '伊奥莱塔·罗素') return elites * elites * 3;
   if (context.strategy === '陈') return elites * 12;
   if (context.strategy === '华法琳') return new Set(ops.filter(slot => covenantsOf(slot).own.some(name => stats.some(stat => stat.name === name && stat.active))).map(slot => OPERATOR[slot.name]?.tier)).size * 7;
-  if (context.strategy === '铃兰' || context.strategy === '苏苏洛') {
-    return Math.max(0, ...ops.map(slot => context.strategy === '铃兰'
-      ? acquisitionValue(OPERATOR[slot.name], slot.elite, stats, context).score * .6
-      : ((slot.elite ? OPERATOR[slot.name]?.elite : OPERATOR[slot.name]?.trait)?.includes('<休整期结束时>') ? recurringValue(slot, true, stats, context).score * .35 : 0)));
+  if (context.strategy === '苏苏洛') return restCommandOpportunity(ops, reserve, context).score;
+  if (context.strategy === '铃兰') {
+    return Math.max(0, ...ops.map(slot => acquisitionValue(OPERATOR[slot.name], slot.elite, stats, context).score * .6));
   }
   return 0;
 }
@@ -191,5 +205,5 @@ export function teamValue(ops: readonly PlanOp[], reserve: readonly PlanOp[], co
     && context.layers[stat.name] + (totals.get(stat.name) ?? 0) >= stat.bonusLayers).length * 24;
   return values.reduce((sum, value) => sum + value.score, 0) + milestoneValue
     + ops.reduce((sum, slot) => sum + (slot.elite ? 35 : 0) + slot.eq.length * 12, 0)
-    + strategyValue(ops, context);
+    + strategyValue(ops, context, reserve);
 }
