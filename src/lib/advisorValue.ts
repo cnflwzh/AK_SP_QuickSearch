@@ -185,7 +185,10 @@ export function strategyValue(ops: readonly PlanOp[], context: ValueContext, res
   if (context.strategy === '华法琳') return new Set(ops.filter(slot => covenantsOf(slot).own.some(name => stats.some(stat => stat.name === name && stat.active))).map(slot => OPERATOR[slot.name]?.tier)).size * 7;
   if (context.strategy === '苏苏洛') return restCommandOpportunity(ops, reserve, context).score;
   if (context.strategy === '铃兰') {
-    return Math.max(0, ...ops.map(slot => acquisitionValue(OPERATOR[slot.name], slot.elite, stats, context).score * .6));
+    // 投资人整备区也计人数；指令触发获得特质时沿用已激活的完整阵容状态。
+    // 不能复用上面的场上统计，否则会漏掉整备区提供的重复触发。
+    const acquisitionStats = covenantStats(ops, context.layers, reserve, context.inactiveCovenants);
+    return Math.max(0, ...ops.map(slot => acquisitionValue(OPERATOR[slot.name], slot.elite, acquisitionStats, context).score * .6));
   }
   return 0;
 }

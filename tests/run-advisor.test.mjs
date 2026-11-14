@@ -535,3 +535,14 @@ test('free deployment considers replacing a solo member even when field slots ar
   assert.equal(advisor.setDeployment('地灵', true, '不存在的干员'), false);
   assert.deepEqual(advisor.run.value.operators.filter(op => op.deployed).map(op => op.name), ['艾丝黛尔']);
 });
+
+test('Suzuran accounts for active reserve investors and respects their disabled state', async () => {
+  const { strategyValue } = await import('../src/lib/advisorValue.ts');
+  const field = [newSlot('承曦格雷伊')];
+  const reserve = ['锡人', '山', '老鲤'].map(newSlot);
+  const context = { round: 8, level: 6, strategy: '铃兰', layers: {} };
+  const base = strategyValue(field, context);
+  assert.equal(strategyValue(field, context, reserve), base * 2);
+  assert.equal(strategyValue(field, { ...context, layers: { 投资人: 100 } }, reserve), base * 3);
+  assert.equal(strategyValue(field, { ...context, inactiveCovenants: new Set(['投资人']) }, reserve), base);
+});
