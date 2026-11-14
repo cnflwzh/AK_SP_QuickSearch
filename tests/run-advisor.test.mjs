@@ -329,3 +329,19 @@ test('a free field slot does not force a second solo operator to break an active
   assert.equal(advice.breakdown.lineup, 0);
   assert.equal(run.operators[0].deployed, true);
 });
+
+test('candidate recording keeps solo recommendation on reserve and undo restores the shop', async () => {
+  const { useRunAdvisor } = await import('../src/quickref/advisor/useRunAdvisor.ts');
+  const advisor = useRunAdvisor();
+  advisor.reset();
+  advisor.setMainCovenant('mixed');
+  advisor.recruit('艾丝黛尔');
+  advisor.addShopCandidate('地灵');
+  assert.equal(advisor.recruitCandidate('地灵'), true);
+  assert.equal(advisor.run.value.operators.find(op => op.name === '地灵').deployed, false);
+  assert.ok(advisor.covenants.value.find(stat => stat.name === '独行').active);
+  assert.equal(advisor.run.value.shop.length, 0);
+  advisor.undo();
+  assert.deepEqual([...advisor.run.value.shop], ['地灵']);
+  assert.equal(advisor.run.value.operators.length, 1);
+});

@@ -89,6 +89,11 @@ export function useRunAdvisor() {
       if (draft.candidateSource === 'promotion') draft.candidateSource = 'shop';
     });
   }
+  /** 商店卡与推荐卡共用同一落位决策；明确手工录入仍可使用 recruit 指定位置。 */
+  function recruitCandidate(name: string): boolean {
+    const advice = recommendRecruits(run.value, operatorsByName.size).find(item => item.operator.name === name);
+    return recruit(name, advice?.kind === 'reserve' || advice?.kind === 'replace' ? 'reserve' : 'auto');
+  }
   function editOperator(name: string, message: string, edit: (operator: RecordedOperator) => void): void {
     if (!run.value.operators.some(operator => operator.name === name)) return;
     change(message, draft => { edit(draft.operators.find(operator => operator.name === name)!); });
@@ -235,7 +240,7 @@ export function useRunAdvisor() {
   return {
     run: readonly(run), deployed, reserve, covenants, recommendations, deploymentRecommendations, goal, unavailableNames, poolConflicts,
     notice: readonly(notice), saveFailed: readonly(saveFailed), canUndo: computed(() => undoSnapshot.value !== null),
-    recruit, setDeployment, removeOperator, setCopies, setElite, setMode, setCandidateSource, setLevel, setRound, setFunds, setLayer, setStrategy,
+    recruit, recruitCandidate, setDeployment, removeOperator, setCopies, setElite, setMode, setCandidateSource, setLevel, setRound, setFunds, setLayer, setStrategy,
     setMainCovenant, setMainTarget, toggleBannedCovenant, toggleExcludedOperator,
     addEquipment, assignEquipment, setEquipmentAdvanced, removeEquipment,
     addShopCandidate, removeShopCandidate, clearShop, reset, undo,

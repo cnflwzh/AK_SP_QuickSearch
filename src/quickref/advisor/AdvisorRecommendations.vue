@@ -2,7 +2,7 @@
 import type { RecruitAdvice } from '../../lib/runAdvisor.ts';
 import { avatarSrc } from '../../lib/assets.ts';
 defineProps<{ advice: readonly RecruitAdvice[]; emptyMessage: string }>();
-defineEmits<{ recruit: [name: string, destination: 'auto' | 'reserve'] }>();
+defineEmits<{ recruit: [name: string] }>();
 const contributionLabels = [
   ['lineup', '阵容'], ['production', '持续收益/投入'], ['acquisition', '获取收益'],
   ['collection', '收集进度'], ['fit', '搭配（同分参考）'], ['economy', '经济'],
@@ -27,7 +27,7 @@ function signed(value: number): string {
         </span>
         <button type="button" class="ra-grab" :disabled="item.kind === 'skip'"
           :aria-label="`已抓到${item.operator.name}`" title="记录已抓到"
-          @click.stop.prevent="$emit('recruit', item.operator.name, item.kind === 'reserve' || item.kind === 'replace' ? 'reserve' : 'auto')">＋</button>
+          @click.stop.prevent="$emit('recruit', item.operator.name)">＋</button>
       </summary>
       <div class="ra-rec-detail">
         <p class="ra-rec-price" :class="{ 'ra-warning': item.affordable === false }">

@@ -301,7 +301,7 @@ function clearStrategy(): void {
             </div>
             <p class="ra-direction-note">{{ goal ? `主攻${goal.covenant} · 目标${goal.target}人${run.mainCovenant ? '' : '（自动）'}` : run.mainCovenant === 'mixed' ? '混搭 · 比较整队收益' : '主轴未定 · 随来牌判断，可手选方向' }}</p>
             <AdvisorDeployments :advice="deploymentRecommendations" @deploy="(name, replace) => advisor.setDeployment(name, true, replace)"/>
-            <AdvisorRecommendations :advice="recommendations" :empty-message="adviceEmptyMessage" @recruit="advisor.recruit"/>
+            <AdvisorRecommendations :advice="recommendations" :empty-message="adviceEmptyMessage" @recruit="advisor.recruitCandidate"/>
             <details class="ra-method">
               <summary>建议依据</summary>
               <p>比较盟约成型、已建模特质、精锐与装备搭配，可在「方向 / 禁用」中补充回合、资金和层数。资金与回合为手动快照，记录抓取不会自动扣款或推算回合。禁用牌不参与推荐；远见、奇迹、投资人计入整备区，其他盟约只计上场。推荐分是启发式优先级，不是胜率或伤害预测；未录入的站位、敌人、技能时机等条件不作保证，满员替换仍由你决定。</p>
@@ -331,7 +331,7 @@ function clearStrategy(): void {
               <span><b>{{ name }}</b><small>{{ unavailableNames.includes(name) ? '本局禁用' : shopAdvice.get(name)?.label || '商店候选' }}</small></span>
             </button>
             <button type="button" class="ra-grab" :aria-label="`抓取商店${name}`"
-              :disabled="eliteNames.includes(name) || unavailableNames.includes(name)" @click="advisor.recruit(name)">＋</button>
+              :disabled="eliteNames.includes(name) || unavailableNames.includes(name)" @click="advisor.recruitCandidate(name)">＋</button>
             <button type="button" class="ra-shop-remove" :aria-label="`移除商店候选${name}`"
               @click="advisor.removeShopCandidate(name)">×</button>
           </div>
