@@ -531,6 +531,22 @@ test('Sussurro selects a roster-aware one-trigger target rather than multiplying
   assert.match(opportunity.reasons.join(' '), /指令可用/);
   assert.equal(opportunity.score, restCommandOpportunity(field, [], { ...context, round: 14 }).score);
   assert.equal(restCommandOpportunity(field, [], { ...context, strategy: '' }).score, 0);
+  assert.equal(restCommandOpportunity(field, [], { ...context, commandAvailable: false }).score, 0);
+  assert.ok(restCommandOpportunity(field, [], { ...context, commandAvailable: true }).score > 0);
+  const { useRunAdvisor } = await import('../src/quickref/advisor/useRunAdvisor.ts');
+  const advisor = useRunAdvisor();
+  advisor.reset();
+  advisor.setStrategy('苏苏洛');
+  advisor.setCommandAvailable(false);
+  assert.equal(advisor.run.value.commandAvailable, false);
+  advisor.setRound(3);
+  assert.equal(advisor.run.value.commandAvailable, null);
+  advisor.undo();
+  assert.equal(advisor.run.value.commandAvailable, false);
+  advisor.setStrategy('铃兰');
+  assert.equal(advisor.run.value.commandAvailable, null);
+  assert.equal(sanitizeAdvisorRun({ strategy: '苏苏洛' }).commandAvailable, null);
+
 });
 
 test('free deployment considers replacing a solo member even when field slots are empty', async () => {
@@ -571,6 +587,7 @@ test('Suzuran accounts for active reserve investors and respects their disabled 
   assert.equal(strategyValue(field, context, reserve), base * 2);
   assert.equal(strategyValue(field, { ...context, layers: { 投资人: 100 } }, reserve), base * 3);
   assert.equal(strategyValue(field, { ...context, inactiveCovenants: new Set(['投资人']) }, reserve), base);
+  assert.equal(strategyValue(field, { ...context, commandAvailable: false }, reserve), 0);
 });
 
 test('Support covenant production contributes to shared thresholds and requires field members', async () => {

@@ -54,6 +54,14 @@ const groups = [
         <input type="number" inputmode="numeric" min="1" max="14" step="1" placeholder="未知"
           :value="run.round ?? ''" @change="advisor.setRound(optionalNumber($event))">
       </label>
+      <label v-if="['苏苏洛', '铃兰'].includes(run.strategy)">本次主动指令
+        <select :value="run.commandAvailable === null ? 'unknown' : String(run.commandAvailable)"
+          @change="advisor.setCommandAvailable(($event.target as HTMLSelectElement).value === 'unknown' ? null : ($event.target as HTMLSelectElement).value === 'true')">
+          <option value="unknown">未知，保留条件收益</option>
+          <option value="true">确认可用</option>
+          <option value="false">已用 / 暂不可用</option>
+        </select>
+      </label>
       <label>可用资金
         <input type="number" inputmode="numeric" min="0" max="999" step="1" placeholder="未知"
           :value="run.funds ?? ''" @change="advisor.setFunds(optionalNumber($event))">
@@ -68,7 +76,7 @@ const groups = [
           :value="run.layers[layerSelection] ?? ''" @change="advisor.setLayer(layerSelection, optionalNumber($event))">
       </label>
     </div>
-    <p class="ra-muted">留空表示未知，0 表示确认没有。回合、资金与层数只作推荐参考，请随局面手动更新，不会自动扣款或叠层。</p>
+    <p class="ra-muted">留空表示未知，0 表示确认没有。回合、资金与层数只作推荐参考，请随局面手动更新，不会自动扣款或叠层。切换策略或回合后，主动指令可用性重置为未知。</p>
     <div v-if="Object.keys(run.layers).length" class="ra-pool-chips" aria-label="已记录层数">
       <button v-for="(layers, name) in run.layers" :key="name" type="button"
         :aria-label="`清除${name}层数记录`" @click="advisor.setLayer(String(name), null)">{{ name }} {{ layers }} 层 ×</button>

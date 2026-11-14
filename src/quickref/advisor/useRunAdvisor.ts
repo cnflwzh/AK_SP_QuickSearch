@@ -166,7 +166,7 @@ export function useRunAdvisor() {
   function setRound(round: number | null): void {
     if (round !== null && (!Number.isInteger(round) || round < 1 || round > 14)) { say('回合需为1至14的整数，或留空表示未知'); return; }
     if (round === run.value.round) return;
-    change('已更新当前回合', draft => { draft.round = round; });
+    change('已更新当前回合，主动指令可用性待确认', draft => { draft.round = round; draft.commandAvailable = null; });
   }
   function setFunds(funds: number | null): void {
     if (funds !== null && (!Number.isInteger(funds) || funds < 0 || funds > 999)) { say('资金需为0至999的整数，或留空表示未知'); return; }
@@ -182,9 +182,15 @@ export function useRunAdvisor() {
       else draft.layers[name] = layers;
     });
   }
+  /** 仅记录用户确认的可用性，不自动消耗指令或推算下一次冷却。 */
+  function setCommandAvailable(available: boolean | null): void {
+    if (available !== null && typeof available !== 'boolean' || available === run.value.commandAvailable) return;
+    change('已更新主动指令可用性', draft => { draft.commandAvailable = available; });
+  }
   function setStrategy(name: string): void {
     if (name && !strategyNames.has(name)) return;
-    change(name ? `已选策略${name}` : '已清除策略', draft => { draft.strategy = name; });
+    if (name === run.value.strategy) return;
+    change(name ? `已选策略${name}` : '已清除策略', draft => { draft.strategy = name; draft.commandAvailable = null; });
   }
   /** 手动选主盟约；空值恢复自动，mixed 保持混搭；切换方向同时恢复默认人数目标。 */
   function setMainCovenant(name: string): void {
@@ -262,7 +268,7 @@ export function useRunAdvisor() {
   return {
     run: readonly(run), deployed, reserve, covenants, recommendations, deploymentRecommendations, goal, unavailableNames, poolConflicts,
     notice: readonly(notice), saveFailed: readonly(saveFailed), canUndo: computed(() => undoSnapshot.value !== null),
-    recruit, recruitCandidate, candidateError, setDeployment, removeOperator, setCopies, setElite, setMode, setCandidateSource, setLevel, setRound, setFunds, setLayer, setStrategy,
+    recruit, recruitCandidate, candidateError, setDeployment, removeOperator, setCopies, setElite, setMode, setCandidateSource, setLevel, setRound, setFunds, setLayer, setStrategy, setCommandAvailable,
     setMainCovenant, setMainTarget, toggleBannedCovenant, toggleExcludedOperator,
     addEquipment, assignEquipment, setEquipmentAdvanced, removeEquipment,
     addShopCandidate, removeShopCandidate, clearShop, reset, undo,

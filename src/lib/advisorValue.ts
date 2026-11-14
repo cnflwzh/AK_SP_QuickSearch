@@ -3,7 +3,7 @@ import { EQUIPMENT, OPERATOR, type Operator } from '../../data/index.ts';
 import { LAYER_BREAKPOINTS } from '../../data/numberTools.ts';
 import { covenantStats, covenantsOf, type CovenantStat, type Layers, type PlanOp, usesLayers } from './planner.ts';
 
-export interface ValueContext { round: number | null; layers: Layers; level: number; strategy: string; inactiveCovenants?: ReadonlySet<string> }
+export interface ValueContext { round: number | null; layers: Layers; level: number; strategy: string; commandAvailable?: boolean | null; inactiveCovenants?: ReadonlySet<string> }
 export interface ValueRoster { field: readonly PlanOp[]; reserve: readonly PlanOp[] }
 export interface TraitValue {
   score: number;
@@ -183,14 +183,14 @@ export function recurringValue(slot: PlanOp, deployed: boolean, stats: readonly 
 
 /** 苏苏洛的可执行目标：只估一次确定的休整结束特质，不预支未来回合或已用指令。 */
 export function restCommandOpportunity(ops: readonly PlanOp[], reserve: readonly PlanOp[], context: ValueContext): TraitValue & { target?: string } {
-  if (context.strategy !== '苏苏洛') return { score: 0, reasons: [] };
+  if (context.strategy !== '苏苏洛' || context.commandAvailable === false) return { score: 0, reasons: [] };
   const stats = covenantStats(ops, context.layers, reserve, context.inactiveCovenants);
   const candidates = ops.map(slot => {
     const gains = recurringValue(slot, true, stats, context, { field: ops, reserve }).endOfRestGains ?? [];
     // 使用同样的保守机会权重；仅一次固定产层，不把持续属性或战斗上限当作复制收益。
     const score = gains.reduce((total, gain) => total + layerValue(gain.covenant, gain.amount, stats, context, false), 0) * .35;
     return { target: slot.name, score, reasons: score > 0
-      ? [`若本轮苏苏洛指令可用，可选${slot.name}额外触发一次：${gains.map(gain => `${gain.covenant}+${gain.amount}层`).join('、')}；未假定指令尚未使用`]
+      ? [`${context.commandAvailable === true ? '已记录本次苏苏洛指令可用' : '若本轮苏苏洛指令可用'}，可选${slot.name}额外触发一次：${gains.map(gain => `${gain.covenant}+${gain.amount}层`).join('、')}${context.commandAvailable === true ? '；未自动消耗指令' : '；未假定指令尚未使用'}`]
       : [] };
   });
   return candidates.sort((a, b) => b.score - a.score)[0] ?? { score: 0, reasons: [] };
@@ -208,6 +208,7 @@ export function strategyValue(ops: readonly PlanOp[], context: ValueContext, res
   if (context.strategy === '铃兰') {
     // 投资人整备区也计人数；指令触发获得特质时沿用已激活的完整阵容状态。
     // 不能复用上面的场上统计，否则会漏掉整备区提供的重复触发。
+    if (context.commandAvailable === false) return 0;
     const acquisitionStats = covenantStats(ops, context.layers, reserve, context.inactiveCovenants);
     return Math.max(0, ...ops.map(slot => acquisitionValue(OPERATOR[slot.name], slot.elite, acquisitionStats, context).score * .6));
   }

@@ -23,6 +23,8 @@ export interface AdvisorRun {
   funds: number | null;
   layers: Layers;
   strategy: string;
+  /** 手动记录本次主动指令是否可用，null 不推测剩余次数。 */
+  commandAvailable: boolean | null;
   /** 空字符串自动判断；mixed 明确选择混搭，不锁定核心盟约。 */
   mainCovenant: string;
   /** 0 使用预设构筑目标；3/6 为玩家手动指定。 */
@@ -73,7 +75,7 @@ export const MAX_SHOP_CANDIDATES = 8;
 
 /** 返回一局空记录，默认从 1 本开始；每次调用得到独立数组。 */
 export function newAdvisorRun(): AdvisorRun {
-  return { level: 1, mode: 'unknown', candidateSource: 'shop', round: null, funds: null, layers: {}, strategy: '', mainCovenant: '', mainTarget: 0, bannedCovenants: [], excludedOperators: [], operators: [], equipment: [], shop: [] };
+  return { level: 1, mode: 'unknown', candidateSource: 'shop', round: null, funds: null, layers: {}, strategy: '', commandAvailable: null, mainCovenant: '', mainTarget: 0, bannedCovenants: [], excludedOperators: [], operators: [], equipment: [], shop: [] };
 }
 /** 星极两张晋升，其余干员三张；输入为数据表中的干员名称。 */
 export function eliteCopyCount(name: string): number { return name === '星极' ? 2 : 3; }
@@ -95,6 +97,7 @@ export function sanitizeAdvisorRun(value: unknown): AdvisorRun {
   result.funds = typeof source.funds === 'number' && Number.isFinite(source.funds) ? Math.max(0, Math.min(999, Math.round(source.funds))) : null;
   result.layers = Object.fromEntries(Object.entries(record(source.layers)).filter(([name, n]) => ALL_COVENANTS.includes(name) && usesLayers(name) && typeof n === 'number' && Number.isFinite(n)).map(([name, n]) => [name, Math.max(0, Math.min(MAX_LAYERS, Math.round(n as number)))]));
   result.strategy = typeof source.strategy === 'string' && strategiesByName.has(source.strategy) ? source.strategy : '';
+  result.commandAvailable = typeof source.commandAvailable === 'boolean' ? source.commandAvailable : null;
   result.bannedCovenants = validNames(source.bannedCovenants, name => ALL_COVENANTS.includes(name));
   result.excludedOperators = validNames(source.excludedOperators, name => operatorsByName.has(name));
   result.mainCovenant = typeof source.mainCovenant === 'string' && (isCoreCovenant(source.mainCovenant) || source.mainCovenant === 'mixed')
@@ -225,7 +228,7 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
   const reserve = reserveLineup(run).filter(slot => available(slot.name));
   const before = covenantStats(lineup, run.layers, reserve, effectiveBans(run));
   const evaluate = createLineupEvaluator(lineup, run.layers, { goal, reserve, bannedCovenants: effectiveBans(run) });
-  const context: ValueContext = { round: run.round, layers: run.layers, level: run.level, strategy: run.strategy, inactiveCovenants: effectiveBans(run) };
+  const context: ValueContext = { round: run.round, layers: run.layers, level: run.level, strategy: run.strategy, commandAvailable: run.commandAvailable, inactiveCovenants: effectiveBans(run) };
   const oldValue = teamValue(lineup, reserve, context);
   const marginal = (field: PlanOp[], bench: PlanOp[]) => teamValue(field, bench, context) - oldValue;
   const build = goal ? buildByName(goal.covenant) : undefined;
@@ -463,7 +466,7 @@ export function recommendDeployments(run: AdvisorRun, limit = 3): DeploymentAdvi
   const available = createRecruitmentPool(run);
   if (run.operators.some(operator => !available(operator.name))) return [];
   const lineup = deployedLineup(run), reserve = reserveLineup(run);
-  const context: ValueContext = { round: run.round, layers: run.layers, level: run.level, strategy: run.strategy, inactiveCovenants: effectiveBans(run) };
+  const context: ValueContext = { round: run.round, layers: run.layers, level: run.level, strategy: run.strategy, commandAvailable: run.commandAvailable, inactiveCovenants: effectiveBans(run) };
   const evaluate = createLineupEvaluator(lineup, run.layers, { goal: runLineupGoal(run), reserve, bannedCovenants: effectiveBans(run) });
   const oldValue = teamValue(lineup, reserve, context);
   return reserve.flatMap(candidate => {
