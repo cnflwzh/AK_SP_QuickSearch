@@ -345,3 +345,33 @@ test('candidate recording keeps solo recommendation on reserve and undo restores
   assert.deepEqual([...advisor.run.value.shop], ['地灵']);
   assert.equal(advisor.run.value.operators.length, 1);
 });
+
+test('editing owned roster does not consume an unrelated pending promotion choice', async () => {
+  const { useRunAdvisor } = await import('../src/quickref/advisor/useRunAdvisor.ts');
+  const advisor = useRunAdvisor();
+  advisor.reset();
+  advisor.setLevel(3);
+  advisor.setCandidateSource('promotion');
+  advisor.addShopCandidate('寒檀');
+  advisor.addShopCandidate('涤火杰西卡');
+  assert.equal(advisor.recruit('拜松'), true); // 手工补录已有干员，不是奖励选择
+  assert.equal(advisor.run.value.candidateSource, 'promotion');
+  assert.deepEqual([...advisor.run.value.shop], ['寒檀', '涤火杰西卡']);
+  advisor.undo();
+  assert.equal(advisor.run.value.operators.length, 0);
+});
+
+test('stale promotion candidates cannot be consumed after a level/source change', async () => {
+  const { useRunAdvisor } = await import('../src/quickref/advisor/useRunAdvisor.ts');
+  const advisor = useRunAdvisor();
+  advisor.reset();
+  advisor.setLevel(3);
+  advisor.addShopCandidate('拜松');
+  advisor.setCandidateSource('promotion');
+  assert.equal(advisor.recruitCandidate('拜松'), false);
+  assert.equal(advisor.run.value.operators.length, 0);
+  assert.deepEqual([...advisor.run.value.shop], ['拜松']);
+  assert.match(advisor.notice.value, /4阶/);
+  advisor.undo(); // 失败不能覆盖此前切换来源的撤销快照
+  assert.equal(advisor.run.value.candidateSource, 'shop');
+});

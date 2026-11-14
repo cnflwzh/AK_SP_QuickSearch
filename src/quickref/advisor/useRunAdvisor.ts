@@ -85,12 +85,24 @@ export function useRunAdvisor() {
       } else {
         draft.operators.push({ name, copies: 1, elite: false, deployed: destination === 'auto' && draft.operators.filter(operator => operator.deployed).length < MAX_OPS });
       }
-      draft.shop = draft.candidateSource === 'promotion' ? [] : draft.shop.filter(candidate => candidate !== name);
-      if (draft.candidateSource === 'promotion') draft.candidateSource = 'shop';
+      // 手工补录其他持有干员，不等于选择眼前奖励；不得丢弃待选名单。
+      if (draft.shop.includes(name)) {
+        draft.shop = draft.candidateSource === 'promotion' ? [] : draft.shop.filter(candidate => candidate !== name);
+        if (draft.candidateSource === 'promotion') draft.candidateSource = 'shop';
+      }
     });
   }
   /** 商店卡与推荐卡共用同一落位决策；明确手工录入仍可使用 recruit 指定位置。 */
+  function candidateError(name: string): string {
+    if (run.value.candidateSource !== 'promotion') return '';
+    if (!run.value.shop.includes(name)) return '请先录入眼前的晋升奖励候选';
+    const operator = operatorsByName.get(name);
+    if (!operator || operator.stars <= 0 || operator.tier !== promotionRewardTier(run.value.level)) return `当前晋升奖励应为${promotionRewardTier(run.value.level)}阶，请核对调度等级或候选来源`;
+    return '';
+  }
   function recruitCandidate(name: string): boolean {
+    const error = candidateError(name);
+    if (error) { notice.value = error; return false; }
     const advice = recommendRecruits(run.value, operatorsByName.size).find(item => item.operator.name === name);
     return recruit(name, advice?.kind === 'reserve' || advice?.kind === 'replace' ? 'reserve' : 'auto');
   }
@@ -240,7 +252,7 @@ export function useRunAdvisor() {
   return {
     run: readonly(run), deployed, reserve, covenants, recommendations, deploymentRecommendations, goal, unavailableNames, poolConflicts,
     notice: readonly(notice), saveFailed: readonly(saveFailed), canUndo: computed(() => undoSnapshot.value !== null),
-    recruit, recruitCandidate, setDeployment, removeOperator, setCopies, setElite, setMode, setCandidateSource, setLevel, setRound, setFunds, setLayer, setStrategy,
+    recruit, recruitCandidate, candidateError, setDeployment, removeOperator, setCopies, setElite, setMode, setCandidateSource, setLevel, setRound, setFunds, setLayer, setStrategy,
     setMainCovenant, setMainTarget, toggleBannedCovenant, toggleExcludedOperator,
     addEquipment, assignEquipment, setEquipmentAdvanced, removeEquipment,
     addShopCandidate, removeShopCandidate, clearShop, reset, undo,

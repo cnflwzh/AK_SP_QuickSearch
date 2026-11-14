@@ -328,10 +328,10 @@ function clearStrategy(): void {
           <div v-for="name in run.shop" :key="name" class="ra-shop-card">
             <button type="button" class="ra-shop-identity" :data-op="name" @click="openDetails('op', name)">
               <img :src="avatarSrc(name)" alt="" width="36" height="36">
-              <span><b>{{ name }}</b><small>{{ unavailableNames.includes(name) ? '本局禁用' : shopAdvice.get(name)?.label || '商店候选' }}</small></span>
+              <span><b>{{ name }}</b><small>{{ unavailableNames.includes(name) ? '本局禁用' : advisor.candidateError(name) ? '请核对奖励等阶' : shopAdvice.get(name)?.label || '商店候选' }}</small></span>
             </button>
             <button type="button" class="ra-grab" :aria-label="`抓取商店${name}`"
-              :disabled="eliteNames.includes(name) || unavailableNames.includes(name)" @click="advisor.recruitCandidate(name)">＋</button>
+              :disabled="eliteNames.includes(name) || unavailableNames.includes(name) || !!advisor.candidateError(name)" :title="advisor.candidateError(name)" @click="advisor.recruitCandidate(name)">＋</button>
             <button type="button" class="ra-shop-remove" :aria-label="`移除商店候选${name}`"
               @click="advisor.removeShopCandidate(name)">×</button>
           </div>
