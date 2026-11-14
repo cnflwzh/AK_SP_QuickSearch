@@ -375,3 +375,61 @@ test('stale promotion candidates cannot be consumed after a level/source change'
   advisor.undo(); // 失败不能覆盖此前切换来源的撤销快照
   assert.equal(advisor.run.value.candidateSource, 'shop');
 });
+
+test('full-field swap preserves both operators elite and equipment state and is atomic on undo', async () => {
+  const { useRunAdvisor } = await import('../src/quickref/advisor/useRunAdvisor.ts');
+  const advisor = useRunAdvisor();
+  advisor.reset();
+  for (const name of ['拜松', '矩', '风絮', '山', '仇白', '夜莺', '焰尾', '寒檀']) advisor.recruit(name);
+  advisor.recruit('逻各斯', 'reserve');
+  advisor.setElite('寒檀', true);
+  advisor.setElite('逻各斯', true);
+  advisor.addEquipment('维式重锤', '寒檀');
+  advisor.addEquipment('精准狙击镜', '逻各斯');
+  const snapshot = JSON.parse(JSON.stringify(advisor.run.value));
+  assert.equal(advisor.setDeployment('逻各斯', true, '不存在'), false);
+  assert.deepEqual(JSON.parse(JSON.stringify(advisor.run.value)), snapshot);
+  assert.equal(advisor.setDeployment('逻各斯', true, '寒檀'), true);
+  assert.equal(advisor.deployed.value.length, 8);
+  assert.equal(advisor.reserve.value.length, 1);
+  assert.equal(advisor.run.value.operators.find(op => op.name === '寒檀').elite, true);
+  assert.equal(advisor.run.value.operators.find(op => op.name === '逻各斯').elite, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(advisor.run.value.equipment)), snapshot.equipment);
+  advisor.undo();
+  assert.deepEqual(JSON.parse(JSON.stringify(advisor.run.value)), snapshot);
+});
+
+test('promotion of an equipped field pair preserves placement and gear without consuming other ordinary shop cards', async () => {
+  const { useRunAdvisor } = await import('../src/quickref/advisor/useRunAdvisor.ts');
+  const advisor = useRunAdvisor();
+  advisor.reset();
+  advisor.recruit('拜松');
+  advisor.setCopies('拜松', 2);
+  advisor.addEquipment('维式重锤', '拜松');
+  advisor.addShopCandidate('拜松');
+  advisor.addShopCandidate('矩');
+  const before = JSON.parse(JSON.stringify(advisor.run.value));
+  assert.equal(advisor.recruitCandidate('拜松'), true);
+  const result = advisor.run.value.operators.find(op => op.name === '拜松');
+  assert.equal(result.elite, true);
+  assert.equal(result.deployed, true);
+  assert.deepEqual([...advisor.run.value.shop], ['矩']);
+  assert.deepEqual(JSON.parse(JSON.stringify(advisor.run.value.equipment)), before.equipment);
+  advisor.undo();
+  assert.deepEqual(JSON.parse(JSON.stringify(advisor.run.value)), before);
+});
+
+test('a restricted-pool rejection leaves owned gear and the preceding undo snapshot untouched', async () => {
+  const { useRunAdvisor } = await import('../src/quickref/advisor/useRunAdvisor.ts');
+  const advisor = useRunAdvisor();
+  advisor.reset();
+  advisor.recruit('拜松');
+  advisor.addEquipment('维式重锤', '拜松');
+  advisor.setMode('restricted');
+  const before = JSON.parse(JSON.stringify(advisor.run.value));
+  assert.equal(advisor.recruitCandidate('焰尾'), false);
+  assert.deepEqual(JSON.parse(JSON.stringify(advisor.run.value)), before);
+  advisor.undo();
+  assert.equal(advisor.run.value.mode, 'unknown');
+  assert.equal(advisor.run.value.equipment[0].holder, '拜松');
+});
