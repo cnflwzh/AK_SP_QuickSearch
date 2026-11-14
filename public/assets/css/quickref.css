@@ -273,6 +273,8 @@
 #view {
   /* Wiki 分栏会缩窄内容区；页内布局以可用宽度为准。 */
   container: quickref-view / inline-size;
+  /* 横向滑入不能撑大手机的布局视口；clip 不创建滚动容器，保留页内 sticky。 */
+  overflow-x: clip;
   padding-block: 18px 40px;
   min-height: 60vh;
 }
