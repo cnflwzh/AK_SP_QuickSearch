@@ -319,8 +319,9 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
         // 装备仍属于原持有者，不凭空转移给被推荐的新人。
         const purchasedReserve = [...reserve, candidate];
         const bench = evaluate(lineup, purchasedReserve);
-        const benchScore = bench.score + marginal(lineup, purchasedReserve);
-        // 先扣掉购买后留整备区就能取得的收益，换人必须另有成型或核心输出价值。
+        const benchProduction = marginal(lineup, purchasedReserve);
+        const benchScore = bench.score + benchProduction;
+        // 换人必须新增成型或生产收益；留整备区已可获得的收益不能再次算作换人理由。
         const evaluateDeployment = createLineupEvaluator(lineup, run.layers, {
           goal, reserve: purchasedReserve, bannedCovenants: effectiveBans(run),
         });
@@ -331,8 +332,7 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
           const evaluation = evaluate(next, nextReserve), deployment = evaluateDeployment(next, nextReserve);
           const delta = marginal(next, nextReserve);
           return { name: slot.name, evaluation, deployment, score: evaluation.score + delta, delta };
-        }).filter(candidate => (candidate.evaluation.improves && candidate.deployment.improves) || candidate.delta > 10)
-          .sort((a, b) => b.score - a.score);
+        }).filter(candidate => candidate.deployment.improves || candidate.delta > benchProduction + .001).sort((a, b) => b.score - a.score);
         const best = replacements[0];
         // 经济盟约在整备区就能生效；相同收益时不要求玩家为它挪动上场阵容。
         if (best && best.score > Math.max(0, benchScore) + .001) {
@@ -477,11 +477,12 @@ export function recommendDeployments(run: AdvisorRun, limit = 3): DeploymentAdvi
       const evaluation = evaluate(next, bench), explanation = explainLineupChange(evaluation);
       const production = teamValue(next, bench, context) - oldValue;
       const score = evaluation.score + production + (outgoing ? 0 : 10);
+      if (outgoing && !evaluation.improves && production <= .001) return null;
       return { name: candidate.name, replace: outgoing?.name ?? '', score,
         breakdown: { lineup: evaluation.score, production, fill: outgoing ? 0 : 10 },
         reasons: ['已持有，无需再次购买；不重复计算获得时奖励', ...explanation.reasons,
           ...(production > 0 ? ['上场后的持续收益或现有精锐装备投入优于当前配置'] : [])], losses: explanation.losses };
-    }).filter(item => item.score > .001).sort((a, b) => b.score - a.score);
+    }).filter((item): item is DeploymentAdvice => item !== null && item.score > .001).sort((a, b) => b.score - a.score);
     return options.slice(0, 1);
   }).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'zh-CN')).slice(0, Math.max(0, limit));
 }

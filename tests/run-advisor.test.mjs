@@ -233,6 +233,14 @@ test('full-roster suggestions remain finite, deterministic and do not mutate inp
     assert.ok(run.operators.some(op => op.deployed && op.name === advice.replace));
   }
   assert.deepEqual(run, old);
+  const late = runWith(['慕斯', 'Miss.Christine', '凯瑟琳', '拜松', '矩', '风絮', '灰喉', '霜叶'], {
+    round: 14, mainCovenant: 'mixed', shop: ['寒檀'],
+  });
+  const purchase = recommendRecruits(late)[0];
+  const deployment = recommendDeployments({ ...late, operators: [...late.operators, owned('寒檀', false)] }).find(item => item.name === '寒檀');
+  assert.ok(deployment?.score > 0);
+  assert.equal(purchase.kind, 'replace');
+  assert.equal(purchase.replace, deployment.replace);
 });
 
 test('verified restricted mode excludes its static pool and disabled covenant effects', async () => {
