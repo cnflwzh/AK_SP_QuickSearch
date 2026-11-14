@@ -70,6 +70,23 @@ export function acquisitionValue(operator: Operator, elite: boolean, stats: read
   return { score, reasons };
 }
 
+/** 未知回合采用有限展望；最后一轮只计当前休整结束。 */
+function productionHorizon(round: number | null): number {
+  return round === null ? 2 : Math.min(4, Math.max(1, 15 - round));
+}
+
+/** 助力是盟约自身的产层，不是任一干员特质，整队只结算一次。 */
+export function covenantProductionValue(stats: readonly CovenantStat[], context: ValueContext): TraitValue {
+  const support = stats.find(stat => stat.name === '助力');
+  if (!support?.active) return { score: 0, reasons: [], endOfRestGains: [] };
+  const amount = support.bonusActive ? 4 : 2;
+  const gains = stats.filter(stat => stat.active && usesLayers(stat.name)).map(stat => ({ covenant: stat.name, amount }));
+  const score = gains.reduce((total, gain) => total + layerValue(gain.covenant,
+    gain.amount * productionHorizon(context.round), stats, context, false), 0);
+  return { score, endOfRestGains: gains,
+    reasons: [`助力每次休整结束为所有已激活盟约各+${amount}层；按当前${gains.length}种可叠层盟约计算`] };
+}
+
 /** 持续生产只给有限展望，战斗叠层按条件潜力折价，绝不显示为预计实得层数。 */
 export function recurringValue(slot: PlanOp, deployed: boolean, stats: readonly CovenantStat[], context: ValueContext, roster?: ValueRoster): TraitValue {
   const operator = OPERATOR[slot.name];
@@ -77,7 +94,7 @@ export function recurringValue(slot: PlanOp, deployed: boolean, stats: readonly 
   const text = slot.elite ? operator.elite : operator.trait;
   if (!deployed && !text.includes('整备区也生效')) return { score: 0, reasons: [] };
   // 只评价有限未来窗口；未知回合不假装早期，最后一轮不再奖励后续回合收入。
-  const horizon = context.round === null ? 2 : Math.min(4, Math.max(1, 15 - context.round));
+  const horizon = productionHorizon(context.round);
   let score = 0;
   const reasons: string[] = [];
   const withoutAcquire = text.replace(/<获得时>[^<]*/g, '');
@@ -200,7 +217,7 @@ export function strategyValue(ops: readonly PlanOp[], context: ValueContext, res
 /** 有限启发式整队生产力；装备/精锐投入作为换人机会成本，不当作精确战力。 */
 export function teamValue(ops: readonly PlanOp[], reserve: readonly PlanOp[], context: ValueContext): number {
   const stats = covenantStats(ops, context.layers, reserve, context.inactiveCovenants);
-  const values = [...ops.map(slot => recurringValue(slot, true, stats, context, { field: ops, reserve })),
+  const values = [covenantProductionValue(stats, context), ...ops.map(slot => recurringValue(slot, true, stats, context, { field: ops, reserve })),
     ...reserve.map(slot => recurringValue(slot, false, stats, context, { field: ops, reserve }))];
   // 多位生产者先汇总本次确定产层，再判断门槛；避免各自重复奖励或合计可达却漏算。
   const totals = new Map<string, number>();

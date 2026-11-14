@@ -556,3 +556,15 @@ test('Suzuran accounts for active reserve investors and respects their disabled 
   assert.equal(strategyValue(field, { ...context, layers: { 投资人: 100 } }, reserve), base * 3);
   assert.equal(strategyValue(field, { ...context, inactiveCovenants: new Set(['投资人']) }, reserve), base);
 });
+
+test('Support covenant production contributes to shared thresholds and requires field members', async () => {
+  const { covenantProductionValue, teamValue } = await import('../src/lib/advisorValue.ts');
+  const field = ['渡桥', '寒檀', '白铁', '罗比菈塔'].map(newSlot);
+  const context = { round: 14, level: 6, strategy: '', layers: { 远见: 144 } };
+  const value = covenantProductionValue(covenantStats(field, context.layers), context);
+  assert.deepEqual(value.endOfRestGains.find(gain => gain.covenant === '远见'), { covenant: '远见', amount: 2 });
+  assert.equal(teamValue(field, [], context) - teamValue(field, [], { ...context, layers: { 远见: 150 } }), 24);
+  const three = covenantProductionValue(covenantStats([...field, newSlot('野鬃')]), context);
+  assert.equal(three.endOfRestGains.find(gain => gain.covenant === '远见').amount, 4);
+  assert.equal(covenantProductionValue(covenantStats(field.slice(0, 3), {}, [field[3]]), context).score, 0);
+});

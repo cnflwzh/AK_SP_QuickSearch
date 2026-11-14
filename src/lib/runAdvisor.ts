@@ -3,7 +3,7 @@ import { ALL_COVENANTS, BUILD_NAMES, buildByName, OPERATORS, EQUIPMENT, STRATEGI
 import { covenantStats, createLineupEvaluator, defaultLineupGoal, inferPrimaryCovenant, isBanned, MAX_EQ, MAX_OPS, usesLayers, MAX_LAYERS, type Layers, type CovenantStat, type LineupEvaluation, type LineupGoal, type PlanOp } from './planner.ts';
 
 import { ADVISOR_MODES, RESTRICTED_MODE_COVENANTS, promotionRewardTier, type AdvisorMode, type CandidateSource } from './advisorRules.ts';
-import { acquisitionValue, recurringValue, restCommandOpportunity, teamValue, type ValueContext } from './advisorValue.ts';
+import { acquisitionValue, covenantProductionValue, recurringValue, restCommandOpportunity, teamValue, type ValueContext } from './advisorValue.ts';
 
 /** 同名干员合并记录；copies 是尚未合成的张数，精锐只保留一条记录。 */
 export interface RecordedOperator {
@@ -346,6 +346,8 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
         advice.reasons.push(`可补${goal.covenant}主轴的附加盟约配合`);
       }
     }
+    const covenantProduction = covenantProductionValue(after, context);
+    if (covenantProduction.score > covenantProductionValue(before, context).score) advice.reasons.push(...covenantProduction.reasons);
     const acquisition = acquisitionValue(operator, promotes, before, context);
     advice.breakdown.acquisition = acquisition.score;
     advice.score += acquisition.score;
