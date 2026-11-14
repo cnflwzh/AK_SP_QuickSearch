@@ -31,6 +31,10 @@ try {
   screen?.remove();
   performance.mark('app-ready');
   await painted();
+  // 统计下载独立于启动流程，网络不可达时也不影响速查和教程使用。
+  if (import.meta.env.PROD && import.meta.env.VITE_GA_MEASUREMENT_ID?.trim()) {
+    import('./lib/analytics.ts').then(module => module.initializeAnalytics()).catch(() => {});
+  }
   import('./lib/about.ts').then(module => {
     const dispose = module.initAbout();
     import.meta.hot?.dispose(dispose);
