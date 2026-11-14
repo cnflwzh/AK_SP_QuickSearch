@@ -2677,12 +2677,10 @@ mark {
 .pl-cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .pl-cmp .pls:last-child .pls-op.hi { border-color: var(--teal); box-shadow: 0 0 0 1px var(--teal); }
 
-.pl-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); grid-template-areas: "lineup pool" "cov pool" "rec pool" "fx pool"; gap: 12px; align-items: start; }
-.pl-lineup { grid-area: lineup; }
-.pl-cov { grid-area: cov; }
-.pl-rec { grid-area: rec; }
-.pl-fx { grid-area: fx; }
-.pl-pool { grid-area: pool; position: sticky; top: 108px; max-height: calc(100vh - 120px); overflow: auto; overscroll-behavior: contain; }
+/* 左栏卡片放进独立纵列，右侧干员池再高也不会撑开左侧卡片之间的间距。 */
+.pl-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.pl-main { display: grid; gap: 12px; align-content: start; min-width: 0; }
+.pl-pool { position: sticky; top: 108px; max-height: calc(100vh - 120px); overflow: auto; overscroll-behavior: contain; }
 .pl-card { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 10px 12px 12px; min-width: 0; animation: tin .3s both; }
 .pl-card h4 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; font-size: 13.5px; }
 .pl-card h4 .tag { font-weight: 400; }
@@ -2709,10 +2707,33 @@ mark {
 .pl-slot .eqs img { width: 16px; height: 16px; background: var(--surface); border-radius: 3px; box-shadow: 0 0 0 1px var(--line); }
 .pl-slot.empty { justify-content: center; min-height: 92px; border-style: dashed; color: var(--ink3); font-size: 20px; background: transparent; }
 
-.pl-edit { margin-top: 10px; padding: 10px; border-radius: 8px; background: var(--surface2); display: grid; gap: 8px; animation: tin .2s both; }
+.pl-edit { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: var(--surface2); display: grid; gap: 10px; animation: tin .2s both; }
+/* 干员编辑：身份与状态 → 特质 → 装备 / 备选 → 位置操作 */
+.pl-edit-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pl-edit-av img { display: block; width: 44px; height: 44px; border-radius: 6px; background: var(--tc); border-bottom: 3px solid var(--tc); }
+.pl-edit-id { display: grid; gap: 2px; flex: 1 1 120px; min-width: 0; }
+.pl-edit-id b { font-size: 15px; }
+.pl-edit-id small { font-size: 11.5px; color: var(--ink3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-edit-flags { display: flex; align-items: center; gap: 6px; }
+.pl-edit-flags .seg { margin: 0; }
+.pl-core-toggle { border: 1px solid var(--line2); background: var(--surface); border-radius: 6px; min-height: 36px; padding: 5px 12px; font-size: 13px; }
+.pl-core-toggle.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.pl-edit-line { display: grid; grid-template-columns: 2.6em minmax(0, 1fr); align-items: center; gap: 8px; }
+.pl-edit-line > .k { font-size: 12px; color: var(--ink3); }
+.pl-edit-cells { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.pl-edit-cells .pl-eq { min-height: 36px; max-width: 100%; }
+.pl-edit-cells .pl-eq > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-edit-cells .pl-eq:not(.add):hover { border-color: var(--red); }
+.pl-edit-cells .pl-eq:not(.add):hover i { color: var(--red); }
+.pl-eq.ghost { width: 72px; border-style: dashed; border-color: var(--line); background: transparent; opacity: .6; }
+.pl-edit-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.pl-edit-actions > button { border: 1px solid var(--line2); background: var(--surface); border-radius: 6px; min-height: 36px; padding: 5px 14px; font-size: 13px; }
+.pl-edit-actions > button.on { color: var(--teal); border-color: var(--teal); background: var(--teal-soft); }
+.pl-edit-actions > button.dg { margin-left: auto; }
+.pl-edit-actions .pl-move { margin-left: 0; }
 .pl-edit .seg { margin: 0; }
-.pl-move { display: flex; gap: 2px; margin-left: auto; }
-.pl-move button { padding: 2px 9px; }
+.pl-move { display: flex; gap: 4px; margin-left: auto; }
+.pl-move button { padding: 2px 10px; }
 .pl-trait { margin: 0; font-size: 12.5px; color: var(--ink2); line-height: 1.55; }
 .pl-eqs .k { font-size: 12px; color: var(--ink3); }
 .pl-eq { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line2); background: var(--surface); border-radius: 6px; padding: 2px 8px 2px 3px; font-size: 12.5px; }
@@ -2726,7 +2747,21 @@ mark {
 .pl-pick-g button { border: 1px solid var(--line); background: var(--surface2); border-radius: 6px; padding: 2px; line-height: 0; transition: border-color .15s, transform .15s; }
 .pl-pick-g button:hover { border-color: var(--accent); transform: translateY(-1px); }
 .pl-pick-g button img { border-radius: 4px; background: var(--tc); }
+.pl-eqpick { max-height: 320px; padding-top: 0; }
+.pl-eqpick > input { position: sticky; top: 0; z-index: 1; margin-top: 6px; }
+.pl-eqpick .pl-pick-g { display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 5px; }
+.pl-eqpick .pl-pick-g > .tier { grid-column: 1 / -1; width: fit-content; margin-top: 2px; }
+.pl-eqpick .pl-pick-g > button { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; padding: 6px 3px; line-height: 1.25; }
+.pl-eqpick .pl-pick-g > button.on { border-color: var(--accent); background: var(--accent-soft); }
+.pl-eqpick .pl-pick-g > button small { max-width: 100%; font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pl-pick.stp { margin-top: 8px; }
+.pl-pick.stp em { font-style: normal; font-size: 10px; color: var(--ink3); }
+.pl-st-current { display: flex; align-items: flex-start; gap: 10px; padding: 10px; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent-soft); }
+.pl-st-current img { flex: none; border-radius: 50%; background: var(--surface2); }
+.pl-st-current > span { display: grid; gap: 2px; flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.55; color: var(--ink2); }
+.pl-st-current small { font-size: 11px; color: var(--ink3); }
+.pl-st-current b { font-size: 14px; color: var(--ink); }
+.pl-st-current button { flex: none; min-height: 34px; padding: 4px 10px; border: 1px solid var(--line2); border-radius: 6px; background: var(--surface); font-size: 12px; }
 .pl-pick.stp .seg { justify-self: start; }
 .pl-pick.stp .pl-pick-g { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 6px; }
 .pl-pick.stp .pl-pick-g button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-width: 0; min-height: 78px; padding: 8px 4px; font-size: 11px; line-height: 1.4; }
@@ -2807,7 +2842,9 @@ mark {
 .pl-tiles .tile { width: auto; }
 .pl-tiles .tile.in { border-color: var(--accent); background: var(--accent-soft); }
 .pl-tiles .tile.in::before { content: "✓"; position: absolute; top: 1px; left: 4px; font-size: 12px; font-weight: 700; color: var(--accent); }
-.pl-tiles .tile:disabled { opacity: .4; transform: none; border-color: var(--line); }
+.pl-tiles .tile:disabled { opacity: .55; filter: grayscale(.5); transform: none; border-color: var(--line); }
+.pl-pool.replacing .pl-tiles .tile:not(:disabled):hover { border-color: var(--teal); background: var(--teal-soft); }
+.pl-full-hint { margin: 0 0 8px; padding: 7px 10px; border-left: 3px solid var(--accent); border-radius: 4px; background: var(--accent-soft); font-size: 12.5px; line-height: 1.6; color: var(--ink2); }
 
 /* 只读概览 */
 .pls { display: grid; gap: 8px; min-width: 0; }
@@ -2830,21 +2867,21 @@ mark {
 
 @container quickref-view (max-width: 860px) {
   .bsel.is-editing { display: none; }
-  .pl-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "lineup" "cov" "rec" "pool" "fx"; }
+  .pl-grid { grid-template-columns: minmax(0, 1fr); }
   .pl-pool { position: static; max-height: none; overflow: visible; }
 }
 @container quickref-view (max-width: 600px) {
   .pl-slots { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .pl-stats b { font-size: 16px; }
   .pl-cmp { grid-template-columns: minmax(0, 1fr); }
-  .pl-name { order: 1; flex-basis: 100%; }
-  .pl-bar > select { max-width: none; flex: 1 1 100%; order: 2; }
-  .pl-acts { order: 3; }
+  .pl-bar { flex-wrap: nowrap; }
+  .pl-acts { flex-wrap: nowrap; flex-shrink: 0; }
+  .pl-acts button { padding-inline: 10px; }
 }
 
 /* 手机规划：总览与层数分开查看，选择器移动到同一个底部面板。 */
-.pl-compact .pl-grid { display: flex; flex-direction: column; gap: 12px; }
-.pl-compact .pl-grid > section { width: 100%; }
+.pl-compact :is(.pl-grid, .pl-main) { display: flex; flex-direction: column; gap: 12px; }
+.pl-compact .pl-main > section { width: 100%; }
 .pl-compact .pl-slots { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .pl-compact .pl-acts .sep { display: none; }
 .pl-compact .pl-note-fold { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 10px; }
@@ -2868,7 +2905,21 @@ mark {
 .pl-sheet .pl-pool { position: static; max-height: none; overflow: visible; }
 .pl-sheet .pl-edit > .pl-row { gap: 8px; }
 .pl-sheet .pl-row > button, .pl-sheet .pl-move button, .pl-sheet .seg button, .pl-sheet .pl-alt button { min-height: 40px; }
-.pl-sheet .pl-pick { max-height: none; overflow: visible; }
+.pl-sheet .pl-pick { max-height: none; overflow: visible; border: 0; padding: 0; background: transparent; }
+.pl-sheet .pl-eqpick > input { top: -12px; margin: 0; padding-block: 8px; }
+.pl-sheet .pl-edit { gap: 14px; }
+.pl-sheet .pl-edit-head { gap: 10px 12px; }
+.pl-sheet .pl-edit-flags { flex: 1 1 100%; }
+.pl-sheet .pl-edit-flags .seg { flex: 1; display: flex; }
+.pl-sheet .pl-edit-flags .seg button { flex: 1; }
+.pl-sheet :is(.pl-core-toggle, .pl-edit-cells .pl-eq, .pl-edit-actions > button) { min-height: 42px; }
+.pl-sheet .pl-edit-cells .pl-eq { flex: 1 1 calc(50% - 3px); justify-content: center; }
+.pl-sheet .pl-edit-cells .pl-alt { flex: 1 1 calc(50% - 3px); }
+.pl-sheet .pl-edit-cells .pl-alt button:first-child { flex: 1; min-width: 0; }
+.pl-sheet .pl-trait { padding: 10px 12px; border-radius: 6px; background: var(--surface2); font-size: 13px; }
+.pl-sheet .pl-edit-actions { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; padding-top: 12px; }
+.pl-sheet .pl-edit-actions .pl-move { display: contents; }
+.pl-sheet .pl-edit-actions > button.dg { margin-left: 0; }
 .pl-sheet .pl-pick-g { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }
 .pl-sheet .pl-pick-g > .tier { grid-column: 1 / -1; width: fit-content; }
 .pl-sheet .pl-pick-g > button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; line-height: 1.25; min-width: 0; width: 100%; min-height: 74px; padding: 8px 4px; }
@@ -2879,6 +2930,27 @@ mark {
 .pl-sheet .pl-filter input { flex: 1 1 150px; }
 .pl-sheet .pl-filter select { flex: 1 1 120px; min-width: 0; min-height: 42px; }
 .pl-sheet .pl-filter .seg { flex: 1 1 100%; display: flex; }
+/* 较宽的底部面板（横屏小窗、平板）里，搜索、盟约和等阶放同一行，给干员列表留出高度。 */
+@media (min-width: 521px) {
+  .pl-sheet .pl-filter { flex-wrap: nowrap; }
+  .pl-sheet .pl-filter input { flex: 1 1 120px; min-width: 0; }
+  .pl-sheet .pl-filter select { flex: 0 1 128px; }
+  .pl-sheet .pl-filter .seg { flex: 0 1 auto; }
+  .pl-sheet .pl-filter .seg button { flex: 0 0 auto; padding-inline: 8px; white-space: nowrap; }
+}
+@media (max-height: 600px) {
+  .pl-sheet input[type=search], .pl-sheet .pl-filter select { min-height: 36px; }
+  .pl-sheet .pl-filter { top: -8px; padding: 8px 0 6px; }
+  .pl-sheet .pl-filter .seg button, .pl-sheet :is(.pl-core-toggle, .pl-edit-cells .pl-eq, .pl-edit-actions > button) { min-height: 36px; }
+  .pl-sheet .pl-tiles .tile { min-height: 72px; }
+  /* 面板标题已显示人数，矮窗口里省掉干员池自己的标题行；已选干员横向滚动成一行。 */
+  .pl-sheet .pl-pool > h4 { display: none; }
+  .pl-sheet .pl-full-hint { margin-bottom: 6px; padding: 4px 8px; font-size: 12px; }
+  .pl-sheet .pl-altbar { margin-bottom: 4px; padding: 4px 8px; }
+  .pl-sheet .pl-selected { flex-wrap: nowrap; overflow-x: auto; margin: 0 0 4px; scrollbar-width: none; }
+  .pl-sheet .pl-selected button { flex: none; min-height: 34px; padding: 4px 8px; }
+  .pl-sheet .pl-pool .tierh { margin: 6px 0 4px; }
+}
 .pl-sheet .pl-filter .seg button { flex: 1; padding-inline: 4px; }
 .pl-sheet .pl-tiles { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); }
 .pl-sheet .pl-tiles .tile { min-height: 84px; }

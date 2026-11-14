@@ -18,6 +18,14 @@ function load(): AdvisorRun {
 const run = ref<AdvisorRun>(load());
 const undoSnapshot = ref<AdvisorRun | null>(null);
 const notice = ref('');
+/** 操作提示只短暂显示，避免旧消息长期占据状态栏和编辑面板。 */
+const NOTICE_MS = 3200;
+let noticeTimer: ReturnType<typeof setTimeout> | undefined;
+function say(message: string): void {
+  clearTimeout(noticeTimer);
+  notice.value = message;
+  if (message) noticeTimer = setTimeout(() => { notice.value = ''; }, NOTICE_MS);
+}
 const lineup = computed(() => deployedLineup(run.value));
 const covenants = computed(() => covenantStats(lineup.value, {}, reserveLineup(run.value)));
 const goal = computed(() => runLineupGoal(run.value));
@@ -26,7 +34,8 @@ const unavailableNames = computed(() => {
   return [...operatorsByName.keys()].filter(name => !available(name));
 });
 const poolConflicts = computed(() => run.value.operators.filter(operator => unavailableNames.value.includes(operator.name)).map(operator => operator.name));
-const recommendations = computed(() => recommendRecruits(run.value));
+// 录入商店后逐张排序全部候选，商店列表即建议列表；未录入时只列出前几名目标。
+const recommendations = computed(() => recommendRecruits(run.value, run.value.shop.length ? MAX_SHOP_CANDIDATES : 5));
 const deployed = computed(() => run.value.operators.filter(operator => operator.deployed));
 const reserve = computed(() => run.value.operators.filter(operator => !operator.deployed));
 
@@ -42,10 +51,10 @@ function save(): void {
 function change(message: string, edit: (draft: AdvisorRun) => string | void): boolean {
   const draft = clone(run.value);
   const error = edit(draft);
-  if (error) { notice.value = error; return false; }
+  if (error) { say(error); return false; }
   undoSnapshot.value = clone(run.value);
   run.value = draft;
-  notice.value = message;
+  say(message);
   save();
   return true;
 }
@@ -196,7 +205,7 @@ export function useRunAdvisor() {
     if (!undoSnapshot.value) return;
     run.value = undoSnapshot.value;
     undoSnapshot.value = null;
-    notice.value = '已撤销上一步';
+    say('已撤销上一步');
     save();
   }
   return {
