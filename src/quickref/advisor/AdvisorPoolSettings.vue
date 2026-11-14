@@ -74,7 +74,7 @@ const groups = [
         :aria-label="`清除${name}层数记录`" @click="advisor.setLayer(String(name), null)">{{ name }} {{ layers }} 层 ×</button>
     </div>
     <div class="ra-section-heading"><h3>本局禁用</h3><span class="ra-muted">已排除 {{ unavailableNames.length }} 名</span></div>
-    <p class="ra-muted">按开局简报点选缺席盟约；属于这些盟约的干员不会出现在抓取建议或录入候选中。</p>
+    <p class="ra-muted">按开局简报点选缺席盟约：核心缺席时其干员整组禁用；附加盟约则仅当某干员的全部原生附加盟约均缺席时禁用。保留干员的缺席盟约仍不生效。</p>
     <fieldset v-for="group in groups" :key="group.title" class="ra-pool-group">
       <legend>{{ group.title }}</legend>
       <div class="ra-pool-chips">

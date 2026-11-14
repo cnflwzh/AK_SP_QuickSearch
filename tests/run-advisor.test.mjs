@@ -433,3 +433,34 @@ test('a restricted-pool rejection leaves owned gear and the preceding undo snaps
   assert.equal(advisor.run.value.mode, 'unknown');
   assert.equal(advisor.run.value.equipment[0].holder, '拜松');
 });
+
+test('pool bans distinguish a missing core from all missing native addons', async () => {
+  const { isBanned } = await import('../src/lib/planner.ts');
+  assert.equal(isBanned('承曦格雷伊', new Set(['灵巧'])), false);
+  assert.equal(isBanned('承曦格雷伊', new Set(['灵巧', '精准'])), true);
+  assert.equal(isBanned('史尔特尔', new Set(['突袭'])), false);
+  assert.equal(isBanned('史尔特尔', new Set(['突袭', '不屈'])), true);
+  assert.equal(isBanned('焰尾', new Set(['卡西米尔'])), true);
+  assert.equal(isBanned('矩', new Set(['灵巧'])), false); // 空附加盟约不能 every([]) 误禁
+  const run = runWith([], { mode: 'restricted', shop: ['承曦格雷伊', '史尔特尔', '焰尾'] });
+  const recommendations = recommendRecruits(run);
+  assert.deepEqual(new Set(recommendations.map(item => item.operator.name)), new Set(['承曦格雷伊', '史尔特尔']));
+  for (const item of recommendations) {
+    assert.ok(!item.reasons.some(reason => /激活灵巧|激活突袭/.test(reason)));
+  }
+});
+
+test('missing addon layers receive no acquisition value while retained addons still do', async () => {
+  const { acquisitionValue } = await import('../src/lib/advisorValue.ts');
+  const context = { round: 4, level: 6, strategy: '', layers: {}, inactiveCovenants: new Set(['奥术']) };
+  const stats = [{ name: '远见', active: true }];
+  const value = acquisitionValue(OPERATOR['逻各斯'], false, stats, context);
+  assert.equal(value.score, 10); // 仅远见5层×2，缺席奥术不留未来价值
+  assert.match(value.reasons.join(' '), /奥术.*缺席.*不计/);
+  assert.match(value.reasons.join(' '), /远见\+5层/);
+  assert.doesNotMatch(value.reasons.join(' '), /获得时奥术\+/);
+  const run = runWith([], { bannedCovenants: ['奥术'], shop: ['逻各斯'] });
+  const advice = recommendRecruits(run)[0];
+  assert.equal(advice.operator.name, '逻各斯');
+  assert.equal(advice.breakdown.acquisition, 1.25); // 未激活远见仅保留未来价值
+});
