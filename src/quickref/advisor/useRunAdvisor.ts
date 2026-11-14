@@ -3,7 +3,7 @@ import { ALL_COVENANTS, EQUIPMENT, STRATEGIES, isCoreCovenant } from '../../../d
 import { covenantStats, MAX_EQ, MAX_OPS, MAX_LAYERS, usesLayers } from '../../lib/planner.ts';
 import {
   deployedLineup, eliteCopyCount, MAX_RECORDED_EQUIPMENT, MAX_SHOP_CANDIDATES,
-  newAdvisorRun, operatorsByName, recommendRecruits, sanitizeAdvisorRun, createRecruitmentPool, reserveLineup, runLineupGoal,
+  newAdvisorRun, operatorsByName, recommendRecruits, recommendDeployments, sanitizeAdvisorRun, createRecruitmentPool, reserveLineup, runLineupGoal,
   type AdvisorRun, type RecordedOperator,
 } from '../../lib/runAdvisor.ts';
 
@@ -26,6 +26,7 @@ const unavailableNames = computed(() => {
   return [...operatorsByName.keys()].filter(name => !available(name));
 });
 const poolConflicts = computed(() => run.value.operators.filter(operator => unavailableNames.value.includes(operator.name)).map(operator => operator.name));
+const deploymentRecommendations = computed(() => recommendDeployments(run.value));
 const recommendations = computed(() => recommendRecruits(run.value));
 const deployed = computed(() => run.value.operators.filter(operator => operator.deployed));
 const reserve = computed(() => run.value.operators.filter(operator => !operator.deployed));
@@ -220,7 +221,7 @@ export function useRunAdvisor() {
     save();
   }
   return {
-    run: readonly(run), deployed, reserve, covenants, recommendations, goal, unavailableNames, poolConflicts,
+    run: readonly(run), deployed, reserve, covenants, recommendations, deploymentRecommendations, goal, unavailableNames, poolConflicts,
     notice: readonly(notice), saveFailed: readonly(saveFailed), canUndo: computed(() => undoSnapshot.value !== null),
     recruit, setDeployment, removeOperator, setCopies, setElite, setLevel, setRound, setFunds, setLayer, setStrategy,
     setMainCovenant, setMainTarget, toggleBannedCovenant, toggleExcludedOperator,

@@ -12,12 +12,13 @@ import AdvisorOverlay from './AdvisorOverlay.vue';
 import AdvisorInspector from './AdvisorInspector.vue';
 import AdvisorPicker from './AdvisorPicker.vue';
 import AdvisorRecommendations from './AdvisorRecommendations.vue';
+import AdvisorDeployments from './AdvisorDeployments.vue';
 import AdvisorPoolSettings from './AdvisorPoolSettings.vue';
 import type { AdvisorSelection } from './types.ts';
 import './advisor.css';
 
 const advisor = useRunAdvisor();
-const { run, deployed, reserve, covenants, recommendations, notice, saveFailed, canUndo, goal, unavailableNames, poolConflicts } = advisor;
+const { run, deployed, reserve, covenants, recommendations, deploymentRecommendations, notice, saveFailed, canUndo, goal, unavailableNames, poolConflicts } = advisor;
 const root = ref<HTMLElement>();
 const compact = ref(false);
 const mobileView = ref<'lineup' | 'shop'>('lineup');
@@ -298,6 +299,7 @@ function clearStrategy(): void {
               <span>展开看理由 · ＋ 已抓到</span>
             </div>
             <p class="ra-direction-note">{{ goal ? `主攻${goal.covenant} · 目标${goal.target}人${run.mainCovenant ? '' : '（自动）'}` : run.mainCovenant === 'mixed' ? '混搭 · 比较整队收益' : '主轴未定 · 随来牌判断，可手选方向' }}</p>
+            <AdvisorDeployments :advice="deploymentRecommendations" @deploy="(name, replace) => advisor.setDeployment(name, true, replace)"/>
             <AdvisorRecommendations :advice="recommendations" :empty-message="adviceEmptyMessage" @recruit="advisor.recruit"/>
             <details class="ra-method">
               <summary>建议依据</summary>

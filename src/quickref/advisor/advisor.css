@@ -268,3 +268,11 @@ html:has(dialog.ra-overlay[open]) { overflow: hidden; }
 
 .ra-run-context label { flex-basis: 130px; }
 .ra-run-context input { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; color: var(--ink); font: inherit; }
+.ra-rec-budget { display: block; margin-top: 3px; font-size: 10px; }
+.ra-score-breakdown { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin: 6px 0 10px; }
+.ra-score-breakdown > div { min-width: 0; padding: 4px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
+.ra-score-breakdown dt { font-size: 10px; color: var(--ink3); }
+.ra-score-breakdown dd { margin: 0; font: 600 13px var(--fn); }
+.ra-deployments { margin: 12px 0; }
+.ra-deployments > .ra-muted { margin-bottom: 8px; }
+.ra-deploy-button { min-height: 36px; margin-top: 6px; }

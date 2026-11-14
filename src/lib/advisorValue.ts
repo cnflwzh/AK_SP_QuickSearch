@@ -1,8 +1,9 @@
 /** 可解释的特质估值，不把条件上限、随机奖励或文本类型当成实际伤害。 */
 import { EQUIPMENT, OPERATOR, type Operator } from '../../data/index.ts';
-import { covenantStats, covenantsOf, type CovenantStat, type Layers, type PlanOp } from './planner.ts';
+import { covenantStats, covenantsOf, type CovenantStat, type Layers, type PlanOp, usesLayers } from './planner.ts';
 
 export interface ValueContext { round: number | null; layers: Layers; level: number; strategy: string }
+export interface ValueRoster { field: readonly PlanOp[]; reserve: readonly PlanOp[] }
 export interface TraitValue { score: number; reasons: string[] }
 const tags = (text: string) => [...text.matchAll(/【([^】]+)】/g)].map(match => match[1]);
 /** 只识别紧挨明确盟约列表的固定加层，不从条件次数/上限猜实际收益。 */
@@ -44,16 +45,19 @@ export function acquisitionValue(operator: Operator, elite: boolean, stats: read
     score += count * 8 * multiplier;
     reasons.push(`获得${count * multiplier}次免费刷新${scaling ? '起（未假定成长已满）' : ''}，不是返还现金`);
   }
-  const item = EQUIPMENT.find(item => text.includes(item.name));
-  if (item || /获得[一两]枚“盟约之币”/.test(text)) {
-    score += 10 * multiplier * (text.includes('两枚') ? 2 : 1);
-    reasons.push(`获得时提供${item?.name ?? '盟约之币'}；未假定随机额外奖励`);
+  const guaranteed = text.split(/[，；]/)[0];
+  const item = [...EQUIPMENT].sort((a, b) => b.name.length - a.name.length).find(item => guaranteed.includes(item.name));
+  if (item || /获得[一两]枚“盟约之币”/.test(guaranteed)) {
+    const count = /获得(?:两|2)[件个枚]/.test(guaranteed) ? 2 : 1;
+    score += 10 * multiplier * count;
+    const rewardName = guaranteed.match(/获得[一两12][件个枚][“"]?([^”"]+)/)?.[1] ?? item?.name ?? '盟约之币';
+    reasons.push(`获得时提供${count * multiplier}件${rewardName}；未假定随机额外奖励或已装备`);
   }
   return { score, reasons };
 }
 
 /** 持续生产只给有限展望，战斗叠层按条件潜力折价，绝不显示为预计实得层数。 */
-export function recurringValue(slot: PlanOp, deployed: boolean, stats: readonly CovenantStat[], context: ValueContext): TraitValue {
+export function recurringValue(slot: PlanOp, deployed: boolean, stats: readonly CovenantStat[], context: ValueContext, roster?: ValueRoster): TraitValue {
   const operator = OPERATOR[slot.name];
   if (!operator) return { score: 0, reasons: [] };
   const text = slot.elite ? operator.elite : operator.trait;
@@ -63,23 +67,45 @@ export function recurringValue(slot: PlanOp, deployed: boolean, stats: readonly 
   let score = 0;
   const reasons: string[] = [];
   const withoutAcquire = text.replace(/<获得时>[^<]*/g, '');
-  const active = stats.filter(stat => stat.active);
-  const direct = withoutAcquire.match(/^<休整期结束时>使已激活的((?:【[^】]+】)+)层数\+(\d+)(?:$|（)/);
+  const restText = withoutAcquire.replace(/^<休整期开始时>(?=<休整期结束时>)/, '');
+  const active = stats.filter(stat => stat.active && usesLayers(stat.name));
+  const direct = restText.match(/^<休整期结束时>使已激活的((?:【[^】]+】)+)层数\+(\d+)(?:$|（)/);
   let gains = direct ? tags(direct[1]).map(covenant => ({ covenant, amount: +direct[2] })) : [];
-  if (/^<休整期结束时>使已激活的核心盟约层数\+/.test(withoutAcquire)) {
+  if (/^<休整期结束时>使已激活的核心盟约层数\+/.test(restText)) {
     const amount = +(withoutAcquire.match(/层数\+(\d+)/)?.[1] ?? 0);
     gains = active.filter(stat => stat.core).map(stat => ({ covenant: stat.name, amount }));
   }
-  if (/^<休整期结束时>使当前已激活且层数最多的盟约层数\+/.test(withoutAcquire) && active.length) {
+  if (/^<休整期结束时>使当前已激活且层数最多的盟约层数\+/.test(restText) && active.length) {
     const known = active.filter(stat => Object.hasOwn(context.layers, stat.name));
     const selected = [...known].sort((a, b) => context.layers[b.name] - context.layers[a.name])[0];
     if (selected && known.length === active.length) gains = [{ covenant: selected.name, amount: +(withoutAcquire.match(/层数\+(\d+)/)?.[1] ?? 0) }];
     else { score += 5 * horizon; reasons.push('可为最高层激活盟约叠层；层数未完整录入，不假定目标'); }
   }
+  if (roster) {
+    const equipped = restText.match(/^<休整期结束时>场上每有一名携带装备的干员，使已激活的((?:【[^】]+】)+)层数\+(\d+)/);
+    const tiers = restText.match(/^<休整期结束时>场上每有一名不同阶的【([^】]+)】干员，使已激活的((?:【[^】]+】)+)层数\+(\d+)/);
+    const benched = restText.match(/^<休整期结束时>整备区每有一名干员，使已激活的((?:【[^】]+】)+)层数\+(\d+)/);
+    if (equipped) {
+      const count = roster.field.filter(member => member.eq.length > 0).length;
+      gains = tags(equipped[1]).map(covenant => ({ covenant, amount: +equipped[2] * count }));
+      reasons.push(`按场上${count}名装备携带者计算，不按装备件数重复计人`);
+    } else if (tiers) {
+      const count = new Set(roster.field.filter(member => [...covenantsOf(member).own, ...covenantsOf(member).granted].includes(tiers[1])).map(member => OPERATOR[member.name]?.tier)).size;
+      gains = tags(tiers[2]).map(covenant => ({ covenant, amount: +tiers[3] * count }));
+      reasons.push(`按场上${tiers[1]}的${count}种等阶计算`);
+    } else if (benched) {
+      gains = tags(benched[1]).map(covenant => ({ covenant, amount: +benched[2] * roster.reserve.length }));
+      reasons.push(`按整备区${roster.reserve.length}名已记录干员计算`);
+    }
+  }
+  const startsAndEnds = text.startsWith('<休整期开始时><休整期结束时>');
+  // 买入发生在当前休整期内，当前开始触发已过，只计本轮结束和以后开始。
+  const triggers = horizon + (startsAndEnds ? Math.max(0, horizon - 1) : 0);
   for (const gain of gains) {
     if (!active.some(stat => stat.name === gain.covenant)) continue;
-    score += layerValue(gain.covenant, gain.amount * horizon, stats, context);
-    reasons.push(`每次休整结束${gain.covenant}+${gain.amount}层${deployed ? '' : '（整备区生效）'}`);
+    score += layerValue(gain.covenant, gain.amount * triggers, stats, context);
+    if (startsAndEnds) reasons.push('本轮休整开始已过，不倒算买入前触发');
+    reasons.push(`每次休整${startsAndEnds ? '开始/结束' : '结束'}${gain.covenant}+${gain.amount}层${deployed ? '' : '（整备区生效）'}`);
   }
   const cap = +(withoutAcquire.match(/每(?:回合|场战斗)至多(?:叠加)?(\d+)层/)?.[1] ?? 0);
   if (cap && withoutAcquire.includes('<战斗中>')) {
@@ -91,7 +117,7 @@ export function recurringValue(slot: PlanOp, deployed: boolean, stats: readonly 
     }
   }
   // 已知层数才能评价“叠层转自身属性”；没有战斗模型，不输出DPS。
-  if (withoutAcquire.includes('每叠加') && /本干员|自身/.test(withoutAcquire)) {
+  if (withoutAcquire.includes('每叠加') && /本干员|自身/.test(restText)) {
     const knownLayers = [...new Set(tags(withoutAcquire))].filter(name => active.some(stat => stat.name === name)).reduce((sum, name) => sum + (context.layers[name] ?? 0), 0);
     if (knownLayers) { score += Math.min(50, knownLayers * .15); reasons.push('已有层数可转化自身属性，未估算实战伤害'); }
   }
@@ -121,6 +147,6 @@ export function strategyValue(ops: readonly PlanOp[], context: ValueContext): nu
 /** 有限启发式整队生产力；装备/精锐投入作为换人机会成本，不当作精确战力。 */
 export function teamValue(ops: readonly PlanOp[], reserve: readonly PlanOp[], context: ValueContext): number {
   const stats = covenantStats(ops, context.layers, reserve);
-  return ops.reduce((sum, slot) => sum + recurringValue(slot, true, stats, context).score + (slot.elite ? 35 : 0) + slot.eq.length * 12, 0)
-    + reserve.reduce((sum, slot) => sum + recurringValue(slot, false, stats, context).score, 0) + strategyValue(ops, context);
+  return ops.reduce((sum, slot) => sum + recurringValue(slot, true, stats, context, { field: ops, reserve }).score + (slot.elite ? 35 : 0) + slot.eq.length * 12, 0)
+    + reserve.reduce((sum, slot) => sum + recurringValue(slot, false, stats, context, { field: ops, reserve }).score, 0) + strategyValue(ops, context);
 }

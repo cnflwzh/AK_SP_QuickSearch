@@ -31,6 +31,8 @@ export interface AdvisorRun {
   equipment: OwnedEquipment[];
   shop: string[];
 }
+export interface AdviceBreakdown { lineup: number; production: number; acquisition: number; collection: number; fit: number; economy: number }
+export interface DeploymentAdvice { name: string; replace: string; score: number; reasons: string[]; losses: string[] }
 export interface RecruitAdvice {
   operator: Operator;
   kind: 'elite' | 'pair' | 'deploy' | 'replace' | 'reserve' | 'skip';
@@ -39,6 +41,9 @@ export interface RecruitAdvice {
   score: number;
   /** 仅当主要收益相同时，才比较策略和装备搭配。 */
   fitScore: number;
+  breakdown: AdviceBreakdown;
+  estimatedPrice: number | null;
+  affordable: boolean | null;
   reasons: string[];
   losses: string[];
   replace: string;
@@ -216,15 +221,18 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
     .filter(operator => available(operator.name));
   const ranked = candidates.map(operator => {
     const existing = owned.get(operator.name);
-    const advice: RecruitAdvice = { operator, kind: 'reserve', label: '备选', score: 0, fitScore: 0, reasons: [], losses: [], replace: '' };
-    if (existing?.elite) return { ...advice, kind: 'skip' as const, label: '暂不追', score: -1000, reasons: ['已有精锐，本工具不再追同名合成'] };
+    const advice: RecruitAdvice = { operator, kind: 'reserve', label: '备选', score: 0, fitScore: 0, breakdown: { lineup: 0, production: 0, acquisition: 0, collection: 0, fit: 0, economy: 0 }, estimatedPrice: null, affordable: null, reasons: [], losses: [], replace: '' };
+    if (existing?.elite) return { ...advice, kind: 'skip' as const, label: '暂不追', score: -1000, breakdown: { ...advice.breakdown, collection: -1000 }, reasons: ['已有精锐，本工具不再追同名合成'] };
     const promotes = !!existing && existing.copies + 1 >= eliteCopyCount(operator.name);
     let after = before;
     if (existing?.deployed) {
       const upgraded = lineup.map(slot => slot.name === operator.name ? { ...slot, elite: promotes } : slot);
       const evaluation = evaluate(upgraded), explanation = explainLineupChange(evaluation);
       after = evaluation.stats;
-      advice.score = evaluation.score + marginal(upgraded, reserve) + (promotes ? 75 : 20);
+      advice.breakdown.lineup = evaluation.score;
+      advice.breakdown.production = marginal(upgraded, reserve);
+      advice.breakdown.collection = promotes ? 75 : 20;
+      advice.score = evaluation.score + advice.breakdown.production + advice.breakdown.collection;
       advice.reasons = [promotes ? '再抓1张即可晋升精锐' : `凑成两张，距精锐还差${eliteCopyCount(operator.name) - existing.copies - 1}张`, ...explanation.reasons];
       advice.losses = explanation.losses;
       advice.kind = promotes ? 'elite' : 'pair';
@@ -232,7 +240,9 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
     } else if (existing) {
       // 这张卡已经可以免费上场。再次购买不能获得那份已有的盟约收益，
       // 整备区合成也不会立即改变场上精锐人数，只计算收集收益。
-      advice.score = (promotes ? 35 : 10) + marginal(lineup, reserve.map(slot => slot.name === operator.name ? { ...slot, elite: promotes } : slot));
+      advice.breakdown.collection = promotes ? 35 : 10;
+      advice.breakdown.production = marginal(lineup, reserve.map(slot => slot.name === operator.name ? { ...slot, elite: promotes } : slot));
+      advice.score = advice.breakdown.collection + advice.breakdown.production;
       advice.reasons = [promotes ? '整备区再抓1张即可晋升精锐' : '整备区凑成两张，可保留合成'];
       advice.label = promotes ? '合成备用' : '留对子';
       advice.kind = promotes ? 'elite' : 'pair';
@@ -241,7 +251,10 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
       if (lineup.length < MAX_OPS) {
         const evaluation = evaluate([...lineup, candidate]), explanation = explainLineupChange(evaluation);
         after = evaluation.stats;
-        advice.score = evaluation.score + marginal([...lineup, candidate], reserve) + 10;
+        advice.breakdown.lineup = evaluation.score;
+        advice.breakdown.production = marginal([...lineup, candidate], reserve);
+        advice.breakdown.collection = 10;
+        advice.score = evaluation.score + advice.breakdown.production + 10;
         advice.reasons = explanation.reasons;
         advice.losses = explanation.losses;
         advice.kind = 'deploy';
@@ -269,6 +282,8 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
         if (best && best.score > Math.max(0, benchScore) + .001) {
           const explanation = explainLineupChange(best.evaluation);
           after = best.evaluation.stats;
+          advice.breakdown.lineup = best.evaluation.score;
+          advice.breakdown.production = best.delta;
           advice.score = best.score;
           advice.reasons = explanation.reasons;
           advice.losses = explanation.losses;
@@ -277,7 +292,10 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
           advice.label = '可替换';
         } else {
           after = bench.stats;
-          advice.score = (bench.improves ? bench.score : -20) + marginal(lineup, purchasedReserve);
+          advice.breakdown.lineup = bench.improves ? bench.score : 0;
+          advice.breakdown.collection = bench.improves ? 0 : -20;
+          advice.breakdown.production = marginal(lineup, purchasedReserve);
+          advice.score = advice.breakdown.lineup + advice.breakdown.collection + advice.breakdown.production;
           advice.reasons = bench.improves ? ['放整备区即可计入经济盟约', ...explainLineupChange(bench).reasons] : ['上场已满，替换后暂无明确盟约收益'];
           advice.label = bench.improves ? '留整备区' : '暂缓抓取';
           advice.kind = 'reserve';
@@ -296,40 +314,86 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
       }
     }
     const acquisition = acquisitionValue(operator, promotes, before, context);
+    advice.breakdown.acquisition = acquisition.score;
     advice.score += acquisition.score;
     advice.reasons.push(...acquisition.reasons);
     const willDeploy = existing?.deployed || advice.kind === 'deploy' || advice.kind === 'replace';
-    const production = recurringValue({ name: operator.name, elite: promotes, eq: [], core: false, alt: [] }, !!willDeploy, after, context);
-    advice.reasons.push(...production.reasons);
+    const candidateSlot: PlanOp = { name: operator.name, elite: promotes, eq: existing ? planSlot(run, existing).eq : [], core: false, alt: [] };
+    const finalField = existing ? lineup.map(slot => slot.name === operator.name ? candidateSlot : slot)
+      : advice.kind === 'deploy' ? [...lineup, candidateSlot] : advice.kind === 'replace' ? lineup.map(slot => slot.name === advice.replace ? candidateSlot : slot) : lineup;
+    const finalReserve = existing ? reserve.map(slot => slot.name === operator.name ? candidateSlot : slot)
+      : advice.kind === 'reserve' ? [...reserve, candidateSlot] : advice.kind === 'replace' ? [...reserve, ...lineup.filter(slot => slot.name === advice.replace)] : reserve;
+    const production = recurringValue(candidateSlot, !!willDeploy, after, context, { field: finalField, reserve: finalReserve });
+    if (!existing || promotes) advice.reasons.push(...production.reasons);
+    else if (production.score > 0) advice.reasons.push('现有干员已提供持续收益，买入对子不会重复增加这份产出');
     if (advice.kind === 'reserve' && !existing && advice.score > 0 && (acquisition.score > 0 || production.score > 0)) {
       advice.label = acquisition.score > 0 ? '获得收益' : '整备区生产';
       advice.reasons = advice.reasons.filter(reason => reason !== '上场已满，替换后暂无明确盟约收益');
       advice.reasons.push('无需挤掉当前上场位，按获得或整备区特质评估');
     }
     if (promotes) advice.reasons.push('晋升按精锐获得时触发，不重复计算第三张基础特质；另有高一档免费招募，未假定奖励人选');
-    if (advice.replace) advice.losses.push('换下位的精锐、装备与持续生产投入已计入机会成本；未模拟站位和实战伤害');
-    const basePrice = operatorPrice(operator);
-    const foresight = run.layers['远见'];
-    const discount = operator.covenants.includes('远见') ? (foresight >= 80 ? 1 : 0) + (foresight >= 150 ? 1 : 0) : 0;
-    const price = Math.max(1, basePrice - discount);
-    if (discount) advice.reasons.push(`已录远见层数对应减价${discount}，估价${price}资金`);
-    if (run.funds !== null) {
-      if (operator.covenants.includes('远见') && foresight === undefined) advice.reasons.push(`基础价格${basePrice}；远见历史减价档位未知，请核对实际价格`);
-      else if (run.strategy === '休露丝' && operator.covenants.includes('谢拉格') && run.funds >= 1) advice.reasons.push(`基础价格${price}，本轮首购折扣状态未知，请核对实际价格`);
-      else if (run.funds < price) { advice.score = -500; advice.label = '资金不足'; advice.losses.push(`需要${price}资金，当前仅${run.funds}`); }
-      else if (run.strategy === '坎诺特' && run.funds >= 5 && run.funds - price < 5) {
-        advice.score -= 30; advice.losses.push('买入后不足5资金，可能失去坎诺特每回合额外1资金');
-      }
+    if (advice.replace) advice.reasons.push('换下位的精锐、装备与持续生产投入已计入机会成本；未模拟站位和实战伤害');
+    const price = recruitPriceRange(run, operator);
+    advice.estimatedPrice = price.min === price.max ? price.max : null;
+    advice.affordable = run.funds === null ? null : run.funds < price.min ? false : run.funds >= price.max ? true : null;
+    if (price.min !== price.max) advice.reasons.push(`价格待核：${price.min}—${price.max}资金，折扣/本轮首购状态未知`);
+    if (advice.affordable === false) {
+      advice.label = '资金不足';
+      advice.losses.push(`至少需要${price.min}资金，当前仅${run.funds}；仍可手动记录已获得的奖励牌`);
+    } else if (run.strategy === '坎诺特' && run.round !== 14 && run.funds !== null && run.funds >= 5 && run.funds - price.min < 5) {
+      advice.breakdown.economy = -30;
+      advice.score -= 30;
+      advice.losses.push('买入后不足5资金，可能失去下回合额外1资金');
     }
     const strategy = strategyAffinity(run, operator, before, after, promotes);
     const equipment = equipmentAffinity(run, operator);
     advice.fitScore = strategy.score + equipment.score;
+    advice.breakdown.fit = advice.fitScore;
     if (strategy.reason) advice.reasons.push(strategy.reason);
     if (equipment.reason) advice.reasons.push(equipment.reason);
     if (existing && !existing.deployed) advice.reasons.push('已有整备区干员，也可先直接上场，无需重复购买');
     if (!advice.reasons.length) advice.reasons.push(`先补上场人数 · ${operator.type}，可点头像查看特质`);
     return advice;
   });
-  return ranked.sort((a, b) => b.score - a.score || b.fitScore - a.fitScore || operatorPrice(a.operator) - operatorPrice(b.operator)
+  return ranked.sort((a, b) => Number(a.affordable === false) - Number(b.affordable === false) || b.score - a.score || b.fitScore - a.fitScore || operatorPrice(a.operator) - operatorPrice(b.operator)
     || operatorOrder.get(a.operator.name)! - operatorOrder.get(b.operator.name)!).slice(0, Math.max(0, limit));
+}
+
+
+/** 只采用当前数据可证明的价格区间，不把未知折扣当成免费。 */
+export function recruitPriceRange(run: AdvisorRun, operator: Operator): { min: number; max: number } {
+  const base = operatorPrice(operator);
+  let min = base, max = base;
+  if (operator.covenants.includes('远见')) {
+    const layers = run.layers['远见'];
+    if (layers === undefined) min = Math.max(1, base - 2);
+    else min = max = Math.max(1, base - Number(layers >= 80) - Number(layers >= 150));
+  }
+  if (run.strategy === '休露丝' && operator.covenants.includes('谢拉格')) min = Math.min(min, 1);
+  return { min, max };
+}
+
+/** 已持有整备区干员的免费调阵，独立于买牌，不触发获得/合成奖励。 */
+export function recommendDeployments(run: AdvisorRun, limit = 3): DeploymentAdvice[] {
+  const available = createRecruitmentPool(run);
+  if (run.operators.some(operator => !available(operator.name))) return [];
+  const lineup = deployedLineup(run), reserve = reserveLineup(run);
+  const context: ValueContext = { round: run.round, layers: run.layers, level: run.level, strategy: run.strategy };
+  const evaluate = createLineupEvaluator(lineup, run.layers, { goal: runLineupGoal(run), reserve, bannedCovenants: new Set(run.bannedCovenants) });
+  const oldValue = teamValue(lineup, reserve, context);
+  return reserve.flatMap(candidate => {
+    const choices = lineup.length < MAX_OPS ? [-1] : lineup.map((_, i) => i);
+    const options = choices.map(index => {
+      const next = [...lineup], bench = reserve.filter(slot => slot.name !== candidate.name);
+      const outgoing = index < 0 ? null : lineup[index];
+      if (outgoing) { next[index] = candidate; bench.push(outgoing); } else next.push(candidate);
+      const evaluation = evaluate(next, bench), explanation = explainLineupChange(evaluation);
+      const production = teamValue(next, bench, context) - oldValue;
+      const score = evaluation.score + production + (outgoing ? 0 : 10);
+      return { name: candidate.name, replace: outgoing?.name ?? '', score,
+        reasons: ['已持有，无需再次购买；不重复计算获得时奖励', ...explanation.reasons,
+          ...(production > 0 ? ['上场后的持续收益或现有精锐装备投入优于当前配置'] : [])], losses: explanation.losses };
+    }).filter(item => item.score > .001).sort((a, b) => b.score - a.score);
+    return options.slice(0, 1);
+  }).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'zh-CN')).slice(0, Math.max(0, limit));
 }

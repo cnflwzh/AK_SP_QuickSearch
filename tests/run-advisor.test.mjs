@@ -149,3 +149,88 @@ test('investor multiplies acquisition only from the existing active state', asyn
   assert.match(active.reasons.join(' '), /炎\+12层/);
   assert.match(inactive.reasons.join(' '), /炎\+4层/);
 });
+
+test('unknown discounts use price bounds: zero funds cannot buy a foresight card', () => {
+  for (const funds of [0, 1]) {
+    const run = runWith([], { funds, layers: {}, shop: ['逻各斯'] });
+    const advice = recommendRecruits(run)[0];
+    assert.equal(advice.affordable, false);
+    assert.equal(advice.label, '资金不足');
+  }
+  const uncertain = recommendRecruits(runWith([], { funds: 2, layers: {}, shop: ['逻各斯'] }))[0];
+  assert.equal(uncertain.affordable, null);
+  assert.equal(uncertain.estimatedPrice, null);
+  const covered = recommendRecruits(runWith([], { funds: 4, layers: {}, shop: ['逻各斯'] }))[0];
+  assert.equal(covered.affordable, true);
+});
+
+test('Cannnot protects next-round income but not after the final round', () => {
+  const setup = runWith([], { funds: 5, strategy: '坎诺特', shop: ['仇白'] });
+  const previous = recommendRecruits({ ...setup, round: 13 })[0];
+  const final = recommendRecruits({ ...setup, round: 14 })[0];
+  assert.equal(previous.breakdown.economy, -30);
+  assert.equal(final.breakdown.economy, 0);
+});
+
+test('guaranteed equipment acquisition preserves quantity and exact name, not random rewards', async () => {
+  const { acquisitionValue } = await import('../src/lib/advisorValue.ts');
+  const context = { round: 4, level: 4, strategy: '', layers: {} };
+  for (const name of ['承曦格雷伊', '缪尔赛思', '乌有']) {
+    const base = acquisitionValue(OPERATOR[name], false, [], context);
+    const elite = acquisitionValue(OPERATOR[name], true, [], context);
+    assert.equal(elite.score, base.score * 2, name);
+  }
+  const cathy = acquisitionValue(OPERATOR['凯瑟琳'], true, [], context);
+  assert.match(cathy.reasons.join(' '), /1件特殊维式重锤/);
+  assert.doesNotMatch(cathy.reasons.join(' '), /终极维式重锤/);
+});
+
+test('already owned reserve deployment is independent from acquisition and budget', async () => {
+  const { recommendDeployments } = await import('../src/lib/runAdvisor.ts');
+  const run = runWith(['拜松', '风絮'], { funds: 0 });
+  run.operators.push(owned('矩', false));
+  const old = structuredClone(run);
+  const advice = recommendDeployments(run).find(item => item.name === '矩');
+  assert.ok(advice && advice.score > 0);
+  assert.equal(advice.replace, '');
+  assert.ok(advice.reasons.some(reason => reason.includes('无需再次购买')));
+  assert.deepEqual(run, old);
+});
+
+test('deterministic production uses roster conditions and rest-start is not retroactive', async () => {
+  const { recurringValue } = await import('../src/lib/advisorValue.ts');
+  const context = { round: 14, level: 4, strategy: '', layers: { 远见: 20 } };
+  const stats = [{ name: '远见', active: true }];
+  const s = recurringValue(newSlot('寒檀'), true, stats, context);
+  assert.equal(s.score, 6); // only this rest-end: 3 layers, not already-passed rest-start
+  const jessica = newSlot('涤火杰西卡');
+  const stats2 = [{ name: '维多利亚', active: true }];
+  const ctx = { ...context, layers: {} };
+  assert.equal(recurringValue(jessica, true, stats2, ctx, { field: [jessica], reserve: [] }).score, 0);
+  assert.equal(recurringValue(jessica, true, stats2, ctx, { field: [{ ...jessica, eq: ['维式重锤', '坚守盾牌'] }], reserve: [] }).score, 4);
+});
+
+test('score explanation sums to total while affordability is a separate gate', () => {
+  const run = runWith(['拜松', '风絮', '矩'], { level: 6, funds: 0, shop: ['逻各斯', '仇白', '矩'] });
+  for (const item of recommendRecruits(run, 8)) {
+    const { lineup, production, acquisition, collection, economy } = item.breakdown;
+    assert.ok(Math.abs(item.score - lineup - production - acquisition - collection - economy) < 1e-8);
+  }
+});
+
+test('full-roster suggestions remain finite, deterministic and do not mutate inputs', async () => {
+  const { recommendDeployments } = await import('../src/lib/runAdvisor.ts');
+  const run = runWith(['拜松', '矩', '风絮', '山', '仇白', '夜莺', '焰尾', '寒檀'], { round: 9, funds: 2, layers: { 炎: 70, 远见: 80 } });
+  run.operators.push(owned('逻各斯', false), { ...owned('涤火杰西卡', false), elite: true });
+  run.equipment = [{ id: 'one', name: '维式重锤', holder: '涤火杰西卡', advanced: false }];
+  const old = structuredClone(run);
+  const first = recommendRecruits(run, OPERATORS.length);
+  assert.deepEqual(first, recommendRecruits(run, OPERATORS.length));
+  for (const advice of first) assert.ok(Number.isFinite(advice.score));
+  for (const advice of recommendDeployments(run)) {
+    assert.ok(Number.isFinite(advice.score));
+    assert.ok(run.operators.some(op => !op.deployed && op.name === advice.name));
+    assert.ok(run.operators.some(op => op.deployed && op.name === advice.replace));
+  }
+  assert.deepEqual(run, old);
+});
