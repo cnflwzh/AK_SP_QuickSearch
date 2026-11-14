@@ -1,5 +1,6 @@
 /** 可解释的特质估值，不把条件上限、随机奖励或文本类型当成实际伤害。 */
 import { EQUIPMENT, OPERATOR, type Operator } from '../../data/index.ts';
+import { LAYER_BREAKPOINTS } from '../../data/numberTools.ts';
 import { covenantStats, covenantsOf, type CovenantStat, type Layers, type PlanOp, usesLayers } from './planner.ts';
 
 export interface ValueContext { round: number | null; layers: Layers; level: number; strategy: string; inactiveCovenants?: ReadonlySet<string> }
@@ -17,14 +18,18 @@ function fixedLayers(text: string): { covenant: string; amount: number }[] {
   return [...text.matchAll(/((?:【[^】]+】)+)层数\+(\d+)/g)]
     .flatMap(match => tags(match[1]).map(covenant => ({ covenant, amount: +match[2] })));
 }
+/** 复用层数工具的完整规则表，避免从展示文案只读到远见的第一档。 */
+function crossedLayerMilestones(covenant: string, amount: number, stats: readonly CovenantStat[], context: ValueContext): number[] {
+  if (!stats.some(stat => stat.name === covenant && stat.active) || !Object.hasOwn(context.layers, covenant)) return [];
+  const current = context.layers[covenant];
+  return (LAYER_BREAKPOINTS[covenant] ?? []).filter(item => current < item.layers && current + amount >= item.layers)
+    .map(item => item.layers);
+}
 function layerValue(covenant: string, amount: number, stats: readonly CovenantStat[], context: ValueContext, includeMilestone = true): number {
   const stat = stats.find(stat => stat.name === covenant);
   if (!stat?.active) return .25 * amount; // 未激活的永久层只留少量未来价值，不视为当下战力。
-  let value = Math.min(amount, 24) * 2;
-  const milestone = stat.bonusLayers;
-  if (includeMilestone && milestone && Object.hasOwn(context.layers, covenant)
-    && context.layers[covenant] < milestone && context.layers[covenant] + amount >= milestone) value += 24;
-  return value;
+  const milestones = includeMilestone ? crossedLayerMilestones(covenant, amount, stats, context).length : 0;
+  return Math.min(amount, 24) * 2 + milestones * 24;
 }
 
 /** 获得时用初始或精锐特质二选一，合成不再叠加第三张初始特质。 */
@@ -46,8 +51,7 @@ export function acquisitionValue(operator: Operator, elite: boolean, stats: read
     }
     score += layerValue(covenant, amount, stats, context);
     reasons.push(`获得时${covenant}+${amount}层${scaling ? '起（成长次数未录入，按最低档）' : ''}${stats.find(s => s.name === covenant)?.active ? '' : '（尚未激活）'}`);
-    const threshold = stats.find(s => s.name === covenant)?.bonusLayers;
-    if (threshold && Object.hasOwn(context.layers, covenant) && context.layers[covenant] < threshold && context.layers[covenant] + amount >= threshold)
+    for (const threshold of crossedLayerMilestones(covenant, amount, stats, context))
       reasons.push(`按已录层数可跨过${covenant}${threshold}层强化门槛`);
   }
   if (/获得(?:一|1|两|2)次免费刷新/.test(text)) {
@@ -203,9 +207,8 @@ export function teamValue(ops: readonly PlanOp[], reserve: readonly PlanOp[], co
   for (const value of values) for (const gain of value.endOfRestGains ?? []) {
     totals.set(gain.covenant, (totals.get(gain.covenant) ?? 0) + gain.amount);
   }
-  const milestoneValue = stats.filter(stat => stat.active && stat.bonusLayers > 0
-    && Object.hasOwn(context.layers, stat.name) && context.layers[stat.name] < stat.bonusLayers
-    && context.layers[stat.name] + (totals.get(stat.name) ?? 0) >= stat.bonusLayers).length * 24;
+  const milestoneValue = [...totals].reduce((value, [covenant, amount]) =>
+    value + crossedLayerMilestones(covenant, amount, stats, context).length * 24, 0);
   return values.reduce((sum, value) => sum + value.score, 0) + milestoneValue
     + ops.reduce((sum, slot) => sum + (slot.elite ? 35 : 0) + slot.eq.length * 12, 0)
     + strategyValue(ops, context, reserve);

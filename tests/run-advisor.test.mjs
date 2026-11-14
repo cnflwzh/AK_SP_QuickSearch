@@ -475,6 +475,16 @@ test('deterministic rest producers cross a shared threshold jointly and award it
   assert.equal(joint - base, 24); // 各自不足，合计跨过80
   assert.equal(overlaps - base, 24); // 两个来源都足够时仍只加一次
   assert.equal(teamValue(field, [], { ...context, layers: { 远见: 80 } }), base);
+  assert.equal(teamValue(field, [], { ...context, layers: { 远见: 146 } }) - base, 24);
+  assert.equal(teamValue(field, [], { ...context, layers: { 远见: 148 } }) - base, 24);
+  assert.equal(teamValue(field, [], { ...context, layers: { 远见: 150 } }), base);
+  const { acquisitionValue } = await import('../src/lib/advisorValue.ts');
+  const stats = covenantStats(field, { 远见: 146 });
+  const acquisition = acquisitionValue(OPERATOR['逻各斯'], false, stats, { ...context, layers: { 远见: 146 } });
+  const withoutCrossing = acquisitionValue(OPERATOR['逻各斯'], false, stats, { ...context, layers: { 远见: 150 } });
+  assert.equal(acquisition.score - withoutCrossing.score, 24);
+  assert.match(acquisition.reasons.join(' '), /远见150层强化门槛/);
+
 });
 
 test('reserve promotion values the new deployment option without charging for an already free one', async () => {
