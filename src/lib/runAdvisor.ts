@@ -426,7 +426,7 @@ export function recruitPriceRange(run: AdvisorRun, operator: Operator): { min: n
   if (run.candidateSource === 'promotion') return { min: 0, max: 0 };
   const base = operatorPrice(operator);
   let min = base, max = base;
-  if (operator.covenants.includes('远见')) {
+  if (operator.covenants.includes('远见') && !effectiveBans(run).has('远见')) {
     const layers = run.layers['远见'];
     if (layers === undefined) min = Math.max(1, base - 2);
     else min = max = Math.max(1, base - Number(layers >= 80) - Number(layers >= 150));

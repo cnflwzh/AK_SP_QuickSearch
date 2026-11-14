@@ -463,6 +463,14 @@ test('missing addon layers receive no acquisition value while retained addons st
   const advice = recommendRecruits(run)[0];
   assert.equal(advice.operator.name, '逻各斯');
   assert.equal(advice.breakdown.acquisition, 1.25); // 未激活远见仅保留未来价值
+  for (const layers of [{ 远见: 150 }, {}]) {
+    const missingForesight = recommendRecruits(runWith([], {
+      bannedCovenants: ['远见'], layers, funds: 2, shop: ['逻各斯'],
+    }))[0];
+    assert.equal(missingForesight.estimatedPrice, 4); // 奥术仍可留池，缺席远见不提供已知或假定折扣
+    assert.equal(missingForesight.affordable, false);
+  }
+
 });
 
 test('deterministic rest producers cross a shared threshold jointly and award it only once', async () => {
