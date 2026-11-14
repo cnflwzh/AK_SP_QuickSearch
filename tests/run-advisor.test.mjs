@@ -506,3 +506,17 @@ test('Sussurro selects a roster-aware one-trigger target rather than multiplying
   assert.equal(opportunity.score, restCommandOpportunity(field, [], { ...context, round: 14 }).score);
   assert.equal(restCommandOpportunity(field, [], { ...context, strategy: '' }).score, 0);
 });
+
+test('free deployment considers replacing a solo member even when field slots are empty', async () => {
+  const { recommendDeployments } = await import('../src/lib/runAdvisor.ts');
+  const run = runWith(['艾丝黛尔'], { mainCovenant: 'mixed', operators: [
+    owned('艾丝黛尔'), { ...owned('地灵', false), elite: true },
+  ] });
+  const advice = recommendDeployments(run).find(item => item.name === '地灵');
+  assert.equal(advice?.replace, '艾丝黛尔');
+  const replacement = covenantStats([{ ...newSlot('地灵'), elite: true }]);
+  assert.ok(replacement.find(stat => stat.name === '独行').active);
+  // 没有晋升或其他收益时，不为保持同一盟约而推荐无意义换人。
+  run.operators[1].elite = false;
+  assert.equal(recommendDeployments(run).length, 0);
+});

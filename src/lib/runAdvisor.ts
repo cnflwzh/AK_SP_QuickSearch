@@ -442,7 +442,9 @@ export function recommendDeployments(run: AdvisorRun, limit = 3): DeploymentAdvi
   const evaluate = createLineupEvaluator(lineup, run.layers, { goal: runLineupGoal(run), reserve, bannedCovenants: effectiveBans(run) });
   const oldValue = teamValue(lineup, reserve, context);
   return reserve.flatMap(candidate => {
-    const choices = lineup.length < MAX_OPS ? [-1] : lineup.map((_, i) => i);
+    // 有空位也可能需要换人（如独行只能保留一人），不能只搜索补位。
+    // 补位先列出，收益相同时保留现有成员，避免无意义挪动。
+    const choices = [...(lineup.length < MAX_OPS ? [-1] : []), ...lineup.map((_, index) => index)];
     const options = choices.map(index => {
       const next = [...lineup], bench = reserve.filter(slot => slot.name !== candidate.name);
       const outgoing = index < 0 ? null : lineup[index];
