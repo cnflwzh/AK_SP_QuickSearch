@@ -1,4 +1,4 @@
-/** 当前客户端静态规则；不是服务端发牌概率模型。来源详情见 docs/advisor-rule-audit.md。 */
+/** 当前客户端静态规则；不是服务端发牌概率模型。来源固定于下方公开客户端数据地址。 */
 export const ADVISOR_RULE_VERSION = 'act3autochess.V3_1 / CN 2.7.91';
 export const ADVISOR_RULE_SOURCE = 'https://github.com/Kengxxiao/ArknightsGameData/blob/6f63c14e27b847ef74b53b00fe51fc322b3cd7ff/zh_CN/gamedata/excel/activity_table.json';
 export const ADVISOR_MODES = [

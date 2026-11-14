@@ -341,7 +341,17 @@ export interface BanResult {
   /** 原本激活、换人后失效的盟约；被 ban 的盟约不计。 */
   lost: string[];
 }
-export const isBanned = (name: string, bans: ReadonlySet<string>): boolean => !!OPERATOR[name]?.covenants.some(c => bans.has(c));
+/** 当前赛季入门指南：核心缺席整组禁用；附加则仅所有原生附加均缺席时禁用。
+ * 来源：ArknightsGameData 6f63c14 / story/activities/autochess/guide/mode_training_2/
+ * guide_auto_chess_mode_training_2_stage_info.txt；装备赋予的盟约不改变招募资格。
+ */
+export const isBanned = (name: string, bans: ReadonlySet<string>): boolean => {
+  const covenants = OPERATOR[name]?.covenants;
+  if (!covenants) return false;
+  if (covenants.some(c => isCoreCovenant(c) && bans.has(c))) return true;
+  const addons = covenants.filter(c => !isCoreCovenant(c));
+  return addons.length > 0 && addons.every(c => bans.has(c));
+};
 
 type ReplacementCandidate = { name: string; bit: bigint; covenants: number[]; affinity: number };
 type ReplacementSearch = { choices: string[]; counts: Uint8Array; used: bigint; affinity: number; score: number };
@@ -356,7 +366,7 @@ const REPLACEMENT_BEAM = 24;
 export function banReplace(ops: readonly PlanOp[], bans: readonly string[], forced: Readonly<Record<string, string>> = {}, layers: Layers = {}): BanResult {
   const banned = new Set(bans);
   const removed = ops.filter(slot => isBanned(slot.name, banned));
-  if (!removed.length) return { removed: [], picks: [], lost: [], ops: ops.map(slot => ({ ...slot, eq: [...slot.eq], alt: [...slot.alt] })) };
+  if (!removed.length) return { removed: [], picks: [], lost: [], ops: ops.map(slot => ({ ...slot, eq: [...slot.eq], alt: slot.alt.filter(name => !isBanned(name, banned)) })) };
   const kept = ops.filter(slot => !isBanned(slot.name, banned));
   const evaluate = createCountScorer(ops, layers, banned);
   const taken = new Set(kept.map(slot => slot.name));

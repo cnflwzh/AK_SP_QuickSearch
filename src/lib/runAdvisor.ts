@@ -129,7 +129,7 @@ function validNames(value: unknown, valid: (name: string) => boolean): string[] 
   return Array.isArray(value) ? [...new Set(value.filter((name): name is string => typeof name === 'string' && valid(name)))] : [];
 }
 
-/** 招募池过滤规则；盟约缺席会排除所有带该原生盟约的干员，装备不改变招募资格。 */
+/** 招募池过滤规则；核心缺席整组排除，附加仅全部原生附加缺席时排除，装备不改变招募资格。 */
 export function createRecruitmentPool(run: Pick<AdvisorRun, 'bannedCovenants' | 'excludedOperators'> & Partial<Pick<AdvisorRun, 'mode'>>): (name: string) => boolean {
   const bans = effectiveBans(run), excluded = new Set(run.excludedOperators);
   return name => operatorsByName.has(name) && !excluded.has(name) && !isBanned(name, bans);
@@ -185,7 +185,7 @@ function explainLineupChange(evaluation: LineupEvaluation): { reasons: string[];
 function strategyAffinity(run: AdvisorRun, operator: Operator, before: readonly CovenantStat[], after: readonly CovenantStat[], elite: boolean): { score: number; reason: string } {
   const strategy = strategiesByName.get(run.strategy);
   if (!strategy) return { score: 0, reason: '' };
-  if (ALL_COVENANTS.includes(strategy.category) && operator.covenants.includes(strategy.category)) {
+  if (ALL_COVENANTS.includes(strategy.category) && !effectiveBans(run).has(strategy.category) && operator.covenants.includes(strategy.category)) {
     return { score: 8, reason: `符合${strategy.name}的${strategy.category}方向` };
   }
   if (elite && strategy.category === '精锐') {
