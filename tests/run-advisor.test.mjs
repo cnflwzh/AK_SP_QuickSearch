@@ -588,6 +588,13 @@ test('Suzuran accounts for active reserve investors and respects their disabled 
   assert.equal(strategyValue(field, { ...context, layers: { 投资人: 100 } }, reserve), base * 3);
   assert.equal(strategyValue(field, { ...context, inactiveCovenants: new Set(['投资人']) }, reserve), base);
   assert.equal(strategyValue(field, { ...context, commandAvailable: false }, reserve), 0);
+  const { acquisitionCommandOpportunity } = await import('../src/lib/advisorValue.ts');
+  const opportunity = acquisitionCommandOpportunity(field, reserve, context);
+  assert.equal(opportunity.target, '承曦格雷伊');
+  assert.match(opportunity.reasons.join(' '), /若本次铃兰指令可用/);
+  assert.match(opportunity.reasons.join(' '), /额外触发一次获得时特质/);
+  assert.deepEqual(acquisitionCommandOpportunity(field, reserve, { ...context, commandAvailable: false }).reasons, []);
+
 });
 
 test('Support covenant production contributes to shared thresholds and requires field members', async () => {

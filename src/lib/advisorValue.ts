@@ -196,6 +196,20 @@ export function restCommandOpportunity(ops: readonly PlanOp[], reserve: readonly
   return candidates.sort((a, b) => b.score - a.score)[0] ?? { score: 0, reasons: [] };
 }
 
+/** 铃兰只估一次额外获得特质；与普通购入奖励独立，未自动消耗指令。 */
+export function acquisitionCommandOpportunity(ops: readonly PlanOp[], reserve: readonly PlanOp[], context: ValueContext): TraitValue & { target?: string } {
+  if (context.strategy !== '铃兰' || context.commandAvailable === false) return { score: 0, reasons: [] };
+  // 投资人整备区也计人数，指令触发沿用完整阵容当前激活状态。
+  const stats = covenantStats(ops, context.layers, reserve, context.inactiveCovenants);
+  const candidates = ops.map(slot => {
+    const score = acquisitionValue(OPERATOR[slot.name], slot.elite, stats, context).score * .6;
+    return { target: slot.name, score, reasons: score > 0
+      ? [`${context.commandAvailable === true ? '已记录本次铃兰指令可用' : '若本次铃兰指令可用'}，可选${slot.name}额外触发一次获得时特质；这是指令机会收益，不是再次购买${context.commandAvailable === true ? '；未自动消耗指令' : '；未假定指令尚未使用'}`]
+      : [] };
+  });
+  return candidates.sort((a, b) => b.score - a.score)[0] ?? { score: 0, reasons: [] };
+}
+
 /** 按整队状态计算策略档位，换下干员同样会失去收益。整备区经济盟约不能给阿米娅凑场上档位。 */
 export function strategyValue(ops: readonly PlanOp[], context: ValueContext, reserve: readonly PlanOp[] = []): number {
   const stats = covenantStats(ops, context.layers, [], context.inactiveCovenants), elites = ops.filter(slot => slot.elite).length;
@@ -205,13 +219,7 @@ export function strategyValue(ops: readonly PlanOp[], context: ValueContext, res
   if (context.strategy === '陈') return elites * 12;
   if (context.strategy === '华法琳') return new Set(ops.filter(slot => covenantsOf(slot).own.some(name => stats.some(stat => stat.name === name && stat.active))).map(slot => OPERATOR[slot.name]?.tier)).size * 7;
   if (context.strategy === '苏苏洛') return restCommandOpportunity(ops, reserve, context).score;
-  if (context.strategy === '铃兰') {
-    // 投资人整备区也计人数；指令触发获得特质时沿用已激活的完整阵容状态。
-    // 不能复用上面的场上统计，否则会漏掉整备区提供的重复触发。
-    if (context.commandAvailable === false) return 0;
-    const acquisitionStats = covenantStats(ops, context.layers, reserve, context.inactiveCovenants);
-    return Math.max(0, ...ops.map(slot => acquisitionValue(OPERATOR[slot.name], slot.elite, acquisitionStats, context).score * .6));
-  }
+  if (context.strategy === '铃兰') return acquisitionCommandOpportunity(ops, reserve, context).score;
   return 0;
 }
 
