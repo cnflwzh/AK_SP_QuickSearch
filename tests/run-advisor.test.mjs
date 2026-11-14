@@ -519,4 +519,19 @@ test('free deployment considers replacing a solo member even when field slots ar
   // 没有晋升或其他收益时，不为保持同一盟约而推荐无意义换人。
   run.operators[1].elite = false;
   assert.equal(recommendDeployments(run).length, 0);
+
+  const { useRunAdvisor } = await import('../src/quickref/advisor/useRunAdvisor.ts');
+  const advisor = useRunAdvisor();
+  advisor.reset();
+  advisor.setMainCovenant('mixed');
+  advisor.recruit('艾丝黛尔');
+  advisor.recruit('地灵', 'reserve');
+  advisor.setElite('地灵', true);
+  assert.equal(advisor.setDeployment(advice.name, true, advice.replace), true);
+  assert.deepEqual(advisor.run.value.operators.filter(op => op.deployed).map(op => op.name), ['地灵']);
+  assert.ok(advisor.covenants.value.find(stat => stat.name === '独行').active);
+  advisor.undo();
+  assert.deepEqual(advisor.run.value.operators.filter(op => op.deployed).map(op => op.name), ['艾丝黛尔']);
+  assert.equal(advisor.setDeployment('地灵', true, '不存在的干员'), false);
+  assert.deepEqual(advisor.run.value.operators.filter(op => op.deployed).map(op => op.name), ['艾丝黛尔']);
 });

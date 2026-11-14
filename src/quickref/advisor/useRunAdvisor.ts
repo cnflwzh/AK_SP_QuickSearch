@@ -120,15 +120,15 @@ export function useRunAdvisor() {
     if (!run.value.operators.some(operator => operator.name === name)) return;
     change(message, draft => { edit(draft.operators.find(operator => operator.name === name)!); });
   }
-  /** 切换上场状态；满员时必须显式传入替换对象，原对象与其装备一起移入整备区。 */
+  /** 切换上场状态；显式替换不受空位影响，满员时必须选择换下对象，装备随原持有者保留。 */
   function setDeployment(name: string, active: boolean, replace = ''): boolean {
     return change(`${name}${active ? '已上场' : '已移入整备区'}`, draft => {
       const operator = draft.operators.find(item => item.name === name);
       if (!operator) return '未找到这名干员';
       const onField = draft.operators.filter(item => item.deployed);
-      if (active && !operator.deployed && onField.length >= MAX_OPS) {
+      if (active && !operator.deployed && (replace || onField.length >= MAX_OPS)) {
         const outgoing = onField.find(item => item.name === replace);
-        if (!outgoing) return '场上已有8名，请先选择要换下的干员';
+        if (!outgoing) return replace ? '要换下的干员已不在场上，请重新选择' : '场上已有8名，请先选择要换下的干员';
         outgoing.deployed = false;
       }
       operator.deployed = active;
