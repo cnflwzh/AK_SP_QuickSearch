@@ -628,3 +628,31 @@ test('buy advice sees a core-completing solo swap before the field is full', asy
   assert.ok(advisor.covenants.value.find(stat => stat.name === '独行').active);
   assert.ok(advisor.covenants.value.find(stat => stat.name === '莱塔尼亚').active);
 });
+
+test('recorded front targets add only confirmed distinct layers and are cleared atomically when moved', async () => {
+  const { recurringValue } = await import('../src/lib/advisorValue.ts');
+  const field = ['渡桥', '寒檀', '拜松', '矩', '风絮'].map(newSlot);
+  const context = { round: 14, level: 6, strategy: '', layers: {} };
+  const stats = covenantStats(field);
+  const unknown = recurringValue(field[0], true, stats, context, { field, reserve: [] });
+  const known = recurringValue(field[0], true, stats, { ...context, frontTargets: { 渡桥: '矩' } }, { field, reserve: [] });
+  assert.equal(known.score - unknown.score, 4); // 额外确定炎+2；不虚构其他站位
+  assert.match(known.reasons.join(' '), /身前矩/);
+  const shared = recurringValue(field[0], true, stats, { ...context, frontTargets: { 渡桥: '寒檀' } }, { field, reserve: [] });
+  assert.equal(shared.score, unknown.score);
+  assert.match(shared.reasons.join(' '), /共享.*下界/);
+  const { useRunAdvisor } = await import('../src/quickref/advisor/useRunAdvisor.ts');
+  const advisor = useRunAdvisor();
+  advisor.reset();
+  for (const name of field.map(slot => slot.name)) advisor.recruit(name);
+  assert.equal(advisor.setFrontTarget('渡桥', '矩'), true);
+  advisor.setDeployment('矩', false);
+  assert.deepEqual({ ...advisor.run.value.frontTargets }, {});
+  advisor.undo();
+  assert.equal(advisor.run.value.frontTargets['渡桥'], '矩');
+  assert.equal(advisor.setFrontTarget('渡桥', '渡桥'), false);
+  assert.equal(advisor.run.value.frontTargets['渡桥'], '矩');
+  const restored = sanitizeAdvisorRun({ ...advisor.run.value, frontTargets: { 渡桥: '矩', 寒檀: '矩', 帕拉斯: '矩' } });
+  assert.deepEqual(restored.frontTargets, { 渡桥: '矩' });
+  assert.deepEqual(sanitizeAdvisorRun({}).frontTargets, {});
+});

@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { EQUIP, OPERATOR, TIER_LABELS } from '../../../data/index.ts';
 import { avatarSrc, equipIconSrc } from '../../lib/assets.ts';
+import { supportsFrontTarget } from '../../lib/advisorPosition.ts';
 import { eliteCopyCount } from '../../lib/runAdvisor.ts';
 import { MAX_OPS } from '../../lib/planner.ts';
 import { peekFx } from '../format.ts';
@@ -13,6 +14,7 @@ const emit = defineEmits<{ addEquipment: [holder: string]; details: [kind: 'op' 
 const advisor = useRunAdvisor();
 const { run, deployed, notice } = advisor;
 const operator = computed(() => props.selection.kind === 'operator' ? run.value.operators.find(item => item.name === props.selection.id) : undefined);
+const frontChoices = computed(() => deployed.value.filter(item => item.name !== operator.value?.name));
 const equipment = computed(() => props.selection.kind === 'equipment' ? run.value.equipment.find(item => item.id === props.selection.id) : undefined);
 const held = computed(() => run.value.equipment.filter(item => item.holder === operator.value?.name));
 const warehouse = computed(() => run.value.equipment.filter(item => !item.holder));
@@ -90,6 +92,14 @@ function remove(): void {
           </select>
         </label>
       </div>
+      <label v-if="operator.deployed && supportsFrontTarget(operator.name)" class="ra-holder-select">身前一格（选填）
+        <select :value="run.frontTargets[operator.name] ?? '__unknown__'"
+          @change="advisor.setFrontTarget(operator.name, selectValue($event) === '__unknown__' ? null : selectValue($event))">
+          <option value="__unknown__">未知，只计自身</option>
+          <option value="">确认无人</option>
+          <option v-for="target in frontChoices" :key="target.name" :value="target.name">{{ target.name }}</option>
+        </select>
+      </label>
       <section class="ra-inspector-section ra-operator-trait">
         <div class="ra-section-heading">
           <h4>{{ operator.elite ? '精锐特质' : '初始特质' }}</h4>

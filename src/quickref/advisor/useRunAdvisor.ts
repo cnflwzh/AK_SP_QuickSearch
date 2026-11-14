@@ -1,3 +1,4 @@
+import { clearMovedFrontTargets, supportsFrontTarget } from '../../lib/advisorPosition.ts';
 import { ADVISOR_MODES, promotionRewardTier, type AdvisorMode, type CandidateSource } from '../../lib/advisorRules.ts';
 import { computed, readonly, ref } from 'vue';
 import { ALL_COVENANTS, EQUIPMENT, STRATEGIES, isCoreCovenant } from '../../../data/index.ts';
@@ -44,7 +45,7 @@ const reserve = computed(() => run.value.operators.filter(operator => !operator.
 
 function clone(value: AdvisorRun): AdvisorRun {
   return { ...value, operators: value.operators.map(operator => ({ ...operator })), equipment: value.equipment.map(item => ({ ...item })),
-    layers: { ...value.layers }, shop: [...value.shop], bannedCovenants: [...value.bannedCovenants], excludedOperators: [...value.excludedOperators] };
+    layers: { ...value.layers }, frontTargets: { ...value.frontTargets }, shop: [...value.shop], bannedCovenants: [...value.bannedCovenants], excludedOperators: [...value.excludedOperators] };
 }
 function save(): void {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(run.value)); saveFailed.value = false; }
@@ -126,18 +127,33 @@ export function useRunAdvisor() {
       const operator = draft.operators.find(item => item.name === name);
       if (!operator) return '未找到这名干员';
       const onField = draft.operators.filter(item => item.deployed);
+      const moved = new Set<string>();
+      if (operator.deployed !== active) moved.add(name);
       if (active && !operator.deployed && (replace || onField.length >= MAX_OPS)) {
         const outgoing = onField.find(item => item.name === replace);
         if (!outgoing) return replace ? '要换下的干员已不在场上，请重新选择' : '场上已有8名，请先选择要换下的干员';
         outgoing.deployed = false;
+        moved.add(outgoing.name);
       }
       operator.deployed = active;
+      draft.frontTargets = clearMovedFrontTargets(draft.frontTargets, moved);
+    });
+  }
+  /** 只记录当前场上已确认的身前目标；null 清除为未知，空字符串确认无人。 */
+  function setFrontTarget(name: string, target: string | null): boolean {
+    return change('已更新身前一格记录', draft => {
+      const field = new Set(draft.operators.filter(item => item.deployed).map(item => item.name));
+      if (!field.has(name) || !supportsFrontTarget(name)) return '请为场上的对应休整产层干员记录身前目标';
+      if (target !== null && target !== '' && (target === name || !field.has(target))) return '请选择其他已上场干员，或确认身前无人';
+      if (target === null) delete draft.frontTargets[name];
+      else draft.frontTargets[name] = target;
     });
   }
   /** 删除持有记录，装备归还仓库，避免误删随身装备。 */
   function removeOperator(name: string): void {
     change(`已移除${name}，携带装备退回仓库`, draft => {
       draft.operators = draft.operators.filter(operator => operator.name !== name);
+      draft.frontTargets = clearMovedFrontTargets(draft.frontTargets, new Set([name]));
       draft.equipment.forEach(item => { if (item.holder === name) item.holder = ''; });
     });
   }
@@ -268,7 +284,7 @@ export function useRunAdvisor() {
   return {
     run: readonly(run), deployed, reserve, covenants, recommendations, deploymentRecommendations, goal, unavailableNames, poolConflicts,
     notice: readonly(notice), saveFailed: readonly(saveFailed), canUndo: computed(() => undoSnapshot.value !== null),
-    recruit, recruitCandidate, candidateError, setDeployment, removeOperator, setCopies, setElite, setMode, setCandidateSource, setLevel, setRound, setFunds, setLayer, setStrategy, setCommandAvailable,
+    recruit, recruitCandidate, candidateError, setDeployment, setFrontTarget, removeOperator, setCopies, setElite, setMode, setCandidateSource, setLevel, setRound, setFunds, setLayer, setStrategy, setCommandAvailable,
     setMainCovenant, setMainTarget, toggleBannedCovenant, toggleExcludedOperator,
     addEquipment, assignEquipment, setEquipmentAdvanced, removeEquipment,
     addShopCandidate, removeShopCandidate, clearShop, reset, undo,

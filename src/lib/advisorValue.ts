@@ -1,9 +1,10 @@
 /** 可解释的特质估值，不把条件上限、随机奖励或文本类型当成实际伤害。 */
 import { EQUIPMENT, OPERATOR, type Operator } from '../../data/index.ts';
+import { FRONT_LAYER_PATTERN, type FrontTargets } from './advisorPosition.ts';
 import { LAYER_BREAKPOINTS } from '../../data/numberTools.ts';
 import { covenantStats, covenantsOf, type CovenantStat, type Layers, type PlanOp, usesLayers } from './planner.ts';
 
-export interface ValueContext { round: number | null; layers: Layers; level: number; strategy: string; commandAvailable?: boolean | null; inactiveCovenants?: ReadonlySet<string> }
+export interface ValueContext { round: number | null; layers: Layers; level: number; strategy: string; commandAvailable?: boolean | null; frontTargets?: Readonly<FrontTargets>; inactiveCovenants?: ReadonlySet<string> }
 export interface ValueRoster { field: readonly PlanOp[]; reserve: readonly PlanOp[] }
 export interface TraitValue {
   score: number;
@@ -112,13 +113,24 @@ export function recurringValue(slot: PlanOp, deployed: boolean, stats: readonly 
     if (selected && known.length === active.length) gains = [{ covenant: selected.name, amount: +(withoutAcquire.match(/层数\+(\d+)/)?.[1] ?? 0) }];
     else { score += 5 * horizon; reasons.push('可为最高层激活盟约叠层；层数未完整录入，不假定目标'); }
   }
-  // 身前目标尚未录入，但自身部分是确定收益，不能整条特质漏算。
-  const selfAndFront = restText.match(/^<休整期结束时>使自身(?:及|以及)身前一格干员已激活的盟约层数\+(\d+)/);
+  // 身前未知时保留自身下界；已确认目标只补计不重合盟约，不猜共享盟约的重复次数。
+  const selfAndFront = restText.match(FRONT_LAYER_PATTERN);
   if (selfAndFront) {
     const covenants = covenantsOf(slot);
     gains = [...new Set([...covenants.own, ...covenants.granted])]
       .map(covenant => ({ covenant, amount: +selfAndFront[1] }));
-    reasons.push('仅计自身已激活盟约；身前一格未录入，未假定相邻干员收益');
+    const targetName = context.frontTargets?.[slot.name];
+    const target = targetName && roster?.field.find(member => member.name === targetName && member.name !== slot.name);
+    if (target) {
+      const own = new Set([...covenants.own, ...covenants.granted]);
+      const front = covenantsOf(target);
+      const frontCovenants = [...new Set([...front.own, ...front.granted])];
+      gains.push(...frontCovenants.filter(covenant => !own.has(covenant)).map(covenant => ({ covenant, amount: +selfAndFront[1] })));
+      reasons.push(`按已录身前${target.name}，计入其独有且已激活的盟约产层`);
+      if (frontCovenants.some(covenant => own.has(covenant) && active.some(stat => stat.name === covenant)))
+        reasons.push('与身前共享的盟约是否重复叠层尚未核实，仅计自身一次作为下界');
+    } else if (targetName === '') reasons.push('已录身前无人，仅计自身已激活盟约');
+    else reasons.push('仅计自身已激活盟约；身前一格未录入或已变动，未假定相邻干员收益');
   }
   if (roster) {
     const reserveCovenants = restText.match(/^<休整期结束时>使整备区每名干员已激活的盟约层数\+(\d+)/);
