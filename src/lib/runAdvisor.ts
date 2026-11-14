@@ -292,6 +292,29 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
           advice.kind = 'deploy';
           advice.label = '补上场';
         }
+        // 买牌与免费调阵共享搜索结果：空位不能掩盖保持独行、补齐核心的换人方案。
+        const purchasedRun: AdvisorRun = { ...run,
+          operators: [...run.operators, { name: operator.name, copies: 1, elite: false, deployed: false }],
+        };
+        const swap = recommendDeployments(purchasedRun, OPERATORS.length).find(plan => plan.name === operator.name && plan.replace);
+        if (swap) {
+          const next = lineup.map(slot => slot.name === swap.replace ? candidate : slot);
+          const nextReserve = [...reserve, ...lineup.filter(slot => slot.name === swap.replace)];
+          const evaluation = evaluate(next, nextReserve), production = marginal(next, nextReserve);
+          if (evaluation.score + production > advice.score + .001) {
+            const explanation = explainLineupChange(evaluation);
+            after = evaluation.stats;
+            advice.breakdown.lineup = evaluation.score;
+            advice.breakdown.production = production;
+            advice.breakdown.collection = 0;
+            advice.score = evaluation.score + production;
+            advice.kind = 'replace';
+            advice.label = '可替换';
+            advice.replace = swap.replace;
+            advice.reasons = ['买入先留整备区，再按建议换人；不因空位直接破坏现有盟约', ...explanation.reasons];
+            advice.losses = explanation.losses;
+          }
+        }
       } else {
         // 装备仍属于原持有者，不凭空转移给被推荐的新人。
         const purchasedReserve = [...reserve, candidate];

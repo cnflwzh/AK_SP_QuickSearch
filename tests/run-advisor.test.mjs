@@ -568,3 +568,23 @@ test('Support covenant production contributes to shared thresholds and requires 
   assert.equal(three.endOfRestGains.find(gain => gain.covenant === '远见').amount, 4);
   assert.equal(covenantProductionValue(covenantStats(field.slice(0, 3), {}, [field[3]]), context).score, 0);
 });
+
+test('buy advice sees a core-completing solo swap before the field is full', async () => {
+  const run = runWith(['艾丝黛尔', '折光', '复奏'], { mainCovenant: 'mixed', shop: ['地灵'] });
+  const advice = recommendRecruits(run)[0];
+  assert.equal(advice.kind, 'replace');
+  assert.equal(advice.replace, '艾丝黛尔');
+  assert.match(advice.reasons.join(' '), /激活莱塔尼亚/);
+  assert.ok(!advice.losses.some(reason => reason.includes('独行失效')));
+  const { useRunAdvisor } = await import('../src/quickref/advisor/useRunAdvisor.ts');
+  const advisor = useRunAdvisor();
+  advisor.reset();
+  advisor.setMainCovenant('mixed');
+  for (const name of ['艾丝黛尔', '折光', '复奏']) advisor.recruit(name);
+  advisor.addShopCandidate('地灵');
+  advisor.recruitCandidate('地灵');
+  assert.equal(advisor.run.value.operators.find(op => op.name === '地灵').deployed, false);
+  assert.equal(advisor.setDeployment('地灵', true, advice.replace), true);
+  assert.ok(advisor.covenants.value.find(stat => stat.name === '独行').active);
+  assert.ok(advisor.covenants.value.find(stat => stat.name === '莱塔尼亚').active);
+});
