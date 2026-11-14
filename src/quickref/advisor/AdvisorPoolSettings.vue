@@ -1,10 +1,18 @@
 <script setup lang="ts">
-import { CORE_COVENANTS, ADDON_COVENANTS, covenantColor } from '../../../data/index.ts';
+import { ref } from 'vue';
+import { ALL_COVENANTS, CORE_COVENANTS, ADDON_COVENANTS, covenantColor } from '../../../data/index.ts';
+import { MAX_LAYERS, usesLayers } from '../../lib/planner.ts';
 import { useRunAdvisor } from './useRunAdvisor.ts';
 
 defineEmits<{ excludeOperator: [] }>();
 const advisor = useRunAdvisor();
 const { run, goal, unavailableNames, poolConflicts } = advisor;
+const layerCovenants = ALL_COVENANTS.filter(usesLayers);
+const layerSelection = ref(layerCovenants[0] ?? '');
+function optionalNumber(event: Event): number | null {
+  const value = (event.target as HTMLInputElement).value.trim();
+  return value === '' ? null : Number(value);
+}
 // 绝技按全场精锐触发，不对应可从招募池移除的原生干员。
 const groups = [
   { title: '核心盟约', names: CORE_COVENANTS },
@@ -31,6 +39,31 @@ const groups = [
       </label>
     </div>
     <p class="ra-muted">自动按场上本家人数、专属策略判断；方向未定时不强行选边。主轴成型后再补配合与精锐。</p>
+    <div class="ra-section-heading"><h3>局面信息 <small>选填</small></h3></div>
+    <div class="ra-pool-direction ra-run-context">
+      <label>当前回合
+        <input type="number" inputmode="numeric" min="1" max="14" step="1" placeholder="未知"
+          :value="run.round ?? ''" @change="advisor.setRound(optionalNumber($event))">
+      </label>
+      <label>可用资金
+        <input type="number" inputmode="numeric" min="0" max="999" step="1" placeholder="未知"
+          :value="run.funds ?? ''" @change="advisor.setFunds(optionalNumber($event))">
+      </label>
+      <label>记录盟约层数
+        <select v-model="layerSelection">
+          <option v-for="name in layerCovenants" :key="name" :value="name">{{ name }}</option>
+        </select>
+      </label>
+      <label>{{ layerSelection }}层数
+        <input type="number" inputmode="numeric" min="0" :max="MAX_LAYERS" step="1" placeholder="未知"
+          :value="run.layers[layerSelection] ?? ''" @change="advisor.setLayer(layerSelection, optionalNumber($event))">
+      </label>
+    </div>
+    <p class="ra-muted">留空表示未知，0 表示确认没有。回合、资金与层数只作推荐参考，请随局面手动更新，不会自动扣款或叠层。</p>
+    <div v-if="Object.keys(run.layers).length" class="ra-pool-chips" aria-label="已记录层数">
+      <button v-for="(layers, name) in run.layers" :key="name" type="button"
+        :aria-label="`清除${name}层数记录`" @click="advisor.setLayer(String(name), null)">{{ name }} {{ layers }} 层 ×</button>
+    </div>
     <div class="ra-section-heading"><h3>本局禁用</h3><span class="ra-muted">已排除 {{ unavailableNames.length }} 名</span></div>
     <p class="ra-muted">按开局简报点选缺席盟约；属于这些盟约的干员不会出现在抓取建议或录入候选中。</p>
     <fieldset v-for="group in groups" :key="group.title" class="ra-pool-group">

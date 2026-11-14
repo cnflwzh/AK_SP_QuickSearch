@@ -96,3 +96,56 @@ test('loading older records adds independent pool defaults while sanitizing inva
   assert.deepEqual(saved.excludedOperators, ['真理']);
   assert.ok(saved.operators.every(operator => OPERATOR[operator.name]));
 });
+
+test('optional snapshots preserve explicit zero and sanitize old saves', () => {
+  const run = sanitizeAdvisorRun({ round: 99, funds: 0, layers: { 炎: 0, 奥术: 100, 无效: 3, 远见: '9' } });
+  assert.equal(run.round, 14);
+  assert.equal(run.funds, 0);
+  assert.deepEqual(run.layers, { 炎: 0, 奥术: 100 });
+  assert.equal(sanitizeAdvisorRun({}).round, null);
+});
+
+test('acquisition traits distinguish base from elite and respect grouped layers', async () => {
+  const { acquisitionValue } = await import('../src/lib/advisorValue.ts');
+  const context = { round: 4, level: 4, strategy: '', layers: {} };
+  assert.match(acquisitionValue(OPERATOR['矩'], true, [], context).reasons.join(' '), /炎\+8层/);
+  const logos = acquisitionValue(OPERATOR['逻各斯'], false, [], context).reasons.join(' ');
+  assert.match(logos, /奥术\+10层/);
+  assert.match(logos, /远见\+5层/);
+  assert.doesNotMatch(logos, /攻速/);
+});
+
+test('known insufficient funds demote unaffordable cards without mutating snapshots', () => {
+  const run = runWith(['拜松', '矩', '风絮'], { funds: 0, shop: ['仇白'] });
+  const previous = structuredClone(run);
+  assert.equal(recommendRecruits(run)[0].label, '资金不足');
+  assert.deepEqual(run, previous);
+});
+
+test('reserve-enabled production has positive value and shorter late-game horizon', async () => {
+  const { recurringValue } = await import('../src/lib/advisorValue.ts');
+  const slot = newSlot('夏栎');
+  const stats = covenantStats(['拜松', '矩', '风絮'].map(newSlot));
+  const context = { round: 2, level: 3, strategy: '', layers: { 炎: 20 } };
+  const early = recurringValue(slot, false, stats, context);
+  assert.ok(early.score > 0);
+  assert.ok(early.score > recurringValue(slot, false, stats, { ...context, round: 14 }).score);
+});
+
+test('known foresight discounts and Shirus faction restriction affect affordability', () => {
+  const foresight = OPERATORS.find(op => op.covenants.includes('远见') && op.tier === 4);
+  assert.ok(foresight);
+  const run = runWith([], { funds: 3, layers: { 远见: 80 }, shop: [foresight.name] });
+  assert.notEqual(recommendRecruits(run)[0].label, '资金不足');
+  const other = runWith([], { funds: 0, strategy: '休露丝', shop: ['仇白'] });
+  assert.equal(recommendRecruits(other)[0].label, '资金不足');
+});
+
+test('investor multiplies acquisition only from the existing active state', async () => {
+  const { acquisitionValue } = await import('../src/lib/advisorValue.ts');
+  const context = { round: 4, level: 4, strategy: '', layers: { 投资人: 100 } };
+  const inactive = acquisitionValue(OPERATOR['矩'], false, [], context);
+  const active = acquisitionValue(OPERATOR['矩'], false, [{ name: '投资人', active: true }], context);
+  assert.match(active.reasons.join(' '), /炎\+12层/);
+  assert.match(inactive.reasons.join(' '), /炎\+4层/);
+});

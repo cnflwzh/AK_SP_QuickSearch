@@ -1,6 +1,6 @@
 import { computed, readonly, ref } from 'vue';
 import { ALL_COVENANTS, EQUIPMENT, STRATEGIES, isCoreCovenant } from '../../../data/index.ts';
-import { covenantStats, MAX_EQ, MAX_OPS } from '../../lib/planner.ts';
+import { covenantStats, MAX_EQ, MAX_OPS, MAX_LAYERS, usesLayers } from '../../lib/planner.ts';
 import {
   deployedLineup, eliteCopyCount, MAX_RECORDED_EQUIPMENT, MAX_SHOP_CANDIDATES,
   newAdvisorRun, operatorsByName, recommendRecruits, sanitizeAdvisorRun, createRecruitmentPool, reserveLineup, runLineupGoal,
@@ -19,7 +19,7 @@ const run = ref<AdvisorRun>(load());
 const undoSnapshot = ref<AdvisorRun | null>(null);
 const notice = ref('');
 const lineup = computed(() => deployedLineup(run.value));
-const covenants = computed(() => covenantStats(lineup.value, {}, reserveLineup(run.value)));
+const covenants = computed(() => covenantStats(lineup.value, run.value.layers, reserveLineup(run.value)));
 const goal = computed(() => runLineupGoal(run.value));
 const unavailableNames = computed(() => {
   const available = createRecruitmentPool(run.value);
@@ -32,7 +32,7 @@ const reserve = computed(() => run.value.operators.filter(operator => !operator.
 
 function clone(value: AdvisorRun): AdvisorRun {
   return { ...value, operators: value.operators.map(operator => ({ ...operator })), equipment: value.equipment.map(item => ({ ...item })),
-    shop: [...value.shop], bannedCovenants: [...value.bannedCovenants], excludedOperators: [...value.excludedOperators] };
+    layers: { ...value.layers }, shop: [...value.shop], bannedCovenants: [...value.bannedCovenants], excludedOperators: [...value.excludedOperators] };
 }
 function save(): void {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(run.value)); saveFailed.value = false; }
@@ -124,6 +124,26 @@ export function useRunAdvisor() {
     if (!Number.isInteger(level) || level < 1 || level > 6 || level === run.value.level) return;
     change(`当前${level}本`, draft => { draft.level = level; });
   }
+  /** 留空表示未知；这些是手动快照，不从购买记录推测回合或自动扣款。 */
+  function setRound(round: number | null): void {
+    if (round !== null && (!Number.isInteger(round) || round < 1 || round > 14)) { notice.value = '回合需为1至14的整数，或留空表示未知'; return; }
+    if (round === run.value.round) return;
+    change('已更新当前回合', draft => { draft.round = round; });
+  }
+  function setFunds(funds: number | null): void {
+    if (funds !== null && (!Number.isInteger(funds) || funds < 0 || funds > 999)) { notice.value = '资金需为0至999的整数，或留空表示未知'; return; }
+    if (funds === run.value.funds) return;
+    change('已更新可用资金', draft => { draft.funds = funds; });
+  }
+  function setLayer(name: string, layers: number | null): void {
+    if (!ALL_COVENANTS.includes(name) || !usesLayers(name)) return;
+    if (layers !== null && (!Number.isInteger(layers) || layers < 0 || layers > MAX_LAYERS)) { notice.value = `层数需为0至${MAX_LAYERS}的整数，或留空表示未知`; return; }
+    if (layers === null ? !Object.hasOwn(run.value.layers, name) : run.value.layers[name] === layers) return;
+    change(`已更新${name}层数`, draft => {
+      if (layers === null) delete draft.layers[name];
+      else draft.layers[name] = layers;
+    });
+  }
   function setStrategy(name: string): void {
     if (name && !strategyNames.has(name)) return;
     change(name ? `已选策略${name}` : '已清除策略', draft => { draft.strategy = name; });
@@ -202,7 +222,7 @@ export function useRunAdvisor() {
   return {
     run: readonly(run), deployed, reserve, covenants, recommendations, goal, unavailableNames, poolConflicts,
     notice: readonly(notice), saveFailed: readonly(saveFailed), canUndo: computed(() => undoSnapshot.value !== null),
-    recruit, setDeployment, removeOperator, setCopies, setElite, setLevel, setStrategy,
+    recruit, setDeployment, removeOperator, setCopies, setElite, setLevel, setRound, setFunds, setLayer, setStrategy,
     setMainCovenant, setMainTarget, toggleBannedCovenant, toggleExcludedOperator,
     addEquipment, assignEquipment, setEquipmentAdvanced, removeEquipment,
     addShopCandidate, removeShopCandidate, clearShop, reset, undo,

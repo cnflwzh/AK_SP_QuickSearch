@@ -36,7 +36,7 @@
 .ra-pool-settings > p { margin: 0; font-size: 12px; line-height: 1.7; }
 .ra-pool-direction { display: flex; flex-wrap: wrap; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface2); }
 .ra-pool-direction label { display: grid; gap: 6px; flex: 1 1 180px; min-width: 0; font-size: 12px; }
-.ra-pool-direction select { width: 100%; min-width: 0; background-color: var(--surface); }
+.ra-pool-direction input, .ra-pool-direction select { width: 100%; min-width: 0; background-color: var(--surface); }
 .ra-pool-group { border: 0; padding: 0; margin: 0; min-width: 0; }
 .ra-pool-group legend { padding: 0 0 6px; color: var(--ink3); font-size: 12px; }
 .ra-pool-chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -265,3 +265,6 @@ html:has(dialog.ra-overlay[open]) { overflow: hidden; }
 }
 @keyframes ra-reveal { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { .ra-overlay[open] { animation: none; } .ra-slot, .ra-pool-chips button, .ra-picker-card { transition: none; } }
+
+.ra-run-context label { flex-basis: 130px; }
+.ra-run-context input { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; color: var(--ink); font: inherit; }

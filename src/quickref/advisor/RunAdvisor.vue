@@ -36,7 +36,7 @@ const pickerSummary = computed(() => recordingOperators.value
   ? `上场 ${deployed.value.length}/${MAX_OPS} · 整备 ${reserve.value.length}`
   : picker.value?.target === 'equipment' ? `已记录 ${run.value.equipment.length} 件`
   : picker.value?.target === 'excluded' ? `已排除 ${run.value.excludedOperators.length} 名` : '');
-const hasRunData = computed(() => run.value.level !== 1 || !!run.value.strategy || !!run.value.mainCovenant
+const hasRunData = computed(() => run.value.round !== null || run.value.funds !== null || Object.keys(run.value.layers).length > 0 || run.value.level !== 1 || !!run.value.strategy || !!run.value.mainCovenant
   || !!run.value.mainTarget || !!run.value.operators.length || !!run.value.equipment.length || !!run.value.shop.length
   || !!run.value.bannedCovenants.length || !!run.value.excludedOperators.length);
 const eliteNames = computed(() => run.value.operators.filter(operator => operator.elite).map(operator => operator.name));
@@ -301,7 +301,7 @@ function clearStrategy(): void {
             <AdvisorRecommendations :advice="recommendations" :empty-message="adviceEmptyMessage" @recruit="advisor.recruit"/>
             <details class="ra-method">
               <summary>建议依据</summary>
-              <p>优先推进主盟约目标，成型后比较核心输出、相关配合与精锐。3 人目标为混搭留位，6 人目标追人数强化。禁用牌不参与推荐；远见、奇迹、投资人计入整备区，其他盟约只计上场。满员抓取先入整备区，替换由你决定。</p>
+              <p>比较盟约成型、已建模特质、精锐与装备搭配，可在「方向 / 禁用」中补充回合、资金和层数。资金与回合为手动快照，记录抓取不会自动扣款或推算回合。禁用牌不参与推荐；远见、奇迹、投资人计入整备区，其他盟约只计上场。推荐分是启发式优先级，不是胜率或伤害预测；未录入的站位、敌人、技能时机等条件不作保证，满员替换仍由你决定。</p>
             </details>
           </template>
         </div>
