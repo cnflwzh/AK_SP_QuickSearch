@@ -135,7 +135,7 @@ export function createRecruitmentPool(run: Pick<AdvisorRun, 'bannedCovenants' | 
   return name => operatorsByName.has(name) && !excluded.has(name) && !isBanned(name, bans);
 }
 
-export function effectiveBans(run: Pick<AdvisorRun, 'bannedCovenants'> & Partial<Pick<AdvisorRun, 'mode'>>): ReadonlySet<string> {
+export function effectiveBans(run: { bannedCovenants: readonly string[]; mode?: AdvisorMode }): ReadonlySet<string> {
   return new Set([...run.bannedCovenants, ...(run.mode === 'restricted' ? RESTRICTED_MODE_COVENANTS : [])]);
 }
 

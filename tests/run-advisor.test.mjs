@@ -464,3 +464,15 @@ test('missing addon layers receive no acquisition value while retained addons st
   assert.equal(advice.operator.name, '逻各斯');
   assert.equal(advice.breakdown.acquisition, 1.25); // 未激活远见仅保留未来价值
 });
+
+test('deterministic rest producers cross a shared threshold jointly and award it only once', async () => {
+  const { teamValue } = await import('../src/lib/advisorValue.ts');
+  const field = ['渡桥', '寒檀'].map(newSlot); // 本次休整结束远见+2和+3
+  const context = { round: 14, level: 4, strategy: '', layers: { 远见: 0 } };
+  const base = teamValue(field, [], context);
+  const joint = teamValue(field, [], { ...context, layers: { 远见: 76 } });
+  const overlaps = teamValue(field, [], { ...context, layers: { 远见: 78 } });
+  assert.equal(joint - base, 24); // 各自不足，合计跨过80
+  assert.equal(overlaps - base, 24); // 两个来源都足够时仍只加一次
+  assert.equal(teamValue(field, [], { ...context, layers: { 远见: 80 } }), base);
+});

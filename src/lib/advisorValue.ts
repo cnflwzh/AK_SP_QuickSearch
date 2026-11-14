@@ -4,7 +4,12 @@ import { covenantStats, covenantsOf, type CovenantStat, type Layers, type PlanOp
 
 export interface ValueContext { round: number | null; layers: Layers; level: number; strategy: string; inactiveCovenants?: ReadonlySet<string> }
 export interface ValueRoster { field: readonly PlanOp[]; reserve: readonly PlanOp[] }
-export interface TraitValue { score: number; reasons: string[] }
+export interface TraitValue {
+  score: number;
+  reasons: string[];
+  /** 当前休整结束的确定性产层；不含未来回合、战斗上限或未知站位。 */
+  endOfRestGains?: { covenant: string; amount: number }[];
+}
 const equipmentByNameLength = [...EQUIPMENT].sort((a, b) => b.name.length - a.name.length);
 const tags = (text: string) => [...text.matchAll(/【([^】]+)】/g)].map(match => match[1]);
 /** 只识别紧挨明确盟约列表的固定加层，不从条件次数/上限猜实际收益。 */
@@ -12,12 +17,12 @@ function fixedLayers(text: string): { covenant: string; amount: number }[] {
   return [...text.matchAll(/((?:【[^】]+】)+)层数\+(\d+)/g)]
     .flatMap(match => tags(match[1]).map(covenant => ({ covenant, amount: +match[2] })));
 }
-function layerValue(covenant: string, amount: number, stats: readonly CovenantStat[], context: ValueContext): number {
+function layerValue(covenant: string, amount: number, stats: readonly CovenantStat[], context: ValueContext, includeMilestone = true): number {
   const stat = stats.find(stat => stat.name === covenant);
   if (!stat?.active) return .25 * amount; // 未激活的永久层只留少量未来价值，不视为当下战力。
   let value = Math.min(amount, 24) * 2;
   const milestone = stat.bonusLayers;
-  if (milestone && Object.hasOwn(context.layers, covenant)
+  if (includeMilestone && milestone && Object.hasOwn(context.layers, covenant)
     && context.layers[covenant] < milestone && context.layers[covenant] + amount >= milestone) value += 24;
   return value;
 }
@@ -128,7 +133,7 @@ export function recurringValue(slot: PlanOp, deployed: boolean, stats: readonly 
   const triggers = horizon + (startsAndEnds ? Math.max(0, horizon - 1) : 0);
   for (const gain of gains) {
     if (!active.some(stat => stat.name === gain.covenant)) continue;
-    score += layerValue(gain.covenant, gain.amount * triggers, stats, context);
+    score += layerValue(gain.covenant, gain.amount * triggers, stats, context, false);
     if (startsAndEnds) reasons.push('本轮休整开始已过，不倒算买入前触发');
     reasons.push(`每次休整${startsAndEnds ? '开始/结束' : '结束'}${gain.covenant}+${gain.amount}层${deployed ? '' : '（整备区生效）'}`);
   }
@@ -150,7 +155,9 @@ export function recurringValue(slot: PlanOp, deployed: boolean, stats: readonly 
     score += 12 * (context.round === null ? 1 : Math.min(4, Math.max(0, 14 - context.round)));
     reasons.push('可保存乌萨斯临时层数；未假定本轮可转化层数');
   }
-  return { score: Math.min(130, score), reasons };
+  return { score: Math.min(130, score), reasons,
+    endOfRestGains: gains.filter(gain => active.some(stat => stat.name === gain.covenant)) };
+
 }
 
 /** 按整队状态计算策略档位，换下干员同样会失去收益。整备区经济盟约不能给阿米娅凑场上档位。 */
@@ -172,6 +179,17 @@ export function strategyValue(ops: readonly PlanOp[], context: ValueContext): nu
 /** 有限启发式整队生产力；装备/精锐投入作为换人机会成本，不当作精确战力。 */
 export function teamValue(ops: readonly PlanOp[], reserve: readonly PlanOp[], context: ValueContext): number {
   const stats = covenantStats(ops, context.layers, reserve, context.inactiveCovenants);
-  return ops.reduce((sum, slot) => sum + recurringValue(slot, true, stats, context, { field: ops, reserve }).score + (slot.elite ? 35 : 0) + slot.eq.length * 12, 0)
-    + reserve.reduce((sum, slot) => sum + recurringValue(slot, false, stats, context, { field: ops, reserve }).score, 0) + strategyValue(ops, context);
+  const values = [...ops.map(slot => recurringValue(slot, true, stats, context, { field: ops, reserve })),
+    ...reserve.map(slot => recurringValue(slot, false, stats, context, { field: ops, reserve }))];
+  // 多位生产者先汇总本次确定产层，再判断门槛；避免各自重复奖励或合计可达却漏算。
+  const totals = new Map<string, number>();
+  for (const value of values) for (const gain of value.endOfRestGains ?? []) {
+    totals.set(gain.covenant, (totals.get(gain.covenant) ?? 0) + gain.amount);
+  }
+  const milestoneValue = stats.filter(stat => stat.active && stat.bonusLayers > 0
+    && Object.hasOwn(context.layers, stat.name) && context.layers[stat.name] < stat.bonusLayers
+    && context.layers[stat.name] + (totals.get(stat.name) ?? 0) >= stat.bonusLayers).length * 24;
+  return values.reduce((sum, value) => sum + value.score, 0) + milestoneValue
+    + ops.reduce((sum, slot) => sum + (slot.elite ? 35 : 0) + slot.eq.length * 12, 0)
+    + strategyValue(ops, context);
 }
