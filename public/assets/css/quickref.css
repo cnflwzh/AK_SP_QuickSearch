@@ -1355,6 +1355,7 @@ em.c {
 }
 
 .nc {
+  min-width: 0;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;

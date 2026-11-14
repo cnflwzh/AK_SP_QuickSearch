@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import { promotionRewardTier, type CandidateSource } from '../../lib/advisorRules.ts';
 import { computed, nextTick, onBeforeUnmount, onDeactivated, ref, watch } from 'vue';
 import { STRATEGY, covenantColor } from '../../../data/index.ts';
 import { equipIconSrc, portraitSrc } from '../../lib/assets.ts';
 import { prefersReducedMotion } from '../../lib/dom.ts';
-import { MAX_SHOP_CANDIDATES, type OwnedEquipment } from '../../lib/runAdvisor.ts';
+import { MAX_SHOP_CANDIDATES, operatorsByName, type OwnedEquipment } from '../../lib/runAdvisor.ts';
 import { MAX_OPS } from '../../lib/planner.ts';
 import { currentRoute, openCard } from '../../router/navigation.ts';
 import { queryText } from '../../router/location.ts';
@@ -13,6 +14,7 @@ import AdvisorOverlay from './AdvisorOverlay.vue';
 import AdvisorInspector from './AdvisorInspector.vue';
 import AdvisorPicker from './AdvisorPicker.vue';
 import AdvisorRecommendations from './AdvisorRecommendations.vue';
+import AdvisorDeployments from './AdvisorDeployments.vue';
 import AdvisorPoolSettings from './AdvisorPoolSettings.vue';
 import type { AdvisorSelection } from './types.ts';
 import './advisor.css';
@@ -22,7 +24,7 @@ import './advisor.css';
  * 宽屏为左右两栏，建议栏常驻；窄屏单列滚动，不再分页切换。编辑和录入统一在弹层中完成。
  */
 const advisor = useRunAdvisor();
-const { run, deployed, reserve, covenants, recommendations, notice, saveFailed, canUndo, goal, unavailableNames, poolConflicts } = advisor;
+const { run, deployed, reserve, covenants, recommendations, deploymentRecommendations, notice, saveFailed, canUndo, goal, unavailableNames, poolConflicts } = advisor;
 const sidePanel = ref<HTMLElement>();
 const storageView = ref<'reserve' | 'equipment'>('reserve');
 const selection = ref<AdvisorSelection | null>(null);
@@ -38,7 +40,7 @@ const pickerSummary = computed(() => recordingOperators.value
   ? `上场 ${deployed.value.length}/${MAX_OPS} · 整备 ${reserve.value.length}`
   : picker.value?.target === 'equipment' ? `已记录 ${run.value.equipment.length} 件`
   : picker.value?.target === 'excluded' ? `已排除 ${run.value.excludedOperators.length} 名` : '');
-const hasRunData = computed(() => run.value.level !== 1 || !!run.value.strategy || !!run.value.mainCovenant
+const hasRunData = computed(() => run.value.mode !== 'unknown' || run.value.candidateSource !== 'shop' || run.value.round !== null || run.value.funds !== null || Object.keys(run.value.layers).length > 0 || run.value.level !== 1 || !!run.value.strategy || !!run.value.mainCovenant
   || !!run.value.mainTarget || !!run.value.operators.length || !!run.value.equipment.length || !!run.value.shop.length
   || !!run.value.bannedCovenants.length || !!run.value.excludedOperators.length);
 const eliteNames = computed(() => run.value.operators.filter(operator => operator.elite).map(operator => operator.name));
@@ -57,14 +59,17 @@ const selectedOperator = computed(() => selection.value?.kind === 'operator' ? r
 const selectedTitle = computed(() => selection.value?.kind === 'equipment' ? '编辑装备'
   : selectedOperator.value ? `编辑${selectedOperator.value.deployed ? '上场' : '整备区'}干员` : '编辑记录');
 const pickerKind = computed(() => picker.value?.target === 'strategy' ? 'st' : picker.value?.target === 'equipment' ? 'eq' : 'op');
+const candidateLimit = computed(() => run.value.candidateSource === 'promotion' ? 3 : MAX_SHOP_CANDIDATES);
+const candidateLabel = computed(() => run.value.candidateSource === 'promotion' ? '晋升奖励' : '本轮商店');
 const pickerTitle = computed(() => picker.value?.target === 'strategy' ? '选择开局策略'
   : picker.value?.target === 'excluded' ? '排除禁用 / 未入池干员'
   : picker.value?.target === 'equipment' ? (picker.value.holder ? `为${picker.value.holder}添加装备` : '记录已获得的装备')
-  : picker.value?.target === 'shop' ? `录入本轮商店 · 最多${MAX_SHOP_CANDIDATES}名`
+  : picker.value?.target === 'shop' ? `录入${candidateLabel.value} · 最多${candidateLimit.value}名`
   : picker.value?.target === 'reserve' ? '记录整备区干员' : '记录上场干员');
 const selectedPickerNames = computed(() => picker.value?.target === 'excluded' ? run.value.excludedOperators
   : picker.value?.target === 'shop' ? run.value.shop : picker.value?.target === 'strategy' && run.value.strategy ? [run.value.strategy] : []);
-const disabledPickerNames = computed(() => picker.value?.target === 'deployed' || picker.value?.target === 'reserve' ? eliteNames.value : []);
+const disabledPickerNames = computed(() => picker.value?.target === 'deployed' || picker.value?.target === 'reserve' ? eliteNames.value : picker.value?.target === 'shop' && run.value.candidateSource === 'promotion'
+    ? [...operatorsByName.values()].filter(operator => operator.stars === 0 || operator.tier !== promotionRewardTier(run.value.level)).map(operator => operator.name) : []);
 const excludedPickerNames = computed(() => pickerKind.value === 'op' && picker.value?.target !== 'excluded' ? unavailableNames.value : []);
 const poolLabel = computed(() => `${goal.value ? `${goal.value.covenant} · ${goal.value.target}人` : run.value.mainCovenant === 'mixed' ? '混搭' : '方向 / 禁用'}${unavailableNames.value.length ? ` · 禁${unavailableNames.value.length}` : ''}`);
 const strategySkill = computed(() => run.value.strategy ? STRATEGY[run.value.strategy]?.skill ?? '' : '');
@@ -72,11 +77,12 @@ const statusText = computed(() => saveFailed.value ? '本地保存失败，请�
 /** 录入的商店牌里，没有出现在推荐结果中的（禁用或待修正冲突）单独列出，避免“录了却不见”。 */
 const blockedShop = computed(() => run.value.shop
   .filter(name => !recommendations.value.some(advice => advice.operator.name === name))
-  .map(name => ({ name, reason: unavailableNames.value.includes(name) ? '本局禁用' : poolConflicts.value.length ? '待修正冲突' : '不参与推荐' })));
+  .map(name => ({ name, reason: unavailableNames.value.includes(name) ? '本局禁用' : poolConflicts.value.length ? '待修正冲突' : advisor.candidateError(name) || '不参与推荐' })));
 const directionNote = computed(() => goal.value ? `主攻${goal.value.covenant} · 目标${goal.value.target}人${run.value.mainCovenant ? '' : '（自动）'}`
   : run.value.mainCovenant === 'mixed' ? '混搭 · 比较整队收益' : '主轴未定 · 随来牌判断，可在「方向 / 禁用」手选');
 const adviceEmptyMessage = computed(() => poolConflicts.value.length ? '先修正持有记录与禁用设置的冲突。'
-  : '当前没有待追目标，可更新本数或录入商店。');
+  : run.value.shop.length && run.value.shop.every(name => unavailableNames.value.includes(name)) ? '本轮候选都被排除，请核对商店或禁用设置。'
+  : run.value.candidateSource === 'promotion' ? '请录入与当前调度等级匹配的晋升奖励候选（高一阶，最高6阶），或修正候选来源。' : '当前没有待追目标，可更新本数或录入商店。');
 
 function releaseTransientUi(): void {
   picker.value = null;
@@ -235,23 +241,31 @@ function startNewRun(): void {
       <aside ref="sidePanel" class="ra-panel ra-side-panel" aria-labelledby="ra-side-title">
         <div class="ra-side-heading">
           <h3 id="ra-side-title">
-            {{ run.shop.length ? '本轮商店' : '抓取建议' }}
-            <small>{{ run.shop.length ? `${run.shop.length} 张 · 按推荐排序` : `${run.level} 本可找目标` }}</small>
+            {{ run.candidateSource === 'promotion' ? '晋升奖励' : run.shop.length ? '本轮商店' : '抓取建议' }}
+            <small>{{ run.shop.length ? `${run.shop.length} 张 · 按推荐排序` : run.candidateSource === 'promotion' ? `${promotionRewardTier(run.level)} 阶 · 免费三选一` : `${run.level} 本可找目标` }}</small>
           </h3>
           <button v-if="run.shop.length" type="button" class="ra-text-button ra-muted-action" @click="advisor.clearShop">清空</button>
-          <button v-if="run.shop.length" type="button" class="btn ra-shop-button" aria-haspopup="dialog" @click="openPicker('shop')">改商店</button>
+          <button v-if="run.shop.length" type="button" class="btn ra-shop-button" aria-haspopup="dialog" @click="openPicker('shop')">改候选</button>
         </div>
+        <label class="ra-candidate-source">候选来源
+          <select :value="run.candidateSource" @change="advisor.setCandidateSource(($event.target as HTMLSelectElement).value as CandidateSource)">
+            <option value="shop">商店 / 特殊刷新</option>
+            <option value="promotion">晋升奖励 · 免费三选一</option>
+          </select>
+        </label>
         <p class="ra-direction-note">{{ directionNote }}</p>
         <div class="ra-side-body">
           <button v-if="!run.shop.length" type="button" class="ra-shop-cta" aria-haspopup="dialog" @click="openPicker('shop')">
-            <b>＋</b><span><strong>录入本轮商店</strong><small>只比较这批牌，按收益排序</small></span>
+            <b>＋</b><span><strong>录入{{ candidateLabel }}</strong><small>只比较这批牌，按收益排序</small></span>
           </button>
           <AdvisorRecommendations :advice="recommendations" :blocked="blockedShop" :removable="!!run.shop.length"
-            :empty-message="adviceEmptyMessage" @recruit="advisor.recruit" @remove="advisor.removeShopCandidate"
+            :empty-message="adviceEmptyMessage" @recruit="advisor.recruitCandidate" @remove="advisor.removeShopCandidate"
             @details="name => openDetails('op', name)"/>
+          <AdvisorDeployments :advice="deploymentRecommendations"
+            @deploy="(name, replace) => advisor.setDeployment(name, true, replace)"/>
           <details class="ra-method">
             <summary>建议依据</summary>
-            <p>优先推进主盟约目标，成型后比较核心输出、相关配合与精锐。3 人目标为混搭留位，6 人目标追人数强化。禁用牌不参与推荐；远见、奇迹、投资人计入整备区，其他盟约只计上场。满员抓取先入整备区，替换由你决定。</p>
+            <p>优先推进主盟约目标，结合特质产出、精锐和装备评估。可在「方向 / 禁用」补充模式、回合、资金与层数。资金随局面手动更新。晋升奖励选中一张后清空其余候选。3 人目标为混搭留位，6 人目标追人数强化。禁用牌不参与推荐；远见、奇迹、投资人计入整备区，其他盟约只计上场。满员抓取先入整备区，替换由你决定。</p>
           </details>
         </div>
       </aside>
@@ -306,7 +320,7 @@ function startNewRun(): void {
       <AdvisorPicker v-else-if="picker" :key="picker.target" :kind="pickerKind"
         :selected="selectedPickerNames" :disabled-names="disabledPickerNames" :excluded-names="excludedPickerNames" :level="run.level"
         :can-deselect="picker.target === 'shop' || picker.target === 'excluded'"
-        :max-selected="picker.target === 'shop' ? MAX_SHOP_CANDIDATES : undefined"
+        :max-selected="picker.target === 'shop' ? candidateLimit : undefined"
         :owned-operators="run.operators" :recording="recordingOperators" :summary="pickerSummary" :can-undo="canUndo"
         :done-label="picker.target === 'shop' ? '查看建议' : '完成'"
         :action="picker.target === 'excluded' ? '排除' : picker.target === 'strategy' ? '选择' : '添加'" :notice="notice"

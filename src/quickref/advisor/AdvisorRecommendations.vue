@@ -14,12 +14,17 @@ withDefaults(defineProps<{
   emptyMessage: string;
 }>(), { blocked: () => [], removable: false });
 defineEmits<{ recruit: [name: string]; remove: [name: string]; details: [name: string] }>();
+const contributionLabels = [
+  ['lineup', '阵容'], ['production', '持续收益 / 投入'], ['acquisition', '获取收益'],
+  ['collection', '收集进度'], ['fit', '搭配参考'], ['economy', '经济'],
+] as const;
+function signed(value: number): string { return `${value > 0 ? '+' : ''}${value.toFixed(1)}`; }
 </script>
 
 <template>
   <ol v-if="advice.length || blocked.length" class="ra-recommendations">
     <li v-for="(item, index) in advice" :key="item.operator.name" class="ra-recommendation"
-      :class="{ cautious: item.score <= 0, top: index === 0 && item.score > 0 }" :data-kind="item.kind">
+      :class="{ cautious: item.score <= 0 || item.affordable === false, top: index === 0 && item.score > 0 && item.affordable !== false }" :data-kind="item.kind">
       <details>
         <summary>
           <span class="ra-rank">{{ index + 1 }}</span>
@@ -30,6 +35,16 @@ defineEmits<{ recruit: [name: string]; remove: [name: string]; details: [name: s
           </span>
         </summary>
         <div class="ra-rec-detail">
+          <p :class="{ 'ra-warning': item.affordable === false }">
+            招募估价：{{ item.estimatedPrice == null ? '待核对' : `${item.estimatedPrice} 资金` }}
+            <span v-if="item.affordable === false"> · 当前资金不足</span>
+            <span v-else-if="item.affordable === true"> · 当前资金可负担</span>
+          </p>
+          <dl class="ra-score-breakdown">
+            <div v-for="[key, label] in contributionLabels" :key="key">
+              <dt>{{ label }}</dt><dd :class="{ 'ra-warning': item.breakdown[key] < 0 }">{{ signed(item.breakdown[key]) }}</dd>
+            </div>
+          </dl>
           <ul><li v-for="reason in item.reasons" :key="reason">{{ reason }}</li></ul>
           <p v-if="item.replace">可换下 <b>{{ item.replace }}</b>，抓到后先入整备区。</p>
           <p v-if="item.losses.length" class="ra-warning">代价：{{ item.losses.join('；') }}</p>

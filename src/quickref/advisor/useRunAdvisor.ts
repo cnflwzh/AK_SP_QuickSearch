@@ -1,9 +1,10 @@
+import { ADVISOR_MODES, promotionRewardTier, type AdvisorMode, type CandidateSource } from '../../lib/advisorRules.ts';
 import { computed, readonly, ref } from 'vue';
 import { ALL_COVENANTS, EQUIPMENT, STRATEGIES, isCoreCovenant } from '../../../data/index.ts';
-import { covenantStats, MAX_EQ, MAX_OPS } from '../../lib/planner.ts';
+import { covenantStats, MAX_EQ, MAX_OPS, MAX_LAYERS, usesLayers } from '../../lib/planner.ts';
 import {
   deployedLineup, eliteCopyCount, MAX_RECORDED_EQUIPMENT, MAX_SHOP_CANDIDATES,
-  newAdvisorRun, operatorsByName, recommendRecruits, sanitizeAdvisorRun, createRecruitmentPool, reserveLineup, runLineupGoal,
+  newAdvisorRun, operatorsByName, recommendRecruits, recommendDeployments, sanitizeAdvisorRun, createRecruitmentPool, effectiveBans, reserveLineup, runLineupGoal,
   type AdvisorRun, type RecordedOperator,
 } from '../../lib/runAdvisor.ts';
 
@@ -27,7 +28,7 @@ function say(message: string): void {
   if (message) noticeTimer = setTimeout(() => { notice.value = ''; }, NOTICE_MS);
 }
 const lineup = computed(() => deployedLineup(run.value));
-const covenants = computed(() => covenantStats(lineup.value, {}, reserveLineup(run.value)));
+const covenants = computed(() => covenantStats(lineup.value, run.value.layers, reserveLineup(run.value), effectiveBans(run.value)));
 const goal = computed(() => runLineupGoal(run.value));
 const unavailableNames = computed(() => {
   const available = createRecruitmentPool(run.value);
@@ -35,13 +36,15 @@ const unavailableNames = computed(() => {
 });
 const poolConflicts = computed(() => run.value.operators.filter(operator => unavailableNames.value.includes(operator.name)).map(operator => operator.name));
 // 录入商店后逐张排序全部候选，商店列表即建议列表；未录入时只列出前几名目标。
-const recommendations = computed(() => recommendRecruits(run.value, run.value.shop.length ? MAX_SHOP_CANDIDATES : 5));
+const rankedRecommendations = computed(() => recommendRecruits(run.value, operatorsByName.size));
+const recommendations = computed(() => rankedRecommendations.value.slice(0, run.value.shop.length ? MAX_SHOP_CANDIDATES : 5));
+const deploymentRecommendations = computed(() => recommendDeployments(run.value));
 const deployed = computed(() => run.value.operators.filter(operator => operator.deployed));
 const reserve = computed(() => run.value.operators.filter(operator => !operator.deployed));
 
 function clone(value: AdvisorRun): AdvisorRun {
   return { ...value, operators: value.operators.map(operator => ({ ...operator })), equipment: value.equipment.map(item => ({ ...item })),
-    shop: [...value.shop], bannedCovenants: [...value.bannedCovenants], excludedOperators: [...value.excludedOperators] };
+    layers: { ...value.layers }, shop: [...value.shop], bannedCovenants: [...value.bannedCovenants], excludedOperators: [...value.excludedOperators] };
 }
 function save(): void {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(run.value)); saveFailed.value = false; }
@@ -92,8 +95,26 @@ export function useRunAdvisor() {
       } else {
         draft.operators.push({ name, copies: 1, elite: false, deployed: destination === 'auto' && draft.operators.filter(operator => operator.deployed).length < MAX_OPS });
       }
-      draft.shop = draft.shop.filter(candidate => candidate !== name);
+      // 手工补录其他持有干员，不等于选择眼前奖励；不得丢弃待选名单。
+      if (draft.shop.includes(name)) {
+        draft.shop = draft.candidateSource === 'promotion' ? [] : draft.shop.filter(candidate => candidate !== name);
+        if (draft.candidateSource === 'promotion') draft.candidateSource = 'shop';
+      }
     });
+  }
+  /** 商店卡与推荐卡共用同一落位决策；明确手工录入仍可使用 recruit 指定位置。 */
+  function candidateError(name: string): string {
+    if (run.value.candidateSource !== 'promotion') return '';
+    if (!run.value.shop.includes(name)) return '请先录入眼前的晋升奖励候选';
+    const operator = operatorsByName.get(name);
+    if (!operator || operator.stars <= 0 || operator.tier !== promotionRewardTier(run.value.level)) return `当前晋升奖励应为${promotionRewardTier(run.value.level)}阶，请核对调度等级或候选来源`;
+    return '';
+  }
+  function recruitCandidate(name: string): boolean {
+    const error = candidateError(name);
+    if (error) { say(error); return false; }
+    const advice = rankedRecommendations.value.find(item => item.operator.name === name);
+    return recruit(name, advice?.kind === 'reserve' || advice?.kind === 'replace' ? 'reserve' : 'auto');
   }
   function editOperator(name: string, message: string, edit: (operator: RecordedOperator) => void): void {
     if (!run.value.operators.some(operator => operator.name === name)) return;
@@ -129,9 +150,37 @@ export function useRunAdvisor() {
   function setElite(name: string, elite: boolean): void {
     editOperator(name, `已更新${name}精锐状态`, operator => { operator.elite = elite; operator.copies = 1; });
   }
+  function setMode(mode: AdvisorMode): void {
+    if (!ADVISOR_MODES.some(item => item.id === mode)) return;
+    change('已更新模式；原持有记录保留，请核对冲突', draft => { draft.mode = mode; });
+  }
+  function setCandidateSource(source: CandidateSource): void {
+    if (source !== 'shop' && source !== 'promotion') return;
+    change('已更新候选来源；请核对当前卡牌是否属于该来源', draft => { draft.candidateSource = source; });
+  }
   function setLevel(level: number): void {
     if (!Number.isInteger(level) || level < 1 || level > 6 || level === run.value.level) return;
     change(`当前${level}本`, draft => { draft.level = level; });
+  }
+  /** 留空表示未知；这些是手动快照，不从购买记录推测回合或自动扣款。 */
+  function setRound(round: number | null): void {
+    if (round !== null && (!Number.isInteger(round) || round < 1 || round > 14)) { say('回合需为1至14的整数，或留空表示未知'); return; }
+    if (round === run.value.round) return;
+    change('已更新当前回合', draft => { draft.round = round; });
+  }
+  function setFunds(funds: number | null): void {
+    if (funds !== null && (!Number.isInteger(funds) || funds < 0 || funds > 999)) { say('资金需为0至999的整数，或留空表示未知'); return; }
+    if (funds === run.value.funds) return;
+    change('已更新可用资金', draft => { draft.funds = funds; });
+  }
+  function setLayer(name: string, layers: number | null): void {
+    if (!ALL_COVENANTS.includes(name) || !usesLayers(name)) return;
+    if (layers !== null && (!Number.isInteger(layers) || layers < 0 || layers > MAX_LAYERS)) { say(`层数需为0至${MAX_LAYERS}的整数，或留空表示未知`); return; }
+    if (layers === null ? !Object.hasOwn(run.value.layers, name) : run.value.layers[name] === layers) return;
+    change(`已更新${name}层数`, draft => {
+      if (layers === null) delete draft.layers[name];
+      else draft.layers[name] = layers;
+    });
   }
   function setStrategy(name: string): void {
     if (name && !strategyNames.has(name)) return;
@@ -190,6 +239,8 @@ export function useRunAdvisor() {
     if (!operatorsByName.has(name) || run.value.shop.includes(name)) return false;
     return change(`已将${name}加入本次商店`, draft => {
       if (!createRecruitmentPool(draft)(name)) return `${name}不在本局招募池，请先调整禁用设置`;
+      if (draft.candidateSource === 'promotion' && operatorsByName.get(name)?.tier !== promotionRewardTier(draft.level)) return `当前晋升奖励应为${promotionRewardTier(draft.level)}阶，请核对调度等级或候选来源`;
+      if (draft.candidateSource === 'promotion' && draft.shop.length >= 3) return '晋升奖励最多录入眼前三名候选';
       if (draft.shop.length >= MAX_SHOP_CANDIDATES) return `最多比较${MAX_SHOP_CANDIDATES}名候选`;
       draft.shop.push(name);
     });
@@ -197,7 +248,7 @@ export function useRunAdvisor() {
   function removeShopCandidate(name: string): void {
     change('已更新商店候选', draft => { draft.shop = draft.shop.filter(candidate => candidate !== name); });
   }
-  function clearShop(): void { change('已清空商店，恢复目标推荐', draft => { draft.shop = []; }); }
+  function clearShop(): void { change('已清空商店，恢复目标推荐', draft => { draft.shop = []; draft.candidateSource = 'shop'; }); }
   /** 清空本局并立即保存；上一局可用 undo 恢复，直到下一次编辑。 */
   function reset(): void { change('已新开一局，可撤销恢复上一局', draft => { Object.assign(draft, newAdvisorRun()); }); }
   /** 恢复最近一次成功编辑前的完整记录，随后清除撤销快照并保存。 */
@@ -209,9 +260,9 @@ export function useRunAdvisor() {
     save();
   }
   return {
-    run: readonly(run), deployed, reserve, covenants, recommendations, goal, unavailableNames, poolConflicts,
+    run: readonly(run), deployed, reserve, covenants, recommendations, deploymentRecommendations, goal, unavailableNames, poolConflicts,
     notice: readonly(notice), saveFailed: readonly(saveFailed), canUndo: computed(() => undoSnapshot.value !== null),
-    recruit, setDeployment, removeOperator, setCopies, setElite, setLevel, setStrategy,
+    recruit, recruitCandidate, candidateError, setDeployment, removeOperator, setCopies, setElite, setMode, setCandidateSource, setLevel, setRound, setFunds, setLayer, setStrategy,
     setMainCovenant, setMainTarget, toggleBannedCovenant, toggleExcludedOperator,
     addEquipment, assignEquipment, setEquipmentAdvanced, removeEquipment,
     addShopCandidate, removeShopCandidate, clearShop, reset, undo,
