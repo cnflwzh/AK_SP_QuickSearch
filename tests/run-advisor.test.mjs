@@ -476,3 +476,19 @@ test('deterministic rest producers cross a shared threshold jointly and award it
   assert.equal(overlaps - base, 24); // 两个来源都足够时仍只加一次
   assert.equal(teamValue(field, [], { ...context, layers: { 远见: 80 } }), base);
 });
+
+test('reserve promotion values the new deployment option without charging for an already free one', async () => {
+  const { recommendDeployments } = await import('../src/lib/runAdvisor.ts');
+  const run = runWith(['拜松'], { mainCovenant: 'mixed', shop: ['矩'] });
+  run.operators[0].elite = true;
+  run.operators.push({ ...owned('矩', false), copies: 2 });
+  const freeBefore = recommendDeployments(run, 20).find(item => item.name === '矩');
+  const promoted = { ...run, operators: run.operators.map(op => op.name === '矩' ? { ...op, elite: true, copies: 1 } : op) };
+  const freeAfter = recommendDeployments(promoted, 20).find(item => item.name === '矩');
+  assert.ok(freeAfter.score > freeBefore.score);
+  const advice = recommendRecruits(run)[0];
+  assert.match(advice.reasons.join(' '), /晋升后.*上场/);
+  assert.match(advice.reasons.join(' '), /扣除.*免费/);
+  assert.ok(advice.breakdown.lineup > 0); // 新增两精锐绝技，而非重复计入原本可免费上场的炎人数
+  assert.equal(run.operators[1].deployed, false);
+});

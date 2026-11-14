@@ -35,7 +35,14 @@ export interface AdvisorRun {
   shop: string[];
 }
 export interface AdviceBreakdown { lineup: number; production: number; acquisition: number; collection: number; fit: number; economy: number }
-export interface DeploymentAdvice { name: string; replace: string; score: number; reasons: string[]; losses: string[] }
+export interface DeploymentAdvice {
+  name: string;
+  replace: string;
+  score: number;
+  breakdown: { lineup: number; production: number; fill: number };
+  reasons: string[];
+  losses: string[];
+}
 export interface RecruitAdvice {
   operator: Operator;
   kind: 'elite' | 'pair' | 'deploy' | 'replace' | 'reserve' | 'skip';
@@ -257,6 +264,7 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
       advice.reasons = [promotes ? '整备区再抓1张即可晋升精锐' : '整备区凑成两张，可保留合成'];
       advice.label = promotes ? '合成备用' : '留对子';
       advice.kind = promotes ? 'elite' : 'pair';
+      if (promotes) applyPromotionDeploymentValue(run, operator.name, advice);
     } else {
       const candidate: PlanOp = { name: operator.name, elite: false, core: false, eq: [], alt: [] };
       if (lineup.length < MAX_OPS) {
@@ -400,6 +408,29 @@ export function recruitPriceRange(run: AdvisorRun, operator: Operator): { min: n
   return { min, max };
 }
 
+/**
+ * 整备区晋升的价值还包括晋升后可以执行的调阵，但当前已能免费执行的方案必须扣除。
+ * 复用同一调阵评估器，避免买牌与上场两处维护不同的盟约、装备和机会成本规则。
+ */
+function applyPromotionDeploymentValue(run: AdvisorRun, name: string, advice: RecruitAdvice): void {
+  const currentPlan = recommendDeployments(run, OPERATORS.length).find(plan => plan.name === name);
+  const promotedRun: AdvisorRun = { ...run,
+    operators: run.operators.map(operator => operator.name === name ? { ...operator, elite: true, copies: 1 } : operator),
+  };
+  const promotedPlan = recommendDeployments(promotedRun, OPERATORS.length).find(plan => plan.name === name);
+  if (!promotedPlan || promotedPlan.score <= (currentPlan?.score ?? 0)) return;
+  const previous = currentPlan?.breakdown ?? { lineup: 0, production: 0, fill: 0 };
+  advice.breakdown.lineup += promotedPlan.breakdown.lineup - previous.lineup;
+  advice.breakdown.production += promotedPlan.breakdown.production - previous.production;
+  advice.breakdown.collection += promotedPlan.breakdown.fill - previous.fill;
+  advice.score += promotedPlan.score - (currentPlan?.score ?? 0);
+  advice.replace = promotedPlan.replace;
+  advice.label = '晋升后上场';
+  advice.reasons.push(`晋升后可上场${promotedPlan.replace ? `替换${promotedPlan.replace}` : '填入空位'}；已扣除现在即可免费调阵的收益`,
+    ...promotedPlan.reasons.filter(reason => !reason.startsWith('已持有')));
+  advice.losses.push(...promotedPlan.losses);
+}
+
 /** 已持有整备区干员的免费调阵，独立于买牌，不触发获得/合成奖励。 */
 export function recommendDeployments(run: AdvisorRun, limit = 3): DeploymentAdvice[] {
   const available = createRecruitmentPool(run);
@@ -418,6 +449,7 @@ export function recommendDeployments(run: AdvisorRun, limit = 3): DeploymentAdvi
       const production = teamValue(next, bench, context) - oldValue;
       const score = evaluation.score + production + (outgoing ? 0 : 10);
       return { name: candidate.name, replace: outgoing?.name ?? '', score,
+        breakdown: { lineup: evaluation.score, production, fill: outgoing ? 0 : 10 },
         reasons: ['已持有，无需再次购买；不重复计算获得时奖励', ...explanation.reasons,
           ...(production > 0 ? ['上场后的持续收益或现有精锐装备投入优于当前配置'] : [])], losses: explanation.losses };
     }).filter(item => item.score > .001).sort((a, b) => b.score - a.score);
