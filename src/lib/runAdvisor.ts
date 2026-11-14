@@ -261,15 +261,29 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
       const candidate: PlanOp = { name: operator.name, elite: false, core: false, eq: [], alt: [] };
       if (lineup.length < MAX_OPS) {
         const evaluation = evaluate([...lineup, candidate]), explanation = explainLineupChange(evaluation);
-        after = evaluation.stats;
-        advice.breakdown.lineup = evaluation.score;
-        advice.breakdown.production = marginal([...lineup, candidate], reserve);
-        advice.breakdown.collection = 10;
-        advice.score = evaluation.score + advice.breakdown.production + 10;
-        advice.reasons = explanation.reasons;
-        advice.losses = explanation.losses;
-        advice.kind = 'deploy';
-        advice.label = '补上场';
+        const bench = evaluate(lineup, [...reserve, candidate]);
+        const fieldProduction = marginal([...lineup, candidate], reserve);
+        const benchProduction = marginal(lineup, [...reserve, candidate]);
+        // 空位不等于无代价：第二名独行会让已有独行失效，仍须比较留整备区。
+        if (evaluation.score + fieldProduction + 10 < bench.score + benchProduction) {
+          after = bench.stats;
+          advice.breakdown.lineup = bench.score;
+          advice.breakdown.production = benchProduction;
+          advice.score = bench.score + benchProduction;
+          advice.reasons = ['虽有空位，先留整备区；不上场可避免' + (explanation.losses.join('、') || '现有阵容收益下降'), ...explainLineupChange(bench).reasons];
+          advice.kind = 'reserve';
+          advice.label = '留整备区';
+        } else {
+          after = evaluation.stats;
+          advice.breakdown.lineup = evaluation.score;
+          advice.breakdown.production = fieldProduction;
+          advice.breakdown.collection = 10;
+          advice.score = evaluation.score + fieldProduction + 10;
+          advice.reasons = explanation.reasons;
+          advice.losses = explanation.losses;
+          advice.kind = 'deploy';
+          advice.label = '补上场';
+        }
       } else {
         // 装备仍属于原持有者，不凭空转移给被推荐的新人。
         const purchasedReserve = [...reserve, candidate];

@@ -317,3 +317,15 @@ test('Silence counts each recorded reserve carrier covenant once and only active
   assert.equal(recurringValue(roster.field[0], false, stats, context, roster).score, 0);
   assert.equal(recurringValue(roster.field[0], true, stats, context, { ...roster, reserve: [] }).score, 0);
 });
+
+test('a free field slot does not force a second solo operator to break an active solo covenant', () => {
+  const run = runWith(['艾丝黛尔'], { mainCovenant: 'mixed', shop: ['地灵'] });
+  run.operators[0].elite = true;
+  const advice = recommendRecruits(run)[0];
+  assert.equal(advice.kind, 'reserve');
+  assert.equal(advice.replace, '');
+  assert.ok(advice.reasons.some(reason => reason.includes('独行')));
+  assert.ok(advice.reasons.some(reason => reason.includes('整备区')));
+  assert.equal(advice.breakdown.lineup, 0);
+  assert.equal(run.operators[0].deployed, true);
+});
