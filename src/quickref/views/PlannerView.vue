@@ -40,16 +40,16 @@ const mobilePoolOpen = computed(() => ['operators', 'replace', 'alternatives'].i
 const mobileCanGoBack = computed(() => !!slot.value && ['replace', 'equipment', 'alternatives'].includes(mobilePanel.value));
 const mobileTitle = computed(() => {
   switch (mobilePanel.value) {
-    case 'slot': return `${slot.value?.name ?? '干员'} · ${OPERATOR[slot.value?.name ?? '']?.tier ?? ''} 阶`;
+    case 'slot': return `编辑第 ${editing.value + 1} 位`;
     case 'replace': return `更换 ${slot.value?.name ?? '干员'}`;
-    case 'equipment': return `装备 · ${slot.value?.name ?? ''}`;
+    case 'equipment': return `装备 · ${slot.value?.name ?? ''}（${slot.value?.eq.length ?? 0}/${MAX_EQ}）`;
     case 'alternatives': return `备选 · ${slot.value?.name ?? ''}（${slot.value?.alt.length ?? 0}/${MAX_ALT}）`;
     case 'strategies': return '选择策略';
     default: return `添加干员（${ops.value.length}/${MAX_OPS}）`;
   }
 });
 
-function closeMobilePanel(): void { mobilePanel.value = ''; editing.value = -1; picking.value = ''; }
+function closeMobilePanel(): void { mobilePanel.value = ''; editing.value = -1; picking.value = ''; replacing.value = false; }
 function backToSlot(): void { picking.value = ''; mobilePanel.value = 'slot'; }
 watch(compact, closeMobilePanel);
 
@@ -68,6 +68,7 @@ async function openOperators(replace = false): Promise<void> {
     if (!replace) editing.value = -1;
     mobilePanel.value = replace ? 'replace' : 'operators';
   } else {
+    replacing.value = replace && !!slot.value;
     await nextTick();
     root.value?.querySelector<HTMLInputElement>('.pl-pool input')?.focus();
   }
@@ -82,9 +83,13 @@ function openPicker(kind: 'eq' | 'st' | 'alt'): void {
 /* ---------- 阵容编辑 ---------- */
 const editing = ref(-1);
 const slot = computed<PlanOp | undefined>(() => ops.value[editing.value]);
+/** 宽屏「更换」：选中槽位后，下一次点干员池替换该位置。手机由 replace 面板承担。 */
+const replacing = ref(false);
+const replaceMode = computed(() => !!slot.value && (compact.value ? mobilePanel.value === 'replace' : replacing.value));
+const lineupFull = computed(() => ops.value.length >= MAX_OPS);
 function toggle(name: string): void {
   if (picking.value === 'alt') return addAlt(name);
-  if (compact.value && mobilePanel.value === 'replace') {
+  if (replaceMode.value) {
     if (!slot.value || inPlan.value.has(name)) return;
     // 和换上备选一致：保留位置与装备，新干员重新设置精锐和核心标记。
     slot.value.name = name;
@@ -92,13 +97,14 @@ function toggle(name: string): void {
     slot.value.core = false;
     slot.value.alt = slot.value.alt.filter(alternate => alternate !== name);
     touch();
-    backToSlot();
+    if (compact.value) backToSlot();
+    else replacing.value = false;
     return;
   }
   const i = ops.value.findIndex(o => o.name === name);
   if (i >= 0) {
     ops.value.splice(i, 1);
-    if (editing.value === i) { editing.value = -1; picking.value = ''; }
+    if (editing.value === i) { editing.value = -1; picking.value = ''; replacing.value = false; }
     else if (editing.value > i) editing.value--;
   }
   else if (ops.value.length < MAX_OPS) ops.value.push(newSlot(name));
@@ -152,6 +158,7 @@ function pickStrategy(name: string): void {
 function editSlot(i: number): void {
   editing.value = !compact.value && editing.value === i ? -1 : i;
   picking.value = '';
+  replacing.value = false;
   if (compact.value) mobilePanel.value = 'slot';
 }
 
@@ -193,8 +200,8 @@ const pool = computed(() => {
 const poolGroups = computed(() => TIERS.map(tier => ({ tier, items: pool.value.filter(o => o.tier === tier) })).filter(g => g.items.length));
 function poolDisabled(name: string): boolean {
   if (picking.value === 'alt') return inPlan.value.has(name) || !!slot.value?.alt.includes(name) || !slot.value || slot.value.alt.length >= MAX_ALT;
-  if (compact.value && mobilePanel.value === 'replace') return inPlan.value.has(name);
-  return !inPlan.value.has(name) && ops.value.length >= MAX_OPS;
+  if (replaceMode.value) return inPlan.value.has(name);
+  return !inPlan.value.has(name) && lineupFull.value;
 }
 const eqGroups = TIERS.map(tier => ({ tier, items: EQUIPMENT.filter(e => e.tier === tier) }));
 const equipmentQuery = ref('');
@@ -227,15 +234,14 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
 </script>
 <template>
   <div ref="root" :class="['pl', 'workbench-controls', { 'pl-compact': compact }]">
-    <PlannerSheet :open="compact && !!mobilePanel" :title="mobileTitle" :context="`${mobilePanel}:${slot?.name ?? ''}`" content-id="planner-mobile-content" :can-go-back="mobileCanGoBack" @close="closeMobilePanel" @back="backToSlot"/>
+    <PlannerSheet :open="compact && !!mobilePanel" :title="mobileTitle" :context="`${mobilePanel}:${slot?.name ?? ''}`" content-id="planner-mobile-content" :can-go-back="mobileCanGoBack" :fit="mobilePanel === 'slot'" @close="closeMobilePanel" @back="backToSlot"/>
     <!-- 方案栏 -->
     <div class="pl-bar">
       <input v-model="plan.name" class="pl-name" maxlength="16" aria-label="流派名" @input="touch">
       <span class="pl-acts">
         <button type="button" :class="{ on: panel === 'share' }" :aria-expanded="panel === 'share'" :aria-controls="panel === 'share' ? 'planner-share' : undefined" @click="openPanel('share')">分享</button>
         <button type="button" :class="{ on: panel === 'compare' }" :aria-expanded="panel === 'compare'" :aria-controls="panel === 'compare' ? 'planner-compare' : undefined" @click="openPanel('compare')">对比</button>
-        <i class="sep"></i>
-        <button v-if="!compact" type="button" class="pri" @click="emit('done')">完成</button>
+        <template v-if="!compact"><i class="sep"></i><button type="button" class="pri" @click="emit('done')">完成</button></template>
       </span>
     </div>
 
@@ -258,6 +264,8 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
     </section>
 
     <div class="pl-grid">
+      <!-- 左栏自成一列，高度不受右侧干员池影响 -->
+      <div class="pl-main">
       <!-- 阵容 -->
       <section v-show="!compact || mobileSection === 'lineup'" id="planner-lineup" class="pl-card pl-lineup">
         <h4>阵容<span class="tag">{{ ops.length }} / {{ MAX_OPS }}</span><span class="hint">点头像编辑 · 小头像是备选</span></h4>
@@ -276,39 +284,54 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
         <Teleport :to="panelTarget" :disabled="!compact" defer>
         <div v-if="slot && (!compact || mobilePanel === 'slot' || mobilePanel === 'equipment')" id="planner-slot-editor" class="pl-edit">
           <template v-if="!compact || mobilePanel === 'slot'">
-          <div class="pl-row">
-            <b>{{ slot.name }}</b>
-            <Segmented :labels="['初始', '精锐']" :active="slot.elite ? 1 : 0" attr="ple" @change="slot.elite = $event === 1; touch()"/>
-            <button type="button" :class="['pl-core-toggle', { on: slot.core }]" :aria-pressed="slot.core" aria-label="核心干员" @click="slot.core = !slot.core; touch()">{{ slot.core ? '★ 核心' : '☆ 核心' }}</button>
-            <span class="pl-move"><button type="button" aria-label="左移" :disabled="editing === 0" @click="move(-1)">‹</button><button type="button" aria-label="右移" :disabled="editing === ops.length - 1" @click="move(1)">›</button></span>
-            <button type="button" class="dg" @click="removeSlot">移出</button>
-            <button v-if="compact" type="button" @click="openOperators(true)">更换</button>
+          <div class="pl-edit-head">
+            <span class="pl-edit-av" :data-t="OPERATOR[slot.name].tier"><img :src="avatarSrc(slot.name)" alt="" width="44" height="44"></span>
+            <span class="pl-edit-id">
+              <b>{{ slot.name }}</b>
+              <small>{{ TIER_LABELS[OPERATOR[slot.name].tier] }} 阶 · <template v-for="(c, k) in OPERATOR[slot.name].covenants" :key="c"><template v-if="k"> · </template><span :style="{ color: color(c) }">{{ c }}</span></template></small>
+            </span>
+            <span class="pl-edit-flags">
+              <Segmented :labels="['初始', '精锐']" :active="slot.elite ? 1 : 0" attr="ple" @change="slot.elite = $event === 1; touch()"/>
+              <button type="button" :class="['pl-core-toggle', { on: slot.core }]" :aria-pressed="slot.core" aria-label="核心干员" @click="slot.core = !slot.core; touch()">{{ slot.core ? '★ 核心' : '☆ 核心' }}</button>
+            </span>
           </div>
           <p class="pl-trait" v-html="fx(slot.elite ? OPERATOR[slot.name].elite : OPERATOR[slot.name].trait)"></p>
-          <div class="pl-row pl-eqs">
+          <div class="pl-edit-line">
             <span class="k">装备</span>
-            <button v-for="(e, k) in slot.eq" :key="k" type="button" class="pl-eq" :data-t="EQUIP[e].tier" :data-eq="e" @click="dropEquip(k)"><img :src="equipIconSrc(e)" alt="" width="22" height="22">{{ e }}<i>×</i></button>
-            <button v-if="slot.eq.length < MAX_EQ" type="button" :class="['pl-eq', 'add', { on: picking === 'eq' }]" :aria-expanded="picking === 'eq'" :aria-controls="picking === 'eq' ? 'planner-equipment' : undefined" @click="openPicker('eq')">+ 装备</button>
-          </div>
-          <div class="pl-row pl-alts">
-            <span class="k">备选</span>
-            <span v-for="(a, k) in slot.alt" :key="a" class="pl-alt" :data-t="OPERATOR[a].tier" :data-op="a">
-              <button type="button" :disabled="inPlan.has(a)" :title="inPlan.has(a) ? '已在阵容里' : '换上场'" @click="swapAlt(k)"><img :src="avatarSrc(a)" alt="" width="24" height="24">{{ a }}<b>⇄</b></button>
-              <button type="button" class="x" aria-label="移除备选" @click="dropAlt(k)">×</button>
+            <span class="pl-edit-cells">
+              <template v-for="k in MAX_EQ" :key="k">
+                <button v-if="slot.eq[k - 1]" type="button" class="pl-eq" :data-t="EQUIP[slot.eq[k - 1]].tier" :data-eq="slot.eq[k - 1]" :aria-label="`卸下${slot.eq[k - 1]}`" @click="dropEquip(k - 1)"><img :src="equipIconSrc(slot.eq[k - 1])" alt="" width="22" height="22"><span>{{ slot.eq[k - 1] }}</span><i aria-hidden="true">×</i></button>
+                <button v-else-if="k === slot.eq.length + 1" type="button" :class="['pl-eq', 'add', { on: picking === 'eq' }]" :aria-expanded="picking === 'eq'" :aria-controls="picking === 'eq' ? 'planner-equipment' : undefined" @click="openPicker('eq')">＋ 装备</button>
+                <span v-else class="pl-eq ghost" aria-hidden="true"></span>
+              </template>
             </span>
-            <button v-if="slot.alt.length < MAX_ALT" type="button" :class="['pl-eq', 'add', { on: picking === 'alt' }]" :aria-expanded="picking === 'alt'" :aria-controls="picking === 'alt' ? 'planner-alternatives' : undefined" @click="openPicker('alt')">+ 备选</button>
+          </div>
+          <div class="pl-edit-line pl-alts">
+            <span class="k">备选</span>
+            <span class="pl-edit-cells">
+              <span v-for="(a, k) in slot.alt" :key="a" class="pl-alt" :data-t="OPERATOR[a].tier" :data-op="a">
+                <button type="button" :disabled="inPlan.has(a)" :title="inPlan.has(a) ? '已在阵容里' : '换上场'" @click="swapAlt(k)"><img :src="avatarSrc(a)" alt="" width="24" height="24">{{ a }}<b>⇄</b></button>
+                <button type="button" class="x" aria-label="移除备选" @click="dropAlt(k)">×</button>
+              </span>
+              <button v-if="slot.alt.length < MAX_ALT" type="button" :class="['pl-eq', 'add', { on: picking === 'alt' }]" :aria-expanded="picking === 'alt'" :aria-controls="picking === 'alt' ? 'planner-alternatives' : undefined" @click="openPicker('alt')">＋ 备选</button>
+            </span>
           </div>
           <div v-if="!compact && picking === 'alt'" id="planner-alternatives" class="pl-pick pl-altpick">
-            <span class="hint">同盟约、等阶相近 · 也可以在干员列表里点选</span>
+            <span class="hint">同盟约、等阶相近 · 也可以在右侧干员列表里点选</span>
             <div class="pl-pick-g"><button v-for="o in altSuggest" :key="o.name" type="button" :data-t="o.tier" :data-op="o.name" @click="addAlt(o.name)"><img :src="avatarSrc(o.name)" alt="" width="34" height="34" loading="lazy"><small>{{ o.name }}</small><span class="dots"><u v-for="c in o.covenants" :key="c" :style="{ '--c': color(c) }"></u></span></button></div>
           </div>
+          <div class="pl-edit-actions">
+            <span class="pl-move"><button type="button" :disabled="editing === 0" @click="move(-1)">‹ 左移</button><button type="button" :disabled="editing === ops.length - 1" @click="move(1)">右移 ›</button></span>
+            <button type="button" :class="{ on: replaceMode }" :aria-pressed="!compact ? replaceMode : undefined" @click="!compact && replaceMode ? replacing = false : openOperators(true)">{{ !compact && replaceMode ? '取消更换' : '更换' }}</button>
+            <button type="button" class="dg" @click="removeSlot">移出</button>
+          </div>
           </template>
-          <div v-if="picking === 'eq'" id="planner-equipment" class="pl-pick">
-            <input v-if="compact" v-model="equipmentQuery" type="search" class="pl-paste" placeholder="装备名字 / 拼音 / 效果" aria-label="搜索装备">
-            <div v-for="g in compact ? filteredEquipment : eqGroups" :key="g.tier" class="pl-pick-g"><i class="tier" :data-t="g.tier">{{ TIER_LABELS[g.tier] }}</i>
-              <button v-for="e in g.items" :key="e.name" type="button" :data-t="e.tier" :data-eq="e.name" :title="e.name" @click="addEquip(e.name)"><img :src="equipIconSrc(e.name)" alt="" width="30" height="30" loading="lazy"><small v-if="compact">{{ e.name }}</small></button>
+          <div v-if="picking === 'eq'" id="planner-equipment" class="pl-pick pl-eqpick">
+            <input v-model="equipmentQuery" type="search" class="pl-paste" placeholder="装备名字 / 拼音 / 效果" aria-label="搜索装备">
+            <div v-for="g in filteredEquipment" :key="g.tier" class="pl-pick-g"><i class="tier" :data-t="g.tier">{{ TIER_LABELS[g.tier] }}</i>
+              <button v-for="e in g.items" :key="e.name" type="button" :data-t="e.tier" :data-eq="e.name" :class="{ on: slot.eq.includes(e.name) }" @click="addEquip(e.name)"><img :src="equipIconSrc(e.name)" alt="" width="30" height="30" loading="lazy"><small>{{ e.name }}</small></button>
             </div>
-            <p v-if="compact && !filteredEquipment.length" class="empty">没有匹配的装备</p>
+            <p v-if="!filteredEquipment.length" class="empty">没有匹配的装备</p>
           </div>
         </div>
         </Teleport>
@@ -330,8 +353,13 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
         </div>
         <Teleport :to="panelTarget" :disabled="!compact" defer>
         <div v-if="picking === 'st'" id="planner-strategies" class="pl-pick stp">
+          <div v-if="compact && strategy" class="pl-st-current">
+            <img :src="portraitSrc(strategy.name)" alt="" width="40" height="40">
+            <span><small>当前策略 · {{ strategy.category }}</small><b>{{ strategy.name }}</b><span v-html="fx(strategy.effect)"></span></span>
+            <button type="button" @click="pickStrategy(strategy.name)">不选</button>
+          </div>
           <Segmented :labels="STRATEGY_CATEGORIES" :active="stCategory" attr="plsc" @change="stCategory = $event"/>
-          <div class="pl-pick-g"><button v-for="s in stList" :key="s.name" type="button" :class="{ on: s.name === plan.strategy }" :aria-pressed="s.name === plan.strategy" :data-st="s.name" @click="pickStrategy(s.name)"><img :src="portraitSrc(s.name)" alt="" width="34" height="34" loading="lazy"><small>{{ s.name }}</small></button></div>
+          <div class="pl-pick-g"><button v-for="s in stList" :key="s.name" type="button" :class="{ on: s.name === plan.strategy }" :aria-pressed="s.name === plan.strategy" :data-st="s.name" @click="pickStrategy(s.name)"><img :src="portraitSrc(s.name)" alt="" width="34" height="34" loading="lazy"><small>{{ s.name }}</small><em>{{ s.category }}</em></button></div>
         </div>
         </Teleport>
         <details class="pl-note-fold" :open="!compact">
@@ -378,12 +406,15 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
           <li v-for="(n, i) in notes" :key="i" :class="n.kind"><b>{{ n.op }}</b>{{ n.text }}<span v-if="n.result" v-html="fx(n.result)"></span></li>
         </ul>
       </section>
+      </div>
 
       <!-- 干员池 -->
       <Teleport :to="panelTarget" :disabled="!compact" defer>
-      <section v-if="!compact || mobilePoolOpen" class="pl-card pl-pool">
+      <section v-if="!compact || mobilePoolOpen" :class="['pl-card', 'pl-pool', { replacing: replaceMode }]">
         <h4>干员<span class="tag">{{ pool.length }}</span><span class="hint">★ 能推进已有盟约</span></h4>
-        <div v-if="picking === 'alt' && slot" class="pl-altbar"><span>点选干员 → 加为 <b>{{ slot.name }}</b> 的备选（{{ slot.alt.length }}/{{ MAX_ALT }}）</span><button type="button" @click="compact ? backToSlot() : openPicker('alt')">完成</button></div>
+        <div v-if="picking === 'alt' && slot" class="pl-altbar"><span>点选干员 → 加为 <b>{{ slot.name }}</b> 的备选（{{ slot.alt.length }}/{{ MAX_ALT }}）</span><button v-if="!compact" type="button" @click="openPicker('alt')">完成</button></div>
+        <div v-else-if="replaceMode && slot" class="pl-altbar"><span>点选干员 → 替换第 {{ editing + 1 }} 位的 <b>{{ slot.name }}</b>，保留装备</span><button v-if="!compact" type="button" @click="replacing = false">取消</button></div>
+        <p v-else-if="lineupFull" class="pl-full-hint">阵容已满 {{ MAX_OPS }}/{{ MAX_OPS }}。{{ compact ? '点上面的已选干员可移出，再添加新的。' : '点已选的干员可移出；或选中左侧阵容里的干员，点「更换」直接替换。' }}</p>
         <div v-if="compact && mobilePanel === 'operators' && ops.length" class="pl-selected" aria-label="已选干员">
           <button v-for="member in ops" :key="member.name" type="button" :aria-label="`移出 ${member.name}`" @click="toggle(member.name)">{{ member.name }} ×</button>
         </div>
