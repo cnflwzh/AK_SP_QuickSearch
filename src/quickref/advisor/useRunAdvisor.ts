@@ -1,3 +1,4 @@
+import { plans as savedPlans } from '../planStore.ts';
 import { clearMovedFrontTargets, supportsFrontTarget } from '../../lib/advisorPosition.ts';
 import { ADVISOR_MODES, ADVISOR_FORMATS, advisorRoundLimit, promotionRewardTier, type AdvisorFormat, type AdvisorMode, type CandidateSource } from '../../lib/advisorRules.ts';
 import { computed, readonly, ref } from 'vue';
@@ -37,9 +38,9 @@ const unavailableNames = computed(() => {
 });
 const poolConflicts = computed(() => run.value.operators.filter(operator => unavailableNames.value.includes(operator.name)).map(operator => operator.name));
 // 录入商店后逐张排序全部候选，商店列表即建议列表；未录入时只列出前几名目标。
-const rankedRecommendations = computed(() => recommendRecruits(run.value, operatorsByName.size));
+const rankedRecommendations = computed(() => recommendRecruits(run.value, operatorsByName.size, savedPlans));
 const recommendations = computed(() => rankedRecommendations.value.slice(0, run.value.shop.length ? MAX_SHOP_CANDIDATES : 5));
-const deploymentRecommendations = computed(() => recommendDeployments(run.value));
+const deploymentRecommendations = computed(() => recommendDeployments(run.value, 3, savedPlans));
 const deployed = computed(() => run.value.operators.filter(operator => operator.deployed));
 const reserve = computed(() => run.value.operators.filter(operator => !operator.deployed));
 
