@@ -1,6 +1,6 @@
 import { computed, readonly, ref } from 'vue';
-import { newAdvisorRun, sanitizeAdvisorRun } from '../../lib/advisorState.ts';
-import { type AdvisorRun } from '../../lib/advisorTypes.ts';
+import { newAdvisorRun, sanitizeAdvisorRun } from '../../lib/recommendation/live/advisorState.ts';
+import { type AdvisorRun } from '../../lib/recommendation/live/advisorTypes.ts';
 const STORAGE_KEY = 'wsq.tools.advisor.v1';
 const NOTICE_DURATION_MS = 3200;
 /** 编辑只作用于草稿；返回错误时丢弃草稿并保留上次撤销机会。 */

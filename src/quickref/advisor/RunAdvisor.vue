@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { promotionRewardTier, type CandidateSource } from '../../lib/advisorRules.ts';
+import { promotionRewardTier, type CandidateSource } from '../../lib/recommendation/live/advisorRules.ts';
 import { computed, nextTick, onBeforeUnmount, onDeactivated, ref, watch } from 'vue';
 import { STRATEGY, covenantColor } from '../../../data/index.ts';
 import { equipIconSrc, portraitSrc } from '../../lib/assets.ts';

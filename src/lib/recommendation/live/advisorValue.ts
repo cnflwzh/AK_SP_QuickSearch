@@ -1,29 +1,34 @@
 /** 整队估值协调：独立特质先求值，再合并本轮门槛与策略机会。 */
-import { OPERATOR } from '../../data/index.ts';
+import { OPERATOR } from '../../../../data/index.ts';
 import {
-  covenantStats,
-  covenantsOf,
-  usesLayers,
-  type CovenantStat,
-  type Layers,
-  type PlanOp,
-} from './planner.ts';
-import { hasHighestLayerTarget, isAcquisitionCountTrait } from './advisorTraitText.ts';
+covenantStats,
+covenantsOf,
+type CovenantStat,
+} from '../../plans/covenants.ts';
+import { usesLayers,type Layers,type PlanOp } from '../../plans/model.ts';
 import {
-  crossedLayerMilestones,
-  layerValue,
-  productionHorizon,
-  LAYER_MILESTONE_SCORE,
+LAYER_MILESTONE_SCORE,
+crossedLayerMilestones,
+layerValue,
+productionHorizon,
 } from './advisorLayerValue.ts';
-import { acquisitionValue, recurringValue } from './advisorTraits.ts';
+import {
+hasHighestLayerTarget,
+isAcquisitionCountTrait,
+} from './advisorTraitText.ts';
+import { acquisitionValue,recurringValue } from './advisorTraits.ts';
 import type {
-  TraitValue,
-  ValueContext,
-  CommandOpportunity,
-  LayerGain,
+CommandOpportunity,
+LayerGain,
+TraitValue,
+ValueContext,
 } from './advisorValueTypes.ts';
-export { acquisitionValue, recurringValue } from './advisorTraits.ts';
-export type { ValueContext, ValueRoster, TraitValue } from './advisorValueTypes.ts';
+export { acquisitionValue,recurringValue } from './advisorTraits.ts';
+export type {
+TraitValue,
+ValueContext,
+ValueRoster
+} from './advisorValueTypes.ts';
 const REST_COMMAND_WEIGHT = 0.35;
 const ACQUISITION_COMMAND_WEIGHT = 0.6;
 const ELITE_REPLACEMENT_COST = 35;
@@ -49,7 +54,13 @@ export function covenantProductionValue(
   const score = gains.reduce(
     (total, gain) =>
       total +
-      layerValue(gain.covenant, gain.amount * productionHorizon(context), stats, context, false),
+      layerValue(
+        gain.covenant,
+        gain.amount * productionHorizon(context),
+        stats,
+        context,
+        false,
+      ),
     0,
   );
   return {
@@ -62,7 +73,10 @@ export function covenantProductionValue(
 }
 function bestCommand(candidates: CommandOpportunity[]): CommandOpportunity {
   return (
-    candidates.sort((first, second) => second.score - first.score)[0] ?? { score: 0, reasons: [] }
+    candidates.sort((first, second) => second.score - first.score)[0] ?? {
+      score: 0,
+      reasons: [],
+    }
   );
 }
 function restCommandTarget(
@@ -73,38 +87,64 @@ function restCommandTarget(
   context: ValueContext,
   hasDynamicTarget: boolean,
 ): CommandOpportunity {
-  const text = slot.elite ? OPERATOR[slot.name]?.elite : OPERATOR[slot.name]?.trait;
+  const text = slot.elite
+    ? OPERATOR[slot.name]?.elite
+    : OPERATOR[slot.name]?.trait;
   // 每回合上限是否与额外触发共享尚未核实，不将计数型产层复制一遍。
   const gains =
     text && isAcquisitionCountTrait(text)
       ? []
-      : (recurringValue(slot, true, stats, context, { field, reserve }).endOfRestGains ?? []);
-  const trigger: TraitValue = { score: 0, reasons: [], acquisitionGains: gains };
+      : (recurringValue(slot, true, stats, context, { field, reserve })
+          .endOfRestGains ?? []);
+  const trigger: TraitValue = {
+    score: 0,
+    reasons: [],
+    acquisitionGains: gains,
+  };
   const milestones = hasDynamicTarget
     ? {
         score: 0,
-        reasons: ['存在按层数选目标的休整产层，未假定额外触发顺序或计入合计门槛'],
+        reasons: [
+          '存在按层数选目标的休整产层，未假定额外触发顺序或计入合计门槛',
+        ],
       }
-    : purchaseMilestoneAdjustment(trigger, stats, field, reserve, context, '指令触发');
+    : purchaseMilestoneAdjustment(
+        trigger,
+        stats,
+        field,
+        reserve,
+        context,
+        '指令触发',
+      );
   const immediateMilestoneScore = hasDynamicTarget
     ? 0
     : gains.reduce(
         (total, gain) =>
           total +
-          crossedLayerMilestones(gain.covenant, gain.amount, stats, context).length *
+          crossedLayerMilestones(gain.covenant, gain.amount, stats, context)
+            .length *
             LAYER_MILESTONE_SCORE,
         0,
       );
   const gainScore = gains.reduce(
-    (total, gain) => total + layerValue(gain.covenant, gain.amount, stats, context, false),
+    (total, gain) =>
+      total + layerValue(gain.covenant, gain.amount, stats, context, false),
     0,
   );
-  const score = (gainScore + immediateMilestoneScore + milestones.score) * REST_COMMAND_WEIGHT;
+  const score =
+    (gainScore + immediateMilestoneScore + milestones.score) *
+    REST_COMMAND_WEIGHT;
   const availability =
-    context.commandAvailable === true ? '已记录本次苏苏洛指令可用' : '若本轮苏苏洛指令可用';
+    context.commandAvailable === true
+      ? '已记录本次苏苏洛指令可用'
+      : '若本轮苏苏洛指令可用';
   const consumption =
-    context.commandAvailable === true ? '；未自动消耗指令' : '；未假定指令尚未使用';
-  const gainDescription = gains.map((gain) => `${gain.covenant}+${gain.amount}层`).join('、');
+    context.commandAvailable === true
+      ? '；未自动消耗指令'
+      : '；未假定指令尚未使用';
+  const gainDescription = gains
+    .map((gain) => `${gain.covenant}+${gain.amount}层`)
+    .join('、');
   return {
     target: slot.name,
     score,
@@ -126,14 +166,23 @@ export function restCommandOpportunity(
   if (context.strategy !== '苏苏洛' || context.commandAvailable === false) {
     return { score: 0, reasons: [] };
   }
-  const stats = covenantStats(field, context.layers, reserve, context.inactiveCovenants);
+  const stats = covenantStats(
+    field,
+    context.layers,
+    reserve,
+    context.inactiveCovenants,
+  );
   // 额外触发不保证早于自然结算；动态选层目标时不推合计门槛。
   const hasDynamicTarget = [...field, ...reserve].some((slot) => {
-    const text = slot.elite ? OPERATOR[slot.name]?.elite : OPERATOR[slot.name]?.trait;
+    const text = slot.elite
+      ? OPERATOR[slot.name]?.elite
+      : OPERATOR[slot.name]?.trait;
     return hasHighestLayerTarget(text ?? '');
   });
   return bestCommand(
-    field.map((slot) => restCommandTarget(slot, field, reserve, stats, context, hasDynamicTarget)),
+    field.map((slot) =>
+      restCommandTarget(slot, field, reserve, stats, context, hasDynamicTarget),
+    ),
   );
 }
 /** 铃兰只估一次额外获得特质；与普通购入奖励独立，未自动消耗指令。 */
@@ -146,9 +195,19 @@ export function acquisitionCommandOpportunity(
     return { score: 0, reasons: [] };
   }
   // 投资人整备区也计人数，指令触发沿用完整阵容当前激活状态。
-  const stats = covenantStats(field, context.layers, reserve, context.inactiveCovenants);
+  const stats = covenantStats(
+    field,
+    context.layers,
+    reserve,
+    context.inactiveCovenants,
+  );
   const candidates = field.map((slot) => {
-    const acquisition = acquisitionValue(OPERATOR[slot.name], slot.elite, stats, context);
+    const acquisition = acquisitionValue(
+      OPERATOR[slot.name],
+      slot.elite,
+      stats,
+      context,
+    );
     const milestones = purchaseMilestoneAdjustment(
       acquisition,
       stats,
@@ -157,11 +216,16 @@ export function acquisitionCommandOpportunity(
       context,
       '指令触发',
     );
-    const score = (acquisition.score + milestones.score) * ACQUISITION_COMMAND_WEIGHT;
+    const score =
+      (acquisition.score + milestones.score) * ACQUISITION_COMMAND_WEIGHT;
     const availability =
-      context.commandAvailable === true ? '已记录本次铃兰指令可用' : '若本次铃兰指令可用';
+      context.commandAvailable === true
+        ? '已记录本次铃兰指令可用'
+        : '若本次铃兰指令可用';
     const consumption =
-      context.commandAvailable === true ? '；未自动消耗指令' : '；未假定指令尚未使用';
+      context.commandAvailable === true
+        ? '；未自动消耗指令'
+        : '；未假定指令尚未使用';
     return {
       target: slot.name,
       score,
@@ -182,11 +246,21 @@ export function strategyValue(
   context: ValueContext,
   reserve: readonly PlanOp[] = [],
 ): number {
-  const stats = covenantStats(field, context.layers, [], context.inactiveCovenants);
+  const stats = covenantStats(
+    field,
+    context.layers,
+    [],
+    context.inactiveCovenants,
+  );
   const elites = field.filter((slot) => slot.elite).length;
   switch (context.strategy) {
     case '阿米娅':
-      return Math.max(0, Math.min(5, stats.filter((stat) => stat.active).length) - 2) * 25;
+      return (
+        Math.max(
+          0,
+          Math.min(5, stats.filter((stat) => stat.active).length) - 2,
+        ) * 25
+      );
     case 'Touch':
       return elites >= 2 ? 45 : 0;
     case '伊奥莱塔·罗素':
@@ -199,7 +273,9 @@ export function strategyValue(
           stats.some((stat) => stat.name === name && stat.active),
         ),
       );
-      return new Set(eligible.map((slot) => OPERATOR[slot.name]?.tier)).size * 7;
+      return (
+        new Set(eligible.map((slot) => OPERATOR[slot.name]?.tier)).size * 7
+      );
     }
     case '苏苏洛':
       return restCommandOpportunity(field, reserve, context).score;
@@ -222,17 +298,29 @@ function restProduction(
   reserve: readonly PlanOp[],
   context: ValueContext,
 ): RestProduction {
-  const stats = covenantStats(field, context.layers, reserve, context.inactiveCovenants);
+  const stats = covenantStats(
+    field,
+    context.layers,
+    reserve,
+    context.inactiveCovenants,
+  );
   const roster = { field, reserve };
   const values = [
     covenantProductionValue(stats, context),
     ...field.map((slot) => recurringValue(slot, true, stats, context, roster)),
-    ...reserve.map((slot) => recurringValue(slot, false, stats, context, roster)),
+    ...reserve.map((slot) =>
+      recurringValue(slot, false, stats, context, roster),
+    ),
   ];
-  const totals = sumLayerGains(values.flatMap((value) => value.endOfRestGains ?? []));
+  const totals = sumLayerGains(
+    values.flatMap((value) => value.endOfRestGains ?? []),
+  );
   return { stats, values, totals };
 }
-function layersAfterAcquisition(layers: Layers, gains: ReadonlyMap<string, number>): Layers {
+function layersAfterAcquisition(
+  layers: Layers,
+  gains: ReadonlyMap<string, number>,
+): Layers {
   const projected = { ...layers };
   for (const [covenant, amount] of gains) {
     if (Object.hasOwn(projected, covenant)) {
@@ -272,10 +360,17 @@ export function purchaseMilestoneAdjustment(
       current.stats,
       context,
     );
-    const combined = crossedLayerMilestones(covenant, amount + end, current.stats, context);
+    const combined = crossedLayerMilestones(
+      covenant,
+      amount + end,
+      current.stats,
+      context,
+    );
     // 若购买后盟约失效，不撤销已经实际触发的获得时门槛。
     const reached = new Set([...combined, ...immediate]);
-    score += (reached.size - immediate.length - production.length) * LAYER_MILESTONE_SCORE;
+    score +=
+      (reached.size - immediate.length - production.length) *
+      LAYER_MILESTONE_SCORE;
     for (const threshold of combined.filter(
       (value) => !immediate.includes(value) && !production.includes(value),
     )) {
@@ -304,12 +399,15 @@ export function teamValue(
   const milestoneValue = [...totals].reduce(
     (value, [covenant, amount]) =>
       value +
-      crossedLayerMilestones(covenant, amount, stats, context).length * LAYER_MILESTONE_SCORE,
+      crossedLayerMilestones(covenant, amount, stats, context).length *
+        LAYER_MILESTONE_SCORE,
     0,
   );
   const retainedInvestment = field.reduce(
     (sum, slot) =>
-      sum + (slot.elite ? ELITE_REPLACEMENT_COST : 0) + slot.eq.length * EQUIPMENT_REPLACEMENT_COST,
+      sum +
+      (slot.elite ? ELITE_REPLACEMENT_COST : 0) +
+      slot.eq.length * EQUIPMENT_REPLACEMENT_COST,
     0,
   );
   return (

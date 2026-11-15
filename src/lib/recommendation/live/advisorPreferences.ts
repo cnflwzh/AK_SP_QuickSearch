@@ -1,13 +1,13 @@
 /** 已保存方案的路线偏好；只用于相同规则收益的排序，不模拟伤害或把目标阵容当作已持有。 */
-import { OPERATOR, STRATEGY, isCoreCovenant } from '../../data/index.ts';
+import { OPERATOR,STRATEGY,isCoreCovenant } from '../../../../data/index.ts';
 import {
-  builtinPlan,
-  inferPrimaryCovenant,
-  MAX_OPS,
-  samePlan,
-  type Plan,
-  type PlanOp,
-} from './planner.ts';
+MAX_OPS,
+builtinPlan,
+samePlan,
+type Plan,
+type PlanOp,
+} from '../../plans/model.ts';
+import { inferPrimaryCovenant } from '../planning.ts';
 /** 调用方提供真实阵容和招募限制；不依赖页面选择、本局预设或浏览器存储。 */
 export interface AdvisorPreferenceContext {
   field: readonly PlanOp[];
@@ -56,12 +56,18 @@ function strategyConflicts(actual: string, target: string): boolean {
   );
 }
 /** 不匹配返回 null；分值只表示位置偏好，不代表干员战力。 */
-function slotMatchScore(slot: TargetSlot, name: string, deployed: boolean): number | null {
+function slotMatchScore(
+  slot: TargetSlot,
+  name: string,
+  deployed: boolean,
+): number | null {
   const isPrimary = slot.name === name;
   if (!isPrimary && !slot.alternatives.includes(name)) {
     return null;
   }
-  return POSITION_WEIGHT + (isPrimary ? 2 : 1) + Number(slot.core) + Number(deployed);
+  return (
+    POSITION_WEIGHT + (isPrimary ? 2 : 1) + Number(slot.core) + Number(deployed)
+  );
 }
 /** 从上一轮状态扩展一次，防止同一个干员在本轮被重复分配给多个位置。 */
 function assignOperatorToSlots(
@@ -84,7 +90,10 @@ function assignOperatorToSlots(
       }
       const nextOccupiedSlots = occupiedSlots | slotBit;
       const previousBest = nextScores.get(nextOccupiedSlots) ?? 0;
-      nextScores.set(nextOccupiedSlots, Math.max(previousBest, score + matchScore));
+      nextScores.set(
+        nextOccupiedSlots,
+        Math.max(previousBest, score + matchScore),
+      );
     }
   }
   return nextScores;
@@ -108,8 +117,12 @@ function matchRoute(
   }
   return Math.max(...assignmentScores.values());
 }
-function availableTargetSlots(plan: Plan, unavailableNames?: ReadonlySet<string>): TargetSlot[] {
-  const isAvailable = (name: string): boolean => !!OPERATOR[name] && !unavailableNames?.has(name);
+function availableTargetSlots(
+  plan: Plan,
+  unavailableNames?: ReadonlySet<string>,
+): TargetSlot[] {
+  const isAvailable = (name: string): boolean =>
+    !!OPERATOR[name] && !unavailableNames?.has(name);
   const seenPrimaryNames = new Set<string>();
   const targetSlots: TargetSlot[] = [];
   for (const slot of plan.ops.slice(0, MAX_OPS)) {
@@ -124,11 +137,18 @@ function availableTargetSlots(plan: Plan, unavailableNames?: ReadonlySet<string>
     if (!primaryAvailable && !alternatives.length) {
       continue;
     }
-    targetSlots.push({ name: primaryAvailable ? slot.name : '', alternatives, core: slot.core });
+    targetSlots.push({
+      name: primaryAvailable ? slot.name : '',
+      alternatives,
+      core: slot.core,
+    });
   }
   return targetSlots;
 }
-function prepareRoute(plan: Plan, context: AdvisorPreferenceContext): AnchoredRoute | null {
+function prepareRoute(
+  plan: Plan,
+  context: AdvisorPreferenceContext,
+): AnchoredRoute | null {
   if (!plan.ops.length) {
     return null;
   }
@@ -138,8 +158,13 @@ function prepareRoute(plan: Plan, context: AdvisorPreferenceContext): AnchoredRo
     return null;
   }
   const primaryCovenant = inferPrimaryCovenant(plan.ops);
-  const explicitMainCovenant = context.mainCovenant && context.mainCovenant !== 'mixed';
-  if (explicitMainCovenant && primaryCovenant && context.mainCovenant !== primaryCovenant) {
+  const explicitMainCovenant =
+    context.mainCovenant && context.mainCovenant !== 'mixed';
+  if (
+    explicitMainCovenant &&
+    primaryCovenant &&
+    context.mainCovenant !== primaryCovenant
+  ) {
     return null;
   }
   if (strategyConflicts(context.strategy, plan.strategy)) {
@@ -189,9 +214,13 @@ export function createAdvisorPreferenceEvaluator(
   const candidateRoutes = plans
     .map((plan) => prepareRoute(plan, context))
     .filter((route): route is AnchoredRoute => route !== null);
-  const bestBaselineScore = Math.max(0, ...candidateRoutes.map((route) => route.baselineScore));
+  const bestBaselineScore = Math.max(
+    0,
+    ...candidateRoutes.map((route) => route.baselineScore),
+  );
   const anchoredRoutes = candidateRoutes.filter(
     (route) => route.baselineScore === bestBaselineScore,
   );
-  return (field, reserve = []) => evaluateAnchoredRoutes(anchoredRoutes, field, reserve);
+  return (field, reserve = []) =>
+    evaluateAnchoredRoutes(anchoredRoutes, field, reserve);
 }

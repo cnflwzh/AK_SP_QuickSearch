@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { newSlot } from '../src/lib/planner.ts';
-import { explainStrategyTransition } from '../src/lib/advisorStrategy.ts';
+import { explainStrategyTransition } from '../src/lib/recommendation/live/advisorStrategy.ts';
 import { newAdvisorRun, recommendRecruits } from '../src/lib/runAdvisor.ts';
 
 const names = ['拜松', '矩', '乌有', '风絮', '余', '仇白', '黍', '老鲤', '夕'];

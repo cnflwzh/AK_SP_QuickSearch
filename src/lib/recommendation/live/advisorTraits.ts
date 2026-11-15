@@ -1,14 +1,23 @@
 /** 将已解析的单干员效果换算为有限启发式价值，不修改实际对局状态。 */
-import { OPERATOR, type Operator } from '../../data/index.ts';
-import { usesLayers, type CovenantStat, type PlanOp } from './planner.ts';
-import { crossedLayerMilestones, layerValue, productionHorizon } from './advisorLayerValue.ts';
+import { OPERATOR,type Operator } from '../../../../data/index.ts';
+import { type CovenantStat } from '../../plans/covenants.ts';
+import { usesLayers,type PlanOp } from '../../plans/model.ts';
 import {
-  resolveAcquisitionEffects,
-  resolveBattleEffects,
-  resolveRestLayerEffects,
-  type RestLayerEffects,
+crossedLayerMilestones,
+layerValue,
+productionHorizon,
+} from './advisorLayerValue.ts';
+import {
+resolveAcquisitionEffects,
+resolveBattleEffects,
+resolveRestLayerEffects,
+type RestLayerEffects,
 } from './advisorTraitText.ts';
-import type { TraitValue, ValueContext, ValueRoster } from './advisorValueTypes.ts';
+import type {
+TraitValue,
+ValueContext,
+ValueRoster,
+} from './advisorValueTypes.ts';
 /** 获得时用初始或精锐特质二选一，合成不再叠加第三张初始特质。 */
 export function acquisitionValue(
   operator: Operator,
@@ -18,8 +27,15 @@ export function acquisitionValue(
 ): TraitValue {
   const effects = resolveAcquisitionEffects(operator, elite, context.level);
   const investor = stats.find((stat) => stat.name === '投资人');
-  const multiplier = investor?.active ? ((context.layers['投资人'] ?? 0) >= 100 ? 3 : 2) : 1;
-  const gains = effects.gains.map((gain) => ({ ...gain, amount: gain.amount * multiplier }));
+  const multiplier = investor?.active
+    ? (context.layers['投资人'] ?? 0) >= 100
+      ? 3
+      : 2
+    : 1;
+  const gains = effects.gains.map((gain) => ({
+    ...gain,
+    amount: gain.amount * multiplier,
+  }));
   const reasons: string[] = [];
   let score = 0;
   if (multiplier > 1 && effects.hasText) {
@@ -30,13 +46,22 @@ export function acquisitionValue(
       reasons.push(`${covenant}本局缺席，其获得时层数不计入收益`);
       continue;
     }
-    const growthNote = effects.growsWithTriggers ? '起（成长次数未录入，按最低档）' : '';
-    const activationNote = stats.some((stat) => stat.name === covenant && stat.active)
+    const growthNote = effects.growsWithTriggers
+      ? '起（成长次数未录入，按最低档）'
+      : '';
+    const activationNote = stats.some(
+      (stat) => stat.name === covenant && stat.active,
+    )
       ? ''
       : '（尚未激活）';
     score += layerValue(covenant, amount, stats, context);
     reasons.push(`获得时${covenant}+${amount}层${growthNote}${activationNote}`);
-    for (const threshold of crossedLayerMilestones(covenant, amount, stats, context)) {
+    for (const threshold of crossedLayerMilestones(
+      covenant,
+      amount,
+      stats,
+      context,
+    )) {
       reasons.push(`按已录层数可跨过${covenant}${threshold}层强化门槛`);
     }
   }
@@ -49,12 +74,16 @@ export function acquisitionValue(
   if (effects.equipmentReward) {
     const count = effects.equipmentReward.count * multiplier;
     score += 10 * count;
-    reasons.push(`获得时提供${count}件${effects.equipmentReward.name}；未假定随机额外奖励或已装备`);
+    reasons.push(
+      `获得时提供${count}件${effects.equipmentReward.name}；未假定随机额外奖励或已装备`,
+    );
   }
   return {
     score,
     reasons,
-    acquisitionGains: gains.filter((gain) => !context.inactiveCovenants?.has(gain.covenant)),
+    acquisitionGains: gains.filter(
+      (gain) => !context.inactiveCovenants?.has(gain.covenant),
+    ),
   };
 }
 function restTriggerCount(effects: RestLayerEffects, horizon: number): number {
@@ -77,7 +106,10 @@ function evaluateRestLayers(
   const triggers = restTriggerCount(effects, horizon);
   const reasons = [...effects.reasons];
   const gains = effects.gains.filter((gain) =>
-    stats.some((stat) => stat.active && usesLayers(stat.name) && stat.name === gain.covenant),
+    stats.some(
+      (stat) =>
+        stat.active && usesLayers(stat.name) && stat.name === gain.covenant,
+    ),
   );
   let score = effects.unknownHighestTarget ? 5 * horizon : 0;
   if (effects.entersRest) {
@@ -85,15 +117,27 @@ function evaluateRestLayers(
       `当前进入休整的触发已过，仅评价未来${triggers}次进入休整；不计入本轮结束或苏苏洛指令`,
     );
   }
-  const timing = effects.entersRest ? '进入时' : effects.startsAndEnds ? '开始/结束' : '结束';
+  const timing = effects.entersRest
+    ? '进入时'
+    : effects.startsAndEnds
+      ? '开始/结束'
+      : '结束';
   const frequency = effects.currentRoundOnly ? '本次' : '每次';
   const location = deployed ? '' : '（整备区生效）';
   for (const gain of gains) {
-    score += layerValue(gain.covenant, gain.amount * triggers, stats, context, false);
+    score += layerValue(
+      gain.covenant,
+      gain.amount * triggers,
+      stats,
+      context,
+      false,
+    );
     if (effects.startsAndEnds) {
       reasons.push('本轮休整开始已过，不倒算买入前触发');
     }
-    reasons.push(`${frequency}休整${timing}${gain.covenant}+${gain.amount}层${location}`);
+    reasons.push(
+      `${frequency}休整${timing}${gain.covenant}+${gain.amount}层${location}`,
+    );
   }
   return { score, reasons, endOfRestGains: effects.entersRest ? [] : gains };
 }
@@ -107,7 +151,8 @@ function evaluateBattleEffects(
 ): TraitValue {
   const effects = resolveBattleEffects(text, slot);
   const active = stats.filter((stat) => stat.active && usesLayers(stat.name));
-  const isActive = (covenant: string) => active.some((stat) => stat.name === covenant);
+  const isActive = (covenant: string) =>
+    active.some((stat) => stat.name === covenant);
   const reasons: string[] = [];
   let score = initialScore;
   for (const { covenant, amount } of effects.temporaryGains.filter((gain) =>
@@ -119,7 +164,9 @@ function evaluateBattleEffects(
     );
   }
   if (effects.conditionalCap) {
-    const relevant = active.filter((stat) => effects.conditionalCovenants.includes(stat.name));
+    const relevant = active.filter((stat) =>
+      effects.conditionalCovenants.includes(stat.name),
+    );
     if (relevant.length) {
       score +=
         Math.min(35, effects.conditionalCap * relevant.length * 0.65) *
@@ -180,7 +227,13 @@ export function recurringValue(
   if (!deployed && !text.includes('整备区也生效')) {
     return { score: 0, reasons: [] };
   }
-  const restEffects = resolveRestLayerEffects(text, slot, stats, context, roster);
+  const restEffects = resolveRestLayerEffects(
+    text,
+    slot,
+    stats,
+    context,
+    roster,
+  );
   const rest = evaluateRestLayers(restEffects, deployed, stats, context);
   const battle = evaluateBattleEffects(text, slot, stats, context, rest.score);
   return {

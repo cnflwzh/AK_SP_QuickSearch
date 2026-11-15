@@ -1,22 +1,23 @@
 /** 免费调阵搜索；不触发获得奖励，也不写入持有记录。 */
-import { createLineupEvaluator, type Plan } from './planner.ts';
+import { type Plan } from '../../plans/model.ts';
+import { createLineupEvaluator } from '../planning.ts';
 import {
-  advisorDeploymentLimit,
-  createRecruitmentPool,
-  deployedLineup,
-  reserveLineup,
-  runLineupGoal,
-  effectiveBans,
-} from './advisorState.ts';
-import type { AdvisorRun, DeploymentAdvice } from './advisorTypes.ts';
-import {
-  createRunPreference,
-  createValueContext,
-  explainLineupChange,
+createRunPreference,
+createValueContext,
+explainLineupChange,
 } from './advisorEvaluation.ts';
-import { explainStrategyTransition } from './advisorStrategy.ts';
-import { teamValue } from './advisorValue.ts';
 import type { AdvisorPreferenceEvaluator } from './advisorPreferences.ts';
+import {
+advisorDeploymentLimit,
+createRecruitmentPool,
+deployedLineup,
+effectiveBans,
+reserveLineup,
+runLineupGoal,
+} from './advisorState.ts';
+import { explainStrategyTransition } from './advisorStrategy.ts';
+import type { AdvisorRun,DeploymentAdvice } from './advisorTypes.ts';
+import { teamValue } from './advisorValue.ts';
 /** 已持有整备区干员的免费调阵，独立于买牌，不触发获得/合成奖励。 */
 export function recommendDeployments(
   run: AdvisorRun,
@@ -84,19 +85,34 @@ export function evaluateDeployments(
             replace: outgoing?.name ?? '',
             score,
             preferenceScore: preferred.preference,
-            breakdown: { lineup: evaluation.score, production, fill: outgoing ? 0 : 10 },
+            breakdown: {
+              lineup: evaluation.score,
+              production,
+              fill: outgoing ? 0 : 10,
+            },
             reasons: [
               '已持有，无需再次购买；不重复计算获得时奖励',
               ...explanation.reasons,
               ...transition.reasons,
               ...preferred.reasons,
-              ...(production > 0 ? ['上场后的持续收益或现有精锐装备投入优于当前配置'] : []),
+              ...(production > 0
+                ? ['上场后的持续收益或现有精锐装备投入优于当前配置']
+                : []),
             ],
-            losses: [...explanation.losses, ...transition.losses, ...preferred.losses],
+            losses: [
+              ...explanation.losses,
+              ...transition.losses,
+              ...preferred.losses,
+            ],
           };
         })
-        .filter((item): item is DeploymentAdvice => item !== null && item.score > 0.001)
-        .sort((a, b) => b.score - a.score || b.preferenceScore - a.preferenceScore);
+        .filter(
+          (item): item is DeploymentAdvice =>
+            item !== null && item.score > 0.001,
+        )
+        .sort(
+          (a, b) => b.score - a.score || b.preferenceScore - a.preferenceScore,
+        );
       return options.slice(0, 1);
     })
     .sort(

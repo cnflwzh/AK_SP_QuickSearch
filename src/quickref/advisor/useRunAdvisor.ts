@@ -1,6 +1,6 @@
 import { computed, readonly } from 'vue';
 import { plans as savedPlans } from '../planStore.ts';
-import { clearMovedFrontTargets, supportsFrontTarget } from '../../lib/advisorPosition.ts';
+import { clearMovedFrontTargets, supportsFrontTarget } from '../../lib/recommendation/live/advisorPosition.ts';
 import {
   ADVISOR_MODES,
   ADVISOR_FORMATS,
@@ -9,7 +9,7 @@ import {
   type AdvisorFormat,
   type AdvisorMode,
   type CandidateSource,
-} from '../../lib/advisorRules.ts';
+} from '../../lib/recommendation/live/advisorRules.ts';
 import { createAdvisorSession } from './advisorSession.ts';
 import { createAdvisorEquipmentActions } from './advisorEquipmentActions.ts';
 import { ALL_COVENANTS, STRATEGIES, isCoreCovenant } from '../../../data/index.ts';
@@ -25,9 +25,9 @@ import {
   effectiveBans,
   reserveLineup,
   runLineupGoal,
-} from '../../lib/advisorState.ts';
-import { type RecordedOperator } from '../../lib/advisorTypes.ts';
-import { recommendRecruits, recommendDeployments } from '../../lib/runAdvisor.ts';
+} from '../../lib/recommendation/live/advisorState.ts';
+import { type RecordedOperator } from '../../lib/recommendation/live/advisorTypes.ts';
+import { recommendRecruits, recommendDeployments } from '../../lib/recommendation/index.ts';
 const session = createAdvisorSession();
 const { run, change, showNotice, undo } = session;
 const strategyNames = new Set(STRATEGIES.map((strategy) => strategy.name));

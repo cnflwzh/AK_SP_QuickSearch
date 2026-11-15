@@ -1,10 +1,11 @@
 /** 招募与免费调阵共用的评估输入及结果说明。 */
-import { OPERATORS } from '../../data/index.ts';
-import type { AdvisorRun } from './advisorTypes.ts';
-import type { LineupEvaluation, Plan, PlanOp } from './planner.ts';
-import { advisorRoundLimit } from './advisorRules.ts';
-import { effectiveBans, createRecruitmentPool } from './advisorState.ts';
+import { OPERATORS } from '../../../../data/index.ts';
+import type { Plan,PlanOp } from '../../plans/model.ts';
+import type { LineupEvaluation } from '../planning.ts';
 import { createAdvisorPreferenceEvaluator } from './advisorPreferences.ts';
+import { advisorRoundLimit } from './advisorRules.ts';
+import { createRecruitmentPool,effectiveBans } from './advisorState.ts';
+import type { AdvisorRun } from './advisorTypes.ts';
 import type { ValueContext } from './advisorValue.ts';
 /** 一次评估使用同一份真实局面；未知字段原样传递，不从推测动作回填。 */
 export function createValueContext(run: AdvisorRun): ValueContext {
@@ -29,7 +30,9 @@ export function createRunPreference(
 ) {
   const available = createRecruitmentPool(run);
   const unavailableNames = new Set(
-    OPERATORS.filter((operator) => !available(operator.name)).map((operator) => operator.name),
+    OPERATORS.filter((operator) => !available(operator.name)).map(
+      (operator) => operator.name,
+    ),
   );
   return createAdvisorPreferenceEvaluator(plans, {
     field,

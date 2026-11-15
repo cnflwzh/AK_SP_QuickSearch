@@ -3,7 +3,8 @@ import { computed, onUnmounted, ref, watch } from 'vue';
 import { CORE_BUILDS, COVENANTS, OPERATOR, EQUIP, STRATEGY, buildByName, type Operator } from '../../../data/index.ts';
 import { round1 } from '../../lib/dom.ts';
 import { avatarSrc } from '../../lib/assets.ts';
-import { atLayers, banReplace, blankPlan, covenantStats, decodePlan, type Decoded } from '../../lib/planner.ts';
+import { banReplace } from '../../lib/recommendation/index.ts';
+import { atLayers, blankPlan, covenantStats, decodePlan, type Decoded } from '../../lib/planner.ts';
 import { useQuickrefActions } from '../state.ts';
 import {
   presetOf, presets, current, editing, runKey, runBans, saveError, presetColor, selectPreset, newPreset, copyPreset, removePreset, restorePreset,
