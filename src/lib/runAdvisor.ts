@@ -2,6 +2,8 @@
 import { ALL_COVENANTS, BUILD_NAMES, buildByName, OPERATORS, EQUIPMENT, STRATEGIES, isCoreCovenant, operatorPrice, type Operator } from '../../data/index.ts';
 import { covenantStats, createLineupEvaluator, defaultLineupGoal, inferPrimaryCovenant, isBanned, MAX_EQ, MAX_OPS, usesLayers, MAX_LAYERS, type Layers, type CovenantStat, type LineupEvaluation, type LineupGoal, type PlanOp } from './planner.ts';
 
+import { createAdvisorPreferenceEvaluator } from './advisorPreferences.ts';
+import type { Plan } from './planner.ts';
 import { sanitizeFrontTargets, type FrontTargets } from './advisorPosition.ts';
 import { ADVISOR_MODES, ADVISOR_FORMATS, advisorRoundLimit, RESTRICTED_MODE_COVENANTS, type AdvisorFormat, promotionRewardTier, type AdvisorMode, type CandidateSource } from './advisorRules.ts';
 import { acquisitionCommandOpportunity, acquisitionValue, purchaseMilestoneAdjustment, covenantProductionValue, recurringValue, restCommandOpportunity, teamValue, type ValueContext } from './advisorValue.ts';
@@ -46,6 +48,7 @@ export interface DeploymentAdvice {
   name: string;
   replace: string;
   score: number;
+  preferenceScore: number;
   breakdown: { lineup: number; production: number; fill: number };
   reasons: string[];
   losses: string[];
@@ -58,6 +61,8 @@ export interface RecruitAdvice {
   score: number;
   /** 仅当主要收益相同时，才比较策略和装备搭配。 */
   fitScore: number;
+  /** 保存流派只在规则收益相同的时候排序，不计入收益总分。 */
+  preferenceScore: number;
   breakdown: AdviceBreakdown;
   estimatedPrice: number | null;
   affordable: boolean | null;
@@ -230,12 +235,13 @@ function equipmentAffinity(run: AdvisorRun, operator: Operator): { score: number
  * 返回最多 limit 条建议。商店不为空时只比较实物候选，否则按当前本数找目标。
  * 用纯函数评估添加/晋升/逐一替换；所有动作仍由用户确认，函数没有写入副作用。
  */
-export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
+export function recommendRecruits(run: AdvisorRun, limit = 5, savedPlans: readonly Plan[] = []): RecruitAdvice[] {
   const available = createRecruitmentPool(run), goal = runLineupGoal(run);
   // 禁用设置和持有记录矛盾时先让玩家修正，不能假定这些位置已经空出。
   if (run.operators.some(operator => !available(operator.name))) return [];
   const lineup = deployedLineup(run).filter(slot => available(slot.name));
   const reserve = reserveLineup(run).filter(slot => available(slot.name));
+  const preference = createAdvisorPreferenceEvaluator(savedPlans, { field: lineup, reserve, mainCovenant: run.mainCovenant, strategy: run.strategy, unavailableNames: new Set(OPERATORS.filter(operator => !available(operator.name)).map(operator => operator.name)) });
   const before = covenantStats(lineup, run.layers, reserve, effectiveBans(run));
   const evaluate = createLineupEvaluator(lineup, run.layers, { goal, reserve, bannedCovenants: effectiveBans(run) });
   const context: ValueContext = { round: run.round, acquisitionsThisRound: run.acquisitionsThisRound, totalRounds: advisorRoundLimit(run.format), layers: run.layers, level: run.level, strategy: run.strategy, commandAvailable: run.commandAvailable, frontTargets: run.frontTargets, inactiveCovenants: effectiveBans(run) };
@@ -251,7 +257,7 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
   if (run.candidateSource === 'promotion' && !run.shop.length) return [];
   const ranked = candidates.map(operator => {
     const existing = owned.get(operator.name);
-    const advice: RecruitAdvice = { operator, kind: 'reserve', label: '备选', score: 0, fitScore: 0, breakdown: { lineup: 0, production: 0, acquisition: 0, collection: 0, fit: 0, economy: 0 }, estimatedPrice: null, affordable: null, reasons: [], losses: [], replace: '' };
+    const advice: RecruitAdvice = { operator, kind: 'reserve', label: '备选', score: 0, fitScore: 0, preferenceScore: 0, breakdown: { lineup: 0, production: 0, acquisition: 0, collection: 0, fit: 0, economy: 0 }, estimatedPrice: null, affordable: null, reasons: [], losses: [], replace: '' };
     if (existing?.elite) return { ...advice, kind: 'skip' as const, label: '暂不追', score: -1000, breakdown: { ...advice.breakdown, collection: -1000 }, reasons: ['已有精锐，本工具不再追同名合成'] };
     const promotes = !!existing && existing.copies + 1 >= eliteCopyCount(operator.name);
     const acquisition = acquisitionValue(operator, promotes, before, context);
@@ -311,7 +317,7 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
         const purchasedRun: AdvisorRun = { ...run,
           operators: [...run.operators, { name: operator.name, copies: 1, elite: false, deployed: false }],
         };
-        const swap = recommendDeployments(purchasedRun, OPERATORS.length).find(plan => plan.name === operator.name && plan.replace);
+        const swap = evaluateDeployments(purchasedRun, OPERATORS.length, preference).find(plan => plan.name === operator.name && plan.replace);
         if (swap) {
           const next = lineup.map(slot => slot.name === swap.replace ? candidate : slot);
           const nextReserve = [...reserve, ...lineup.filter(slot => slot.name === swap.replace)];
@@ -346,8 +352,8 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
           const nextReserve = [...reserve, slot];
           const evaluation = evaluate(next, nextReserve), deployment = evaluateDeployment(next, nextReserve);
           const delta = marginal(next, nextReserve);
-          return { name: slot.name, evaluation, deployment, score: evaluation.score + delta, delta };
-        }).filter(candidate => candidate.deployment.improves || candidate.delta > benchProduction + .001).sort((a, b) => b.score - a.score);
+          return { name: slot.name, evaluation, deployment, score: evaluation.score + delta, delta, preferenceScore: preference(next, nextReserve).preference };
+        }).filter(candidate => candidate.deployment.improves || candidate.delta > benchProduction + .001).sort((a, b) => b.score - a.score || b.preferenceScore - a.preferenceScore);
         const best = replacements[0];
         // 经济盟约在整备区就能生效；相同收益时不要求玩家为它挪动上场阵容。
         if (best && best.score > Math.max(0, benchScore) + .001) {
@@ -395,6 +401,10 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
       : advice.kind === 'deploy' ? [...lineup, candidateSlot] : advice.kind === 'replace' ? lineup.map(slot => slot.name === advice.replace ? candidateSlot : slot) : lineup;
     const finalReserve = existing ? reserve.map(slot => slot.name === operator.name ? candidateSlot : slot)
       : advice.kind === 'reserve' ? [...reserve, candidateSlot] : advice.kind === 'replace' ? [...reserve, ...lineup.filter(slot => slot.name === advice.replace)] : reserve;
+    const preferred = preference(finalField, finalReserve);
+    advice.preferenceScore = preferred.preference;
+    advice.reasons.push(...preferred.reasons);
+    advice.losses.push(...preferred.losses);
     const milestones = purchaseMilestoneAdjustment(acquisition, before, finalField, finalReserve, context);
     advice.reasons.push(...milestones.reasons);
     const commandOpportunity = restCommandOpportunity(finalField, finalReserve, context);
@@ -434,7 +444,7 @@ export function recommendRecruits(run: AdvisorRun, limit = 5): RecruitAdvice[] {
     if (!advice.reasons.length) advice.reasons.push(`先补上场人数 · ${operator.type}，可点头像查看特质`);
     return advice;
   });
-  return ranked.sort((a, b) => Number(a.affordable === false) - Number(b.affordable === false) || b.score - a.score || b.fitScore - a.fitScore || operatorPrice(a.operator) - operatorPrice(b.operator)
+  return ranked.sort((a, b) => Number(a.affordable === false) - Number(b.affordable === false) || b.score - a.score || b.preferenceScore - a.preferenceScore || b.fitScore - a.fitScore || operatorPrice(a.operator) - operatorPrice(b.operator)
     || operatorOrder.get(a.operator.name)! - operatorOrder.get(b.operator.name)!).slice(0, Math.max(0, limit));
 }
 
@@ -477,9 +487,16 @@ function applyPromotionDeploymentValue(run: AdvisorRun, name: string, advice: Re
 }
 
 /** 已持有整备区干员的免费调阵，独立于买牌，不触发获得/合成奖励。 */
-export function recommendDeployments(run: AdvisorRun, limit = 3): DeploymentAdvice[] {
+export function recommendDeployments(run: AdvisorRun, limit = 3, savedPlans: readonly Plan[] = []): DeploymentAdvice[] {
   const available = createRecruitmentPool(run);
   if (run.operators.some(operator => !available(operator.name))) return [];
+  const lineup = deployedLineup(run), reserve = reserveLineup(run);
+  const preference = createAdvisorPreferenceEvaluator(savedPlans, { field: lineup, reserve, mainCovenant: run.mainCovenant, strategy: run.strategy, unavailableNames: new Set(OPERATORS.filter(operator => !available(operator.name)).map(operator => operator.name)) });
+  return evaluateDeployments(run, limit, preference);
+}
+
+/** 买牌内部沿用购前已锚定的路线；不让假设新持有的候选反过来创建偏好。 */
+function evaluateDeployments(run: AdvisorRun, limit: number, preference: ReturnType<typeof createAdvisorPreferenceEvaluator>): DeploymentAdvice[] {
   const lineup = deployedLineup(run), reserve = reserveLineup(run);
   const context: ValueContext = { round: run.round, acquisitionsThisRound: run.acquisitionsThisRound, totalRounds: advisorRoundLimit(run.format), layers: run.layers, level: run.level, strategy: run.strategy, commandAvailable: run.commandAvailable, frontTargets: run.frontTargets, inactiveCovenants: effectiveBans(run) };
   const evaluate = createLineupEvaluator(lineup, run.layers, { goal: runLineupGoal(run), reserve, bannedCovenants: effectiveBans(run) });
@@ -496,11 +513,12 @@ export function recommendDeployments(run: AdvisorRun, limit = 3): DeploymentAdvi
       const production = teamValue(next, bench, context) - oldValue;
       const score = evaluation.score + production + (outgoing ? 0 : 10);
       if (outgoing && !evaluation.improves && production <= .001) return null;
-      return { name: candidate.name, replace: outgoing?.name ?? '', score,
+      const preferred = preference(next, bench);
+      return { name: candidate.name, replace: outgoing?.name ?? '', score, preferenceScore: preferred.preference,
         breakdown: { lineup: evaluation.score, production, fill: outgoing ? 0 : 10 },
-        reasons: ['已持有，无需再次购买；不重复计算获得时奖励', ...explanation.reasons,
-          ...(production > 0 ? ['上场后的持续收益或现有精锐装备投入优于当前配置'] : [])], losses: explanation.losses };
-    }).filter((item): item is DeploymentAdvice => item !== null && item.score > .001).sort((a, b) => b.score - a.score);
+        reasons: ['已持有，无需再次购买；不重复计算获得时奖励', ...explanation.reasons, ...preferred.reasons,
+          ...(production > 0 ? ['上场后的持续收益或现有精锐装备投入优于当前配置'] : [])], losses: [...explanation.losses, ...preferred.losses] };
+    }).filter((item): item is DeploymentAdvice => item !== null && item.score > .001).sort((a, b) => b.score - a.score || b.preferenceScore - a.preferenceScore);
     return options.slice(0, 1);
-  }).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'zh-CN')).slice(0, Math.max(0, limit));
+  }).sort((a, b) => b.score - a.score || b.preferenceScore - a.preferenceScore || a.name.localeCompare(b.name, 'zh-CN')).slice(0, Math.max(0, limit));
 }

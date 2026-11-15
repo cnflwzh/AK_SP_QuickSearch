@@ -799,3 +799,59 @@ test('Yan acquisition-count production uses confirmed current-round records with
   assert.equal(advisor.run.value.acquisitionsThisRound, 6);
   assert.equal(advisor.run.value.round, 3);
 });
+
+test('all saved routes guide equal-value choices without replacing rules, funds or current holdings', async () => {
+  const saved = (id, names) => ({ id, name: id, ops: names.map(newSlot), strategy: '', note: '', layers: {}, updated: 0 });
+  const route = saved('我的炎终局', ['拜松', '矩', '夕']);
+  const run = runWith(['拜松', '矩'], { mode: 'full', mainCovenant: 'mixed', round: 14, funds: 4, shop: ['风絮', '夕'] });
+  const before = structuredClone(run);
+  const plain = recommendRecruits(run);
+  assert.equal(plain[0].operator.name, '风絮');
+  const guided = recommendRecruits(run, 5, [route]);
+  assert.equal(guided[0].operator.name, '夕');
+  assert.equal(guided[0].score, plain.find(item => item.operator.name === '夕').score);
+  assert.ok(guided[0].reasons.some(reason => reason.includes('我的炎终局')));
+  assert.deepEqual(run, before);
+  assert.deepEqual(recommendRecruits(run, 5, [route, { ...route, id: '重复备份' }]).map(item => [item.operator.name, item.preferenceScore]), guided.map(item => [item.operator.name, item.preferenceScore]));
+  assert.equal(recommendRecruits({ ...run, funds: 3 }, 5, [route])[0].operator.name, '风絮');
+  const noAnchor = { ...run, operators: [] };
+  assert.ok(recommendRecruits(noAnchor, 5, [route]).every(item => item.preferenceScore === 0));
+  const better = { ...run, operators: [...run.operators, owned('乌有')], shop: ['仇白', '夕'] };
+  assert.equal(recommendRecruits(better, 5, [route])[0].operator.name, '仇白');
+  const secondRoute = saved('我的炎过渡', ['拜松', '矩', '风絮']);
+  const conflict = recommendRecruits(run, 5, [route, secondRoute]);
+  assert.equal(conflict.find(item => item.operator.name === '夕').preferenceScore, conflict.find(item => item.operator.name === '风絮').preferenceScore);
+  const { createAdvisorPreferenceEvaluator } = await import('../src/lib/advisorPreferences.ts');
+  const { builtinPlan } = await import('../src/lib/planner.ts');
+  const alternate = saved('可替换位置', ['拜松', '矩']);
+  alternate.ops[0].alt = ['风絮'];
+  const context = { field: [newSlot('拜松')], reserve: [], mainCovenant: '', strategy: '' };
+  const evaluate = createAdvisorPreferenceEvaluator([alternate], context);
+  assert.equal(evaluate(['拜松', '风絮'].map(newSlot)).preference, 0); // 两人不能重复满足同一目标位置。
+  assert.ok(evaluate([], [newSlot('拜松')]).preference < 0);
+  assert.equal(evaluate([newSlot('拜松')], [newSlot('拜松')]).preference, 0);
+  const untouched = builtinPlan('炎');
+  assert.equal(createAdvisorPreferenceEvaluator([untouched], { ...context, field: untouched.ops.slice(0, 1) })(untouched.ops).preference, 0);
+  assert.equal(createAdvisorPreferenceEvaluator([route], { ...context, mainCovenant: '伊比利亚' })(['拜松', '矩'].map(newSlot)).preference, 0);
+
+});
+
+test('equal-value replacement paths follow saved targets rather than record order', () => {
+  const names = ['拜松', '矩', '乌有', '风絮', '余', '仇白', '黍', '老鲤'];
+  const target = { id: '保留拜松', name: '保留拜松', ops: [...names.filter(name => name !== '矩'), '夕'].map(newSlot), strategy: '', note: '', layers: {}, updated: 0 };
+  const run = runWith(names, { mode: 'full', round: 14, funds: 4, mainCovenant: '炎', acquisitionsThisRound: 4, layers: { 炎: 30 }, shop: ['夕'] });
+  const before = structuredClone(run);
+  const baseline = recommendRecruits(run)[0];
+  const preferred = recommendRecruits(run, 5, [target])[0];
+  assert.equal(baseline.replace, '拜松');
+  assert.equal(preferred.replace, '矩');
+  assert.equal(preferred.score, baseline.score);
+  const reversed = { ...run, operators: [...run.operators].reverse() };
+  assert.equal(recommendRecruits(reversed, 5, [target])[0].replace, '矩');
+  const invested = { ...run, equipment: [{ id: 'scope', name: '精准狙击镜', holder: '矩', advanced: false }] };
+  assert.notEqual(recommendRecruits(invested, 5, [target])[0].replace, '矩');
+  assert.equal(recommendRecruits({ ...run, funds: 3 }, 5, [target])[0].affordable, false);
+  const competing = { ...target, id: '保留矩', name: '保留矩', ops: [...names.filter(name => name !== '拜松'), '夕'].map(newSlot) };
+  assert.equal(recommendRecruits(run, 5, [target, competing])[0].score, baseline.score);
+  assert.deepEqual(run, before);
+});
