@@ -49,7 +49,6 @@ function remove(): void {
           <h3>{{ operator.name }} <small>{{ TIER_LABELS[OPERATOR[operator.name].tier] }} 阶</small></h3>
           <p>{{ OPERATOR[operator.name].covenants.join(' · ') }}</p>
         </div>
-        <span class="ra-tag">{{ operator.deployed ? '上场' : '整备区' }}</span>
       </div>
       <div class="ra-ownership-controls">
         <label v-if="!operator.elite && eliteCopyCount(operator.name) > 2">

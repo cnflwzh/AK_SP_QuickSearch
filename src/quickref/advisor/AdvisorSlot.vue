@@ -30,11 +30,10 @@ defineEmits<{ select: [event: MouseEvent] }>();
         <b v-else-if="copies > 1" class="ra-slot-badge">×{{ copies }}</b>
       </span>
       <strong>{{ name }}</strong>
-      <span v-if="!compact" class="ra-slot-gear">
-        <span v-for="position in 2" :key="position" :class="{ advanced: equipment[position - 1]?.advanced }">
+      <span v-if="!compact" class="ra-slot-gear" :class="{ none: !equipment.length }">
+        <span v-for="position in 2" :key="position" :class="{ advanced: equipment[position - 1]?.advanced, filled: !!equipment[position - 1] }">
           <img v-if="equipment[position - 1]" :src="equipIconSrc(equipment[position - 1].name)"
             :alt="equipment[position - 1].name" width="16" height="16">
-          <span v-else>·</span>
         </span>
       </span>
     </template>
