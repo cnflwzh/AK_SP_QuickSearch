@@ -74,7 +74,7 @@ export function normalizeQuery(tab: TabId, query: LocationQueryRaw, entityId = '
   }
   if (tab === 'nu') {
     // 路由只标识工具子页；计算输入和本局记录由工具维护，不进入导航历史。
-    keep('tool', ['advisor', 'recruit', 'bounty']);
+    keep('tool', ['advisor', 'recruit', 'bounty', 'dealer']);
   }
   if (tab === 'bd') {
     keep('panel', editing ? ['share', 'compare', 'import', 'backup', 'closed'] : ['share', 'import', 'backup', 'closed']);

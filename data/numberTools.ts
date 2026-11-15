@@ -4,6 +4,7 @@ export const NUMBER_TOOLS = [
   { id: 'layers', label: '层数门槛' },
   { id: 'recruit', label: '找牌升本' },
   { id: 'bounty', label: '悬赏收益' },
+  { id: 'dealer', label: '痛扁发牌' },
 ] as const;
 export type NumberTool = typeof NUMBER_TOOLS[number]['id'];
 

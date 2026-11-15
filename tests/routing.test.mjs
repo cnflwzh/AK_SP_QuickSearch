@@ -39,8 +39,8 @@ test('numbers links retain navigation destinations without calculator inputs or 
     payout: 'multi', sort: 'reward', bountyQuery: '假想敌',
   };
   assert.deepEqual(normalizeQuery('nu', transient), {});
-  for (const tool of ['recruit', 'bounty']) {
-    const query = { ...transient, tool, q: '  攻击  ', card: detailId('op', '凛御银灰') };
+  for (const tool of ['recruit', 'bounty', 'dealer']) {
+    const query = {...transient, tool, q: '  攻击  ', card: detailId('op', '凛御银灰')};
     const original = structuredClone(query);
     const destination = { tool, q: '攻击', card: query.card };
     assert.deepEqual(normalizeQuery('nu', query), destination);
