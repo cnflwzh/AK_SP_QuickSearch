@@ -79,7 +79,7 @@ const clampLayers = (n: unknown): number => Math.max(0, Math.min(MAX_LAYERS, Mat
 export const RESERVE_COVENANTS: ReadonlySet<string> = new Set(['远见', '奇迹', '投资人']);
 
 /** 返回场上盟约状态；reserve 只为允许整备区计数的经济盟约提供人数。 */
-export function covenantStats(ops: readonly PlanOp[], layers: Layers = {}, reserve: readonly PlanOp[] = []): CovenantStat[] {
+export function covenantStats(ops: readonly PlanOp[], layers: Layers = {}, reserve: readonly PlanOp[] = [], inactive: ReadonlySet<string> = new Set()): CovenantStat[] {
   const members = new Map<string, Set<string>>(), granted = new Map<string, Set<string>>();
   for (const slot of ops) {
     const { own, granted: extra } = covenantsOf(slot);
@@ -96,10 +96,10 @@ export function covenantStats(ops: readonly PlanOp[], layers: Layers = {}, reser
   // 绝技按全场精锐计数，不依赖干员原有盟约；数据表里没有原生绝技干员。
   const eliteMembers = new Set(ops.filter(o => o.elite).map(o => o.name));
   if (eliteMembers.size) members.set('绝技', eliteMembers);
-  const harmony = members.has('调和');
+  const harmony = members.has('调和') && !inactive.has('调和');
   const elites = eliteMembers.size;
   // 强化状态随层数变化，只更新数值和提示，避免拖动层数时列表跳位。
-  return ALL_COVENANTS.filter(name => members.has(name)).map(name => {
+  return ALL_COVENANTS.filter(name => members.has(name) && !inactive.has(name)).map(name => {
     const cov = COVENANTS[name], core = isCoreCovenant(name);
     const list = [...members.get(name)!];
     const extra = core && harmony ? 1 : 0;
@@ -217,7 +217,7 @@ function createCountScorer(ops: readonly PlanOp[], layers: Layers, bans: Readonl
   const inferred = inferPrimaryCovenant(ops.filter(slot => !isBanned(slot.name, bans)));
   const main = options.goal === undefined ? (inferred ? defaultLineupGoal(inferred) : null) : options.goal;
   const support = new Set(main ? buildByName(main.covenant)?.addons ?? [] : []);
-  const original = new Map(covenantStats(ops, layers, options.reserve).map(stat => [stat.name, stat]));
+  const original = new Map(covenantStats(ops, layers, options.reserve, options.bannedCovenants).map(stat => [stat.name, stat]));
   const goals = COV_RULES.map(rule => {
     const was = original.get(rule.name);
     return {
@@ -233,7 +233,7 @@ function createCountScorer(ops: readonly PlanOp[], layers: Layers, bans: Readonl
   });
   return counts => {
     let score = 0;
-    const harmony = counts[HARMONY_INDEX] > 0;
+    const harmony = counts[HARMONY_INDEX] > 0 && !bans.has('调和');
     for (let i = 0; i < goals.length; i++) {
       const goal = goals[i], members = counts[i];
       if (!members || goal.banned) continue;
@@ -281,7 +281,7 @@ function changedCovenants(before: readonly CovenantStat[], after: readonly Coven
  * 主轴/配合取自 data/builds.ts 已注明来源的预设；分值是推荐优先级，不是游戏属性或胜率。
  */
 export function createLineupEvaluator(ops: readonly PlanOp[], layers: Layers = {}, options: LineupEvaluationOptions = {}): (next: readonly PlanOp[], reserve?: readonly PlanOp[]) => LineupEvaluation {
-  const before = covenantStats(ops, layers, options.reserve);
+  const before = covenantStats(ops, layers, options.reserve, options.bannedCovenants);
   const scoreCounts = createCountScorer(ops, layers, options.bannedCovenants, options);
   const initial = scoreCounts(lineupCounts(ops, options.reserve));
   const inferred = inferPrimaryCovenant(ops.filter(slot => !options.bannedCovenants || !isBanned(slot.name, options.bannedCovenants)));
@@ -290,7 +290,7 @@ export function createLineupEvaluator(ops: readonly PlanOp[], layers: Layers = {
   const carrierCount = (lineup: readonly PlanOp[]) => new Set(lineup.filter(slot => carries.has(slot.name)).map(slot => slot.name)).size;
   const initialCarriers = carrierCount(ops);
   return (next, reserve = options.reserve) => {
-    const stats = covenantStats(next, layers, reserve);
+    const stats = covenantStats(next, layers, reserve, options.bannedCovenants);
     const changes = changedCovenants(before, stats);
     const carrierGain = carrierCount(next) - initialCarriers;
     const score = scoreCounts(lineupCounts(next, reserve)) - initial + carrierGain * 20;
@@ -341,7 +341,17 @@ export interface BanResult {
   /** 原本激活、换人后失效的盟约；被 ban 的盟约不计。 */
   lost: string[];
 }
-export const isBanned = (name: string, bans: ReadonlySet<string>): boolean => !!OPERATOR[name]?.covenants.some(c => bans.has(c));
+/** 当前赛季入门指南：核心缺席整组禁用；附加则仅所有原生附加均缺席时禁用。
+ * 来源：ArknightsGameData 6f63c14 / story/activities/autochess/guide/mode_training_2/
+ * guide_auto_chess_mode_training_2_stage_info.txt；装备赋予的盟约不改变招募资格。
+ */
+export const isBanned = (name: string, bans: ReadonlySet<string>): boolean => {
+  const covenants = OPERATOR[name]?.covenants;
+  if (!covenants) return false;
+  if (covenants.some(c => isCoreCovenant(c) && bans.has(c))) return true;
+  const addons = covenants.filter(c => !isCoreCovenant(c));
+  return addons.length > 0 && addons.every(c => bans.has(c));
+};
 
 type ReplacementCandidate = { name: string; bit: bigint; covenants: number[]; affinity: number };
 type ReplacementSearch = { choices: string[]; counts: Uint8Array; used: bigint; affinity: number; score: number };
@@ -356,7 +366,7 @@ const REPLACEMENT_BEAM = 24;
 export function banReplace(ops: readonly PlanOp[], bans: readonly string[], forced: Readonly<Record<string, string>> = {}, layers: Layers = {}): BanResult {
   const banned = new Set(bans);
   const removed = ops.filter(slot => isBanned(slot.name, banned));
-  if (!removed.length) return { removed: [], picks: [], lost: [], ops: ops.map(slot => ({ ...slot, eq: [...slot.eq], alt: [...slot.alt] })) };
+  if (!removed.length) return { removed: [], picks: [], lost: [], ops: ops.map(slot => ({ ...slot, eq: [...slot.eq], alt: slot.alt.filter(name => !isBanned(name, banned)) })) };
   const kept = ops.filter(slot => !isBanned(slot.name, banned));
   const evaluate = createCountScorer(ops, layers, banned);
   const taken = new Set(kept.map(slot => slot.name));
