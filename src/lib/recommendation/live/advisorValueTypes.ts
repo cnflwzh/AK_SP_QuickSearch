@@ -1,6 +1,6 @@
 /** Shared contracts for trait estimates. Missing observations remain unknown. */
+import type { Layers,PlanOp } from '../../plans/model.ts';
 import type { FrontTargets } from './advisorPosition.ts';
-import type { Layers, PlanOp } from './planner.ts';
 export interface ValueContext {
   round: number | null;
   totalRounds?: number | null;

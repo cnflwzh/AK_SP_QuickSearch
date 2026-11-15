@@ -1,6 +1,6 @@
 /** 策略人数门槛只说明确定的技能变化，不将召唤数量换算为伤害分数。 */
-import { OPERATOR } from '../../data/index.ts';
-import type { PlanOp } from './planner.ts';
+import { OPERATOR } from '../../../../data/index.ts';
+import type { PlanOp } from '../../plans/model.ts';
 import type { AdvisorFormat } from './advisorRules.ts';
 interface StrategyContext {
   strategy: string;
@@ -13,8 +13,11 @@ interface StrategyTransition {
 }
 /** V3_1 望明确要求在场不同炎干员；不用含调和虚拟人数的盟约统计替代。 */
 function wangSummonCount(field: readonly PlanOp[]): number {
-  const yanOperators = field.filter((slot) => OPERATOR[slot.name]?.covenants.includes('炎'));
-  const distinctOperatorCount = new Set(yanOperators.map((slot) => slot.name)).size;
+  const yanOperators = field.filter((slot) =>
+    OPERATOR[slot.name]?.covenants.includes('炎'),
+  );
+  const distinctOperatorCount = new Set(yanOperators.map((slot) => slot.name))
+    .size;
   if (distinctOperatorCount >= 9) {
     return 2;
   }

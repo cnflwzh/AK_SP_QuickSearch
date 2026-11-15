@@ -1,5 +1,5 @@
-import { LAYER_BREAKPOINTS } from '../../data/numberTools.ts';
-import type { CovenantStat } from './planner.ts';
+import { LAYER_BREAKPOINTS } from '../../../../data/numberTools.ts';
+import type { CovenantStat } from '../../plans/covenants.ts';
 import type { ValueContext } from './advisorValueTypes.ts';
 /** 启发式门槛权重，既不是层数，也不是伤害加成。 */
 export const LAYER_MILESTONE_SCORE = 24;
@@ -51,5 +51,8 @@ export function productionHorizon(context: ValueContext): number {
   if (context.round === null) {
     return 2;
   }
-  return Math.min(MAX_PRODUCTION_HORIZON, Math.max(1, context.totalRounds - context.round + 1));
+  return Math.min(
+    MAX_PRODUCTION_HORIZON,
+    Math.max(1, context.totalRounds - context.round + 1),
+  );
 }

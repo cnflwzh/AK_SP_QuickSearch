@@ -1,23 +1,34 @@
 /** 单张招募的动作搜索；只选择持有、补位、替换或整备，不处理价格和展示排序。 */
-import { OPERATORS, type Operator } from '../../data/index.ts';
+import { OPERATORS,type Operator } from '../../../../data/index.ts';
+import { type CovenantStat } from '../../plans/covenants.ts';
+import { type PlanOp } from '../../plans/model.ts';
 import {
-  createLineupEvaluator,
-  type CovenantStat,
-  type LineupEvaluation,
-  type LineupGoal,
-  type PlanOp,
-} from './planner.ts';
-import type { AdvisorRun, RecruitAdvice, RecordedOperator } from './advisorTypes.ts';
-import { advisorDeploymentLimit, effectiveBans, eliteCopyCount } from './advisorState.ts';
+createLineupEvaluator,
+type LineupEvaluation,
+type LineupGoal,
+} from '../planning.ts';
+import {
+evaluateDeployments,
+recommendDeployments,
+} from './advisorDeployments.ts';
 import { explainLineupChange } from './advisorEvaluation.ts';
-import { evaluateDeployments, recommendDeployments } from './advisorDeployments.ts';
-import {
-  teamValue,
-  purchaseMilestoneAdjustment,
-  type TraitValue,
-  type ValueContext,
-} from './advisorValue.ts';
 import type { AdvisorPreferenceEvaluator } from './advisorPreferences.ts';
+import {
+advisorDeploymentLimit,
+effectiveBans,
+eliteCopyCount,
+} from './advisorState.ts';
+import type {
+AdvisorRun,
+RecordedOperator,
+RecruitAdvice,
+} from './advisorTypes.ts';
+import {
+purchaseMilestoneAdjustment,
+teamValue,
+type TraitValue,
+type ValueContext,
+} from './advisorValue.ts';
 export interface RecruitActionContext {
   readonly run: AdvisorRun;
   readonly lineup: PlanOp[];
@@ -42,7 +53,10 @@ export interface RecruitActionEvaluation {
 interface CandidateActionContext extends RecruitActionContext {
   readonly operator: Operator;
   readonly advice: RecruitAdvice;
-  readonly evaluateProductionDelta: (field: PlanOp[], reserve: PlanOp[]) => number;
+  readonly evaluateProductionDelta: (
+    field: PlanOp[],
+    reserve: PlanOp[],
+  ) => number;
 }
 /** advice 是本候选专属的结果草稿；所有玩家输入与其他候选保持不变。 */
 export function evaluateRecruitAction(
@@ -53,7 +67,8 @@ export function evaluateRecruitAction(
   advice: RecruitAdvice,
   evaluationContext: RecruitActionContext,
 ): RecruitActionEvaluation {
-  const { previousStats, valueContext, baselineTeamValue, run, lineup } = evaluationContext;
+  const { previousStats, valueContext, baselineTeamValue, run, lineup } =
+    evaluationContext;
   const candidateContext: CandidateActionContext = {
     ...evaluationContext,
     operator,
@@ -61,12 +76,24 @@ export function evaluateRecruitAction(
     evaluateProductionDelta: (field, reserve) =>
       teamValue(field, reserve, valueContext) -
       baselineTeamValue +
-      purchaseMilestoneAdjustment(acquisition, previousStats, field, reserve, valueContext).score,
+      purchaseMilestoneAdjustment(
+        acquisition,
+        previousStats,
+        field,
+        reserve,
+        valueContext,
+      ).score,
   };
   if (existing) {
     return evaluateOwnedRecruit(candidateContext, existing, promotes);
   }
-  const candidate: PlanOp = { name: operator.name, elite: false, core: false, eq: [], alt: [] };
+  const candidate: PlanOp = {
+    name: operator.name,
+    elite: false,
+    core: false,
+    eq: [],
+    alt: [],
+  };
   return lineup.length < advisorDeploymentLimit(run)
     ? evaluateRecruitWithSpace(candidateContext, candidate)
     : evaluateRecruitAtCapacity(candidateContext, candidate);
@@ -101,7 +128,10 @@ function evaluateOwnedRecruit(
     advice.breakdown.lineup = evaluation.score;
     advice.breakdown.production = evaluateProductionDelta(upgraded, reserve);
     advice.breakdown.collection = promotes ? 75 : 20;
-    advice.score = evaluation.score + advice.breakdown.production + advice.breakdown.collection;
+    advice.score =
+      evaluation.score +
+      advice.breakdown.production +
+      advice.breakdown.collection;
     advice.reasons = [
       promotes
         ? '再抓1张即可晋升精锐'
@@ -117,10 +147,14 @@ function evaluateOwnedRecruit(
     advice.breakdown.collection = promotes ? 35 : 10;
     advice.breakdown.production = evaluateProductionDelta(
       lineup,
-      reserve.map((slot) => (slot.name === operator.name ? { ...slot, elite: promotes } : slot)),
+      reserve.map((slot) =>
+        slot.name === operator.name ? { ...slot, elite: promotes } : slot,
+      ),
     );
     advice.score = advice.breakdown.collection + advice.breakdown.production;
-    advice.reasons = [promotes ? '整备区再抓1张即可晋升精锐' : '整备区凑成两张，可保留合成'];
+    advice.reasons = [
+      promotes ? '整备区再抓1张即可晋升精锐' : '整备区凑成两张，可保留合成',
+    ];
     advice.label = promotes ? '合成备用' : '留对子';
     advice.kind = promotes ? 'elite' : 'pair';
     remainingReserve = reserve.map((slot) =>
@@ -154,8 +188,14 @@ function evaluateRecruitWithSpace(
   const evaluation = evaluateLineup([...lineup, candidate]),
     explanation = explainLineupChange(evaluation);
   const bench = evaluateLineup(lineup, [...reserve, candidate]);
-  const fieldProduction = evaluateProductionDelta([...lineup, candidate], reserve);
-  const benchProduction = evaluateProductionDelta(lineup, [...reserve, candidate]);
+  const fieldProduction = evaluateProductionDelta(
+    [...lineup, candidate],
+    reserve,
+  );
+  const benchProduction = evaluateProductionDelta(lineup, [
+    ...reserve,
+    candidate,
+  ]);
   // 空位不等于无代价：第二名独行会让已有独行失效，仍须比较留整备区。
   if (evaluation.score + fieldProduction + 10 < bench.score + benchProduction) {
     resultingStats = bench.stats;
@@ -164,7 +204,8 @@ function evaluateRecruitWithSpace(
     advice.breakdown.production = benchProduction;
     advice.score = bench.score + benchProduction;
     advice.reasons = [
-      '虽有空位，先留整备区；不上场可避免' + (explanation.losses.join('、') || '现有阵容收益下降'),
+      '虽有空位，先留整备区；不上场可避免' +
+        (explanation.losses.join('、') || '现有阵容收益下降'),
       ...explainLineupChange(bench).reasons,
     ];
     advice.kind = 'reserve';
@@ -189,12 +230,19 @@ function evaluateRecruitWithSpace(
       { name: operator.name, copies: 1, elite: false, deployed: false },
     ],
   };
-  const swap = evaluateDeployments(purchasedRun, OPERATORS.length, preference).find(
-    (plan) => plan.name === operator.name && plan.replace,
-  );
+  const swap = evaluateDeployments(
+    purchasedRun,
+    OPERATORS.length,
+    preference,
+  ).find((plan) => plan.name === operator.name && plan.replace);
   if (swap) {
-    const next = lineup.map((slot) => (slot.name === swap.replace ? candidate : slot));
-    const nextReserve = [...reserve, ...lineup.filter((slot) => slot.name === swap.replace)];
+    const next = lineup.map((slot) =>
+      slot.name === swap.replace ? candidate : slot,
+    );
+    const nextReserve = [
+      ...reserve,
+      ...lineup.filter((slot) => slot.name === swap.replace),
+    ];
     const evaluation = evaluateLineup(next, nextReserve),
       production = evaluateProductionDelta(next, nextReserve);
     if (evaluation.score + production > advice.score + 0.001) {
@@ -268,7 +316,9 @@ function evaluateRecruitAtCapacity(
       };
     })
     .filter(
-      (candidate) => candidate.deployment.improves || candidate.delta > benchProduction + 0.001,
+      (candidate) =>
+        candidate.deployment.improves ||
+        candidate.delta > benchProduction + 0.001,
     )
     .sort((a, b) => b.score - a.score || b.preferenceScore - a.preferenceScore);
   const best = replacements[0];
@@ -291,9 +341,14 @@ function evaluateRecruitAtCapacity(
     remainingReserve = purchasedReserve;
     advice.breakdown.lineup = bench.improves ? bench.score : 0;
     advice.breakdown.collection = bench.improves ? 0 : -20;
-    advice.breakdown.production = evaluateProductionDelta(lineup, purchasedReserve);
+    advice.breakdown.production = evaluateProductionDelta(
+      lineup,
+      purchasedReserve,
+    );
     advice.score =
-      advice.breakdown.lineup + advice.breakdown.collection + advice.breakdown.production;
+      advice.breakdown.lineup +
+      advice.breakdown.collection +
+      advice.breakdown.production;
     advice.reasons = bench.improves
       ? ['放整备区即可计入经济盟约', ...explainLineupChange(bench).reasons]
       : ['上场已满，替换后暂无明确盟约收益'];
@@ -306,14 +361,20 @@ function evaluateRecruitAtCapacity(
  * 整备区晋升的价值还包括晋升后可以执行的调阵，但当前已能免费执行的方案必须扣除。
  * 复用同一调阵评估器，避免买牌与上场两处维护不同的盟约、装备和机会成本规则。
  */
-function applyPromotionDeploymentValue(run: AdvisorRun, name: string, advice: RecruitAdvice): void {
+function applyPromotionDeploymentValue(
+  run: AdvisorRun,
+  name: string,
+  advice: RecruitAdvice,
+): void {
   const currentPlan = recommendDeployments(run, OPERATORS.length).find(
     (plan) => plan.name === name,
   );
   const promotedRun: AdvisorRun = {
     ...run,
     operators: run.operators.map((operator) =>
-      operator.name === name ? { ...operator, elite: true, copies: 1 } : operator,
+      operator.name === name
+        ? { ...operator, elite: true, copies: 1 }
+        : operator,
     ),
   };
   const promotedPlan = recommendDeployments(promotedRun, OPERATORS.length).find(
@@ -322,9 +383,14 @@ function applyPromotionDeploymentValue(run: AdvisorRun, name: string, advice: Re
   if (!promotedPlan || promotedPlan.score <= (currentPlan?.score ?? 0)) {
     return;
   }
-  const previous = currentPlan?.breakdown ?? { lineup: 0, production: 0, fill: 0 };
+  const previous = currentPlan?.breakdown ?? {
+    lineup: 0,
+    production: 0,
+    fill: 0,
+  };
   advice.breakdown.lineup += promotedPlan.breakdown.lineup - previous.lineup;
-  advice.breakdown.production += promotedPlan.breakdown.production - previous.production;
+  advice.breakdown.production +=
+    promotedPlan.breakdown.production - previous.production;
   advice.breakdown.collection += promotedPlan.breakdown.fill - previous.fill;
   advice.score += promotedPlan.score - (currentPlan?.score ?? 0);
   advice.replace = promotedPlan.replace;

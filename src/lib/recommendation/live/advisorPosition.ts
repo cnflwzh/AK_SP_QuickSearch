@@ -2,7 +2,7 @@
  * 当前 V3_1 garrison_138 / garrison_177（休整结束），空弦（进入休整）：SERVER_ADD_BOND_POSITION，dir=front。
  * 客户端表未说明共享盟约去重方式，因此估值只补计目标独有盟约。
  */
-import { OPERATOR } from '../../data/index.ts';
+import { OPERATOR } from '../../../../data/index.ts';
 export type FrontTargets = Record<string, string>;
 export const FRONT_LAYER_PATTERN =
   /^<(?:休整期结束时|进入休整期时)>使自身(?:及|以及)身前一格干员已激活的盟约层数\+(\d+)/;
@@ -10,17 +10,25 @@ export function supportsFrontTarget(name: string): boolean {
   const operator = OPERATOR[name];
   return (
     !!operator &&
-    (FRONT_LAYER_PATTERN.test(operator.trait) || FRONT_LAYER_PATTERN.test(operator.elite))
+    (FRONT_LAYER_PATTERN.test(operator.trait) ||
+      FRONT_LAYER_PATTERN.test(operator.elite))
   );
 }
 /** 缺少键表示未知，空字符串表示确认无人；失效关系不继承给替补干员。 */
-export function sanitizeFrontTargets(value: unknown, field: ReadonlySet<string>): FrontTargets {
+export function sanitizeFrontTargets(
+  value: unknown,
+  field: ReadonlySet<string>,
+): FrontTargets {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {};
   }
   return Object.fromEntries(
     Object.entries(value).filter(([source, target]) => {
-      if (!field.has(source) || !supportsFrontTarget(source) || typeof target !== 'string') {
+      if (
+        !field.has(source) ||
+        !supportsFrontTarget(source) ||
+        typeof target !== 'string'
+      ) {
         return false;
       }
       // 空目标是玩家明确确认无人，不能等同于没有录入关系。
