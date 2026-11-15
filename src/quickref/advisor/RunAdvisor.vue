@@ -5,7 +5,6 @@ import { STRATEGY, covenantColor } from '../../../data/index.ts';
 import { equipIconSrc, portraitSrc } from '../../lib/assets.ts';
 import { prefersReducedMotion } from '../../lib/dom.ts';
 import { MAX_SHOP_CANDIDATES, operatorsByName, type OwnedEquipment } from '../../lib/runAdvisor.ts';
-import { MAX_OPS } from '../../lib/planner.ts';
 import { currentRoute, openCard } from '../../router/navigation.ts';
 import { queryText } from '../../router/location.ts';
 import { useRunAdvisor } from './useRunAdvisor.ts';
@@ -24,7 +23,7 @@ import './advisor.css';
  * 宽屏为左右两栏，建议栏常驻；窄屏单列滚动，不再分页切换。编辑和录入统一在弹层中完成。
  */
 const advisor = useRunAdvisor();
-const { run, deployed, reserve, covenants, recommendations, deploymentRecommendations, notice, saveFailed, canUndo, goal, unavailableNames, poolConflicts } = advisor;
+const { run, deployed, reserve, deploymentLimit, covenants, recommendations, deploymentRecommendations, notice, saveFailed, canUndo, goal, unavailableNames, poolConflicts } = advisor;
 const sidePanel = ref<HTMLElement>();
 const storageView = ref<'reserve' | 'equipment'>('reserve');
 const selection = ref<AdvisorSelection | null>(null);
@@ -37,14 +36,14 @@ const picker = ref<{ target: PickerTarget; holder: string } | null>(null);
 const canReturnToPanel = computed(() => !!picker.value && (poolSettingsOpen.value || inspectorOpen.value && !!selection.value));
 const recordingOperators = computed(() => picker.value?.target === 'deployed' || picker.value?.target === 'reserve');
 const pickerSummary = computed(() => recordingOperators.value
-  ? `上场 ${deployed.value.length}/${MAX_OPS} · 整备 ${reserve.value.length}`
+  ? `上场 ${deployed.value.length}/${deploymentLimit.value} · 整备 ${reserve.value.length}`
   : picker.value?.target === 'equipment' ? `已记录 ${run.value.equipment.length} 件`
   : picker.value?.target === 'excluded' ? `已排除 ${run.value.excludedOperators.length} 名` : '');
-const hasRunData = computed(() => run.value.mode !== 'unknown' || run.value.candidateSource !== 'shop' || run.value.round !== null || run.value.funds !== null || Object.keys(run.value.layers).length > 0 || run.value.level !== 1 || !!run.value.strategy || !!run.value.mainCovenant
+const hasRunData = computed(() => run.value.personnelDocumentUsed || run.value.mode !== 'unknown' || run.value.candidateSource !== 'shop' || run.value.round !== null || run.value.funds !== null || Object.keys(run.value.layers).length > 0 || run.value.level !== 1 || !!run.value.strategy || !!run.value.mainCovenant
   || !!run.value.mainTarget || !!run.value.operators.length || !!run.value.equipment.length || !!run.value.shop.length
   || !!run.value.bannedCovenants.length || !!run.value.excludedOperators.length);
 const eliteNames = computed(() => run.value.operators.filter(operator => operator.elite).map(operator => operator.name));
-const fieldSlots = computed(() => Array.from({ length: MAX_OPS }, (_, index) => deployed.value[index]));
+const fieldSlots = computed(() => Array.from({ length: deploymentLimit.value }, (_, index) => deployed.value[index]));
 const equipmentByHolder = computed(() => {
   const result = new Map<string, Readonly<OwnedEquipment>[]>();
   for (const item of run.value.equipment) {
@@ -216,7 +215,7 @@ function startNewRun(): void {
     <div class="ra-workspace">
       <section class="ra-panel ra-field-panel" aria-labelledby="ra-field-title">
         <div class="ra-section-heading">
-          <h3 id="ra-field-title">上场 <small>{{ deployed.length }} / {{ MAX_OPS }}</small></h3>
+          <h3 id="ra-field-title">上场 <small>{{ deployed.length }} / {{ deploymentLimit }}</small></h3>
           <span class="ra-muted">点头像编辑</span>
           <button type="button" class="ra-text-button" aria-haspopup="dialog" @click="openPicker('deployed')">＋ 记录干员</button>
         </div>

@@ -16,6 +16,11 @@ function optionalNumber(event: Event): number | null {
   const value = (event.target as HTMLInputElement).value.trim();
   return value === '' ? null : Number(value);
 }
+function updatePersonnelDocument(event: Event): void {
+  const select = event.target as HTMLSelectElement;
+  advisor.setPersonnelDocumentUsed(select.value === 'true');
+  select.value = String(run.value.personnelDocumentUsed);
+}
 // 绝技按全场精锐触发，不对应可从招募池移除的原生干员。
 const groups = [
   { title: '核心盟约', names: CORE_COVENANTS },
@@ -55,6 +60,12 @@ const groups = [
     <p class="ra-muted">自动按场上本家人数、专属策略判断；方向未定时不强行选边。主轴成型后再补配合与精锐。</p>
     <div class="ra-section-heading"><h3>局面信息 <small>选填</small></h3></div>
     <div class="ra-pool-direction ra-run-context">
+      <label>部署上限
+        <select :value="String(run.personnelDocumentUsed)" @change="updatePersonnelDocument">
+          <option value="false">8人 · 未记录使用文档</option>
+          <option value="true">9人 · 已使用人事部文档</option>
+        </select>
+      </label>
       <label>当前回合
         <input type="number" inputmode="numeric" min="1" :max="advisorRoundLimit(run.format) ?? 14" step="1" placeholder="未知"
           :value="run.round ?? ''" @change="advisor.setRound(optionalNumber($event))">
