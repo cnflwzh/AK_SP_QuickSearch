@@ -3,9 +3,9 @@ import { clearMovedFrontTargets, supportsFrontTarget } from '../../lib/advisorPo
 import { ADVISOR_MODES, ADVISOR_FORMATS, advisorRoundLimit, promotionRewardTier, type AdvisorFormat, type AdvisorMode, type CandidateSource } from '../../lib/advisorRules.ts';
 import { computed, readonly, ref } from 'vue';
 import { ALL_COVENANTS, EQUIPMENT, STRATEGIES, isCoreCovenant } from '../../../data/index.ts';
-import { covenantStats, MAX_EQ, MAX_OPS, MAX_LAYERS, usesLayers } from '../../lib/planner.ts';
+import { covenantStats, MAX_EQ, MAX_LAYERS, usesLayers } from '../../lib/planner.ts';
 import {
-  deployedLineup, eliteCopyCount, MAX_RECORDED_EQUIPMENT, MAX_SHOP_CANDIDATES,
+  advisorDeploymentLimit, deployedLineup, eliteCopyCount, MAX_RECORDED_EQUIPMENT, MAX_SHOP_CANDIDATES,
   newAdvisorRun, operatorsByName, recommendRecruits, recommendDeployments, sanitizeAdvisorRun, createRecruitmentPool, effectiveBans, reserveLineup, runLineupGoal,
   type AdvisorRun, type RecordedOperator,
 } from '../../lib/runAdvisor.ts';
@@ -29,6 +29,7 @@ function say(message: string): void {
   notice.value = message;
   if (message) noticeTimer = setTimeout(() => { notice.value = ''; }, NOTICE_MS);
 }
+const deploymentLimit = computed(() => advisorDeploymentLimit(run.value));
 const lineup = computed(() => deployedLineup(run.value));
 const covenants = computed(() => covenantStats(lineup.value, run.value.layers, reserveLineup(run.value), effectiveBans(run.value)));
 const goal = computed(() => runLineupGoal(run.value));
@@ -97,7 +98,7 @@ export function useRunAdvisor() {
         existing.copies++;
         if (existing.copies >= eliteCopyCount(name)) { existing.elite = true; existing.copies = 1; }
       } else {
-        draft.operators.push({ name, copies: 1, elite: false, deployed: destination === 'auto' && draft.operators.filter(operator => operator.deployed).length < MAX_OPS });
+        draft.operators.push({ name, copies: 1, elite: false, deployed: destination === 'auto' && draft.operators.filter(operator => operator.deployed).length < advisorDeploymentLimit(draft) });
       }
       // 手工补录其他持有干员，不等于选择眼前奖励；不得丢弃待选名单。
       if (draft.shop.includes(name)) {
@@ -132,9 +133,9 @@ export function useRunAdvisor() {
       const onField = draft.operators.filter(item => item.deployed);
       const moved = new Set<string>();
       if (operator.deployed !== active) moved.add(name);
-      if (active && !operator.deployed && (replace || onField.length >= MAX_OPS)) {
+      if (active && !operator.deployed && (replace || onField.length >= advisorDeploymentLimit(draft))) {
         const outgoing = onField.find(item => item.name === replace);
-        if (!outgoing) return replace ? '要换下的干员已不在场上，请重新选择' : '场上已有8名，请先选择要换下的干员';
+        if (!outgoing) return replace ? '要换下的干员已不在场上，请重新选择' : `场上已有${advisorDeploymentLimit(draft)}名，请先选择要换下的干员`;
         outgoing.deployed = false;
         moved.add(outgoing.name);
       }
@@ -180,6 +181,15 @@ export function useRunAdvisor() {
   function setLevel(level: number): void {
     if (!Number.isInteger(level) || level < 1 || level > 6 || level === run.value.level) return;
     change(`当前${level}本`, draft => { draft.level = level; });
+  }
+  /** 仅补录游戏中已使用的消耗品状态；不删除仓库装备，也不推断付款。 */
+  function setPersonnelDocumentUsed(used: boolean): boolean {
+    if (used === run.value.personnelDocumentUsed) return true;
+    return change('已更新部署上限', draft => {
+      const limit = advisorDeploymentLimit({ personnelDocumentUsed: used });
+      if (draft.operators.filter(operator => operator.deployed).length > limit) return `请先将场上人数降至${limit}名，再取消文档记录`;
+      draft.personnelDocumentUsed = used;
+    });
   }
   /** 留空表示未知；这些是手动快照，不从购买记录推测回合或自动扣款。 */
   function setFormat(format: AdvisorFormat): void {
@@ -301,9 +311,9 @@ export function useRunAdvisor() {
     save();
   }
   return {
-    run: readonly(run), deployed, reserve, covenants, recommendations, deploymentRecommendations, goal, unavailableNames, poolConflicts,
+    run: readonly(run), deployed, reserve, deploymentLimit, covenants, recommendations, deploymentRecommendations, goal, unavailableNames, poolConflicts,
     notice: readonly(notice), saveFailed: readonly(saveFailed), canUndo: computed(() => undoSnapshot.value !== null),
-    recruit, recruitCandidate, candidateError, setDeployment, setFrontTarget, removeOperator, setCopies, setElite, setMode, setCandidateSource, setLevel, setFormat, setRound, setAcquisitionsThisRound, setFunds, setLayer, setStrategy, setCommandAvailable,
+    recruit, recruitCandidate, candidateError, setDeployment, setFrontTarget, removeOperator, setCopies, setElite, setMode, setCandidateSource, setLevel, setPersonnelDocumentUsed, setFormat, setRound, setAcquisitionsThisRound, setFunds, setLayer, setStrategy, setCommandAvailable,
     setMainCovenant, setMainTarget, toggleBannedCovenant, toggleExcludedOperator,
     addEquipment, assignEquipment, setEquipmentAdvanced, removeEquipment,
     addShopCandidate, removeShopCandidate, clearShop, reset, undo,
