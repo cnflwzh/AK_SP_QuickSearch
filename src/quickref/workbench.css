@@ -77,6 +77,10 @@
   /* 输入时保持手机视口稳定，避免 iOS 因小字号自动放大。 */
   .workbench-controls input[type=search] { font-size: 16px; }
 }
+/* 矮窗口（安卓横屏小窗等）宽度可能超过 800px 判定，但高度很紧，统一收紧控件高度。 */
+@media (max-height: 600px) {
+  .workbench-controls :is(select, input[type=search]) { min-height: 36px; padding-block: 5px; }
+}
 @media (prefers-reduced-motion: reduce) {
   .workbench-controls :is(select, input[type=search]),
   .workbench-controls summary::after { transition: none; }
