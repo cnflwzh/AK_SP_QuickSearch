@@ -1,5 +1,5 @@
 /* 只定义数值工具的结构布局；卡片、按钮、标签、筛选及计算数值复用全站组件。 */
-.numbers-tools { min-width: 0; }
+.numbers-tools { min-width: 0; container: number-tools / inline-size; }
 .numbers-tools :is(p, figure) { margin: 0; }
 .numbers-tools .nt-heading h4 { margin: 0; }
 .numbers-tools button { cursor: pointer; }
@@ -44,7 +44,7 @@
 .numbers-tools .nt-calculator { min-width: 0; margin: 0; align-content: start; animation: number-reveal .18s ease-out; }
 .nt-calculator .nt-heading { margin: 0; }
 .nt-calculator h4 { font-family: inherit; font-size: 16px; font-weight: 700; color: var(--c); }
-.nt-layer-input { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.nt-layer-input { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .nt-layer-input .layer-value { white-space: nowrap; }
 .nt-layer-input input { width: 80px !important; font-size: 24px !important; }
 .nt-gap { font-size: 12px; color: var(--ink2); white-space: nowrap; }
@@ -167,12 +167,12 @@
 .number-panel-leave-to { opacity: 0; }
 @keyframes number-reveal { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
-@media (max-width: 1100px) {
+@container number-tools (max-width: 1100px) {
   .nt-threshold-heading, .nt-threshold-row { grid-template-columns: 68px 86px minmax(0, 1fr); gap: 8px; padding-left: 10px; padding-right: 10px; }
   .nt-search-results { grid-template-columns: 1fr; }
   .nt-rounds { grid-template-columns: repeat(7, minmax(0, 1fr)); }
 }
-@media (max-width: 850px) {
+@container number-tools (max-width: 850px) {
   .nt-layer-layout, .nt-secondary-grid, .nt-recruit-grid { grid-template-columns: minmax(0, 1fr); }
   .nt-layer-layout > * { grid-column: 1; grid-row: auto; }
   .nt-threshold-list { order: 0; }
@@ -183,9 +183,9 @@
   .nt-target-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .nt-search-results { grid-template-columns: 1fr 1fr; }
 }
-@media (max-width: 540px) {
+@container number-tools (max-width: 540px) {
   .nt-threshold-heading, .nt-threshold-row { grid-template-columns: 56px 68px minmax(0, 1fr); gap: 7px; padding-left: 10px; padding-right: 10px; }
-  .nt-threshold-number { font-size: 21px; }
+  .nt-threshold-number { font-size: 21px; white-space: normal; overflow-wrap: anywhere; line-height: 1.2; }
   .nt-threshold-effect { font-size: 12px; gap: 3px; }
   .nt-toolbar select { max-width: 70%; }
   .nt-fold summary small { font-size: 11px; }
@@ -198,6 +198,13 @@
   .nt-bounty-controls input { flex-basis: 100%; }
   .nt-bounty-controls select { margin-left: auto; }
   .nt-bounty-heading, .nt-bounty-row { grid-template-columns: minmax(0, 1fr) 40px 76px; gap: 6px; padding-left: 2px; padding-right: 2px; }
+}
+/* 折叠屏或 PRTS 半栏：门槛和效果分行，避免多档数字挤压说明。 */
+@container number-tools (max-width: 360px) {
+  .nt-threshold-heading { display: none; }
+  .nt-threshold-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .nt-threshold-effect { grid-column: 1 / -1; }
+  .nt-threshold-number { white-space: normal; text-align: right; }
 }
 @media (prefers-reduced-motion: reduce) {
   .number-panel-enter-active, .number-panel-leave-active { transition: none; }
