@@ -233,6 +233,14 @@ test('full-roster suggestions remain finite, deterministic and do not mutate inp
     assert.ok(run.operators.some(op => op.deployed && op.name === advice.replace));
   }
   assert.deepEqual(run, old);
+  const late = runWith(['慕斯', 'Miss.Christine', '凯瑟琳', '拜松', '矩', '风絮', '灰喉', '霜叶'], {
+    round: 14, mainCovenant: 'mixed', shop: ['寒檀'],
+  });
+  const purchase = recommendRecruits(late)[0];
+  const deployment = recommendDeployments({ ...late, operators: [...late.operators, owned('寒檀', false)] }).find(item => item.name === '寒檀');
+  assert.ok(deployment?.score > 0);
+  assert.equal(purchase.kind, 'replace');
+  assert.equal(purchase.replace, deployment.replace);
 });
 
 test('verified restricted mode excludes its static pool and disabled covenant effects', async () => {
@@ -463,6 +471,14 @@ test('missing addon layers receive no acquisition value while retained addons st
   const advice = recommendRecruits(run)[0];
   assert.equal(advice.operator.name, '逻各斯');
   assert.equal(advice.breakdown.acquisition, 1.25); // 未激活远见仅保留未来价值
+  for (const layers of [{ 远见: 150 }, {}]) {
+    const missingForesight = recommendRecruits(runWith([], {
+      bannedCovenants: ['远见'], layers, funds: 2, shop: ['逻各斯'],
+    }))[0];
+    assert.equal(missingForesight.estimatedPrice, 4); // 奥术仍可留池，缺席远见不提供已知或假定折扣
+    assert.equal(missingForesight.affordable, false);
+  }
+
 });
 
 test('deterministic rest producers cross a shared threshold jointly and award it only once', async () => {
@@ -475,4 +491,116 @@ test('deterministic rest producers cross a shared threshold jointly and award it
   assert.equal(joint - base, 24); // 各自不足，合计跨过80
   assert.equal(overlaps - base, 24); // 两个来源都足够时仍只加一次
   assert.equal(teamValue(field, [], { ...context, layers: { 远见: 80 } }), base);
+  assert.equal(teamValue(field, [], { ...context, layers: { 远见: 146 } }) - base, 24);
+  assert.equal(teamValue(field, [], { ...context, layers: { 远见: 148 } }) - base, 24);
+  assert.equal(teamValue(field, [], { ...context, layers: { 远见: 150 } }), base);
+  const { acquisitionValue } = await import('../src/lib/advisorValue.ts');
+  const stats = covenantStats(field, { 远见: 146 });
+  const acquisition = acquisitionValue(OPERATOR['逻各斯'], false, stats, { ...context, layers: { 远见: 146 } });
+  const withoutCrossing = acquisitionValue(OPERATOR['逻各斯'], false, stats, { ...context, layers: { 远见: 150 } });
+  assert.equal(acquisition.score - withoutCrossing.score, 24);
+  assert.match(acquisition.reasons.join(' '), /远见150层强化门槛/);
+
+});
+
+test('reserve promotion values the new deployment option without charging for an already free one', async () => {
+  const { recommendDeployments } = await import('../src/lib/runAdvisor.ts');
+  const run = runWith(['拜松'], { mainCovenant: 'mixed', shop: ['矩'] });
+  run.operators[0].elite = true;
+  run.operators.push({ ...owned('矩', false), copies: 2 });
+  const freeBefore = recommendDeployments(run, 20).find(item => item.name === '矩');
+  const promoted = { ...run, operators: run.operators.map(op => op.name === '矩' ? { ...op, elite: true, copies: 1 } : op) };
+  const freeAfter = recommendDeployments(promoted, 20).find(item => item.name === '矩');
+  assert.ok(freeAfter.score > freeBefore.score);
+  const advice = recommendRecruits(run)[0];
+  assert.match(advice.reasons.join(' '), /晋升后.*上场/);
+  assert.match(advice.reasons.join(' '), /扣除.*免费/);
+  assert.ok(advice.breakdown.lineup > 0); // 新增两精锐绝技，而非重复计入原本可免费上场的炎人数
+  assert.equal(run.operators[1].deployed, false);
+});
+
+test('Sussurro selects a roster-aware one-trigger target rather than multiplying future production', async () => {
+  const { restCommandOpportunity } = await import('../src/lib/advisorValue.ts');
+  const field = ['涤火杰西卡', '慕斯', 'Miss.Christine'].map(newSlot);
+  field[0].eq = ['维式重锤'];
+  field[1].eq = ['精准狙击镜'];
+  const context = { round: 2, level: 4, strategy: '苏苏洛', layers: {} };
+  const opportunity = restCommandOpportunity(field, [], context);
+  assert.equal(opportunity.target, '涤火杰西卡'); // 两位携带装备者，额外触发维多利亚+4
+  assert.match(opportunity.reasons.join(' '), /维多利亚\+4/);
+  assert.match(opportunity.reasons.join(' '), /指令可用/);
+  assert.equal(opportunity.score, restCommandOpportunity(field, [], { ...context, round: 14 }).score);
+  assert.equal(restCommandOpportunity(field, [], { ...context, strategy: '' }).score, 0);
+});
+
+test('free deployment considers replacing a solo member even when field slots are empty', async () => {
+  const { recommendDeployments } = await import('../src/lib/runAdvisor.ts');
+  const run = runWith(['艾丝黛尔'], { mainCovenant: 'mixed', operators: [
+    owned('艾丝黛尔'), { ...owned('地灵', false), elite: true },
+  ] });
+  const advice = recommendDeployments(run).find(item => item.name === '地灵');
+  assert.equal(advice?.replace, '艾丝黛尔');
+  const replacement = covenantStats([{ ...newSlot('地灵'), elite: true }]);
+  assert.ok(replacement.find(stat => stat.name === '独行').active);
+  // 没有晋升或其他收益时，不为保持同一盟约而推荐无意义换人。
+  run.operators[1].elite = false;
+  assert.equal(recommendDeployments(run).length, 0);
+
+  const { useRunAdvisor } = await import('../src/quickref/advisor/useRunAdvisor.ts');
+  const advisor = useRunAdvisor();
+  advisor.reset();
+  advisor.setMainCovenant('mixed');
+  advisor.recruit('艾丝黛尔');
+  advisor.recruit('地灵', 'reserve');
+  advisor.setElite('地灵', true);
+  assert.equal(advisor.setDeployment(advice.name, true, advice.replace), true);
+  assert.deepEqual(advisor.run.value.operators.filter(op => op.deployed).map(op => op.name), ['地灵']);
+  assert.ok(advisor.covenants.value.find(stat => stat.name === '独行').active);
+  advisor.undo();
+  assert.deepEqual(advisor.run.value.operators.filter(op => op.deployed).map(op => op.name), ['艾丝黛尔']);
+  assert.equal(advisor.setDeployment('地灵', true, '不存在的干员'), false);
+  assert.deepEqual(advisor.run.value.operators.filter(op => op.deployed).map(op => op.name), ['艾丝黛尔']);
+});
+
+test('Suzuran accounts for active reserve investors and respects their disabled state', async () => {
+  const { strategyValue } = await import('../src/lib/advisorValue.ts');
+  const field = [newSlot('承曦格雷伊')];
+  const reserve = ['锡人', '山', '老鲤'].map(newSlot);
+  const context = { round: 8, level: 6, strategy: '铃兰', layers: {} };
+  const base = strategyValue(field, context);
+  assert.equal(strategyValue(field, context, reserve), base * 2);
+  assert.equal(strategyValue(field, { ...context, layers: { 投资人: 100 } }, reserve), base * 3);
+  assert.equal(strategyValue(field, { ...context, inactiveCovenants: new Set(['投资人']) }, reserve), base);
+});
+
+test('Support covenant production contributes to shared thresholds and requires field members', async () => {
+  const { covenantProductionValue, teamValue } = await import('../src/lib/advisorValue.ts');
+  const field = ['渡桥', '寒檀', '白铁', '罗比菈塔'].map(newSlot);
+  const context = { round: 14, level: 6, strategy: '', layers: { 远见: 144 } };
+  const value = covenantProductionValue(covenantStats(field, context.layers), context);
+  assert.deepEqual(value.endOfRestGains.find(gain => gain.covenant === '远见'), { covenant: '远见', amount: 2 });
+  assert.equal(teamValue(field, [], context) - teamValue(field, [], { ...context, layers: { 远见: 150 } }), 24);
+  const three = covenantProductionValue(covenantStats([...field, newSlot('野鬃')]), context);
+  assert.equal(three.endOfRestGains.find(gain => gain.covenant === '远见').amount, 4);
+  assert.equal(covenantProductionValue(covenantStats(field.slice(0, 3), {}, [field[3]]), context).score, 0);
+});
+
+test('buy advice sees a core-completing solo swap before the field is full', async () => {
+  const run = runWith(['艾丝黛尔', '折光', '复奏'], { mainCovenant: 'mixed', shop: ['地灵'] });
+  const advice = recommendRecruits(run)[0];
+  assert.equal(advice.kind, 'replace');
+  assert.equal(advice.replace, '艾丝黛尔');
+  assert.match(advice.reasons.join(' '), /激活莱塔尼亚/);
+  assert.ok(!advice.losses.some(reason => reason.includes('独行失效')));
+  const { useRunAdvisor } = await import('../src/quickref/advisor/useRunAdvisor.ts');
+  const advisor = useRunAdvisor();
+  advisor.reset();
+  advisor.setMainCovenant('mixed');
+  for (const name of ['艾丝黛尔', '折光', '复奏']) advisor.recruit(name);
+  advisor.addShopCandidate('地灵');
+  advisor.recruitCandidate('地灵');
+  assert.equal(advisor.run.value.operators.find(op => op.name === '地灵').deployed, false);
+  assert.equal(advisor.setDeployment('地灵', true, advice.replace), true);
+  assert.ok(advisor.covenants.value.find(stat => stat.name === '独行').active);
+  assert.ok(advisor.covenants.value.find(stat => stat.name === '莱塔尼亚').active);
 });
