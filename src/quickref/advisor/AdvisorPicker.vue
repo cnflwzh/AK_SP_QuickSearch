@@ -90,6 +90,10 @@ function ownershipLabel(name: string): string {
   if (props.recording && owned.copies + 1 >= eliteCopyCount(name)) return '再 1 张精锐';
   return `已有 ${owned.copies} 张`;
 }
+/** 卡片底部的一行状态：持有情况优先，其次提示高于本数（仍可录入奖励所得）。 */
+function stateLabel(name: string, tier: number): string {
+  return ownershipLabel(name) || (tier > props.level ? '高于本数' : '');
+}
 function clearFilters(): void { query.value = ''; tier.value = 0; covenant.value = ''; }
 </script>
 
@@ -116,32 +120,28 @@ function clearFilters(): void { query.value = ''; tier.value = 0; covenant.value
       </label>
     </div>
     <div class="ra-picker-status">
-      <span>{{ results.length }} 项{{ atCapacity ? ' · 已满，可移除已选项' : ` · 点击卡片${action}` }}</span>
+      <span>{{ results.length }} 项{{ atCapacity ? ' · 已满，可移除已选项' : ` · 点卡片${action}` }}</span>
       <button v-if="hasFilters" type="button" class="ra-text-button" @click="clearFilters">清除筛选</button>
-    </div>
-    <div class="ra-picker-notice">
-      <span role="status" aria-live="polite">{{ notice }}</span>
+      <span class="ra-picker-notice" role="status" aria-live="polite">{{ notice }}</span>
     </div>
     <div class="ra-picker-grid">
       <article v-for="item in results" :key="item.name" class="ra-picker-card"
-        :class="{ chosen: selectedNames.has(item.name) }" :data-t="item.tier">
+        :class="{ chosen: selectedNames.has(item.name), owned: kind === 'op' && ownedByName.has(item.name) }" :data-t="item.tier">
         <button type="button" class="ra-pick-entity"
           :disabled="isDisabled(item.name)" :aria-pressed="canDeselect ? selectedNames.has(item.name) : undefined"
           :aria-label="actionLabel(item.name)" @click="choose(item.name)">
           <span class="ra-picker-picture">
-            <img :src="item.image" alt="" width="48" height="48" loading="lazy">
+            <img :src="item.image" alt="" width="44" height="44" loading="lazy">
             <i v-if="item.tier">{{ TIER_LABELS[item.tier] }}</i>
             <b v-if="selectedNames.has(item.name)">✓</b>
             <b v-else-if="kind === 'op' && ownedByName.has(item.name)">{{ ownedByName.get(item.name)!.elite ? '精' : `×${ownedByName.get(item.name)!.copies}` }}</b>
           </span>
           <strong>{{ item.name }}</strong>
           <small>{{ disabledNames.includes(item.name) ? '已精锐' : item.detail }}</small>
+          <em v-if="stateLabel(item.name, item.tier)" :class="{ warn: item.tier > level && !ownershipLabel(item.name) }">{{ stateLabel(item.name, item.tier) }}</em>
         </button>
-        <div class="ra-picker-card-footer">
-          <span>{{ ownershipLabel(item.name) || (item.tier > level ? '高于当前本数' : selectedNames.has(item.name) ? '已选' : '') }}</span>
-          <button type="button" class="ra-text-button" :aria-label="`查看${item.name}详情`"
-            @click="$emit('details', kind, item.name)">详情 ↗</button>
-        </div>
+        <button type="button" class="ra-pick-info" :aria-label="`查看${item.name}详情`" title="详情"
+          @click="$emit('details', kind, item.name)">i</button>
       </article>
       <div v-if="!results.length" class="ra-empty">
         <p>没有匹配的候选。</p>
