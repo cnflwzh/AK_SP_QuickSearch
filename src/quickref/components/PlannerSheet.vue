@@ -2,7 +2,8 @@
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 /** 手机编辑面板的容器；内容由调用方 Teleport 到 contentId，保持桌面和手机共用同一套表单。 */
-const props = defineProps<{ open: boolean; title: string; context: string; contentId: string; canGoBack: boolean }>();
+/** fit：内容较少的编辑面板按内容高度显示；列表类面板保持固定高度，避免切换筛选时跳动。 */
+const props = defineProps<{ open: boolean; title: string; context: string; contentId: string; canGoBack: boolean; fit?: boolean }>();
 const emit = defineEmits<{ close: []; back: [] }>();
 const dialog = ref<HTMLDialogElement>();
 const heading = ref<HTMLElement>();
@@ -52,7 +53,7 @@ onBeforeUnmount(() => {
 <template>
   <Teleport to="body">
     <dialog
-      ref="dialog" class="pl pl-sheet workbench-controls" aria-labelledby="planner-sheet-title"
+      ref="dialog" :class="['pl', 'pl-sheet', 'workbench-controls', { fit }]" aria-labelledby="planner-sheet-title"
       :style="{ '--planner-viewport-height': viewportHeight, '--planner-viewport-bottom': viewportBottom }"
       @cancel.prevent="emit('close')" @keydown.esc.stop.prevent="emit('close')" @click.self="emit('close')"
     >
@@ -84,6 +85,7 @@ onBeforeUnmount(() => {
   overflow: hidden;
   gap: 0;
 }
+.pl-sheet.fit { height: auto; }
 .pl-sheet:not([open]) { display: none; }
 .pl-sheet[open] { display: flex; flex-direction: column; animation: planner-sheet-in .2s ease-out; }
 .pl-sheet::backdrop { background: rgba(5, 12, 14, .5); }
@@ -93,6 +95,15 @@ onBeforeUnmount(() => {
 .pl-sheet-heading button { flex: none; min-height: 40px; }
 .pl-sheet-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 12px max(16px, var(--safe-area-bottom)); }
 :global(html:has(dialog.pl-sheet[open])) { overflow: hidden; }
+/* 矮窗口（安卓横屏小窗、横屏手机）：面板几乎占满高度，页眉收紧，把空间留给列表。 */
+@media (max-height: 600px) {
+  .pl-sheet { max-height: calc(var(--planner-viewport-height, 100dvh) - 6px); height: calc(var(--planner-viewport-height, 100dvh) - 6px); }
+  .pl-sheet.fit { height: auto; }
+  .pl-sheet-heading { padding: 5px 10px; }
+  .pl-sheet-heading h3 { font-size: 14px; }
+  .pl-sheet-heading button { min-height: 34px; }
+  .pl-sheet-content { padding-top: 8px; }
+}
 @keyframes planner-sheet-in { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .pl-sheet[open] { animation: none; } }
 </style>
