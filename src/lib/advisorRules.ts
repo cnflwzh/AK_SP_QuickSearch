@@ -10,3 +10,14 @@ export type AdvisorMode = typeof ADVISOR_MODES[number]['id'];
 export const RESTRICTED_MODE_COVENANTS: readonly string[] = ['阿戈尔', '卡西米尔', '灵巧', '奇迹', '投资人', '突袭', '独行', '绝技'];
 export type CandidateSource = 'shop' | 'promotion';
 export function promotionRewardTier(level: number): number { return Math.min(6, level + 1); }
+
+/** 对局长度独立于招募池；当前极速 AC-TB-1 共9轮，常规14轮，不预支条件隐藏轮。 */
+export const ADVISOR_FORMATS = [
+  { id: 'unknown', label: '未指定，只计当前回合' },
+  { id: 'standard', label: '常规 · 14回合' },
+  { id: 'fast', label: '极速 · 9回合' },
+] as const;
+export type AdvisorFormat = typeof ADVISOR_FORMATS[number]['id'];
+export function advisorRoundLimit(format: AdvisorFormat): number | null {
+  return format === 'fast' ? 9 : format === 'standard' ? 14 : null;
+}

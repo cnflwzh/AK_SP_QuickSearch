@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ADVISOR_MODES, RESTRICTED_MODE_COVENANTS, type AdvisorMode } from '../../lib/advisorRules.ts';
+import { ADVISOR_MODES, ADVISOR_FORMATS, advisorRoundLimit, RESTRICTED_MODE_COVENANTS, type AdvisorFormat, type AdvisorMode } from '../../lib/advisorRules.ts';
 import { computed, ref } from 'vue';
 import { effectiveBans } from '../../lib/runAdvisor.ts';
 import { ALL_COVENANTS, CORE_COVENANTS, ADDON_COVENANTS, covenantColor } from '../../../data/index.ts';
@@ -25,8 +25,13 @@ const groups = [
 
 <template>
   <div class="ra-pool-settings">
-    <label>游戏模式
-      <select :value="run.mode" @change="advisor.setMode(($event.target as HTMLSelectElement).value as AdvisorMode)">
+    <label>对局长度
+      <select :value="run.format" @change="advisor.setFormat(($event.target as HTMLSelectElement).value as AdvisorFormat)">
+        <option v-for="format in ADVISOR_FORMATS" :key="format.id" :value="format.id">{{ format.label }}</option>
+      </select>
+    </label>
+    <label>招募池范围
+      <select :value="run.mode" :disabled="run.format === 'fast'" @change="advisor.setMode(($event.target as HTMLSelectElement).value as AdvisorMode)">
         <option v-for="mode in ADVISOR_MODES" :key="mode.id" :value="mode.id">{{ mode.label }}</option>
       </select>
     </label>
@@ -51,8 +56,20 @@ const groups = [
     <div class="ra-section-heading"><h3>局面信息 <small>选填</small></h3></div>
     <div class="ra-pool-direction ra-run-context">
       <label>当前回合
-        <input type="number" inputmode="numeric" min="1" max="14" step="1" placeholder="未知"
+        <input type="number" inputmode="numeric" min="1" :max="advisorRoundLimit(run.format) ?? 14" step="1" placeholder="未知"
           :value="run.round ?? ''" @change="advisor.setRound(optionalNumber($event))">
+      </label>
+      <label v-if="['苏苏洛', '铃兰'].includes(run.strategy)">本次主动指令
+        <select :value="run.commandAvailable === null ? 'unknown' : String(run.commandAvailable)"
+          @change="advisor.setCommandAvailable(($event.target as HTMLSelectElement).value === 'unknown' ? null : ($event.target as HTMLSelectElement).value === 'true')">
+          <option value="unknown">未知，保留条件收益</option>
+          <option value="true">确认可用</option>
+          <option value="false">已用 / 暂不可用</option>
+        </select>
+      </label>
+      <label>本轮已获得人数（按游戏显示）
+        <input type="number" inputmode="numeric" min="0" max="999" step="1" placeholder="未知"
+          :value="run.acquisitionsThisRound ?? ''" @change="advisor.setAcquisitionsThisRound(optionalNumber($event))">
       </label>
       <label>可用资金
         <input type="number" inputmode="numeric" min="0" max="999" step="1" placeholder="未知"
@@ -68,7 +85,7 @@ const groups = [
           :value="run.layers[layerSelection] ?? ''" @change="advisor.setLayer(layerSelection, optionalNumber($event))">
       </label>
     </div>
-    <p class="ra-muted">留空表示未知，0 表示确认没有。回合、资金与层数只作推荐参考，请随局面手动更新，不会自动扣款或叠层。</p>
+    <p class="ra-muted">留空表示未知，0 表示确认没有。回合、资金与层数只作推荐参考，请随局面手动更新，不会自动扣款或叠层。记录获得或切换回合后，请重新确认获得人数；切换策略或回合后，主动指令可用性重置为未知。</p>
     <div v-if="Object.keys(run.layers).length" class="ra-pool-chips" aria-label="已记录层数">
       <button v-for="(layers, name) in run.layers" :key="name" type="button"
         :aria-label="`清除${name}层数记录`" @click="advisor.setLayer(String(name), null)">{{ name }} {{ layers }} 层 ×</button>

@@ -1,4 +1,5 @@
-import { ADVISOR_MODES, promotionRewardTier, type AdvisorMode, type CandidateSource } from '../../lib/advisorRules.ts';
+import { clearMovedFrontTargets, supportsFrontTarget } from '../../lib/advisorPosition.ts';
+import { ADVISOR_MODES, ADVISOR_FORMATS, advisorRoundLimit, promotionRewardTier, type AdvisorFormat, type AdvisorMode, type CandidateSource } from '../../lib/advisorRules.ts';
 import { computed, readonly, ref } from 'vue';
 import { ALL_COVENANTS, EQUIPMENT, STRATEGIES, isCoreCovenant } from '../../../data/index.ts';
 import { covenantStats, MAX_EQ, MAX_OPS, MAX_LAYERS, usesLayers } from '../../lib/planner.ts';
@@ -44,7 +45,7 @@ const reserve = computed(() => run.value.operators.filter(operator => !operator.
 
 function clone(value: AdvisorRun): AdvisorRun {
   return { ...value, operators: value.operators.map(operator => ({ ...operator })), equipment: value.equipment.map(item => ({ ...item })),
-    layers: { ...value.layers }, shop: [...value.shop], bannedCovenants: [...value.bannedCovenants], excludedOperators: [...value.excludedOperators] };
+    layers: { ...value.layers }, frontTargets: { ...value.frontTargets }, shop: [...value.shop], bannedCovenants: [...value.bannedCovenants], excludedOperators: [...value.excludedOperators] };
 }
 function save(): void {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(run.value)); saveFailed.value = false; }
@@ -83,12 +84,14 @@ function assignInDraft(draft: AdvisorRun, id: string, holder: string): string | 
 /** 局内工具独立单例；动作立即保存，离开页面无需依赖计时器或页面退出事件。 */
 export function useRunAdvisor() {
   /** 录入一张有效干员；空位默认上场，满员或指定 reserve 时入整备区；达到张数后自动晋升。 */
-  function recruit(name: string, destination: 'auto' | 'reserve' = 'auto'): boolean {
+  function recruit(name: string, destination: 'auto' | 'reserve' = 'auto', confirmedAcquisition = false): boolean {
     if (!operatorsByName.has(name)) return false;
     return change(`已记录${name}`, draft => {
       if (!createRecruitmentPool(draft)(name)) return `${name}不在本局招募池，请先调整禁用设置`;
       const existing = draft.operators.find(operator => operator.name === name);
       if (existing?.elite) return `${name}已是精锐，无需再记录同名合成`;
+      // 计数来自游戏显示；普通购买、自身及晋升的计数细节未完全核实，不自动累加。
+      if (confirmedAcquisition) draft.acquisitionsThisRound = null;
       if (existing) {
         existing.copies++;
         if (existing.copies >= eliteCopyCount(name)) { existing.elite = true; existing.copies = 1; }
@@ -114,7 +117,7 @@ export function useRunAdvisor() {
     const error = candidateError(name);
     if (error) { say(error); return false; }
     const advice = rankedRecommendations.value.find(item => item.operator.name === name);
-    return recruit(name, advice?.kind === 'reserve' || advice?.kind === 'replace' ? 'reserve' : 'auto');
+    return recruit(name, advice?.kind === 'reserve' || advice?.kind === 'replace' ? 'reserve' : 'auto', true);
   }
   function editOperator(name: string, message: string, edit: (operator: RecordedOperator) => void): void {
     if (!run.value.operators.some(operator => operator.name === name)) return;
@@ -126,18 +129,33 @@ export function useRunAdvisor() {
       const operator = draft.operators.find(item => item.name === name);
       if (!operator) return '未找到这名干员';
       const onField = draft.operators.filter(item => item.deployed);
+      const moved = new Set<string>();
+      if (operator.deployed !== active) moved.add(name);
       if (active && !operator.deployed && (replace || onField.length >= MAX_OPS)) {
         const outgoing = onField.find(item => item.name === replace);
         if (!outgoing) return replace ? '要换下的干员已不在场上，请重新选择' : '场上已有8名，请先选择要换下的干员';
         outgoing.deployed = false;
+        moved.add(outgoing.name);
       }
       operator.deployed = active;
+      draft.frontTargets = clearMovedFrontTargets(draft.frontTargets, moved);
+    });
+  }
+  /** 只记录当前场上已确认的身前目标；null 清除为未知，空字符串确认无人。 */
+  function setFrontTarget(name: string, target: string | null): boolean {
+    return change('已更新身前一格记录', draft => {
+      const field = new Set(draft.operators.filter(item => item.deployed).map(item => item.name));
+      if (!field.has(name) || !supportsFrontTarget(name)) return '请为场上的对应休整产层干员记录身前目标';
+      if (target !== null && target !== '' && (target === name || !field.has(target))) return '请选择其他已上场干员，或确认身前无人';
+      if (target === null) delete draft.frontTargets[name];
+      else draft.frontTargets[name] = target;
     });
   }
   /** 删除持有记录，装备归还仓库，避免误删随身装备。 */
   function removeOperator(name: string): void {
     change(`已移除${name}，携带装备退回仓库`, draft => {
       draft.operators = draft.operators.filter(operator => operator.name !== name);
+      draft.frontTargets = clearMovedFrontTargets(draft.frontTargets, new Set([name]));
       draft.equipment.forEach(item => { if (item.holder === name) item.holder = ''; });
     });
   }
@@ -151,7 +169,7 @@ export function useRunAdvisor() {
     editOperator(name, `已更新${name}精锐状态`, operator => { operator.elite = elite; operator.copies = 1; });
   }
   function setMode(mode: AdvisorMode): void {
-    if (!ADVISOR_MODES.some(item => item.id === mode)) return;
+    if (!ADVISOR_MODES.some(item => item.id === mode) || run.value.format === 'fast' && mode !== 'restricted') return;
     change('已更新模式；原持有记录保留，请核对冲突', draft => { draft.mode = mode; });
   }
   function setCandidateSource(source: CandidateSource): void {
@@ -163,10 +181,26 @@ export function useRunAdvisor() {
     change(`当前${level}本`, draft => { draft.level = level; });
   }
   /** 留空表示未知；这些是手动快照，不从购买记录推测回合或自动扣款。 */
+  function setFormat(format: AdvisorFormat): void {
+    if (!ADVISOR_FORMATS.some(item => item.id === format) || format === run.value.format) return;
+    change('已更新对局长度；请核对回合与持有记录', draft => {
+      draft.format = format;
+      if (format === 'fast') draft.mode = 'restricted';
+      if (draft.round !== null && draft.round > (advisorRoundLimit(format) ?? 14)) draft.round = null;
+      draft.commandAvailable = null;
+      draft.acquisitionsThisRound = null;
+    });
+  }
   function setRound(round: number | null): void {
-    if (round !== null && (!Number.isInteger(round) || round < 1 || round > 14)) { say('回合需为1至14的整数，或留空表示未知'); return; }
+    const limit = advisorRoundLimit(run.value.format) ?? 14;
+    if (round !== null && (!Number.isInteger(round) || round < 1 || round > limit)) { say(`回合需为1至${limit}的整数，或留空表示未知`); return; }
     if (round === run.value.round) return;
-    change('已更新当前回合', draft => { draft.round = round; });
+    change('已更新当前回合，主动指令可用性待确认', draft => { draft.round = round; draft.commandAvailable = null; draft.acquisitionsThisRound = null; });
+  }
+  function setAcquisitionsThisRound(count: number | null): void {
+    if (count !== null && (!Number.isInteger(count) || count < 0 || count > 999)) { say('获得人数需为0至999的整数，或留空表示未知'); return; }
+    if (count === run.value.acquisitionsThisRound) return;
+    change('已更新本轮获得人数', draft => { draft.acquisitionsThisRound = count; });
   }
   function setFunds(funds: number | null): void {
     if (funds !== null && (!Number.isInteger(funds) || funds < 0 || funds > 999)) { say('资金需为0至999的整数，或留空表示未知'); return; }
@@ -182,9 +216,15 @@ export function useRunAdvisor() {
       else draft.layers[name] = layers;
     });
   }
+  /** 仅记录用户确认的可用性，不自动消耗指令或推算下一次冷却。 */
+  function setCommandAvailable(available: boolean | null): void {
+    if (available !== null && typeof available !== 'boolean' || available === run.value.commandAvailable) return;
+    change('已更新主动指令可用性', draft => { draft.commandAvailable = available; });
+  }
   function setStrategy(name: string): void {
     if (name && !strategyNames.has(name)) return;
-    change(name ? `已选策略${name}` : '已清除策略', draft => { draft.strategy = name; });
+    if (name === run.value.strategy) return;
+    change(name ? `已选策略${name}` : '已清除策略', draft => { draft.strategy = name; draft.commandAvailable = null; });
   }
   /** 手动选主盟约；空值恢复自动，mixed 保持混搭；切换方向同时恢复默认人数目标。 */
   function setMainCovenant(name: string): void {
@@ -262,7 +302,7 @@ export function useRunAdvisor() {
   return {
     run: readonly(run), deployed, reserve, covenants, recommendations, deploymentRecommendations, goal, unavailableNames, poolConflicts,
     notice: readonly(notice), saveFailed: readonly(saveFailed), canUndo: computed(() => undoSnapshot.value !== null),
-    recruit, recruitCandidate, candidateError, setDeployment, removeOperator, setCopies, setElite, setMode, setCandidateSource, setLevel, setRound, setFunds, setLayer, setStrategy,
+    recruit, recruitCandidate, candidateError, setDeployment, setFrontTarget, removeOperator, setCopies, setElite, setMode, setCandidateSource, setLevel, setFormat, setRound, setAcquisitionsThisRound, setFunds, setLayer, setStrategy, setCommandAvailable,
     setMainCovenant, setMainTarget, toggleBannedCovenant, toggleExcludedOperator,
     addEquipment, assignEquipment, setEquipmentAdvanced, removeEquipment,
     addShopCandidate, removeShopCandidate, clearShop, reset, undo,
