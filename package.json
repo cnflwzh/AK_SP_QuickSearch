@@ -1,7 +1,7 @@
 {
   "name": "weishu-quickref",
   "private": true,
-  "description": "明日方舟 卫戍协议·规程 局内速查与图解教程",
+  "description": "\u660e\u65e5\u65b9\u821f \u536b\u620d\u534f\u8bae\u00b7\u89c4\u7a0b \u5c40\u5185\u901f\u67e5\u4e0e\u56fe\u89e3\u6559\u7a0b",
   "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
@@ -11,7 +11,11 @@
     "build": "npm run typecheck && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "pinyin": "node scripts/gen_pinyin.mjs",
-    "sw": "node scripts/build-sw.mjs"
+    "sw": "node scripts/build-sw.mjs",
+    "lint": "eslint . --max-warnings 0",
+    "check": "npm run lint && npm test && npm run build",
+    "precommit": "node scripts/check-staged.mjs && npm run lint",
+    "hooks:install": "node scripts/install-hooks.mjs"
   },
   "devDependencies": {
     "@types/node": "26.6.6",
@@ -19,7 +23,14 @@
     "pinyin-pro": "3.29.5",
     "typescript": "6.0.3",
     "vite": "8.3.8",
-    "vue-tsc": "3.3.14"
+    "vue-tsc": "3.3.14",
+    "eslint": "10.15.0",
+    "@eslint/js": "10.0.1",
+    "typescript-eslint": "8.72.2",
+    "eslint-plugin-vue": "10.12.1",
+    "globals": "17.14.0",
+    "vue-eslint-parser": "10.3.0",
+    "prettier": "3.10.1"
   },
   "engines": {
     "node": ">=22.18.0"
