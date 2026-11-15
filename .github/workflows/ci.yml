@@ -34,6 +34,9 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Lint source
+        run: npm run lint
+
       - name: Test core sharing logic
         run: npm test
 

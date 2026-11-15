@@ -1,33 +1,33 @@
 /** 单张招募的动作搜索；只选择持有、补位、替换或整备，不处理价格和展示排序。 */
-import { OPERATORS,type Operator } from '../../../../data/index.ts';
-import { type CovenantStat } from '../../plans/covenants.ts';
-import { type PlanOp } from '../../plans/model.ts';
+import {OPERATORS, type Operator} from '../../../../data/index.ts';
+import {type CovenantStat} from '../../plans/covenants.ts';
+import {type PlanOp} from '../../plans/model.ts';
 import {
-createLineupEvaluator,
-type LineupEvaluation,
-type LineupGoal,
+  createLineupEvaluator,
+  type LineupEvaluation,
+  type LineupGoal,
 } from '../planning.ts';
 import {
-evaluateDeployments,
-recommendDeployments,
+  evaluateDeployments,
+  recommendDeployments,
 } from './advisorDeployments.ts';
-import { explainLineupChange } from './advisorEvaluation.ts';
-import type { AdvisorPreferenceEvaluator } from './advisorPreferences.ts';
+import {explainLineupChange} from './advisorEvaluation.ts';
+import type {AdvisorPreferenceEvaluator} from './advisorPreferences.ts';
 import {
-advisorDeploymentLimit,
-effectiveBans,
-eliteCopyCount,
+  advisorDeploymentLimit,
+  effectiveBans,
+  eliteCopyCount,
 } from './advisorState.ts';
 import type {
-AdvisorRun,
-RecordedOperator,
-RecruitAdvice,
+  AdvisorRun,
+  RecordedOperator,
+  RecruitAdvice,
 } from './advisorTypes.ts';
 import {
-purchaseMilestoneAdjustment,
-teamValue,
-type TraitValue,
-type ValueContext,
+  purchaseMilestoneAdjustment,
+  teamValue,
+  type TraitValue,
+  type ValueContext,
 } from './advisorValue.ts';
 export interface RecruitActionContext {
   readonly run: AdvisorRun;
@@ -67,7 +67,7 @@ export function evaluateRecruitAction(
   advice: RecruitAdvice,
   evaluationContext: RecruitActionContext,
 ): RecruitActionEvaluation {
-  const { previousStats, valueContext, baselineTeamValue, run, lineup } =
+  const {previousStats, valueContext, baselineTeamValue, run, lineup} =
     evaluationContext;
   const candidateContext: CandidateActionContext = {
     ...evaluationContext,
@@ -119,7 +119,7 @@ function evaluateOwnedRecruit(
   let remainingReserve = reserve;
   if (existing.deployed) {
     const upgraded = lineup.map((slot) =>
-      slot.name === operator.name ? { ...slot, elite: promotes } : slot,
+      slot.name === operator.name ? {...slot, elite: promotes} : slot,
     );
     const evaluation = evaluateLineup(upgraded),
       explanation = explainLineupChange(evaluation);
@@ -148,7 +148,7 @@ function evaluateOwnedRecruit(
     advice.breakdown.production = evaluateProductionDelta(
       lineup,
       reserve.map((slot) =>
-        slot.name === operator.name ? { ...slot, elite: promotes } : slot,
+        slot.name === operator.name ? {...slot, elite: promotes} : slot,
       ),
     );
     advice.score = advice.breakdown.collection + advice.breakdown.production;
@@ -158,13 +158,13 @@ function evaluateOwnedRecruit(
     advice.label = promotes ? '合成备用' : '留对子';
     advice.kind = promotes ? 'elite' : 'pair';
     remainingReserve = reserve.map((slot) =>
-      slot.name === operator.name ? { ...slot, elite: promotes } : slot,
+      slot.name === operator.name ? {...slot, elite: promotes} : slot,
     );
     if (promotes) {
       applyPromotionDeploymentValue(run, operator.name, advice);
     }
   }
-  return { advice, field, reserve: remainingReserve, stats: resultingStats };
+  return {advice, field, reserve: remainingReserve, stats: resultingStats};
 }
 /** 空位仍需比较留整备和替换，避免补位破坏独行等已有条件。 */
 function evaluateRecruitWithSpace(
@@ -175,14 +175,13 @@ function evaluateRecruitWithSpace(
     run,
     lineup,
     reserve,
-    previousStats,
     operator,
     advice,
     preference,
     evaluateLineup,
     evaluateProductionDelta,
   } = search;
-  let resultingStats = previousStats;
+  let resultingStats: CovenantStat[];
   let field = lineup;
   let remainingReserve = reserve;
   const evaluation = evaluateLineup([...lineup, candidate]),
@@ -227,7 +226,7 @@ function evaluateRecruitWithSpace(
     ...run,
     operators: [
       ...run.operators,
-      { name: operator.name, copies: 1, elite: false, deployed: false },
+      {name: operator.name, copies: 1, elite: false, deployed: false},
     ],
   };
   const swap = evaluateDeployments(
@@ -264,7 +263,7 @@ function evaluateRecruitWithSpace(
       advice.losses = explanation.losses;
     }
   }
-  return { advice, field, reserve: remainingReserve, stats: resultingStats };
+  return {advice, field, reserve: remainingReserve, stats: resultingStats};
 }
 /** 满员时，新人的收益必须超过留整备；原成员的装备不会自动转移。 */
 function evaluateRecruitAtCapacity(
@@ -275,16 +274,15 @@ function evaluateRecruitAtCapacity(
     run,
     lineup,
     reserve,
-    previousStats,
     goal,
     advice,
     preference,
     evaluateLineup,
     evaluateProductionDelta,
   } = search;
-  let resultingStats = previousStats;
+  let resultingStats: CovenantStat[];
   let field = lineup;
-  let remainingReserve = reserve;
+  let remainingReserve: typeof reserve;
   // 装备仍属于原持有者，不凭空转移给被推荐的新人。
   const purchasedReserve = [...reserve, candidate];
   const bench = evaluateLineup(lineup, purchasedReserve);
@@ -355,7 +353,7 @@ function evaluateRecruitAtCapacity(
     advice.label = bench.improves ? '留整备区' : '暂缓抓取';
     advice.kind = 'reserve';
   }
-  return { advice, field, reserve: remainingReserve, stats: resultingStats };
+  return {advice, field, reserve: remainingReserve, stats: resultingStats};
 }
 /**
  * 整备区晋升的价值还包括晋升后可以执行的调阵，但当前已能免费执行的方案必须扣除。
@@ -372,9 +370,7 @@ function applyPromotionDeploymentValue(
   const promotedRun: AdvisorRun = {
     ...run,
     operators: run.operators.map((operator) =>
-      operator.name === name
-        ? { ...operator, elite: true, copies: 1 }
-        : operator,
+      operator.name === name ? {...operator, elite: true, copies: 1} : operator,
     ),
   };
   const promotedPlan = recommendDeployments(promotedRun, OPERATORS.length).find(
