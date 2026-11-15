@@ -4,7 +4,6 @@ import { EQUIP, OPERATOR, TIER_LABELS } from '../../../data/index.ts';
 import { avatarSrc, equipIconSrc } from '../../lib/assets.ts';
 import { supportsFrontTarget } from '../../lib/advisorPosition.ts';
 import { eliteCopyCount } from '../../lib/runAdvisor.ts';
-import { MAX_OPS } from '../../lib/planner.ts';
 import { peekFx } from '../format.ts';
 import { useRunAdvisor } from './useRunAdvisor.ts';
 import type { AdvisorSelection } from './types.ts';
@@ -12,7 +11,7 @@ import type { AdvisorSelection } from './types.ts';
 const props = defineProps<{ selection: AdvisorSelection }>();
 const emit = defineEmits<{ addEquipment: [holder: string]; details: [kind: 'op' | 'eq', name: string]; removed: [] }>();
 const advisor = useRunAdvisor();
-const { run, deployed, notice } = advisor;
+const { run, deployed, deploymentLimit, notice } = advisor;
 const operator = computed(() => props.selection.kind === 'operator' ? run.value.operators.find(item => item.name === props.selection.id) : undefined);
 const frontChoices = computed(() => deployed.value.filter(item => item.name !== operator.value?.name));
 const equipment = computed(() => props.selection.kind === 'equipment' ? run.value.equipment.find(item => item.id === props.selection.id) : undefined);
@@ -112,7 +111,7 @@ function remove(): void {
         <button v-if="operator.deployed" type="button" class="btn" @click="advisor.setDeployment(operator.name, false)">
           移入整备区 ↓
         </button>
-        <button v-else-if="deployed.length < MAX_OPS" type="button" class="btn" @click="advisor.setDeployment(operator.name, true)">
+        <button v-else-if="deployed.length < deploymentLimit" type="button" class="btn" @click="advisor.setDeployment(operator.name, true)">
           上场 ↑
         </button>
         <label v-else>

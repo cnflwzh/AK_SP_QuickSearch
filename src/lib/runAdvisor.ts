@@ -2,6 +2,7 @@
 import { ALL_COVENANTS, BUILD_NAMES, buildByName, OPERATORS, EQUIPMENT, STRATEGIES, isCoreCovenant, operatorPrice, type Operator } from '../../data/index.ts';
 import { covenantStats, createLineupEvaluator, defaultLineupGoal, inferPrimaryCovenant, isBanned, MAX_EQ, MAX_OPS, usesLayers, MAX_LAYERS, type Layers, type CovenantStat, type LineupEvaluation, type LineupGoal, type PlanOp } from './planner.ts';
 
+import { explainStrategyTransition } from './advisorStrategy.ts';
 import { createAdvisorPreferenceEvaluator } from './advisorPreferences.ts';
 import type { Plan } from './planner.ts';
 import { sanitizeFrontTargets, type FrontTargets } from './advisorPosition.ts';
@@ -20,6 +21,8 @@ export interface OwnedEquipment { id: string; name: string; holder: string; adva
 /** 独立保存的一局；商店名单只表示眼前候选，不代表已经持有。 */
 export interface AdvisorRun {
   level: number;
+  /** 已在游戏中使用人事部文档；仅持有装备不增加部署上限。 */
+  personnelDocumentUsed: boolean;
   mode: AdvisorMode;
   format: AdvisorFormat;
   candidateSource: CandidateSource;
@@ -85,8 +88,11 @@ export const MAX_SHOP_CANDIDATES = 8;
 
 /** 返回一局空记录，默认从 1 本开始；每次调用得到独立数组。 */
 export function newAdvisorRun(): AdvisorRun {
-  return { level: 1, mode: 'unknown', format: 'unknown', candidateSource: 'shop', round: null, funds: null, acquisitionsThisRound: null, layers: {}, frontTargets: {}, strategy: '', commandAvailable: null, mainCovenant: '', mainTarget: 0, bannedCovenants: [], excludedOperators: [], operators: [], equipment: [], shop: [] };
+  return { level: 1, personnelDocumentUsed: false, mode: 'unknown', format: 'unknown', candidateSource: 'shop', round: null, funds: null, acquisitionsThisRound: null, layers: {}, frontTargets: {}, strategy: '', commandAvailable: null, mainCovenant: '', mainTarget: 0, bannedCovenants: [], excludedOperators: [], operators: [], equipment: [], shop: [] };
 }
+/** 当前赛季基础上限8；人事部文档使用后变为9，不修改预设构筑的8人格式。 */
+export function advisorDeploymentLimit(run: Pick<AdvisorRun, 'personnelDocumentUsed'>): number { return run.personnelDocumentUsed ? 9 : MAX_OPS; }
+
 /** 星极两张晋升，其余干员三张；输入为数据表中的干员名称。 */
 export function eliteCopyCount(name: string): number { return name === '星极' ? 2 : 3; }
 
@@ -101,6 +107,7 @@ function integer(value: unknown, fallback: number, max: number): number {
 export function sanitizeAdvisorRun(value: unknown): AdvisorRun {
   const source = record(value), result = newAdvisorRun();
   result.level = integer(source.level, 1, 6);
+  result.personnelDocumentUsed = source.personnelDocumentUsed === true;
   result.mode = ADVISOR_MODES.some(mode => mode.id === source.mode) ? source.mode as AdvisorMode : 'unknown';
   result.format = ADVISOR_FORMATS.some(format => format.id === source.format) ? source.format as AdvisorFormat : 'unknown';
   if (result.format === 'fast') result.mode = 'restricted';
@@ -123,7 +130,7 @@ export function sanitizeAdvisorRun(value: unknown): AdvisorRun {
     const entry = record(item), name = String(entry.name ?? '');
     if (!operatorsByName.has(name) || names.has(name)) continue;
     names.add(name);
-    const onField = entry.deployed === true && deployed < MAX_OPS;
+    const onField = entry.deployed === true && deployed < advisorDeploymentLimit(result);
     if (onField) deployed++;
     const elite = entry.elite === true;
     result.operators.push({ name, elite, deployed: onField, copies: elite ? 1 : integer(entry.copies, 1, eliteCopyCount(name) - 1) });
@@ -288,7 +295,7 @@ export function recommendRecruits(run: AdvisorRun, limit = 5, savedPlans: readon
       if (promotes) applyPromotionDeploymentValue(run, operator.name, advice);
     } else {
       const candidate: PlanOp = { name: operator.name, elite: false, core: false, eq: [], alt: [] };
-      if (lineup.length < MAX_OPS) {
+      if (lineup.length < advisorDeploymentLimit(run)) {
         const evaluation = evaluate([...lineup, candidate]), explanation = explainLineupChange(evaluation);
         const bench = evaluate(lineup, [...reserve, candidate]);
         const fieldProduction = marginal([...lineup, candidate], reserve);
@@ -401,6 +408,9 @@ export function recommendRecruits(run: AdvisorRun, limit = 5, savedPlans: readon
       : advice.kind === 'deploy' ? [...lineup, candidateSlot] : advice.kind === 'replace' ? lineup.map(slot => slot.name === advice.replace ? candidateSlot : slot) : lineup;
     const finalReserve = existing ? reserve.map(slot => slot.name === operator.name ? candidateSlot : slot)
       : advice.kind === 'reserve' ? [...reserve, candidateSlot] : advice.kind === 'replace' ? [...reserve, ...lineup.filter(slot => slot.name === advice.replace)] : reserve;
+    const transition = explainStrategyTransition(lineup, finalField, { strategy: run.strategy, format: run.format, inactiveCovenants: effectiveBans(run) });
+    advice.reasons.push(...transition.reasons);
+    advice.losses.push(...transition.losses);
     const preferred = preference(finalField, finalReserve);
     advice.preferenceScore = preferred.preference;
     advice.reasons.push(...preferred.reasons);
@@ -504,7 +514,7 @@ function evaluateDeployments(run: AdvisorRun, limit: number, preference: ReturnT
   return reserve.flatMap(candidate => {
     // 有空位也可能需要换人（如独行只能保留一人），不能只搜索补位。
     // 补位先列出，收益相同时保留现有成员，避免无意义挪动。
-    const choices = [...(lineup.length < MAX_OPS ? [-1] : []), ...lineup.map((_, index) => index)];
+    const choices = [...(lineup.length < advisorDeploymentLimit(run) ? [-1] : []), ...lineup.map((_, index) => index)];
     const options = choices.map(index => {
       const next = [...lineup], bench = reserve.filter(slot => slot.name !== candidate.name);
       const outgoing = index < 0 ? null : lineup[index];
@@ -514,10 +524,11 @@ function evaluateDeployments(run: AdvisorRun, limit: number, preference: ReturnT
       const score = evaluation.score + production + (outgoing ? 0 : 10);
       if (outgoing && !evaluation.improves && production <= .001) return null;
       const preferred = preference(next, bench);
+      const transition = explainStrategyTransition(lineup, next, { strategy: run.strategy, format: run.format, inactiveCovenants: effectiveBans(run) });
       return { name: candidate.name, replace: outgoing?.name ?? '', score, preferenceScore: preferred.preference,
         breakdown: { lineup: evaluation.score, production, fill: outgoing ? 0 : 10 },
-        reasons: ['已持有，无需再次购买；不重复计算获得时奖励', ...explanation.reasons, ...preferred.reasons,
-          ...(production > 0 ? ['上场后的持续收益或现有精锐装备投入优于当前配置'] : [])], losses: [...explanation.losses, ...preferred.losses] };
+        reasons: ['已持有，无需再次购买；不重复计算获得时奖励', ...explanation.reasons, ...transition.reasons, ...preferred.reasons,
+          ...(production > 0 ? ['上场后的持续收益或现有精锐装备投入优于当前配置'] : [])], losses: [...explanation.losses, ...transition.losses, ...preferred.losses] };
     }).filter((item): item is DeploymentAdvice => item !== null && item.score > .001).sort((a, b) => b.score - a.score || b.preferenceScore - a.preferenceScore);
     return options.slice(0, 1);
   }).sort((a, b) => b.score - a.score || b.preferenceScore - a.preferenceScore || a.name.localeCompare(b.name, 'zh-CN')).slice(0, Math.max(0, limit));

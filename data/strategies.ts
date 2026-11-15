@@ -237,7 +237,7 @@ export const STRATEGIES: readonly Strategy[] = [
   {
     name: '望', hp: 23, category: '炎', unlock: '累计获得50名【炎】', portrait: 's44',
     skill: '黑白相易',
-    effect: '拖拽（1）：移除一名干员，换1名不高于其等阶的【炎】干员；6炎/9炎时改为召唤1/2只“炎佑”',
+    effect: '拖拽（1）：移除一名干员，换1名不高于其等阶的【炎】干员；在场6/9名不同【炎】干员时改为开战召唤1/2只“炎佑”',
   },
   {
     name: '杜遥夜', hp: 26, category: '炎', unlock: '结算阵容含6名【炎】', portrait: 's45',
