@@ -1,5 +1,6 @@
 /** 可解释的特质估值，不把条件上限、随机奖励或文本类型当成实际伤害。 */
 import { EQUIPMENT, OPERATOR, type Operator } from '../../data/index.ts';
+import { LAYER_BREAKPOINTS } from '../../data/numberTools.ts';
 import { covenantStats, covenantsOf, type CovenantStat, type Layers, type PlanOp, usesLayers } from './planner.ts';
 
 export interface ValueContext { round: number | null; layers: Layers; level: number; strategy: string; inactiveCovenants?: ReadonlySet<string> }
@@ -17,14 +18,18 @@ function fixedLayers(text: string): { covenant: string; amount: number }[] {
   return [...text.matchAll(/((?:【[^】]+】)+)层数\+(\d+)/g)]
     .flatMap(match => tags(match[1]).map(covenant => ({ covenant, amount: +match[2] })));
 }
+/** 复用层数工具的完整规则表，避免从展示文案只读到远见的第一档。 */
+function crossedLayerMilestones(covenant: string, amount: number, stats: readonly CovenantStat[], context: ValueContext): number[] {
+  if (!stats.some(stat => stat.name === covenant && stat.active) || !Object.hasOwn(context.layers, covenant)) return [];
+  const current = context.layers[covenant];
+  return (LAYER_BREAKPOINTS[covenant] ?? []).filter(item => current < item.layers && current + amount >= item.layers)
+    .map(item => item.layers);
+}
 function layerValue(covenant: string, amount: number, stats: readonly CovenantStat[], context: ValueContext, includeMilestone = true): number {
   const stat = stats.find(stat => stat.name === covenant);
   if (!stat?.active) return .25 * amount; // 未激活的永久层只留少量未来价值，不视为当下战力。
-  let value = Math.min(amount, 24) * 2;
-  const milestone = stat.bonusLayers;
-  if (includeMilestone && milestone && Object.hasOwn(context.layers, covenant)
-    && context.layers[covenant] < milestone && context.layers[covenant] + amount >= milestone) value += 24;
-  return value;
+  const milestones = includeMilestone ? crossedLayerMilestones(covenant, amount, stats, context).length : 0;
+  return Math.min(amount, 24) * 2 + milestones * 24;
 }
 
 /** 获得时用初始或精锐特质二选一，合成不再叠加第三张初始特质。 */
@@ -46,8 +51,7 @@ export function acquisitionValue(operator: Operator, elite: boolean, stats: read
     }
     score += layerValue(covenant, amount, stats, context);
     reasons.push(`获得时${covenant}+${amount}层${scaling ? '起（成长次数未录入，按最低档）' : ''}${stats.find(s => s.name === covenant)?.active ? '' : '（尚未激活）'}`);
-    const threshold = stats.find(s => s.name === covenant)?.bonusLayers;
-    if (threshold && Object.hasOwn(context.layers, covenant) && context.layers[covenant] < threshold && context.layers[covenant] + amount >= threshold)
+    for (const threshold of crossedLayerMilestones(covenant, amount, stats, context))
       reasons.push(`按已录层数可跨过${covenant}${threshold}层强化门槛`);
   }
   if (/获得(?:一|1|两|2)次免费刷新/.test(text)) {
@@ -66,6 +70,23 @@ export function acquisitionValue(operator: Operator, elite: boolean, stats: read
   return { score, reasons };
 }
 
+/** 未知回合采用有限展望；最后一轮只计当前休整结束。 */
+function productionHorizon(round: number | null): number {
+  return round === null ? 2 : Math.min(4, Math.max(1, 15 - round));
+}
+
+/** 助力是盟约自身的产层，不是任一干员特质，整队只结算一次。 */
+export function covenantProductionValue(stats: readonly CovenantStat[], context: ValueContext): TraitValue {
+  const support = stats.find(stat => stat.name === '助力');
+  if (!support?.active) return { score: 0, reasons: [], endOfRestGains: [] };
+  const amount = support.bonusActive ? 4 : 2;
+  const gains = stats.filter(stat => stat.active && usesLayers(stat.name)).map(stat => ({ covenant: stat.name, amount }));
+  const score = gains.reduce((total, gain) => total + layerValue(gain.covenant,
+    gain.amount * productionHorizon(context.round), stats, context, false), 0);
+  return { score, endOfRestGains: gains,
+    reasons: [`助力每次休整结束为所有已激活盟约各+${amount}层；按当前${gains.length}种可叠层盟约计算`] };
+}
+
 /** 持续生产只给有限展望，战斗叠层按条件潜力折价，绝不显示为预计实得层数。 */
 export function recurringValue(slot: PlanOp, deployed: boolean, stats: readonly CovenantStat[], context: ValueContext, roster?: ValueRoster): TraitValue {
   const operator = OPERATOR[slot.name];
@@ -73,7 +94,7 @@ export function recurringValue(slot: PlanOp, deployed: boolean, stats: readonly 
   const text = slot.elite ? operator.elite : operator.trait;
   if (!deployed && !text.includes('整备区也生效')) return { score: 0, reasons: [] };
   // 只评价有限未来窗口；未知回合不假装早期，最后一轮不再奖励后续回合收入。
-  const horizon = context.round === null ? 2 : Math.min(4, Math.max(1, 15 - context.round));
+  const horizon = productionHorizon(context.round);
   let score = 0;
   const reasons: string[] = [];
   const withoutAcquire = text.replace(/<获得时>[^<]*/g, '');
@@ -160,18 +181,35 @@ export function recurringValue(slot: PlanOp, deployed: boolean, stats: readonly 
 
 }
 
+/** 苏苏洛的可执行目标：只估一次确定的休整结束特质，不预支未来回合或已用指令。 */
+export function restCommandOpportunity(ops: readonly PlanOp[], reserve: readonly PlanOp[], context: ValueContext): TraitValue & { target?: string } {
+  if (context.strategy !== '苏苏洛') return { score: 0, reasons: [] };
+  const stats = covenantStats(ops, context.layers, reserve, context.inactiveCovenants);
+  const candidates = ops.map(slot => {
+    const gains = recurringValue(slot, true, stats, context, { field: ops, reserve }).endOfRestGains ?? [];
+    // 使用同样的保守机会权重；仅一次固定产层，不把持续属性或战斗上限当作复制收益。
+    const score = gains.reduce((total, gain) => total + layerValue(gain.covenant, gain.amount, stats, context, false), 0) * .35;
+    return { target: slot.name, score, reasons: score > 0
+      ? [`若本轮苏苏洛指令可用，可选${slot.name}额外触发一次：${gains.map(gain => `${gain.covenant}+${gain.amount}层`).join('、')}；未假定指令尚未使用`]
+      : [] };
+  });
+  return candidates.sort((a, b) => b.score - a.score)[0] ?? { score: 0, reasons: [] };
+}
+
 /** 按整队状态计算策略档位，换下干员同样会失去收益。整备区经济盟约不能给阿米娅凑场上档位。 */
-export function strategyValue(ops: readonly PlanOp[], context: ValueContext): number {
+export function strategyValue(ops: readonly PlanOp[], context: ValueContext, reserve: readonly PlanOp[] = []): number {
   const stats = covenantStats(ops, context.layers, [], context.inactiveCovenants), elites = ops.filter(slot => slot.elite).length;
   if (context.strategy === '阿米娅') return Math.max(0, Math.min(5, stats.filter(stat => stat.active).length) - 2) * 25;
   if (context.strategy === 'Touch') return elites >= 2 ? 45 : 0;
   if (context.strategy === '伊奥莱塔·罗素') return elites * elites * 3;
   if (context.strategy === '陈') return elites * 12;
   if (context.strategy === '华法琳') return new Set(ops.filter(slot => covenantsOf(slot).own.some(name => stats.some(stat => stat.name === name && stat.active))).map(slot => OPERATOR[slot.name]?.tier)).size * 7;
-  if (context.strategy === '铃兰' || context.strategy === '苏苏洛') {
-    return Math.max(0, ...ops.map(slot => context.strategy === '铃兰'
-      ? acquisitionValue(OPERATOR[slot.name], slot.elite, stats, context).score * .6
-      : ((slot.elite ? OPERATOR[slot.name]?.elite : OPERATOR[slot.name]?.trait)?.includes('<休整期结束时>') ? recurringValue(slot, true, stats, context).score * .35 : 0)));
+  if (context.strategy === '苏苏洛') return restCommandOpportunity(ops, reserve, context).score;
+  if (context.strategy === '铃兰') {
+    // 投资人整备区也计人数；指令触发获得特质时沿用已激活的完整阵容状态。
+    // 不能复用上面的场上统计，否则会漏掉整备区提供的重复触发。
+    const acquisitionStats = covenantStats(ops, context.layers, reserve, context.inactiveCovenants);
+    return Math.max(0, ...ops.map(slot => acquisitionValue(OPERATOR[slot.name], slot.elite, acquisitionStats, context).score * .6));
   }
   return 0;
 }
@@ -179,17 +217,16 @@ export function strategyValue(ops: readonly PlanOp[], context: ValueContext): nu
 /** 有限启发式整队生产力；装备/精锐投入作为换人机会成本，不当作精确战力。 */
 export function teamValue(ops: readonly PlanOp[], reserve: readonly PlanOp[], context: ValueContext): number {
   const stats = covenantStats(ops, context.layers, reserve, context.inactiveCovenants);
-  const values = [...ops.map(slot => recurringValue(slot, true, stats, context, { field: ops, reserve })),
+  const values = [covenantProductionValue(stats, context), ...ops.map(slot => recurringValue(slot, true, stats, context, { field: ops, reserve })),
     ...reserve.map(slot => recurringValue(slot, false, stats, context, { field: ops, reserve }))];
   // 多位生产者先汇总本次确定产层，再判断门槛；避免各自重复奖励或合计可达却漏算。
   const totals = new Map<string, number>();
   for (const value of values) for (const gain of value.endOfRestGains ?? []) {
     totals.set(gain.covenant, (totals.get(gain.covenant) ?? 0) + gain.amount);
   }
-  const milestoneValue = stats.filter(stat => stat.active && stat.bonusLayers > 0
-    && Object.hasOwn(context.layers, stat.name) && context.layers[stat.name] < stat.bonusLayers
-    && context.layers[stat.name] + (totals.get(stat.name) ?? 0) >= stat.bonusLayers).length * 24;
+  const milestoneValue = [...totals].reduce((value, [covenant, amount]) =>
+    value + crossedLayerMilestones(covenant, amount, stats, context).length * 24, 0);
   return values.reduce((sum, value) => sum + value.score, 0) + milestoneValue
     + ops.reduce((sum, slot) => sum + (slot.elite ? 35 : 0) + slot.eq.length * 12, 0)
-    + strategyValue(ops, context);
+    + strategyValue(ops, context, reserve);
 }
