@@ -1,8 +1,12 @@
 /** 局内记录和建议的稳定契约；序列化字段不随内部评估模块重命名。 */
-import type { Operator } from '../../data/index.ts';
-import type { Layers } from './planner.ts';
+import type { Operator } from '../../../../data/index.ts';
+import type { Layers } from '../../plans/model.ts';
 import type { FrontTargets } from './advisorPosition.ts';
-import type { AdvisorFormat, AdvisorMode, CandidateSource } from './advisorRules.ts';
+import type {
+AdvisorFormat,
+AdvisorMode,
+CandidateSource,
+} from './advisorRules.ts';
 /** 同名干员合并记录；copies 是尚未合成的张数，精锐只保留一条记录。 */
 export interface RecordedOperator {
   name: string;

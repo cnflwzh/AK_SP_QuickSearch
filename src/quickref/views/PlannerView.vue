@@ -7,9 +7,10 @@ import {
 import { avatarSrc, equipIconSrc, portraitSrc } from '../../lib/assets.ts';
 import { nameScore, normalize } from '../../lib/match.ts';
 import {
-  LAYER_SLIDER, MAX_ALT, MAX_EQ, MAX_LAYERS, MAX_NOTE, MAX_OPS, alternatesFor, usesLayers, atLayers, newSlot, equipNotes,
-  planCost, suggestions, type Plan, type PlanOp,
+  LAYER_SLIDER, MAX_ALT, MAX_EQ, MAX_LAYERS, MAX_NOTE, MAX_OPS, usesLayers, atLayers, newSlot, equipNotes,
+  planCost, type Plan, type PlanOp,
 } from '../../lib/planner.ts';
+import { suggestions, alternatesFor } from '../../lib/recommendation/index.ts';
 import { presets, editingId, plan, touch, planOps as ops, inPlan, planStats as stats } from '../planStore.ts';
 import { color, fx } from '../format.ts';
 import Segmented from '../components/Segmented.vue';

@@ -106,7 +106,7 @@ test('optional snapshots preserve explicit zero and sanitize old saves', () => {
 });
 
 test('acquisition traits distinguish base from elite and respect grouped layers', async () => {
-  const { acquisitionValue } = await import('../src/lib/advisorValue.ts');
+  const { acquisitionValue } = await import('../src/lib/recommendation/live/advisorValue.ts');
   const context = { totalRounds: 14, round: 4, level: 4, strategy: '', layers: {} };
   assert.match(acquisitionValue(OPERATOR['矩'], true, [], context).reasons.join(' '), /炎\+8层/);
   const logos = acquisitionValue(OPERATOR['逻各斯'], false, [], context).reasons.join(' ');
@@ -123,7 +123,7 @@ test('known insufficient funds demote unaffordable cards without mutating snapsh
 });
 
 test('reserve-enabled production has positive value and shorter late-game horizon', async () => {
-  const { recurringValue } = await import('../src/lib/advisorValue.ts');
+  const { recurringValue } = await import('../src/lib/recommendation/live/advisorValue.ts');
   const slot = newSlot('夏栎');
   const stats = covenantStats(['拜松', '矩', '风絮'].map(newSlot));
   const context = { totalRounds: 14, round: 2, level: 3, strategy: '', layers: { 炎: 20 } };
@@ -142,7 +142,7 @@ test('known foresight discounts and Shirus faction restriction affect affordabil
 });
 
 test('investor multiplies acquisition only from the existing active state', async () => {
-  const { acquisitionValue } = await import('../src/lib/advisorValue.ts');
+  const { acquisitionValue } = await import('../src/lib/recommendation/live/advisorValue.ts');
   const context = { totalRounds: 14, round: 4, level: 4, strategy: '', layers: { 投资人: 100 } };
   const inactive = acquisitionValue(OPERATOR['矩'], false, [], context);
   const active = acquisitionValue(OPERATOR['矩'], false, [{ name: '投资人', active: true }], context);
@@ -173,7 +173,7 @@ test('Cannnot protects next-round income but not after the final round', () => {
 });
 
 test('guaranteed equipment acquisition preserves quantity and exact name, not random rewards', async () => {
-  const { acquisitionValue } = await import('../src/lib/advisorValue.ts');
+  const { acquisitionValue } = await import('../src/lib/recommendation/live/advisorValue.ts');
   const context = { totalRounds: 14, round: 4, level: 4, strategy: '', layers: {} };
   for (const name of ['承曦格雷伊', '缪尔赛思', '乌有']) {
     const base = acquisitionValue(OPERATOR[name], false, [], context);
@@ -198,7 +198,7 @@ test('already owned reserve deployment is independent from acquisition and budge
 });
 
 test('deterministic production uses roster conditions and rest-start is not retroactive', async () => {
-  const { recurringValue } = await import('../src/lib/advisorValue.ts');
+  const { recurringValue } = await import('../src/lib/recommendation/live/advisorValue.ts');
   const context = { totalRounds: 14, round: 14, level: 4, strategy: '', layers: { 远见: 20 } };
   const stats = [{ name: '远见', active: true }];
   const s = recurringValue(newSlot('寒檀'), true, stats, context);
@@ -257,7 +257,7 @@ test('verified restricted mode excludes its static pool and disabled covenant ef
 });
 
 test('promotion rewards are free observed choices, capped by shop level not purchased card tier', async () => {
-  const { promotionRewardTier } = await import('../src/lib/advisorRules.ts');
+  const { promotionRewardTier } = await import('../src/lib/recommendation/live/advisorRules.ts');
   assert.equal(promotionRewardTier(6), 6);
   assert.equal(promotionRewardTier(3), 4);
   const run = runWith([], { level: 3, funds: 0, candidateSource: 'promotion', shop: ['寒檀'] });
@@ -301,7 +301,7 @@ test('recording a promotion reward consumes the choice once and undo restores it
 });
 
 test('front-cell producers count their own known covenants but never invent a neighbour', async () => {
-  const { recurringValue } = await import('../src/lib/advisorValue.ts');
+  const { recurringValue } = await import('../src/lib/recommendation/live/advisorValue.ts');
   const context = { totalRounds: 14, round: 14, level: 6, strategy: '', layers: {} };
   const stats = [{ name: '远见', active: true }, { name: '灵巧', active: true }, { name: '助力', active: true }];
   const normal = recurringValue(newSlot('渡桥'), true, stats, context);
@@ -325,7 +325,7 @@ test('front-cell producers count their own known covenants but never invent a ne
   assert.match(buildr.reasons.join(' '), /身后一格未录入/);
   assert.equal(recurringValue(newSlot('青枳'), true, buildrStats, context).score, 0);
 
-  const { restCommandOpportunity } = await import('../src/lib/advisorValue.ts');
+  const { restCommandOpportunity } = await import('../src/lib/recommendation/live/advisorValue.ts');
   assert.equal(restCommandOpportunity([archet, newSlot('凯瑟琳')], [], { ...context, round: 5, strategy: '苏苏洛' }).score, 0);
   const iberia = [{ name: '伊比利亚', active: true }];
   const layers = { ...context, layers: { 伊比利亚: 120 } };
@@ -349,7 +349,7 @@ test('front-cell producers count their own known covenants but never invent a ne
 });
 
 test('Silence counts each recorded reserve carrier covenant once and only active effects', async () => {
-  const { recurringValue } = await import('../src/lib/advisorValue.ts');
+  const { recurringValue } = await import('../src/lib/recommendation/live/advisorValue.ts');
   const context = { totalRounds: 14, round: 14, level: 6, strategy: '', layers: {} };
   const stats = [{ name: '炎', active: true }, { name: '聚合', active: false }];
   const roster = { field: [newSlot('淬羽赫默')], reserve: [newSlot('拜松'), newSlot('风絮')] };
@@ -493,7 +493,7 @@ test('pool bans distinguish a missing core from all missing native addons', asyn
 });
 
 test('missing addon layers receive no acquisition value while retained addons still do', async () => {
-  const { acquisitionValue } = await import('../src/lib/advisorValue.ts');
+  const { acquisitionValue } = await import('../src/lib/recommendation/live/advisorValue.ts');
   const context = { totalRounds: 14, round: 4, level: 6, strategy: '', layers: {}, inactiveCovenants: new Set(['奥术']) };
   const stats = [{ name: '远见', active: true }];
   const value = acquisitionValue(OPERATOR['逻各斯'], false, stats, context);
@@ -516,7 +516,7 @@ test('missing addon layers receive no acquisition value while retained addons st
 });
 
 test('deterministic rest producers cross a shared threshold jointly and award it only once', async () => {
-  const { teamValue } = await import('../src/lib/advisorValue.ts');
+  const { teamValue } = await import('../src/lib/recommendation/live/advisorValue.ts');
   const field = ['渡桥', '寒檀'].map(newSlot); // 本次休整结束远见+2和+3
   const context = { totalRounds: 14, round: 14, level: 4, strategy: '', layers: { 远见: 0 } };
   const base = teamValue(field, [], context);
@@ -528,7 +528,7 @@ test('deterministic rest producers cross a shared threshold jointly and award it
   assert.equal(teamValue(field, [], { ...context, layers: { 远见: 146 } }) - base, 24);
   assert.equal(teamValue(field, [], { ...context, layers: { 远见: 148 } }) - base, 24);
   assert.equal(teamValue(field, [], { ...context, layers: { 远见: 150 } }), base);
-  const { acquisitionValue } = await import('../src/lib/advisorValue.ts');
+  const { acquisitionValue } = await import('../src/lib/recommendation/live/advisorValue.ts');
   const stats = covenantStats(field, { 远见: 146 });
   const acquisition = acquisitionValue(OPERATOR['逻各斯'], false, stats, { ...context, layers: { 远见: 146 } });
   const withoutCrossing = acquisitionValue(OPERATOR['逻各斯'], false, stats, { ...context, layers: { 远见: 150 } });
@@ -554,7 +554,7 @@ test('reserve promotion values the new deployment option without charging for an
 });
 
 test('Sussurro selects a roster-aware one-trigger target rather than multiplying future production', async () => {
-  const { restCommandOpportunity } = await import('../src/lib/advisorValue.ts');
+  const { restCommandOpportunity } = await import('../src/lib/recommendation/live/advisorValue.ts');
   const field = ['涤火杰西卡', '慕斯', 'Miss.Christine'].map(newSlot);
   field[0].eq = ['维式重锤'];
   field[1].eq = ['精准狙击镜'];
@@ -572,7 +572,7 @@ test('Sussurro selects a roster-aware one-trigger target rather than multiplying
   assert.ok(!uncertainOrder.reasons.some(reason => reason.includes('合计可跨过')));
   assert.match(uncertainOrder.reasons.join(' '), /未假定额外触发顺序/);
 
-  const { acquisitionCommandOpportunity } = await import('../src/lib/advisorValue.ts');
+  const { acquisitionCommandOpportunity } = await import('../src/lib/recommendation/live/advisorValue.ts');
   const obtain = acquisitionCommandOpportunity(thresholdField, [], { ...thresholdContext, strategy: '铃兰', layers: { 灵巧: 29, 迅捷: 0 } });
   assert.equal(obtain.target, '霜叶');
   assert.match(obtain.reasons.join(' '), /指令触发灵巧\+2层，加本次休整结束\+9层/);
@@ -630,7 +630,7 @@ test('free deployment considers replacing a solo member even when field slots ar
 });
 
 test('Suzuran accounts for active reserve investors and respects their disabled state', async () => {
-  const { strategyValue } = await import('../src/lib/advisorValue.ts');
+  const { strategyValue } = await import('../src/lib/recommendation/live/advisorValue.ts');
   const field = [newSlot('承曦格雷伊')];
   const reserve = ['锡人', '山', '老鲤'].map(newSlot);
   const context = { totalRounds: 14, round: 8, level: 6, strategy: '铃兰', layers: {} };
@@ -639,7 +639,7 @@ test('Suzuran accounts for active reserve investors and respects their disabled 
   assert.equal(strategyValue(field, { ...context, layers: { 投资人: 100 } }, reserve), base * 3);
   assert.equal(strategyValue(field, { ...context, inactiveCovenants: new Set(['投资人']) }, reserve), base);
   assert.equal(strategyValue(field, { ...context, commandAvailable: false }, reserve), 0);
-  const { acquisitionCommandOpportunity } = await import('../src/lib/advisorValue.ts');
+  const { acquisitionCommandOpportunity } = await import('../src/lib/recommendation/live/advisorValue.ts');
   const opportunity = acquisitionCommandOpportunity(field, reserve, context);
   assert.equal(opportunity.target, '承曦格雷伊');
   assert.match(opportunity.reasons.join(' '), /若本次铃兰指令可用/);
@@ -649,7 +649,7 @@ test('Suzuran accounts for active reserve investors and respects their disabled 
 });
 
 test('Support covenant production contributes to shared thresholds and requires field members', async () => {
-  const { covenantProductionValue, teamValue } = await import('../src/lib/advisorValue.ts');
+  const { covenantProductionValue, teamValue } = await import('../src/lib/recommendation/live/advisorValue.ts');
   const field = ['渡桥', '寒檀', '白铁', '罗比菈塔'].map(newSlot);
   const context = { totalRounds: 14, round: 14, level: 6, strategy: '', layers: { 远见: 144 } };
   const value = covenantProductionValue(covenantStats(field, context.layers), context);
@@ -681,7 +681,7 @@ test('buy advice sees a core-completing solo swap before the field is full', asy
 });
 
 test('recorded front targets add only confirmed distinct layers and are cleared atomically when moved', async () => {
-  const { recurringValue } = await import('../src/lib/advisorValue.ts');
+  const { recurringValue } = await import('../src/lib/recommendation/live/advisorValue.ts');
   const field = ['渡桥', '寒檀', '拜松', '矩', '风絮'].map(newSlot);
   const context = { totalRounds: 14, round: 14, level: 6, strategy: '', layers: {} };
   const stats = covenantStats(field);
@@ -760,7 +760,7 @@ test('explicit game length separates fast final rest from standard and preserves
 });
 
 test('Yan acquisition-count production uses confirmed current-round records without forecasting future draws', async () => {
-  const { recurringValue, restCommandOpportunity } = await import('../src/lib/advisorValue.ts');
+  const { recurringValue, restCommandOpportunity } = await import('../src/lib/recommendation/live/advisorValue.ts');
   const field = ['拜松', '矩', '风絮', '夕'].map(newSlot);
   const stats = covenantStats(field);
   const context = { round: 14, totalRounds: 14, level: 6, strategy: '', layers: { 炎: 30 }, acquisitionsThisRound: 4 };
@@ -821,7 +821,7 @@ test('all saved routes guide equal-value choices without replacing rules, funds 
   const secondRoute = saved('我的炎过渡', ['拜松', '矩', '风絮']);
   const conflict = recommendRecruits(run, 5, [route, secondRoute]);
   assert.equal(conflict.find(item => item.operator.name === '夕').preferenceScore, conflict.find(item => item.operator.name === '风絮').preferenceScore);
-  const { createAdvisorPreferenceEvaluator } = await import('../src/lib/advisorPreferences.ts');
+  const { createAdvisorPreferenceEvaluator } = await import('../src/lib/recommendation/live/advisorPreferences.ts');
   const { builtinPlan } = await import('../src/lib/planner.ts');
   const alternate = saved('可替换位置', ['拜松', '矩']);
   alternate.ops[0].alt = ['风絮'];

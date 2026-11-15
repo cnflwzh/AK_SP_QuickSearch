@@ -1,37 +1,45 @@
 /** 局内记录的校验、招募资格和阵容投影，不依赖建议评分或页面状态。 */
 import {
-  ALL_COVENANTS,
-  OPERATORS,
-  EQUIPMENT,
-  STRATEGIES,
-  isCoreCovenant,
-  operatorPrice,
-  type Operator,
-} from '../../data/index.ts';
+ALL_COVENANTS,
+EQUIPMENT,
+OPERATORS,
+STRATEGIES,
+isCoreCovenant,
+operatorPrice,
+type Operator,
+} from '../../../../data/index.ts';
 import {
-  defaultLineupGoal,
-  inferPrimaryCovenant,
-  isBanned,
-  MAX_EQ,
-  MAX_OPS,
-  usesLayers,
-  MAX_LAYERS,
-  type LineupGoal,
-  type PlanOp,
-} from './planner.ts';
+MAX_EQ,
+MAX_LAYERS,
+MAX_OPS,
+usesLayers,
+type PlanOp,
+} from '../../plans/model.ts';
+import {
+defaultLineupGoal,
+inferPrimaryCovenant,
+isBanned,
+type LineupGoal,
+} from '../planning.ts';
 import { sanitizeFrontTargets } from './advisorPosition.ts';
 import {
-  ADVISOR_MODES,
-  ADVISOR_FORMATS,
-  advisorRoundLimit,
-  RESTRICTED_MODE_COVENANTS,
-  type AdvisorFormat,
-  type AdvisorMode,
+ADVISOR_FORMATS,
+ADVISOR_MODES,
+RESTRICTED_MODE_COVENANTS,
+advisorRoundLimit,
+type AdvisorFormat,
+type AdvisorMode,
 } from './advisorRules.ts';
-import type { AdvisorRun, RecordedOperator } from './advisorTypes.ts';
-export const operatorsByName = new Map(OPERATORS.map((operator) => [operator.name, operator]));
-const EQUIPMENT_BY_NAME = new Map(EQUIPMENT.map((equipment) => [equipment.name, equipment]));
-const STRATEGIES_BY_NAME = new Map(STRATEGIES.map((strategy) => [strategy.name, strategy]));
+import type { AdvisorRun,RecordedOperator } from './advisorTypes.ts';
+export const operatorsByName = new Map(
+  OPERATORS.map((operator) => [operator.name, operator]),
+);
+const EQUIPMENT_BY_NAME = new Map(
+  EQUIPMENT.map((equipment) => [equipment.name, equipment]),
+);
+const STRATEGIES_BY_NAME = new Map(
+  STRATEGIES.map((strategy) => [strategy.name, strategy]),
+);
 /** 只约束输入规模，避免损坏的存档生成过量 DOM；不是游戏内的仓库上限。 */
 export const MAX_RECORDED_EQUIPMENT = 64;
 export const MAX_SHOP_CANDIDATES = 8;
@@ -60,7 +68,9 @@ export function newAdvisorRun(): AdvisorRun {
   };
 }
 /** 当前赛季基础上限8；人事部文档使用后变为9，不修改预设构筑的8人格式。 */
-export function advisorDeploymentLimit(run: Pick<AdvisorRun, 'personnelDocumentUsed'>): number {
+export function advisorDeploymentLimit(
+  run: Pick<AdvisorRun, 'personnelDocumentUsed'>,
+): number {
   return run.personnelDocumentUsed ? 9 : MAX_OPS;
 }
 /** 星极两张晋升，其余干员三张；输入为数据表中的干员名称。 */
@@ -72,7 +82,11 @@ function asUnknownRecord(value: unknown): Record<string, unknown> {
     ? (value as Record<string, unknown>)
     : {};
 }
-function boundedPositiveInteger(value: unknown, fallback: number, max: number): number {
+function boundedPositiveInteger(
+  value: unknown,
+  fallback: number,
+  max: number,
+): number {
   return typeof value === 'number' && Number.isFinite(value)
     ? Math.max(1, Math.min(max, Math.round(value)))
     : fallback;
@@ -92,12 +106,16 @@ export function sanitizeAdvisorRun(value: unknown): AdvisorRun {
   if (result.format === 'fast') {
     result.mode = 'restricted';
   }
-  result.candidateSource = source.candidateSource === 'promotion' ? 'promotion' : 'shop';
+  result.candidateSource =
+    source.candidateSource === 'promotion' ? 'promotion' : 'shop';
   result.round =
     typeof source.round === 'number' && Number.isFinite(source.round)
       ? boundedPositiveInteger(source.round, 1, 14)
       : null;
-  if (result.round !== null && result.round > (advisorRoundLimit(result.format) ?? 14)) {
+  if (
+    result.round !== null &&
+    result.round > (advisorRoundLimit(result.format) ?? 14)
+  ) {
     result.round = null;
   }
   result.funds =
@@ -118,14 +136,20 @@ export function sanitizeAdvisorRun(value: unknown): AdvisorRun {
           typeof n === 'number' &&
           Number.isFinite(n),
       )
-      .map(([name, n]) => [name, Math.max(0, Math.min(MAX_LAYERS, Math.round(n as number)))]),
+      .map(([name, n]) => [
+        name,
+        Math.max(0, Math.min(MAX_LAYERS, Math.round(n as number))),
+      ]),
   );
   result.strategy =
-    typeof source.strategy === 'string' && STRATEGIES_BY_NAME.has(source.strategy)
+    typeof source.strategy === 'string' &&
+    STRATEGIES_BY_NAME.has(source.strategy)
       ? source.strategy
       : '';
   result.commandAvailable =
-    typeof source.commandAvailable === 'boolean' ? source.commandAvailable : null;
+    typeof source.commandAvailable === 'boolean'
+      ? source.commandAvailable
+      : null;
   result.bannedCovenants = validNames(source.bannedCovenants, (name) =>
     ALL_COVENANTS.includes(name),
   );
@@ -138,7 +162,8 @@ export function sanitizeAdvisorRun(value: unknown): AdvisorRun {
     !result.bannedCovenants.includes(source.mainCovenant)
       ? source.mainCovenant
       : '';
-  result.mainTarget = source.mainTarget === 3 || source.mainTarget === 6 ? source.mainTarget : 0;
+  result.mainTarget =
+    source.mainTarget === 3 || source.mainTarget === 6 ? source.mainTarget : 0;
   const names = new Set<string>();
   let deployed = 0;
   for (const item of Array.isArray(source.operators)
@@ -150,7 +175,8 @@ export function sanitizeAdvisorRun(value: unknown): AdvisorRun {
       continue;
     }
     names.add(name);
-    const onField = entry.deployed === true && deployed < advisorDeploymentLimit(result);
+    const onField =
+      entry.deployed === true && deployed < advisorDeploymentLimit(result);
     if (onField) {
       deployed++;
     }
@@ -159,12 +185,16 @@ export function sanitizeAdvisorRun(value: unknown): AdvisorRun {
       name,
       elite,
       deployed: onField,
-      copies: elite ? 1 : boundedPositiveInteger(entry.copies, 1, eliteCopyCount(name) - 1),
+      copies: elite
+        ? 1
+        : boundedPositiveInteger(entry.copies, 1, eliteCopyCount(name) - 1),
     });
   }
   result.frontTargets = sanitizeFrontTargets(
     source.frontTargets,
-    new Set(result.operators.filter((item) => item.deployed).map((item) => item.name)),
+    new Set(
+      result.operators.filter((item) => item.deployed).map((item) => item.name),
+    ),
   );
   const held = new Map<string, Set<string>>();
   const ids = new Set<string>();
@@ -185,7 +215,10 @@ export function sanitizeAdvisorRun(value: unknown): AdvisorRun {
       id += '-';
     }
     ids.add(id);
-    let holder = typeof entry.holder === 'string' && names.has(entry.holder) ? entry.holder : '';
+    let holder =
+      typeof entry.holder === 'string' && names.has(entry.holder)
+        ? entry.holder
+        : '';
     const items = held.get(holder) ?? new Set<string>();
     if (holder && (items.size >= MAX_EQ || items.has(name))) {
       holder = '';
@@ -198,21 +231,32 @@ export function sanitizeAdvisorRun(value: unknown): AdvisorRun {
       id,
       name,
       holder,
-      advanced: entry.advanced === true && !!EQUIPMENT_BY_NAME.get(name)?.advanced,
+      advanced:
+        entry.advanced === true && !!EQUIPMENT_BY_NAME.get(name)?.advanced,
     });
   }
   result.shop = [
     ...new Set(
       (Array.isArray(source.shop) ? source.shop : []).filter(
-        (name): name is string => typeof name === 'string' && operatorsByName.has(name),
+        (name): name is string =>
+          typeof name === 'string' && operatorsByName.has(name),
       ),
     ),
   ].slice(0, MAX_SHOP_CANDIDATES);
   return result;
 }
-function validNames(value: unknown, valid: (name: string) => boolean): string[] {
+function validNames(
+  value: unknown,
+  valid: (name: string) => boolean,
+): string[] {
   return Array.isArray(value)
-    ? [...new Set(value.filter((name): name is string => typeof name === 'string' && valid(name)))]
+    ? [
+        ...new Set(
+          value.filter(
+            (name): name is string => typeof name === 'string' && valid(name),
+          ),
+        ),
+      ]
     : [];
 }
 /** 招募池过滤规则；核心缺席整组排除，附加仅全部原生附加缺席时排除，装备不改变招募资格。 */
@@ -222,7 +266,8 @@ export function createRecruitmentPool(
 ): (name: string) => boolean {
   const bans = effectiveBans(run),
     excluded = new Set(run.excludedOperators);
-  return (name) => operatorsByName.has(name) && !excluded.has(name) && !isBanned(name, bans);
+  return (name) =>
+    operatorsByName.has(name) && !excluded.has(name) && !isBanned(name, bans);
 }
 export function effectiveBans(run: {
   bannedCovenants: readonly string[];
@@ -231,7 +276,9 @@ export function effectiveBans(run: {
 }): ReadonlySet<string> {
   return new Set([
     ...run.bannedCovenants,
-    ...(run.mode === 'restricted' || run.format === 'fast' ? RESTRICTED_MODE_COVENANTS : []),
+    ...(run.mode === 'restricted' || run.format === 'fast'
+      ? RESTRICTED_MODE_COVENANTS
+      : []),
   ]);
 }
 /** 显式选择优先，其次场上投入、专属策略、整备区；证据相同则保持未定方向。 */
@@ -243,16 +290,23 @@ export function runLineupGoal(run: AdvisorRun): LineupGoal | null {
   const field = deployedLineup(run).filter((slot) => available(slot.name));
   const strategy = STRATEGIES_BY_NAME.get(run.strategy);
   const strategyCovenant =
-    strategy && isCoreCovenant(strategy.category) && !effectiveBans(run).has(strategy.category)
+    strategy &&
+    isCoreCovenant(strategy.category) &&
+    !effectiveBans(run).has(strategy.category)
       ? strategy.category
       : '';
   const covenant =
     (effectiveBans(run).has(run.mainCovenant) ? '' : run.mainCovenant) ||
     inferPrimaryCovenant(field) ||
     strategyCovenant ||
-    inferPrimaryCovenant(reserveLineup(run).filter((slot) => available(slot.name)));
+    inferPrimaryCovenant(
+      reserveLineup(run).filter((slot) => available(slot.name)),
+    );
   return covenant
-    ? { ...defaultLineupGoal(covenant), ...(run.mainTarget ? { target: run.mainTarget } : {}) }
+    ? {
+        ...defaultLineupGoal(covenant),
+        ...(run.mainTarget ? { target: run.mainTarget } : {}),
+      }
     : null;
 }
 export function planSlot(run: AdvisorRun, operator: RecordedOperator): PlanOp {
@@ -261,7 +315,9 @@ export function planSlot(run: AdvisorRun, operator: RecordedOperator): PlanOp {
     elite: operator.elite,
     core: false,
     alt: [],
-    eq: run.equipment.filter((item) => item.holder === operator.name).map((item) => item.name),
+    eq: run.equipment
+      .filter((item) => item.holder === operator.name)
+      .map((item) => item.name),
   };
 }
 /** 转成共用盟约统计的上场输入；整备区由 reserveLineup 单独传入。 */
@@ -295,7 +351,10 @@ export function recruitPriceRange(
     if (layers === undefined) {
       min = Math.max(1, base - 2);
     } else {
-      min = max = Math.max(1, base - Number(layers >= 80) - Number(layers >= 150));
+      min = max = Math.max(
+        1,
+        base - Number(layers >= 80) - Number(layers >= 150),
+      );
     }
   }
   if (run.strategy === '休露丝' && operator.covenants.includes('谢拉格')) {

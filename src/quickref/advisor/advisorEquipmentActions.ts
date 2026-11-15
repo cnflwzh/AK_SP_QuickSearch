@@ -1,7 +1,7 @@
 import { EQUIPMENT } from '../../../data/index.ts';
 import { MAX_EQ } from '../../lib/planner.ts';
-import { MAX_RECORDED_EQUIPMENT } from '../../lib/advisorState.ts';
-import { type AdvisorRun } from '../../lib/advisorTypes.ts';
+import { MAX_RECORDED_EQUIPMENT } from '../../lib/recommendation/live/advisorState.ts';
+import { type AdvisorRun } from '../../lib/recommendation/live/advisorTypes.ts';
 import { type AdvisorChange } from './advisorSession.ts';
 const equipmentByName = new Map(EQUIPMENT.map((equipment) => [equipment.name, equipment]));
 /** 在同一草稿中分配装备，添加并装备与仓库转移共用栏位/进阶规则。 */
