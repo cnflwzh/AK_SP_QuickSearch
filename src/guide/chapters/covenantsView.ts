@@ -3,7 +3,7 @@ import {
   COVENANTS, ALL_COVENANTS, STRATEGIES, STRATEGY_CATEGORIES,
   isCoreCovenant, rosterOf,
 } from '../../../data/index';
-import { html, range, round1 } from '../../lib/dom';
+import { html, range, round1 } from '../../lib/ui/dom';
 import { cv, portrait, color } from '../chips';
 
 function covenantGrid(out: Record<string, string>) {

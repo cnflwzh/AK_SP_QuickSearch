@@ -2,9 +2,9 @@
 import { promotionRewardTier, type CandidateSource } from '../../lib/recommendation/live/advisorRules.ts';
 import { computed, nextTick, onBeforeUnmount, onDeactivated, ref, watch } from 'vue';
 import { STRATEGY, covenantColor } from '../../../data/index.ts';
-import { equipIconSrc, portraitSrc } from '../../lib/assets.ts';
-import { prefersReducedMotion } from '../../lib/dom.ts';
-import { MAX_SHOP_CANDIDATES, operatorsByName, type OwnedEquipment } from '../../lib/runAdvisor.ts';
+import { equipIconSrc, portraitSrc } from '../../lib/ui/assets.ts';
+import { prefersReducedMotion } from '../../lib/ui/dom.ts';
+import { MAX_SHOP_CANDIDATES, operatorsByName, type OwnedEquipment } from '../../lib/recommendation/live/runAdvisor.ts';
 import { currentRoute, openCard } from '../../router/navigation.ts';
 import { queryText } from '../../router/location.ts';
 import { useRunAdvisor } from './useRunAdvisor.ts';

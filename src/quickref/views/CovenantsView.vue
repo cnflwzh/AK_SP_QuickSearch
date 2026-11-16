@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { COVENANTS, CORE_COVENANTS, ADDON_COVENANTS, CORE_BUILDS, EQUIPMENT, STRATEGIES, TIERS, TIER_LABELS, isCoreCovenant, rosterOf } from '../../../data/index.ts';
-import { avatarSrc } from '../../lib/assets.ts';
+import { avatarSrc } from '../../lib/ui/assets.ts';
 import { color, fx, bonusHeadcount, bonusText, stackText } from '../format.ts';
 import { state, useQuickrefActions } from '../state.ts';
 import { runKey, runStat } from '../planStore.ts';

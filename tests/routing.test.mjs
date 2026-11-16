@@ -3,7 +3,7 @@ import test from 'node:test';
 import { ALL_COVENANTS, BUILD_NAMES, EQUIPMENT, OPERATORS, STRATEGIES, LEADERS } from '../data/index.ts';
 import { buildId, buildKey, covenantId, covenantName, detailFromId, detailId } from '../src/router/entities.ts';
 import { normalizeQuery } from '../src/router/location.ts';
-import { decodeFragment } from '../src/lib/url.ts';
+import { decodeFragment } from '../src/lib/runtime/url.ts';
 
 test('public entity IDs are unique and every catalogue entry can be linked independently of ordering', () => {
   const ids = new Set();

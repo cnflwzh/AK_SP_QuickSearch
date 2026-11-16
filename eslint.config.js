@@ -61,7 +61,7 @@ export default defineConfig([
     languageOptions: {globals: globals.browser},
   },
   {
-    files: ['src/lib/analytics.ts'],
+    files: ['src/lib/runtime/analytics.ts'],
     // The Google tag queue intentionally stores Arguments, not an Array.
     rules: {'prefer-rest-params': 'off'},
   },

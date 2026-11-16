@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { EQUIP, OPERATOR, TIER_LABELS } from '../../../data/index.ts';
-import { avatarSrc, equipIconSrc } from '../../lib/assets.ts';
+import { avatarSrc, equipIconSrc } from '../../lib/ui/assets.ts';
 import { supportsFrontTarget } from '../../lib/recommendation/live/advisorPosition.ts';
-import { eliteCopyCount } from '../../lib/runAdvisor.ts';
+import { eliteCopyCount } from '../../lib/recommendation/live/runAdvisor.ts';
 import { peekFx } from '../format.ts';
 import { useRunAdvisor } from './useRunAdvisor.ts';
 import type { AdvisorSelection } from './types.ts';

@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { LEADERS, type Leader } from '../../../data/index.ts';
-import { leaderSrc } from '../../lib/assets.ts';
-import { wan } from '../../lib/dom.ts';
-import { damageClass, patrols } from '../../lib/leader.ts';
+import { leaderSrc } from '../../lib/ui/assets.ts';
+import { wan } from '../../lib/ui/dom.ts';
+import { damageClass, patrols } from '../../lib/leaders/leader.ts';
 import { useQuickrefActions } from '../state.ts';
 /** 领袖列表的一行：点开进入详情。生命条按同难度全部领袖的最大值缩放 */
 import { leaderDestination } from '../../router/navigation.ts';

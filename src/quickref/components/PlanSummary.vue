@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { OPERATOR, STRATEGY, TIER_LABELS } from '../../../data/index.ts';
-import { avatarSrc, equipIconSrc, portraitSrc } from '../../lib/assets.ts';
-import { covenantStats, planCost, type PlanOp } from '../../lib/planner.ts';
+import { avatarSrc, equipIconSrc, portraitSrc } from '../../lib/ui/assets.ts';
+import { covenantStats, planCost, type PlanOp } from '../../lib/plans/index.ts';
 import PlanCovenants from './PlanCovenants.vue';
 /** 只读的阵容概览：导入预览与对比共用。highlight 中的干员加框（对比时标出两边不同的人） */
 const props = withDefaults(defineProps<{ ops: readonly PlanOp[]; strategy: string; note?: string; layers?: Readonly<Record<string, number>>; title?: string; highlight?: ReadonlySet<string> | null; compact?: boolean }>(), { note: '', layers: () => ({}), title: '', highlight: null, compact: false });

@@ -2,8 +2,8 @@
 import { computed } from 'vue';
 import { COVENANTS, CORE_COVENANTS } from '../../../data/covenants.ts';
 import { LAYER_BREAKPOINTS, LAYER_INPUT_LIMIT, SCALING_CONDITIONS } from '../../../data/numberTools.ts';
-import { nextCycleReward, nextLayerBreakpoint } from '../../lib/numberTools.ts';
-import { round1 } from '../../lib/dom.ts';
+import { nextCycleReward, nextLayerBreakpoint } from '../../lib/numbers/numberTools.ts';
+import { round1 } from '../../lib/ui/dom.ts';
 import { covenantId } from '../../router/entities.ts';
 import { covenantLocation } from '../../router/navigation.ts';
 import { color, fx } from '../format.ts';

@@ -2,9 +2,11 @@
  * 阵容分享图：干员头像、装备、策略、盟约进度和分享链接二维码画到一张 PNG 上。
  * 图片都在同源 assets/ 下，canvas 不会被污染，可以直接导出。
  */
-import { OPERATOR, STRATEGY, TIER_LABELS, covenantColor } from '../../data/index.ts';
-import { avatarSrc, equipIconSrc, portraitSrc } from './assets.ts';
-import { covenantStats, planCost, type Plan } from './planner.ts';
+import { OPERATOR, STRATEGY, TIER_LABELS, covenantColor } from '../../../data/index.ts';
+import { avatarSrc, equipIconSrc, portraitSrc } from '../ui/assets.ts';
+import { covenantStats } from './covenants.ts';
+import { planCost } from './costs.ts';
+import type { Plan } from './model.ts';
 
 const BASE_WIDTH = 720, PAD = 24, CELL = 84, NOTE_LINE = 20, ALT = 20;
 /** 二维码每个模块至少 2 像素（导出时 ×2 = 4 物理像素），码长时整体放大 */

@@ -1,5 +1,5 @@
 import { covenantColor } from '../../data/index.ts';
-import { esc } from '../lib/dom.ts';
+import { esc } from '../lib/ui/dom.ts';
 
 export const color = (name: string): string => covenantColor(name, 'var(--teal)');
 /** Escapes dataset text before adding the existing inline effect formatting. */

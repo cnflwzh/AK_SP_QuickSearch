@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { nextCycleReward, nextLayerBreakpoint, refreshBudget, synthesisTier } from '../src/lib/numberTools.ts';
+import { nextCycleReward, nextLayerBreakpoint, refreshBudget, synthesisTier } from '../src/lib/numbers/numberTools.ts';
 
 test('layer thresholds advance at the exact milestone and stop after the last one', () => {
   assert.equal(nextLayerBreakpoint('灵巧', 39).layers, 40);

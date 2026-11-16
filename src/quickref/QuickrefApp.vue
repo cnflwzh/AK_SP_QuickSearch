@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, provide, ref, watch, watchEffect } from 'vue';
 import { ALL_COVENANTS, OPERATORS, EQUIPMENT, STRATEGIES, LEADERS, BUILD_COUNT } from '../../data/index.ts';
-import { prefersReducedMotion } from '../lib/dom.ts';
+import { prefersReducedMotion } from '../lib/ui/dom.ts';
 import { state, setTab, setBuild, setCovenant, setLeader, quickrefActionsKey, TAB_IDS, type DetailKind, type TabId } from './state.ts';
 import { navigationError, routeNotice, PAGE_LABELS } from '../router/index.ts';
 import { detailFromId } from '../router/entities.ts';
 import { queryText } from '../router/location.ts';
 import { closeCard, currentRoute, navigate, openCard, tabLocation, updateQuery } from '../router/navigation.ts';
-import { whileVisible } from '../lib/visibility.ts';
+import { whileVisible } from '../lib/ui/visibility.ts';
 import { current as selectedPreset, flushSave } from './planStore.ts';
-import { lazyView } from '../lib/lazyView.ts';
+import { lazyView } from '../lib/ui/lazyView.ts';
 import DetailSheet from './components/DetailSheet.vue';
 import PrtsPanel from './components/PrtsPanel.vue';
 import { provideWikiPanel } from './wikiPanel.ts';
-import SkipLink from '../lib/SkipLink.vue';
+import SkipLink from '../lib/ui/SkipLink.vue';
 
 const wikiPanel = provideWikiPanel();
 const SearchView = lazyView(() => import('./views/SearchView.vue'));

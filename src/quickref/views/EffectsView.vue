@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { ALL_COVENANTS, COVENANTS, isCoreCovenant } from '../../../data/index.ts';
-import { atLayers } from '../../lib/planner.ts';
+import { atLayers } from '../../lib/plans/index.ts';
 import { color, fx, bonusHeadcount, bonusText } from '../format.ts';
 import { useQuickrefActions } from '../state.ts';
 import { run, runStat, runBans } from '../planStore.ts';

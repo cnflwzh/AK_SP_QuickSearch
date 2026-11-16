@@ -11,10 +11,10 @@
  */
 import {
   OPERATOR, EQUIP, STRATEGY, LEADER, COVENANTS, MODES, TIER_LABELS, TIER_STATS, covenantColor, isCoreCovenant, rosterOf,
-} from '../../data/index.ts';
+} from '../../../data/index.ts';
 import { esc, html, wan } from './dom.ts';
 import { avatarSrc, equipIconSrc, leaderSrc, portraitSrc } from './assets.ts';
-import { abilityLabel, damageClass, leaderFx } from './leader.ts';
+import { abilityLabel, damageClass, leaderFx } from '../leaders/leader.ts';
 
 const SHOW_DELAY = 280;      // 停留多久后显示（毫秒）
 const SWITCH_DELAY = 60;     // 已有卡片时切换到另一个目标

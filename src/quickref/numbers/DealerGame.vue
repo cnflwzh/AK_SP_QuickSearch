@@ -1,21 +1,25 @@
 <script setup lang="ts">
 import {computed, onBeforeUnmount, onMounted, ref} from 'vue';
+import {ADDON_COVENANTS, CORE_COVENANTS} from '../../../data/index.ts';
 import {
-  ADDON_COVENANTS,
-  CORE_COVENANTS,
-  TIER_LABELS,
-} from '../../../data/index.ts';
-import {avatarSrc} from '../../lib/assets.ts';
+  avatarSrc,
+  enemyIconSrc,
+  equipIconSrc,
+  portraitSrc,
+} from '../../lib/ui/assets.ts';
 import {
   buildDealerPosterModel,
   DAILY_ROUND_COUNT,
   dailyTagFromKey,
   SELECTABLE_COVENANTS,
+  type DealerCard,
   type DealerMode,
+  type DealerRoundKind,
   type HintLevel,
-} from '../../lib/dealerGame.ts';
-import LiveStatus from '../../lib/LiveStatus.vue';
+} from '../../lib/dealer/index.ts';
+import LiveStatus from '../../lib/ui/LiveStatus.vue';
 import {router} from '../../router/index.ts';
+import type {DetailKind} from '../../router/entities.ts';
 import Segmented from '../components/Segmented.vue';
 import {color} from '../format.ts';
 import {useQuickrefActions} from '../state.ts';
@@ -32,7 +36,6 @@ const {
   state,
   session,
   round,
-  memo,
   isRoundCleared,
   remainingImpostors,
   canCastUltimate,
@@ -81,12 +84,13 @@ const roundHeading = computed(() => {
 const defeatedTotal = computed(
   () => session.value.stats.punched + session.value.stats.calibrated,
 );
+const hintsUsedTotal = computed(() => session.value.stats.hintsUsed ?? 0);
 
 const statusLabels: Readonly<Record<string, string>> = {
-  punched: '退货！',
+  punched: '串场！',
   calibrated: '⚡ 校准',
   shielded: '自己人',
-  kept: '✓ 收下',
+  kept: '✓ 保留',
 };
 
 function switchMode(index: number): void {
@@ -120,6 +124,7 @@ const posterModel = computed(() =>
     currentRound: round.value,
     stats: session.value.stats,
     shareUrl: dealerShareLink(),
+    usedAssistOnly: game.usedAssistOnly.value,
   }),
 );
 
@@ -180,6 +185,57 @@ function switchToFreeAfterDaily(): void {
 function isRevealed(status: string): boolean {
   return status !== 'unseen' || state.hintLevel === 'open';
 }
+
+function isCardShown(card: DealerCard): boolean {
+  return isRevealed(card.status) || isRoundCleared.value;
+}
+
+function cardTierData(card: DealerCard): number {
+  return card.hideTierBeforeReveal && !isCardShown(card) ? 0 : card.tier;
+}
+
+function cardCornerBadge(card: DealerCard): string {
+  return card.hideTierBeforeReveal && !isCardShown(card)
+    ? (card.cornerBadgeHidden ?? '?')
+    : card.cornerBadge;
+}
+
+function cardImgSrc(card: DealerCard): string {
+  if (card.cardKind === 'equipment') return equipIconSrc(card.title);
+  if (card.cardKind === 'strategy') return portraitSrc(card.title);
+  if (card.cardKind === 'bounty') return enemyIconSrc(card.enemyId ?? '');
+  return avatarSrc(card.title);
+}
+
+const KIND_ACCENT_COLORS: Readonly<Record<DealerRoundKind, string>> = {
+  covenant: '',
+  transmute: '',
+  trigger: '#0d9488',
+  tier_check: '#6d28d9',
+  equipment: '#b46a07',
+  strategy: '#2563eb',
+  bounty: '#b91c1c',
+};
+
+const stageAccentColor = computed(() => {
+  const override = KIND_ACCENT_COLORS[round.value.kind];
+  return override || color(round.value.targetCovenant);
+});
+
+const blindPromptText = computed(() => {
+  const {kind, targetCovenant} = round.value;
+  if (kind === 'covenant' || kind === 'transmute') {
+    return `非【${targetCovenant}】编制？`;
+  }
+  if (kind === 'tier_check') return '阶位已隐，几阶？';
+  if (kind === 'bounty') return '赏金已隐，几资？';
+  return `不合【${targetCovenant}】？`;
+});
+
+function inspectCardDetail(index: number, kind: DetailKind, name: string): void {
+  game.recordDetailPeek(index);
+  actions.openDetail(kind, name);
+}
 </script>
 
 <template>
@@ -194,10 +250,19 @@ function isRevealed(status: string): boolean {
       <select
         v-if="state.mode === 'free'"
         :value="state.focusCovenant"
-        aria-label="指定考核盟约"
+        aria-label="指定特训内容"
         @change="changeFocus"
       >
-        <option value="">随机盟约</option>
+        <option value="">综合特训（全题型）</option>
+        <optgroup label="玩法专项">
+          <option value="kind:covenant">盟约点名（干员归属）</option>
+          <option value="kind:transmute">同构转职（干员×装备）</option>
+          <option value="kind:trigger">特质时机（触发×定位）</option>
+          <option value="kind:tier_check">升本验阶（盲标等阶）</option>
+          <option value="kind:equipment">装备整备（效果×费用）</option>
+          <option value="kind:strategy">开局策略（策略立绘）</option>
+          <option value="kind:bounty">悬赏猎金（通缉赏金）</option>
+        </optgroup>
         <optgroup label="核心盟约">
           <option v-for="name in coreOptions" :key="name" :value="name">
             {{ name }}
@@ -219,10 +284,23 @@ function isRevealed(status: string): boolean {
         </option>
       </select>
       <div class="nt-dealer-bar-actions">
+        <button
+          v-if="!session.showReport && state.hintLevel === 'blind' && !isRoundCleared"
+          type="button"
+          class="btn nt-dealer-hint-btn"
+          :class="{used: round.hintRevealed}"
+          :disabled="round.hintRevealed"
+          @click="game.requestRoundHint"
+        >
+          {{ round.hintRevealed ? '💡 已开提示' : '💡 提示' }}
+        </button>
         <span class="nt-dealer-stat-pill">
           已打 <b>{{ defeatedTotal }}</b>
           <template v-if="session.combo >= 2">
             · <em class="nt-dealer-combo">{{ session.combo }}连</em>
+          </template>
+          <template v-if="hintsUsedTotal > 0">
+            · <em class="nt-dealer-hint-count">💡{{ hintsUsedTotal }}</em>
           </template>
         </span>
         <button
@@ -320,26 +398,27 @@ function isRevealed(status: string): boolean {
         <div class="nt-dealer-mission">
           <div class="nt-dealer-mission-head">
             <span class="tag">{{ roundHeading }}</span>
+            <span class="tag nt-dealer-kind-tag">{{ round.missionTitle }}</span>
             <span
               class="nt-dealer-target-badge"
-              :style="{'--c': color(round.targetCovenant)}"
+              :style="{'--c': stageAccentColor}"
             >
-              目标【{{ round.targetCovenant }}】
+              {{ round.targetLabel }}
             </span>
-            <span
-              class="tag"
-              :class="isRoundCleared ? 't' : 'r'"
-            >
+            <span class="tag" :class="isRoundCleared ? 't' : 'r'">
               {{
                 isRoundCleared
-                  ? '✓ 歪牌已清空'
-                  : `找出 ${remainingImpostors} 张歪牌`
+                  ? '✓ 本轮已理清'
+                  : `找出 ${remainingImpostors} 处串场`
               }}
             </span>
+            <span v-if="round.usedHint" class="tag nt-dealer-hinted-tag">
+              💡 本轮已记提示
+            </span>
           </div>
-          <p class="nt-dealer-memo-main">{{ memo.summary }}</p>
-          <p v-if="memo.bonus" class="nt-dealer-memo-bonus">
-            <b>进阶</b>{{ memo.bonus }}
+          <p class="nt-dealer-memo-main">{{ round.missionSummary }}</p>
+          <p v-if="round.missionBonus" class="nt-dealer-memo-bonus">
+            <b>要点</b>{{ round.missionBonus }}
           </p>
         </div>
 
@@ -378,10 +457,10 @@ function isRevealed(status: string): boolean {
       <section class="nt-dealer-shop" aria-label="本轮商店发牌">
         <article
           v-for="(card, index) in round.cards"
-          :key="`${round.roundNumber}-${card.operator.name}`"
+          :key="`${round.roundNumber}-${card.cardKind}-${card.title}`"
           class="nt-dealer-card"
-          :class="[card.status, {cleared: isRoundCleared}]"
-          :data-t="card.operator.tier"
+          :class="[card.status, card.cardKind, {cleared: isRoundCleared, equip: card.cardKind === 'equipment'}]"
+          :data-t="cardTierData(card)"
         >
           <button
             type="button"
@@ -389,23 +468,21 @@ function isRevealed(status: string): boolean {
             :disabled="card.status !== 'unseen' || isRoundCleared"
             :aria-label="
               card.status === 'unseen'
-                ? `判定${card.operator.name}为歪牌并退货`
-                : `${card.operator.name}：${card.operator.covenants.join('、')}`
+                ? `指出${card.title}不符合「${round.targetCovenant}」并痛扁发牌员`
+                : `${card.title}：${card.revealTags.map((t) => t.label).join('、')}`
             "
             @click="game.tapCard(index)"
           >
             <div class="nt-dealer-pic">
               <img
-                :src="avatarSrc(card.operator.name)"
+                :src="cardImgSrc(card)"
                 alt=""
                 width="52"
                 height="52"
                 loading="lazy"
                 decoding="async"
               />
-              <i class="nt-dealer-tier">{{
-                TIER_LABELS[card.operator.tier]
-              }}</i>
+              <i class="nt-dealer-tier">{{ cardCornerBadge(card) }}</i>
               <b
                 v-if="card.status !== 'unseen'"
                 class="nt-dealer-stamp"
@@ -415,24 +492,33 @@ function isRevealed(status: string): boolean {
               </b>
             </div>
 
-            <strong class="nt-dealer-name">{{ card.operator.name }}</strong>
+            <strong class="nt-dealer-name">{{ card.title }}</strong>
+
+            <span v-if="card.attachedEquip" class="nt-dealer-equip-chip">
+              <img
+                :src="equipIconSrc(card.attachedEquip.name)"
+                alt=""
+                width="14"
+                height="14"
+                loading="lazy"
+                decoding="async"
+              />
+              <span>同构·{{ card.attachedEquip.name }}</span>
+            </span>
 
             <template v-if="isRevealed(card.status)">
               <div class="nt-dealer-covs">
                 <span
-                  v-for="cov in card.operator.covenants"
-                  :key="cov"
+                  v-for="tag in card.revealTags"
+                  :key="tag.label"
                   class="nt-dealer-cov"
-                  :class="{match: cov === round.targetCovenant}"
-                  :style="{'--c': color(cov)}"
+                  :class="{match: tag.match, mismatch: tag.mismatch}"
+                  :style="tag.covenant ? {'--c': color(tag.covenant)} : undefined"
                 >
-                  {{ cov }}
+                  {{ tag.label }}
                 </span>
               </div>
-              <p
-                class="nt-dealer-trait"
-                :title="card.operator.trait"
-              >
+              <p class="nt-dealer-trait" :title="card.traitSegments.map((s) => s.text).join('')">
                 <span
                   v-for="(seg, sIdx) in card.traitSegments"
                   :key="sIdx"
@@ -442,28 +528,46 @@ function isRevealed(status: string): boolean {
               </p>
             </template>
 
-            <template v-else-if="state.hintLevel === 'clue'">
+            <template v-else-if="state.hintLevel === 'clue' || round.hintRevealed">
               <span class="nt-dealer-clue">{{ card.triggerHint }}</span>
-              <span class="nt-dealer-prompt"
-                >{{ card.operator.covenants.length }} 盟约 ·
-                {{ card.operator.type }}</span
-              >
+              <span class="nt-dealer-prompt">{{ card.secondaryClue }}</span>
             </template>
 
             <template v-else>
-              <span class="nt-dealer-prompt">不是【{{ round.targetCovenant }}】？</span>
-              <span class="nt-dealer-hit-cta">👊 退货</span>
+              <span v-if="!card.attachedEquip" class="nt-dealer-prompt">
+                {{ blindPromptText }}
+              </span>
+              <span class="nt-dealer-hit-cta">👊 揪出串场</span>
             </template>
           </button>
 
           <button
+            v-if="card.detailKind"
             type="button"
             class="nt-dealer-info"
-            :aria-label="`查看${card.operator.name}详情`"
-            title="查看干员详情"
-            @click="actions.openDetail('op', card.operator.name)"
+            :aria-label="`查看${card.title}详情`"
+            :title="
+              card.status === 'unseen' && !isRoundCleared && state.hintLevel === 'blind'
+                ? '查看详情（本轮未通关时将计入提示）'
+                : '查看详情'
+            "
+            @click="inspectCardDetail(index, card.detailKind, card.title)"
           >
             i
+          </button>
+          <button
+            v-if="card.attachedEquip"
+            type="button"
+            class="nt-dealer-equip-info"
+            :aria-label="`查看装备${card.attachedEquip.name}详情`"
+            :title="
+              card.status === 'unseen' && !isRoundCleared && state.hintLevel === 'blind'
+                ? '查看携带装备详情（将计入场中提示）'
+                : '查看携带装备详情'
+            "
+            @click="inspectCardDetail(index, 'eq', card.attachedEquip.name)"
+          >
+            装
           </button>
         </article>
       </section>
@@ -471,11 +575,16 @@ function isRevealed(status: string): boolean {
       <footer class="nc nt-dealer-footer">
         <span class="nt-dealer-footer-tip">
           <template v-if="isRoundCleared">
-            已翻开本轮全部 5 名干员盟约与特质，点右下角继续（左上角
-            <b>i</b> 可查详情）。
+            <template v-if="round.cards[0]?.detailKind">
+              已翻开本轮全部 5 张信息，点右下角继续（此时点左上角
+              <b>i</b> 复盘不计提示）。
+            </template>
+            <template v-else>
+              已翻开本轮全部 5 张情报，点右下角继续下一轮。
+            </template>
           </template>
           <template v-else>
-            点选不属于【{{ round.targetCovenant }}】的干员退货（误伤 {{
+            点选不符合当前目标的条目，痛扁乱排队的发牌员（误判 {{
               session.stats.mistakes
             }} 次 · 无倒计时）。
           </template>
@@ -498,7 +607,7 @@ function isRevealed(status: string): boolean {
           >
             {{
               !isRoundCleared
-                ? `还剩 ${remainingImpostors} 张歪牌`
+                ? `还剩 ${remainingImpostors} 处串场`
                 : state.mode === 'daily' &&
                     round.roundNumber >= DAILY_ROUND_COUNT
                   ? '查看今日战报 🏆'

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { LEADER_BATTLEFIELDS, LEADER_MOVEMENTS } from '../data/leader-movement.ts';
-import { groundRoute, movementTimeline } from '../src/lib/leader-map.ts';
+import { groundRoute, movementTimeline } from '../src/lib/leaders/leader-map.ts';
 
 const length = points => points.slice(1).reduce((total, at, i) => total + Math.hypot(at[0] - points[i][0], at[1] - points[i][1]), 0);
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-7, a + ' != ' + b);

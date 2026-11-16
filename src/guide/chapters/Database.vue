@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import Markup from '../components/Markup';
-import LiveStatus from '../../lib/LiveStatus.vue';
+import LiveStatus from '../../lib/ui/LiveStatus.vue';
 import Segmented from '../components/Segmented.vue';
 import { avatar } from '../chips';
 import { computed, ref } from 'vue';
 import { OPERATORS, OPERATOR_TYPES, EQUIPMENT, ALL_COVENANTS, TIERS, TIER_LABELS } from '../../../data/index';
-import { equipIconSrc } from '../../lib/assets';
+import { equipIconSrc } from '../../lib/ui/assets';
 import { cv } from '../chips';
 const tier = ref(0), covenant = ref(''), type = ref(''), query = ref(''), elite = ref(false);
 const operators = computed(() => {

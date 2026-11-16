@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { OPERATOR, EQUIP, EQUIPMENT_COMBOS, STRATEGY, OPERATORS, TIER_LABELS, TIER_STATS, COVENANTS, buildsUsing, isCoreCovenant, rosterOf } from '../../../data/index.ts';
-import { avatarSrc, equipIconSrc, portraitSrc } from '../../lib/assets.ts';
+import { avatarSrc, equipIconSrc, portraitSrc } from '../../lib/ui/assets.ts';
 import { color, fx, peekFx, hpWidth, bonusHeadcount, bonusText } from '../format.ts';
 import { useQuickrefActions, type DetailSelection } from '../state.ts';
 import Chip from './Chip.vue';

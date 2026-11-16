@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { ALL_COVENANTS, OPERATORS, EQUIPMENT, STRATEGIES, TIER_LABELS } from '../../../data/index.ts';
-import { normalize, nameScore } from '../../lib/match.ts';
-import { avatarSrc, equipIconSrc, portraitSrc } from '../../lib/assets.ts';
-import { eliteCopyCount, type RecordedOperator } from '../../lib/runAdvisor.ts';
+import { normalize, nameScore } from '../../lib/ui/match.ts';
+import { avatarSrc, equipIconSrc, portraitSrc } from '../../lib/ui/assets.ts';
+import { eliteCopyCount, type RecordedOperator } from '../../lib/recommendation/live/runAdvisor.ts';
 
 const props = withDefaults(defineProps<{
   kind: 'op' | 'eq' | 'st';

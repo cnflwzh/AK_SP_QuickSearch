@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ADVISOR_MODES, ADVISOR_FORMATS, advisorRoundLimit, RESTRICTED_MODE_COVENANTS, type AdvisorFormat, type AdvisorMode } from '../../lib/recommendation/live/advisorRules.ts';
 import { computed, ref } from 'vue';
-import { effectiveBans } from '../../lib/runAdvisor.ts';
+import { effectiveBans } from '../../lib/recommendation/live/runAdvisor.ts';
 import { ALL_COVENANTS, CORE_COVENANTS, ADDON_COVENANTS, covenantColor } from '../../../data/index.ts';
-import { MAX_LAYERS, usesLayers } from '../../lib/planner.ts';
+import { MAX_LAYERS, usesLayers } from '../../lib/plans/index.ts';
 import { useRunAdvisor } from './useRunAdvisor.ts';
 
 defineEmits<{ excludeOperator: [] }>();

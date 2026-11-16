@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, shallowRef } from 'vue';
-import { MAX_BACKUP_BYTES, parsePlanBackup, serializePlanBackup, type PlanBackup } from '../../lib/planBackup.ts';
-import { downloadBlob } from '../../lib/download.ts';
+import { MAX_BACKUP_BYTES, parsePlanBackup, serializePlanBackup, type PlanBackup } from '../../lib/plans/backup.ts';
+import { downloadBlob } from '../../lib/ui/download.ts';
 import { plans, restorePlanBackup } from '../planStore.ts';
 
 const fileInput = ref<HTMLInputElement>();

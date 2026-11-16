@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue';
 import { LEADER_MOVEMENTS, type LayoutZone, type LeaderBattlefield, type LeaderLayout, type LeaderStage, type MapPos, type MovementBranches, type OpRole, type ZoneShape } from '../../../data/index.ts';
-import { groundRoute, movementTimeline } from '../../lib/leader-map.ts';
-import { whileVisible } from '../../lib/visibility.ts';
+import { groundRoute, movementTimeline } from '../../lib/leaders/leader-map.ts';
+import { whileVisible } from '../../lib/ui/visibility.ts';
 
 /** 地形与路线按场地更新；技能切换只更新覆盖层。SVG 自行播放，动画帧不触发 Vue 寻路或重绘。 */
 const props = defineProps<{

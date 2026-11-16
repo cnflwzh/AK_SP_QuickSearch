@@ -11,24 +11,24 @@ export {
   newSlot,
   builtinPlan,
   samePlan,
-} from './plans/model.ts';
-export type { PlanOp, Layers, Plan } from './plans/model.ts';
+} from './model.ts';
+export type { PlanOp, Layers, Plan } from './model.ts';
 export {
   covenantsOf,
   RESERVE_COVENANTS,
   covenantStats,
   atLayers,
-} from './plans/covenants.ts';
-export type { CovenantStat } from './plans/covenants.ts';
-export { copiesFor, planCost, equipNotes } from './plans/costs.ts';
-export type { PlanCost, EquipNote } from './plans/costs.ts';
+} from './covenants.ts';
+export type { CovenantStat } from './covenants.ts';
+export { copiesFor, planCost, equipNotes } from './costs.ts';
+export type { PlanCost, EquipNote } from './costs.ts';
 export {
   CODE_PREFIX,
   encodePlan,
   decodePlan,
   shareUrl,
-} from './plans/sharing.ts';
-export type { Shared, Decoded } from './plans/sharing.ts';
+} from './sharing.ts';
+export type { Shared, Decoded } from './sharing.ts';
 export {
   newId,
   blankPlan,
@@ -36,7 +36,7 @@ export {
   savePlans,
   loadCurrent,
   saveCurrent,
-} from './plans/storage.ts';
+} from './storage.ts';
 export {
   defaultLineupGoal,
   inferPrimaryCovenant,
@@ -45,7 +45,7 @@ export {
   alternatesFor,
   isBanned,
   banReplace,
-} from './recommendation/planning.ts';
+} from '../recommendation/planning.ts';
 export type {
   CovenantChange,
   LineupEvaluation,
@@ -54,4 +54,4 @@ export type {
   LineupEvaluationOptions,
   BanPick,
   BanResult,
-} from './recommendation/planning.ts';
+} from '../recommendation/planning.ts';

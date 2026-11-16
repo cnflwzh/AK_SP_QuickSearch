@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { BUILD_NAMES, OPERATOR, buildByName } from '../data/index.ts';
-import { banReplace, builtinPlan, covenantStats, isBanned, loadPlans, newSlot, samePlan, savePlans, MAX_NOTE } from '../src/lib/planner.ts';
+import { banReplace, builtinPlan, covenantStats, isBanned, loadPlans, newSlot, samePlan, savePlans, MAX_NOTE } from '../src/lib/plans/index.ts';
 
 test('every built-in build converts to an editable plan', () => {
   for (const name of BUILD_NAMES) {

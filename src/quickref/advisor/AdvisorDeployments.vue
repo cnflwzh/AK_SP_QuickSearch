@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { DeploymentAdvice } from '../../lib/runAdvisor.ts';
-import { avatarSrc } from '../../lib/assets.ts';
+import type { DeploymentAdvice } from '../../lib/recommendation/live/runAdvisor.ts';
+import { avatarSrc } from '../../lib/ui/assets.ts';
 defineProps<{ advice: readonly DeploymentAdvice[] }>();
 defineEmits<{ deploy: [name: string, replace: string] }>();
 </script>

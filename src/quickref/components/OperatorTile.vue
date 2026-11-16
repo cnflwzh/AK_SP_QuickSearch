@@ -2,7 +2,7 @@
 import NavigationLink from './NavigationLink.vue';
 import { cardLocation } from '../../router/navigation.ts';
 import { TIER_LABELS, type Operator } from '../../../data/index.ts';
-import { avatarSrc } from '../../lib/assets.ts';
+import { avatarSrc } from '../../lib/ui/assets.ts';
 import { color } from '../format.ts';
 import { useQuickrefActions } from '../state.ts';
 import { inRun } from '../planStore.ts';

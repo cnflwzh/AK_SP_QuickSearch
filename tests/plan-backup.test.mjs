@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { EQUIPMENT, STRATEGIES } from '../data/index.ts';
-import { blankPlan, builtinPlan, newSlot } from '../src/lib/planner.ts';
-import { mergePlanBackup, parsePlanBackup, serializePlanBackup } from '../src/lib/planBackup.ts';
+import { blankPlan, builtinPlan, newSlot } from '../src/lib/plans/index.ts';
+import { mergePlanBackup, parsePlanBackup, serializePlanBackup } from '../src/lib/plans/backup.ts';
 
 test('backup round trip retains custom builds, preset edits and all lineup settings', () => {
   const custom = {

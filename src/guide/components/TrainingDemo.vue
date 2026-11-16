@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { TRAINING, LEADERS } from '../../../data/index';
-import { whileVisible } from '../../lib/visibility';
+import { whileVisible } from '../../lib/ui/visibility';
 const grid = ref<HTMLElement>();
 const chosen = ref<number[]>([]), leader = ref('');
 const waves = ref<{ name: string; color: string }[]>([]);
