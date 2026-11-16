@@ -73,6 +73,14 @@ test('synthesis rewards start at tier II and remain capped at tier VI at max lev
   assert.equal(synthesisTier(6), 6);
 });
 
+test('non-pool operators cannot appear in either synthesis estimate', () => {
+  const target = OPERATORS.find((op) => op.stars === 0 && op.tier > 1);
+  assert.ok(target);
+  const result = poolBreakdown(target.tier - 1, target.name);
+  assert.equal(result.rewardHitRate, 0);
+  assert.equal(result.targetSynthesisHitRate, 0);
+});
+
 test('poolBreakdown reflects active shop pool, banned targets, and synthesis hit rate', () => {
   const fullPoolOps = OPERATORS.filter((o) => o.stars !== 0);
   const sampleTarget = fullPoolOps.find(

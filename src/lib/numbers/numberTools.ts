@@ -88,6 +88,8 @@ export function poolBreakdown(
   const rewardTier = synthesisTier(level);
   const target = OPERATORS.find((op) => op.name === targetName);
   const targetBanned = target ? isBanned(target.name, effectiveBans) : false;
+  const targetInPool =
+    target !== undefined && target.stars !== 0 && !targetBanned;
 
   let shopPoolTotal = 0;
   let shopPoolActive = 0;
@@ -115,11 +117,11 @@ export function poolBreakdown(
   }
 
   const rewardHitRate =
-    target && !targetBanned && target.tier === rewardTier
+    target && targetInPool && target.tier === rewardTier
       ? synthesisHitRate(rewardTierActive)
       : 0;
   const targetSynthesisHitRate =
-    target && !targetBanned && target.tier > 1
+    target && targetInPool && target.tier > 1
       ? synthesisHitRate(targetTierActive)
       : 0;
 
