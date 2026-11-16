@@ -1,22 +1,22 @@
 /** 将已解析的单干员效果换算为有限启发式价值，不修改实际对局状态。 */
-import { OPERATOR,type Operator } from '../../../../data/index.ts';
-import { type CovenantStat } from '../../plans/covenants.ts';
-import { usesLayers,type PlanOp } from '../../plans/model.ts';
+import {COVENANTS, OPERATOR, type Operator} from '../../../../data/index.ts';
+import {type CovenantStat} from '../../plans/covenants.ts';
+import {usesLayers, type PlanOp} from '../../plans/model.ts';
 import {
-crossedLayerMilestones,
-layerValue,
-productionHorizon,
+  crossedLayerMilestones,
+  layerValue,
+  productionHorizon,
 } from './advisorLayerValue.ts';
 import {
-resolveAcquisitionEffects,
-resolveBattleEffects,
-resolveRestLayerEffects,
-type RestLayerEffects,
+  resolveAcquisitionEffects,
+  resolveBattleEffects,
+  resolveRestLayerEffects,
+  type RestLayerEffects,
 } from './advisorTraitText.ts';
 import type {
-TraitValue,
-ValueContext,
-ValueRoster,
+  TraitValue,
+  ValueContext,
+  ValueRoster,
 } from './advisorValueTypes.ts';
 /** 获得时用初始或精锐特质二选一，合成不再叠加第三张初始特质。 */
 export function acquisitionValue(
@@ -26,11 +26,20 @@ export function acquisitionValue(
   context: ValueContext,
 ): TraitValue {
   const effects = resolveAcquisitionEffects(operator, elite, context.level);
-  const investor = stats.find((stat) => stat.name === '投资人');
-  const multiplier = investor?.active
-    ? (context.layers['投资人'] ?? 0) >= 100
-      ? 3
-      : 2
+  const multiplierStat = stats.find(
+    (stat) =>
+      stat.active && COVENANTS[stat.name]?.mechanics?.acquisitionMultiplier,
+  );
+  const multiplierConfig = multiplierStat
+    ? COVENANTS[multiplierStat.name]?.mechanics?.acquisitionMultiplier
+    : undefined;
+  const multiplier = multiplierConfig
+    ? multiplierConfig.bonusLayers !== undefined &&
+      multiplierConfig.bonus !== undefined &&
+      (context.layers[multiplierStat!.name] ?? 0) >=
+        multiplierConfig.bonusLayers
+      ? multiplierConfig.bonus
+      : multiplierConfig.base
     : 1;
   const gains = effects.gains.map((gain) => ({
     ...gain,
@@ -38,10 +47,12 @@ export function acquisitionValue(
   }));
   const reasons: string[] = [];
   let score = 0;
-  if (multiplier > 1 && effects.hasText) {
-    reasons.push(`按购入前已激活投资人触发${multiplier}次，不预支新人激活收益`);
+  if (multiplier > 1 && effects.hasText && multiplierStat) {
+    reasons.push(
+      `按购入前已激活${multiplierStat.name}触发${multiplier}次，不预支新人激活收益`,
+    );
   }
-  for (const { covenant, amount } of gains) {
+  for (const {covenant, amount} of gains) {
     if (context.inactiveCovenants?.has(covenant)) {
       reasons.push(`${covenant}本局缺席，其获得时层数不计入收益`);
       continue;
@@ -114,7 +125,7 @@ function evaluateRestLayers(
   let score = effects.unknownHighestTarget ? 5 * horizon : 0;
   if (effects.entersRest) {
     reasons.push(
-      `当前进入休整的触发已过，仅评价未来${triggers}次进入休整；不计入本轮结束或苏苏洛指令`,
+      `当前进入休整的触发已过，仅评价未来${triggers}次进入休整；不计入本轮结束或休整结束指令`,
     );
   }
   const timing = effects.entersRest
@@ -139,7 +150,7 @@ function evaluateRestLayers(
       `${frequency}休整${timing}${gain.covenant}+${gain.amount}层${location}`,
     );
   }
-  return { score, reasons, endOfRestGains: effects.entersRest ? [] : gains };
+  return {score, reasons, endOfRestGains: effects.entersRest ? [] : gains};
 }
 /** 临时层、战斗条件上限与属性转化独立估值，不写入确定休整产层。 */
 function evaluateBattleEffects(
@@ -155,7 +166,7 @@ function evaluateBattleEffects(
     active.some((stat) => stat.name === covenant);
   const reasons: string[] = [];
   let score = initialScore;
-  for (const { covenant, amount } of effects.temporaryGains.filter((gain) =>
+  for (const {covenant, amount} of effects.temporaryGains.filter((gain) =>
     isActive(gain.covenant),
   )) {
     score += layerValue(covenant, amount, stats, context, false);
@@ -199,17 +210,20 @@ function evaluateBattleEffects(
       reasons.push('已有层数可转化自身属性，未估算实战伤害');
     }
   }
-  if (effects.savesUrsusLayers && isActive('乌萨斯')) {
+  const savedNames = effects.tempToPermCovenants.filter(isActive);
+  if (savedNames.length) {
     const futureRounds =
       context.totalRounds == null
         ? 0
         : context.round === null
           ? 1
           : Math.min(4, Math.max(0, context.totalRounds - context.round));
-    score += 12 * futureRounds;
-    reasons.push('可保存乌萨斯临时层数；未假定本轮可转化层数');
+    score += 12 * futureRounds * savedNames.length;
+    reasons.push(
+      `可保存${savedNames.join('、')}临时层数；未假定本轮可转化层数`,
+    );
   }
-  return { score, reasons };
+  return {score, reasons};
 }
 /** 持续生产只给有限展望，战斗叠层按条件潜力折价，绝不显示为预计实得层数。 */
 export function recurringValue(
@@ -221,11 +235,11 @@ export function recurringValue(
 ): TraitValue {
   const operator = OPERATOR[slot.name];
   if (!operator) {
-    return { score: 0, reasons: [] };
+    return {score: 0, reasons: []};
   }
   const text = slot.elite ? operator.elite : operator.trait;
   if (!deployed && !text.includes('整备区也生效')) {
-    return { score: 0, reasons: [] };
+    return {score: 0, reasons: []};
   }
   const restEffects = resolveRestLayerEffects(
     text,

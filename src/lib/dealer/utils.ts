@@ -1,9 +1,9 @@
-import {COVENANTS} from '../../../data/index.ts';
 import {
+  COVENANTS,
   CYCLE_REWARDS,
   HEADCOUNT_BREAKPOINTS,
   LAYER_BREAKPOINTS,
-} from '../../../data/numberTools.ts';
+} from '../../../data/index.ts';
 import type {CovenantMemo, TraitSegment} from './types.ts';
 
 let orderNonce = 0;
@@ -94,9 +94,11 @@ export function covenantMemo(covenant: string): CovenantMemo {
   if (!data) {
     return {covenant, need: 0, summary: '', bonus: ''};
   }
-  const reserveNote = data.effect.includes('整备区也计入')
-    ? '（整备区也计入）'
-    : '';
+  const reserveNote =
+    COVENANTS[covenant]?.mechanics?.countsReserve ||
+    data.effect.includes('整备区也计入')
+      ? '（整备区也计入）'
+      : '';
   const summary = `${data.need}人激活${reserveNote} · ${data.effect}`;
 
   const bonusParts: string[] = [];

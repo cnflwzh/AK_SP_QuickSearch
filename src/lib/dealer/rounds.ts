@@ -1,5 +1,6 @@
 import {
   BOUNTIES,
+  COMPANION_EQUIP_NAME,
   CORE_COVENANTS,
   EQUIP,
   EQUIPMENT,
@@ -13,7 +14,7 @@ import type {
   Equipment,
   Operator,
   Strategy,
-} from '../../../data/types.ts';
+} from '../../../data/index.ts';
 import {
   BOUNTY_DEAL_LINES,
   DEAL_LINES,
@@ -596,10 +597,19 @@ function buildTransmuteRound(options: {
   const trueTransmuteOp = nonTargetPicked[0];
   const trueEquip = shuffleWith(matchingEquips, rng)[0];
 
-  // False transmute decoys: prefer covenant-null equips (雪祀之衣 / 随身身份牌 etc.) + mismatched covenant equips.
-  const nullDecoys = TRICKY_DECOY_EQUIP_NAMES.map((name) => EQUIP[name]).filter(
-    (eq): eq is Equipment => Boolean(eq && eq.covenant === null),
+  // False transmute decoys: prefer configured covenant-null decoys + mismatched covenant equips.
+  const trickyNullDecoys = TRICKY_DECOY_EQUIP_NAMES.map(
+    (name) => EQUIP[name],
+  ).filter((eq): eq is Equipment =>
+    Boolean(
+      eq && eq.covenant === null && !eq.mechanics?.grantsCompanionCovenant,
+    ),
   );
+  const nullDecoys = trickyNullDecoys.length
+    ? trickyNullDecoys
+    : EQUIPMENT.filter(
+        (eq) => eq.covenant === null && !eq.mechanics?.grantsCompanionCovenant,
+      );
   const otherCovenantDecoys = EQUIPMENT.filter(
     (eq) => eq.covenant !== null && eq.covenant !== targetCovenant,
   );
@@ -616,7 +626,7 @@ function buildTransmuteRound(options: {
       createOperatorCard(
         op,
         targetCovenant,
-        idx < falseTransmuteCount
+        idx < falseTransmuteCount && decoyPool.length
           ? decoyPool[idx % decoyPool.length]
           : undefined,
       ),
@@ -629,6 +639,7 @@ function buildTransmuteRound(options: {
   ];
   const cards = shuffleAvoidSameEnds(canonical, orderRng);
   const memo = covenantMemo(targetCovenant);
+  const companionLabel = COMPANION_EQUIP_NAME || '同构装备';
 
   return {
     roundNumber,
@@ -636,7 +647,7 @@ function buildTransmuteRound(options: {
     targetCovenant,
     targetLabel: `同构转职 · 【${targetCovenant}】`,
     missionTitle: '同构转职',
-    missionSummary: `携带「变形同构体 + 对应【${targetCovenant}】装备」的非原生干员也视为自己人；揪出同构无效或异阵营串场！`,
+    missionSummary: `携带「${companionLabel} + 对应【${targetCovenant}】装备」的非原生干员也视为自己人；揪出同构无效或异阵营串场！`,
     missionBonus: `${memo.summary}${memo.bonus ? ` · ${memo.bonus}` : ''}`,
     impostorTotal: falseCards.length,
     goodTotal: nativePicked.length + 1,
@@ -660,12 +671,16 @@ function buildEquipmentRound(options: {
   const goodPool = EQUIPMENT.filter(meta.match);
   let badPool = EQUIPMENT.filter(meta.impostor);
 
+  let trickyConsumables: Equipment[] = [];
   if (equipTheme === 'consumable') {
-    const tricky = CONSUMABLE_DECOY_NAMES.map((name) => EQUIP[name]).filter(
-      (eq): eq is Equipment => Boolean(eq && meta.impostor(eq)),
-    );
-    if (tricky.length >= 3) {
-      badPool = [...tricky, ...badPool.filter((eq) => !tricky.includes(eq))];
+    trickyConsumables = CONSUMABLE_DECOY_NAMES.map(
+      (name) => EQUIP[name],
+    ).filter((eq): eq is Equipment => Boolean(eq && meta.impostor(eq)));
+    if (trickyConsumables.length >= 3) {
+      badPool = [
+        ...trickyConsumables,
+        ...badPool.filter((eq) => !trickyConsumables.includes(eq)),
+      ];
     }
   }
 
@@ -677,7 +692,7 @@ function buildEquipmentRound(options: {
 
   const goodPicked = shuffleWith(goodPool, rng).slice(0, goodCount);
   const badPicked =
-    equipTheme === 'consumable'
+    equipTheme === 'consumable' && trickyConsumables.length >= 3
       ? [
           ...shuffleWith(badPool.slice(0, 8), rng).slice(0, desiredImpostors),
         ].slice(0, desiredImpostors)

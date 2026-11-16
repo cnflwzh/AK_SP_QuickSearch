@@ -2,14 +2,14 @@
  * 旧版展示文案适配层，仅识别已有模型支持的语句。
  * 当前客户端规则尚未全部结构化；这里的匹配不能作为新增游戏规则的证据。
  */
-import { EQUIPMENT,OPERATOR,type Operator } from '../../../../data/index.ts';
-import { covenantsOf,type CovenantStat } from '../../plans/covenants.ts';
-import { usesLayers,type PlanOp } from '../../plans/model.ts';
-import { FRONT_LAYER_PATTERN } from './advisorPosition.ts';
+import {EQUIPMENT, OPERATOR, type Operator} from '../../../../data/index.ts';
+import {covenantsOf, type CovenantStat} from '../../plans/covenants.ts';
+import {usesLayers, type PlanOp} from '../../plans/model.ts';
+import {FRONT_LAYER_PATTERN} from './advisorPosition.ts';
 import type {
-LayerGain,
-ValueContext,
-ValueRoster,
+  LayerGain,
+  ValueContext,
+  ValueRoster,
 } from './advisorValueTypes.ts';
 const ACQUISITION_COUNT_PATTERN =
   /^<休整期结束时>本回合每获得过一名干员，使已激活的((?:【[^】]+】)+)层数\+(\d+)（每回合至多(?:叠加)?(\d+)层）$/;
@@ -32,7 +32,7 @@ function covenantTags(text: string): string[] {
   return [...text.matchAll(/【([^】]+)】/g)].map((match) => match[1]);
 }
 function layerGains(covenants: readonly string[], amount: number): LayerGain[] {
-  return covenants.map((covenant) => ({ covenant, amount }));
+  return covenants.map((covenant) => ({covenant, amount}));
 }
 function distinctCovenants(slot: PlanOp): string[] {
   const covenants = covenantsOf(slot);
@@ -90,7 +90,7 @@ function adjacentLayerTargets(
         : '仅计自身已激活盟约；身前一格未录入或已变动，未假定相邻干员收益',
     );
   }
-  return { gains, reasons };
+  return {gains, reasons};
 }
 /** 按明确记录的人、装备携带者或不同等阶计数，不推算未录副本。 */
 function rosterLayerTargets(
@@ -111,7 +111,7 @@ function rosterLayerTargets(
       }
     }
     return {
-      gains: [...amounts].map(([covenant, amount]) => ({ covenant, amount })),
+      gains: [...amounts].map(([covenant, amount]) => ({covenant, amount})),
       reasons: ['按已记录整备区干员各自盟约计层；未记录的同名副本不推算'],
     };
   }
@@ -197,7 +197,7 @@ export function resolveRestLayerEffects(
         context.layers[second.name] - context.layers[first.name],
     )[0];
     if (selected && known.length === active.length) {
-      effects.gains = [{ covenant: selected.name, amount: fixedAmount }];
+      effects.gains = [{covenant: selected.name, amount: fixedAmount}];
     } else {
       effects.unknownHighestTarget = true;
       effects.reasons.push(
@@ -267,24 +267,35 @@ export function resolveAcquisitionEffects(
   const trait = elite ? operator.elite : operator.trait;
   const text = trait.match(/<获得时>([^<]*)/)?.[1] ?? '';
   let gains = fixedLayers(text);
-  if (/等同于当前调度中心等级(?:两倍)?的【炎】层数/.test(text)) {
-    gains = [{ covenant: '炎', amount: level * (elite ? 2 : 1) }];
+  const levelScaling = text.match(
+    /等同于当前调度中心等级(两倍)?的【([^】]+)】层数/,
+  );
+  if (levelScaling) {
+    gains = [
+      {
+        covenant: levelScaling[2],
+        amount: level * (levelScaling[1] || elite ? 2 : 1),
+      },
+    ];
   }
   const guaranteed = text.split(/[，；]/)[0];
   const equipment = EQUIPMENT_BY_NAME_LENGTH.find((item) =>
     guaranteed.includes(item.name),
   );
-  const hasEquipmentReward =
-    equipment || /获得[一两]枚“盟约之币”/.test(guaranteed);
-  const equipmentReward = hasEquipmentReward
-    ? {
-        name:
-          guaranteed.match(/获得[一两12][件个枚][“"]?([^”"]+)/)?.[1] ??
-          equipment?.name ??
-          '盟约之币',
-        count: /获得(?:两|2)[件个枚]/.test(guaranteed) ? 2 : 1,
-      }
-    : undefined;
+  const quotedReward = guaranteed.match(
+    /获得[一两12][件个枚][“"]([^”"]+)[”"]/,
+  )?.[1];
+  const rewardName =
+    quotedReward ??
+    guaranteed.match(/获得[一两12][件个枚][“"]?([^”"]+)/)?.[1] ??
+    equipment?.name;
+  const equipmentReward =
+    (equipment || quotedReward) && rewardName
+      ? {
+          name: rewardName,
+          count: /获得(?:两|2)[件个枚]/.test(guaranteed) ? 2 : 1,
+        }
+      : undefined;
   const freeRefreshes = /获得(?:一|1|两|2)次免费刷新/.test(text)
     ? /获得(?:两|2)次/.test(text)
       ? 2
@@ -309,7 +320,7 @@ export interface BattleEffects {
     layersPerTrigger: number;
     attackPercent: number;
   };
-  savesUrsusLayers: boolean;
+  tempToPermCovenants: string[];
 }
 /** 战斗效果只解析限定类型；上限、属性比例、临时层不会变成休整确定产层。 */
 export function resolveBattleEffects(
@@ -352,7 +363,9 @@ export function resolveBattleEffects(
           attackPercent: Number(conversion[3]),
         }
       : undefined,
-    savesUrsusLayers: withoutAcquire.includes('临时层数为固定层数'),
+    tempToPermCovenants: withoutAcquire.includes('临时层数为固定层数')
+      ? [...new Set(covenantTags(withoutAcquire))]
+      : [],
   };
 }
 /** 每回合上限是否与指令共享尚未确认，不能直接复制这类特质。 */
