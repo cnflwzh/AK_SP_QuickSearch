@@ -36,6 +36,8 @@ function descriptionOf<T>(item: T, textOf: (item: T) => string): string {
 /** 各目录补充的检索条件；同分时默认保留数据表顺序。 */
 interface SearchOptions<T> {
   descriptionOf?: (item: T) => string;
+  /** 可原地编辑的流派每次读取描述，同时保留 Vue 对成员和策略的依赖跟踪。 */
+  mutableDescription?: boolean;
   matchesRelatedName?: (item: T) => boolean;
   tieBreak?: (a: T, b: T) => number;
 }
@@ -56,7 +58,10 @@ function rankBy<T>(
         nameScore(nameOf(item), query) ||
         (options.matchesRelatedName?.(item) ? relatedNameScore : 0) ||
         (options.descriptionOf &&
-        descriptionOf(item, options.descriptionOf).includes(query)
+        (options.mutableDescription
+          ? normalize(options.descriptionOf(item))
+          : descriptionOf(item, options.descriptionOf)
+        ).includes(query)
           ? 1
           : 0),
     }))
@@ -85,6 +90,7 @@ const results = computed(() => {
   return {
     covenants,
     builds: rankBy(presets.value, q, (preset) => preset.plan.name, {
+      mutableDescription: true,
       matchesRelatedName: (preset) =>
         preset.key !== preset.plan.name && nameScore(preset.key, q) > 0,
       descriptionOf: (preset) =>
