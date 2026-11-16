@@ -383,6 +383,7 @@ function ensureCurrentDate(): boolean {
   if (state.dateKey === today) return false;
   state.dateKey = today;
   state.daily = createDailySession(today);
+  recordVisibleAssistance();
   saveDailySession(today, state.daily);
   state.announcement = '已更新今日同题';
   return true;
@@ -418,6 +419,24 @@ function markRoundHint(
   if (state.mode === 'daily') {
     saveDailySession(state.dateKey, session);
   }
+}
+
+/** 可见的非盲猜牌面已经提供线索；在切换、换轮和重置时立即计入，避免切回盲猜抹掉记录。 */
+function recordVisibleAssistance(): void {
+  if (state.hintLevel === 'blind') return;
+  const session = activeSession();
+  const current = session.rounds[session.roundIndex];
+  if (roundCleared(current) || current.usedHint) return;
+  if (
+    !session.playedBlind &&
+    session.history.length === 0 &&
+    current.cards.every((card) => card.status === 'unseen')
+  ) {
+    session.startedAssist = true;
+  } else {
+    session.playedBlind = true;
+  }
+  markRoundHint(session, current, true);
 }
 
 function completeCurrentRound(
@@ -624,6 +643,7 @@ export function useDealerGame() {
     if (state.mode === 'daily') {
       if (s.roundIndex < DAILY_ROUND_COUNT - 1) {
         s.roundIndex++;
+        recordVisibleAssistance();
         s.lastEvent = 'deal';
         s.dealerLine = s.rounds[s.roundIndex].introLine;
         saveDailySession(state.dateKey, s);
@@ -642,6 +662,7 @@ export function useDealerGame() {
     );
     s.rounds = [next];
     s.roundIndex = 0;
+    recordVisibleAssistance();
     s.lastEvent = 'deal';
     s.dealerLine = next.introLine;
     state.announcement = `刷新自由拷打第 ${next.roundNumber} 轮：${next.targetLabel}`;
@@ -651,6 +672,7 @@ export function useDealerGame() {
     ensureCurrentDate();
     if (state.mode === mode) return;
     state.mode = mode;
+    recordVisibleAssistance();
     const s = activeSession();
     state.announcement =
       mode === 'daily'
@@ -669,6 +691,7 @@ export function useDealerGame() {
     );
     s.rounds = [fresh];
     s.roundIndex = 0;
+    recordVisibleAssistance();
     s.lastEvent = 'deal';
     s.dealerLine = fresh.introLine;
     s.showReport = false;
@@ -677,23 +700,7 @@ export function useDealerGame() {
   function setHintLevel(level: HintLevel): void {
     ensureCurrentDate();
     state.hintLevel = level;
-    const s = session.value;
-    const current = round.value;
-    if (level !== 'blind') {
-      const untouchedAtStart =
-        !s.playedBlind &&
-        s.history.length === 0 &&
-        current.cards.every((card) => card.status === 'unseen') &&
-        !current.usedHint;
-      if (untouchedAtStart) {
-        s.startedAssist = true;
-      } else {
-        s.playedBlind = true;
-      }
-      if (!roundCleared(current)) {
-        markRoundHint(s, current, !current.usedHint);
-      }
-    }
+    recordVisibleAssistance();
   }
 
   function openReport(): void {
@@ -711,12 +718,14 @@ export function useDealerGame() {
     const replayed = createDailySession(state.dateKey, createOrderSeed());
     replayed.dealerLine = replayShuffleLine(Date.now() + replaySeq);
     state.daily = replayed;
+    recordVisibleAssistance();
     saveDailySession(state.dateKey, state.daily);
     state.announcement = '已重新洗牌今日同题 5 轮（题目不变，站位已打乱）';
   }
 
   function resetFree(): void {
     state.free = createFreeSession(state.focusCovenant);
+    recordVisibleAssistance();
     state.announcement = '已重置自由拷打战绩';
   }
 
