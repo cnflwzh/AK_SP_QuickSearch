@@ -10,15 +10,22 @@ import {computed, reactive, ref, watch} from 'vue';
 import {
   BUILD_NAMES,
   CORE_BUILDS,
+  EQUIP,
+  EQUIPMENT_RECIPES,
+  OPERATOR,
+  STRATEGY,
+  buildByName,
   isBannableCovenant,
 } from '../../data/index.ts';
 import {color} from './format.ts';
 import {
+  MAX_OPS,
   blankPlan,
   builtinPlan,
   covenantStats,
   loadPlans,
   newId,
+  newSlot,
   samePlan,
   savePlans,
   type CovenantStat,
@@ -264,12 +271,126 @@ export function toggleBan(name: string): void {
 }
 export const runOps = computed(() => run.value?.plan.ops ?? []);
 export const inRun = computed(() => new Set(runOps.value.map((o) => o.name)));
+export const runSlotMap = computed(
+  () => new Map(runOps.value.map((slot) => [slot.name, slot])),
+);
+export const runAltTargets = computed(() => {
+  const map = new Map<string, string[]>();
+  for (const slot of runOps.value) {
+    for (const alt of slot.alt) {
+      if (inRun.value.has(alt)) continue;
+      const list = map.get(alt);
+      if (list) {
+        if (!list.includes(slot.name)) list.push(slot.name);
+      } else {
+        map.set(alt, [slot.name]);
+      }
+    }
+  }
+  return map;
+});
+export const inRunAlt = computed(() => new Set(runAltTargets.value.keys()));
+export const inRunAny = computed(
+  () => new Set([...inRun.value, ...inRunAlt.value]),
+);
 export const runStats = computed<CovenantStat[]>(() =>
   run.value ? covenantStats(run.value.plan.ops, run.value.plan.layers) : [],
 );
 export const runStat = computed(
   () => new Map(runStats.value.map((s) => [s.name, s])),
 );
+export const runBaseBuild = computed(() =>
+  run.value?.plan.base ? buildByName(run.value.plan.base) : undefined,
+);
+export const runEquipOwners = computed(() => {
+  const map = new Map<string, string[]>();
+  for (const slot of runOps.value) {
+    for (const eq of slot.eq) {
+      const list = map.get(eq);
+      if (list) {
+        if (!list.includes(slot.name)) list.push(slot.name);
+      } else {
+        map.set(eq, [slot.name]);
+      }
+    }
+  }
+  return map;
+});
+export const runEquipRecommended = computed(
+  () =>
+    new Set(
+      [
+        ...runOps.value.flatMap((o) => o.eq),
+        ...(runBaseBuild.value?.equipment ?? []),
+      ].filter((e) => Object.hasOwn(EQUIP, e)),
+    ),
+);
+export const runEquipMaterials = computed(() => {
+  const map = new Map<string, string[]>();
+  for (const target of runEquipRecommended.value) {
+    const recipe = EQUIPMENT_RECIPES[target];
+    if (!recipe) continue;
+    for (const mat of [recipe[0], recipe[1]]) {
+      const list = map.get(mat);
+      if (list) {
+        if (!list.includes(target)) list.push(target);
+      } else {
+        map.set(mat, [target]);
+      }
+    }
+  }
+  return map;
+});
+export const runStrategies = computed(() => {
+  const primary = run.value?.plan.strategy ?? '';
+  const all = new Set(
+    [primary, ...(runBaseBuild.value?.strategies ?? [])].filter((s) =>
+      Object.hasOwn(STRATEGY, s),
+    ),
+  );
+  return {
+    primary: Object.hasOwn(STRATEGY, primary) ? primary : '',
+    all,
+  };
+});
+
+export const quickTargetPreset = computed<Preset | undefined>(() => {
+  if (editing.value)
+    return presets.value.find((p) => p.plan.id === editingId.value);
+  if (run.value && !run.value.builtin) return run.value;
+  return myPresets.value[0];
+});
+
+export function toggleOpInQuickBuild(opName: string): {
+  status: 'added' | 'removed' | 'full' | 'created';
+  key: string;
+  planName: string;
+} {
+  if (!Object.hasOwn(OPERATOR, opName)) {
+    return {status: 'full', key: '', planName: ''};
+  }
+  const existing = quickTargetPreset.value;
+  if (existing) {
+    const target = existing.plan;
+    const index = target.ops.findIndex((slot) => slot.name === opName);
+    if (index >= 0) {
+      target.ops.splice(index, 1);
+      target.updated = Date.now();
+      return {status: 'removed', key: existing.key, planName: target.name};
+    }
+    if (target.ops.length >= MAX_OPS) {
+      return {status: 'full', key: existing.key, planName: target.name};
+    }
+    target.ops.push(newSlot(opName));
+    target.updated = Date.now();
+    return {status: 'added', key: existing.key, planName: target.name};
+  }
+  const created = blankPlan(`我的流派 ${myPresets.value.length + 1}`);
+  created.ops.push(newSlot(opName));
+  const key = addPlan(created);
+  if (!runKey.value) setRun(key);
+  return {status: 'created', key, planName: created.name};
+}
 
 /** 开发热更新时也释放模块级监听器，避免每次更新叠加存档任务。 */
 if (import.meta.hot)

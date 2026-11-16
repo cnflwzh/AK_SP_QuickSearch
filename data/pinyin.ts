@@ -275,6 +275,8 @@ export const PINYIN: PinyinIndex = {
   休露丝: 'xiu lu si',
   裁度: 'cai du',
   贾维: 'jia wei',
+  '伊比利亚 · 三本运营': 'yi bi li ya san ben yun ying',
+  '维多利亚 · 高阶坚守': 'wei duo li ya gao jie jian shou',
   '阿米娅 · 多盟约': 'a mi ya duo meng yue',
   '假想敌：胄': 'jia xiang di zhou',
   '假想敌：铳': 'jia xiang di chong',

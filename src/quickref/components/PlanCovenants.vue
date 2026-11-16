@@ -10,9 +10,17 @@ const props = withDefaults(
     stats: readonly CovenantStat[];
     layers?: Readonly<Record<string, number>>;
     compact?: boolean;
+    interactive?: boolean;
+    selected?: string;
   }>(),
-  {layers: () => ({}), compact: false},
+  {
+    layers: () => ({}),
+    compact: false,
+    interactive: false,
+    selected: '',
+  },
 );
+const emit = defineEmits<{select: [name: string]}>();
 const layerOf = (s: CovenantStat): number => props.layers[s.name] ?? 0;
 const cells = (s: CovenantStat): number =>
   Math.max(
@@ -52,7 +60,16 @@ function status(s: CovenantStat): {text: string; cls: string} {
       :key="s.name"
       :class="{on: s.active, max: s.bonusActive, off: s.broken}"
       :style="{'--c': color(s.name), '--i': i}">
-      <b class="n" :data-cv="s.name">{{ s.name }}</b>
+      <button
+        v-if="interactive"
+        type="button"
+        :class="['n', 'n-btn', {sel: selected === s.name}]"
+        :data-cv="s.name"
+        :aria-pressed="selected === s.name"
+        @click="emit('select', s.name)">
+        {{ s.name }}
+      </button>
+      <b v-else class="n" :data-cv="s.name">{{ s.name }}</b>
       <span class="pips">
         <template v-for="k in cells(s)" :key="k">
           <i :class="kind(s, k - 1)"></i>

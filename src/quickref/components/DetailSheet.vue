@@ -22,7 +22,15 @@ import {
   bonusHeadcount,
   bonusText,
 } from '../format.ts';
+import {MAX_OPS} from '../../lib/plans/index.ts';
 import {useQuickrefActions, type DetailSelection} from '../state.ts';
+import {
+  inRun,
+  quickTargetPreset,
+  runAltTargets,
+  runSlotMap,
+  toggleOpInQuickBuild,
+} from '../planStore.ts';
 import Chip from './Chip.vue';
 import PrtsLink from './PrtsLink.vue';
 import OperatorRequestButton from './OperatorRequestButton.vue';
@@ -39,6 +47,40 @@ let returnFocus: HTMLElement | null = null;
 const operator = computed(() =>
   props.selection?.kind === 'op' ? OPERATOR[props.selection.name] : undefined,
 );
+const opRunSlot = computed(() =>
+  operator.value ? runSlotMap.value.get(operator.value.name) : undefined,
+);
+const opAltTargets = computed(() =>
+  operator.value ? (runAltTargets.value.get(operator.value.name) ?? []) : [],
+);
+const inQuickBuild = computed(
+  () =>
+    !!operator.value &&
+    !!quickTargetPreset.value?.plan.ops.some(
+      (slot) => slot.name === operator.value!.name,
+    ),
+);
+const quickBuildFull = computed(
+  () =>
+    !!quickTargetPreset.value &&
+    quickTargetPreset.value.plan.ops.length >= MAX_OPS,
+);
+const quickBuildLabel = computed(() => {
+  const target = quickTargetPreset.value;
+  if (!target) return '＋ 用TA建流派';
+  if (inQuickBuild.value) return '✓ 已在流派 · 移出';
+  if (target.plan.ops.length >= MAX_OPS)
+    return `流派已满 ${MAX_OPS}/${MAX_OPS}`;
+  const shortName =
+    target.plan.name.length > 5
+      ? `${target.plan.name.slice(0, 5)}…`
+      : target.plan.name;
+  return `＋ 加入「${shortName}」`;
+});
+function onToggleQuickBuild(): void {
+  if (!operator.value) return;
+  toggleOpInQuickBuild(operator.value.name);
+}
 // 分屏优先完整展示干员自身信息，盟约效果仅在普通详情中展开。
 const showCovenantEffects = computed(
   () => !!operator.value && !props.splitView,
@@ -165,6 +207,16 @@ onBeforeUnmount(() => dialog.value?.close());
             </div>
             <div class="operator-detail-title">
               <h3 id="detail-title">{{ operator.name }}</h3>
+              <span v-if="opRunSlot" class="tag t">
+                {{ opRunSlot.core ? '★ 本局核心' : '✓ 本局主力' }}
+              </span>
+              <span
+                v-else-if="
+                  inRun.has(operator.name) === false && opAltTargets.length
+                "
+                class="tag a">
+                ⇄ 备选·替{{ opAltTargets[0] }}
+              </span>
             </div>
             <div class="row">
               <Chip
@@ -187,6 +239,18 @@ onBeforeUnmount(() => dialog.value?.close());
               class="operator-detail-actions"
               role="group"
               aria-label="干员操作">
+              <button
+                type="button"
+                :class="['operator-quick-build', {on: inQuickBuild}]"
+                :disabled="!inQuickBuild && quickBuildFull"
+                :title="
+                  quickTargetPreset
+                    ? `流派「${quickTargetPreset.plan.name}」（${quickTargetPreset.plan.ops.length}/${MAX_OPS}）`
+                    : '新建我的流派并加入这名干员'
+                "
+                @click="onToggleQuickBuild">
+                {{ quickBuildLabel }}
+              </button>
               <OperatorRequestButton :names="[operator.name]" />
               <PrtsLink :name="operator.name" />
             </div>
@@ -392,7 +456,36 @@ onBeforeUnmount(() => dialog.value?.close());
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.operator-quick-build {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px dashed var(--accent);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.operator-quick-build.on {
+  border-style: solid;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.operator-quick-build:disabled {
+  border-color: var(--line2);
+  color: var(--ink3);
+  opacity: 0.7;
+  cursor: default;
 }
 .operator-detail-actions :deep(.operator-request),
 .operator-detail-actions :deep(.prts-link) {
@@ -408,21 +501,39 @@ onBeforeUnmount(() => dialog.value?.close());
   line-height: 1.5;
 }
 @media (pointer: coarse) {
+  .operator-quick-build,
   .operator-detail-actions :deep(.operator-request),
   .operator-detail-actions :deep(.prts-link) {
-    min-height: 40px;
+    min-height: 38px;
   }
 }
-/* 窄屏将右侧操作纵向排列，留足名字和盟约标签的空间。 */
+@media (max-height: 600px) {
+  .operator-quick-build,
+  .operator-detail-actions :deep(.operator-request),
+  .operator-detail-actions :deep(.prts-link) {
+    min-height: 34px;
+  }
+}
+/* 窄屏将关闭键留在右上角，三枚操作按钮铺到底部整行，避免挤压标题或撑高头部。 */
 @media (max-width: 560px) {
+  .operator-detail-controls {
+    display: contents;
+  }
+  .operator-detail-controls .sh-x {
+    grid-column: 3;
+    grid-row: 1;
+  }
   .operator-detail-actions {
-    flex-direction: column;
-    gap: 4px;
+    grid-column: 1 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 6px;
   }
   .operator-detail-actions :deep(.operator-request),
   .operator-detail-actions :deep(.prts-link) {
     min-width: 64px;
-    padding-inline: 8px;
+    padding-inline: 10px;
   }
 }
 .detail-layer {
@@ -467,14 +578,24 @@ onBeforeUnmount(() => dialog.value?.close());
 
 /* 按左侧实际宽度调整详情布局，避免沿用整个浏览器宽度挤压两栏。 */
 @container detail-area (max-width: 560px) {
+  .operator-detail-controls {
+    display: contents;
+  }
+  .operator-detail-controls .sh-x {
+    grid-column: 3;
+    grid-row: 1;
+  }
   .operator-detail-actions {
-    flex-direction: column;
-    gap: 4px;
+    grid-column: 1 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 6px;
   }
   .operator-detail-actions :deep(.operator-request),
   .operator-detail-actions :deep(.prts-link) {
     min-width: 64px;
-    padding-inline: 8px;
+    padding-inline: 10px;
   }
   .split dialog.sheet,
   .split dialog.sheet.operator-sheet {

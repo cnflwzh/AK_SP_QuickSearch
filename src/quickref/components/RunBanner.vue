@@ -14,10 +14,12 @@ import {
 /** 本局提示条：本局打的流派和它要用的盟约；focus = 当前正在看的盟约 */
 defineProps<{focus?: string}>();
 const actions = useQuickrefActions();
-/** 这套流派终盘激活的盟约 */
-const covs = computed(() =>
-  runStats.value.filter((s) => isBannableCovenant(s.name) && s.active),
-);
+/** 优先显示终盘激活的盟约；自建尚在构筑时回退到进行中的盟约，方便直接跳去抓牌 */
+const covs = computed(() => {
+  const bannable = runStats.value.filter((s) => isBannableCovenant(s.name));
+  const active = bannable.filter((s) => s.active);
+  return active.length ? active : bannable;
+});
 </script>
 <template>
   <div v-if="run" class="runb" :style="{'--c': presetColor(run)}">
