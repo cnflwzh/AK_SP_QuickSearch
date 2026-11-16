@@ -6,9 +6,9 @@ import {
   EQUIPMENT,
   STRATEGIES,
   LEADERS,
-  BUILD_NAMES,
 } from '../../../data/index.ts';
 import {normalize, nameScore} from '../../lib/ui/match.ts';
+import {presets} from '../planStore.ts';
 import {state} from '../state.ts';
 import Chip from '../components/Chip.vue';
 import LeaderRow from '../components/LeaderRow.vue';
@@ -81,7 +81,16 @@ const results = computed(() => {
   const matchingCovenants = new Set(covenants);
   return {
     covenants,
-    builds: rankBy(BUILD_NAMES, q, (name) => name),
+    builds: rankBy(presets.value, q, (preset) => preset.plan.name, {
+      matchesRelatedName: (preset) =>
+        preset.key !== preset.plan.name && nameScore(preset.key, q) > 0,
+      descriptionOf: (preset) =>
+        preset.plan.note +
+        '|' +
+        preset.plan.strategy +
+        '|' +
+        preset.plan.ops.flatMap((o) => [o.name, ...o.alt, ...o.eq]).join('/'),
+    }).map((preset) => preset.key),
     operators: rankBy(OPERATORS, q, (operator) => operator.name, {
       matchesRelatedName: (operator) =>
         operator.covenants.some((name) => matchingCovenants.has(name)),

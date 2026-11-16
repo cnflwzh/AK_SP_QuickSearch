@@ -3,6 +3,7 @@ import {
   ALL_COVENANTS,
   EQUIP,
   EQUIPMENT,
+  OPERATOR,
   OPERATORS,
   SHARE_OPERATOR_IDS,
   STRATEGIES,
@@ -11,11 +12,14 @@ import {
 } from '../../../data/index.ts';
 import {
   BitWriter,
+  MAX_PAYLOAD,
   packSharePayload,
   readShareText,
   unpackSharePayload,
   writeShareText,
 } from './shareCodec.ts';
+import {covenantStats} from './covenants.ts';
+import {equipNotes} from './costs.ts';
 import {
   MAX_LAYERS,
   MAX_NOTE,
@@ -111,9 +115,12 @@ export function encodePlan(plan: Shared): string {
       for (const [, n] of layers) writer.write(n, width);
     }
     if (!writeShareText(writer, text, mode)) continue;
-    const candidate = packSharePayload(writer.finish(), mode, hasCore);
+    const payload = writer.finish();
+    if (payload.length > MAX_PAYLOAD) continue;
+    const candidate = packSharePayload(payload, mode, hasCore);
     if (!best || candidate.length < best.length) best = candidate;
   }
+  if (!best) throw new Error('Share data too large');
   return CODE_PREFIX + best;
 }
 
@@ -209,3 +216,108 @@ export function decodePlan(input: string): Decoded | null {
 /** 链接的 #p= 已标明用途，省去只用于识别独立分享码的 WS 前缀。 */
 export const shareUrl = (code: string): string =>
   `${location.origin}/#p=${code.slice(CODE_PREFIX.length)}`;
+
+const SHARE_STAGES: readonly (readonly [
+  label: string,
+  tiers: readonly number[],
+])[] = [
+  ['前期抓牌(1-2阶)', [1, 2]],
+  ['中期抓牌(3-4阶)', [3, 4]],
+  ['后期抓牌(5-6阶)', [5, 6]],
+];
+
+/**
+ * 将方案格式化为适合群聊分享的攻略文案（分阶抓牌、过渡备选、策略、配装与打法要点），
+ * 末尾附带可被 decodePlan 直接识别并还原方案的链接或分享码。
+ */
+export function formatPlanShareText(plan: Shared, link?: string): string {
+  const ops = cleanOps(plan.ops);
+  const layers = cleanLayers(plan.layers);
+  const title = plan.name.trim() || '自建流派';
+  const lines: string[] = [`【卫戍流派】${title}`];
+
+  const activeStats = covenantStats(ops, layers).filter((s) => s.active);
+  if (activeStats.length) {
+    const covText = activeStats
+      .map((s) => {
+        const layerCount = layers[s.name];
+        return `${s.name} ${s.count}/${s.need}${s.bonusActive ? '(强化)' : ''}${layerCount ? `·${layerCount}层` : ''}`;
+      })
+      .join(' · ');
+    lines.push(`盟约：${covText}`);
+  }
+
+  if (Object.hasOwn(STRATEGY, plan.strategy)) {
+    const st = STRATEGY[plan.strategy];
+    lines.push(`策略：${st.name}「${st.skill}」`);
+  }
+
+  const formatSlot = (slot: PlanOp): string => {
+    const tier = OPERATOR[slot.name]?.tier ?? 0;
+    const tags = [
+      `${tier}阶`,
+      ...(slot.elite ? ['精锐'] : []),
+      ...(slot.eq.length ? [slot.eq.join('/')] : []),
+    ];
+    return `${slot.core ? '★' : ''}${slot.name}(${tags.join('·')})`;
+  };
+
+  for (const [label, tiers] of SHARE_STAGES) {
+    const matched = ops.filter((slot) =>
+      tiers.includes(OPERATOR[slot.name]?.tier ?? 0),
+    );
+    if (matched.length) {
+      lines.push(`${label}：${matched.map(formatSlot).join('、')}`);
+    }
+  }
+  const otherTierOps = ops.filter(
+    (slot) =>
+      !SHARE_STAGES.some(([, tiers]) =>
+        tiers.includes(OPERATOR[slot.name]?.tier ?? 0),
+      ),
+  );
+  if (otherTierOps.length) {
+    lines.push(`其他抓牌：${otherTierOps.map(formatSlot).join('、')}`);
+  }
+
+  const altItems = ops.flatMap((slot) =>
+    slot.alt.map((alt) => {
+      const tier = OPERATOR[alt]?.tier ?? 0;
+      return `${alt}(${tier ? `${tier}阶` : ''}→替${slot.name})`;
+    }),
+  );
+  if (altItems.length) {
+    lines.push(`过渡/备选：${altItems.join('、')}`);
+  }
+
+  const notes = equipNotes(ops);
+  if (notes.length) {
+    lines.push(
+      `配装联动：${notes.map((n) => `${n.op}(${n.text})`).join('；')}`,
+    );
+  }
+
+  const noteLines = plan.note
+    .slice(0, MAX_NOTE)
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (noteLines.length === 1) {
+    lines.push(`打法要点：${noteLines[0]}`);
+  } else if (noteLines.length > 1) {
+    lines.push('打法要点：');
+    noteLines.forEach((line, index) => lines.push(`${index + 1}. ${line}`));
+  }
+
+  const code = encodePlan({
+    name: plan.name.slice(0, 16),
+    ops,
+    strategy: Object.hasOwn(STRATEGY, plan.strategy) ? plan.strategy : '',
+    note: plan.note.slice(0, MAX_NOTE),
+    layers,
+  });
+  const resolvedLink =
+    link ?? (typeof location !== 'undefined' ? shareUrl(code) : '');
+  lines.push(resolvedLink ? `导入链接：${resolvedLink}` : `分享码：${code}`);
+  return lines.join('\n');
+}

@@ -1,20 +1,26 @@
 <script setup lang="ts">
+import {computed} from 'vue';
 import NavigationLink from './NavigationLink.vue';
 import {cardLocation} from '../../router/navigation.ts';
 import {isCoreCovenant, type Strategy} from '../../../data/index.ts';
 import {portraitSrc} from '../../lib/ui/assets.ts';
 import {esc} from '../../lib/ui/dom.ts';
 import {fx, hpWidth} from '../format.ts';
+import {runStrategies} from '../planStore.ts';
 import {useQuickrefActions} from '../state.ts';
 import Chip from './Chip.vue';
-defineProps<{strategy: Strategy}>();
+const props = defineProps<{strategy: Strategy}>();
 const actions = useQuickrefActions();
+const isPrimary = computed(
+  () => runStrategies.value.primary === props.strategy.name,
+);
+const isRec = computed(() => runStrategies.value.all.has(props.strategy.name));
 </script>
 <template>
   <NavigationLink
     :to="cardLocation('st', strategy.name)"
     :activate="() => actions.openDetail('st', strategy.name)"
-    class="oc"
+    :class="['oc', {inplan: isRec}]"
     :data-key="`st:${strategy.name}`"
     style="--tc: var(--teal)"
     :data-st="strategy.name">
@@ -35,6 +41,8 @@ const actions = useQuickrefActions();
         :name="strategy.category"
         static />
       <span v-else class="tag">{{ strategy.category }}</span>
+      <span v-if="isPrimary" class="inp core">★ 本局首选</span>
+      <span v-else-if="isRec" class="inp">✓ 本局备选</span>
     </div>
     <div class="hp">
       <span>{{ strategy.hp }}</span>

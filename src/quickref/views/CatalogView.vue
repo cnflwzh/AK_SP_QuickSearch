@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed} from 'vue';
+import {computed, ref} from 'vue';
 import LiveStatus from '../../lib/ui/LiveStatus.vue';
 import {
   OPERATORS,
@@ -17,16 +17,28 @@ import {
 } from '../../../data/index.ts';
 import {updateQuery} from '../../router/navigation.ts';
 import {state} from '../state.ts';
+import {
+  inRunAny,
+  run,
+  runEquipMaterials,
+  runEquipRecommended,
+} from '../planStore.ts';
 import {useCatalogEntrance} from '../catalogEntrance.ts';
+import RunBanner from '../components/RunBanner.vue';
 import Segmented from '../components/Segmented.vue';
 import OperatorCard from '../components/OperatorCard.vue';
 import EquipmentCard from '../components/EquipmentCard.vue';
 import StrategyCard from '../components/StrategyCard.vue';
 const vEnter = useCatalogEntrance();
 defineProps<{kind: 'op' | 'eq' | 'st'}>();
+const onlyRunOps = ref(false);
+const filterToRunOps = computed(
+  () => onlyRunOps.value && !!run.value && inRunAny.value.size > 0,
+);
 const operators = computed(() =>
   OPERATORS.filter(
     (o) =>
+      (!filterToRunOps.value || inRunAny.value.has(o.name)) &&
       (!state.opTier || o.tier === state.opTier) &&
       (!state.opCovenant || o.covenants.includes(state.opCovenant)) &&
       (!state.opType || o.type === state.opType) &&
@@ -34,18 +46,37 @@ const operators = computed(() =>
   ),
 );
 const operatorFiltersActive = computed(
-  () => !!(state.opTier || state.opCovenant || state.opTrigger || state.opType),
+  () =>
+    !!(
+      filterToRunOps.value ||
+      state.opTier ||
+      state.opCovenant ||
+      state.opTrigger ||
+      state.opType
+    ),
 );
 function clearOperatorFilters(): void {
+  onlyRunOps.value = false;
   void updateQuery({tier: null, covenant: null, trigger: null, type: null});
 }
 // 组合是筛选入口，成品仍保留原来的 VI 阶，不增加重复装备。
 const COMBO_FILTER = TIERS.length + 1;
+const onlyRunEq = ref(false);
+const hasRunEquip = computed(
+  () =>
+    !!run.value &&
+    (runEquipRecommended.value.size > 0 || runEquipMaterials.value.size > 0),
+);
+const filterToRunEq = computed(() => onlyRunEq.value && hasRunEquip.value);
 const equipment = computed(() =>
-  EQUIPMENT.filter((e) =>
-    state.eqTier === COMBO_FILTER
-      ? Object.hasOwn(EQUIPMENT_RECIPES, e.name)
-      : !state.eqTier || e.tier === state.eqTier,
+  EQUIPMENT.filter(
+    (e) =>
+      (!filterToRunEq.value ||
+        runEquipRecommended.value.has(e.name) ||
+        runEquipMaterials.value.has(e.name)) &&
+      (state.eqTier === COMBO_FILTER
+        ? Object.hasOwn(EQUIPMENT_RECIPES, e.name)
+        : !state.eqTier || e.tier === state.eqTier),
   ),
 );
 const strategies = computed(() => {
@@ -72,8 +103,17 @@ const equipmentGroups = computed(() =>
 );
 </script>
 <template>
+  <RunBanner />
   <template v-if="kind === 'op'">
     <div class="bar" data-key="filters">
+      <button
+        v-if="run && inRunAny.size"
+        type="button"
+        :class="['run-filter-btn', {on: filterToRunOps}]"
+        :aria-pressed="filterToRunOps"
+        @click="onlyRunOps = !onlyRunOps">
+        本局抓牌 {{ inRunAny.size }}
+      </button>
       <Segmented
         :labels="['全部', ...TIER_LABELS.slice(1)]"
         :active="state.opTier"
@@ -131,6 +171,14 @@ const equipmentGroups = computed(() =>
   </template>
   <template v-else-if="kind === 'eq'">
     <div class="bar" data-key="filters">
+      <button
+        v-if="hasRunEquip"
+        type="button"
+        :class="['run-filter-btn', {on: filterToRunEq}]"
+        :aria-pressed="filterToRunEq"
+        @click="onlyRunEq = !onlyRunEq">
+        本局配装
+      </button>
       <Segmented
         :labels="['全部', ...TIER_LABELS.slice(1), '组合']"
         :active="state.eqTier"

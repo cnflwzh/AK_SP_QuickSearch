@@ -15,7 +15,6 @@ import {
   EQUIPMENT,
   STRATEGIES,
   LEADERS,
-  BUILD_COUNT,
   SEASON_META,
 } from '../../data/index.ts';
 import {prefersReducedMotion} from '../lib/ui/dom.ts';
@@ -42,7 +41,7 @@ import {
   updateQuery,
 } from '../router/navigation.ts';
 import {whileVisible} from '../lib/ui/visibility.ts';
-import {current as selectedPreset, flushSave} from './planStore.ts';
+import {current as selectedPreset, flushSave, presets} from './planStore.ts';
 import {lazyView} from '../lib/ui/lazyView.ts';
 import DetailSheet from './components/DetailSheet.vue';
 import PrtsPanel from './components/PrtsPanel.vue';
@@ -56,13 +55,20 @@ const TAB_META: Record<TabId, {label: string; count: number | ''}> = {
   fx: {label: '速览', count: ''},
   cv: {label: '盟约详情', count: ALL_COVENANTS.length},
   op: {label: '干员', count: OPERATORS.length},
-  bd: {label: '流派', count: BUILD_COUNT},
+  bd: {label: '流派', count: ''},
   eq: {label: '装备', count: EQUIPMENT.length},
   st: {label: '策略', count: STRATEGIES.length},
   ld: {label: '领袖', count: LEADERS.length},
   nu: {label: '小工具', count: ''},
 };
-const tabs = TAB_IDS.map((id) => ({id, ...TAB_META[id]}));
+const tabs = computed(() =>
+  TAB_IDS.map((id) => ({
+    id,
+    ...(id === 'bd'
+      ? {label: '流派', count: presets.value.length}
+      : TAB_META[id]),
+  })),
+);
 const renderedQuery = computed(() => queryText(currentRoute.value.query, 'q'));
 const query = ref(renderedQuery.value);
 const composing = ref(false);
@@ -297,8 +303,11 @@ function touchEnd(event: TouchEvent): void {
     event.timeStamp - start.at > 700
   )
     return;
+  const tabList = tabs.value;
   const next =
-    tabs[tabs.findIndex((tab) => tab.id === state.tab) + (dx < 0 ? 1 : -1)];
+    tabList[
+      tabList.findIndex((tab) => tab.id === state.tab) + (dx < 0 ? 1 : -1)
+    ];
   if (next) void show(next.id);
 }
 function keydown(event: KeyboardEvent): void {

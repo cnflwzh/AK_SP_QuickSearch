@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import {computed} from 'vue';
 import NavigationLink from './NavigationLink.vue';
 import PrtsLink from './PrtsLink.vue';
 import {cardLocation} from '../../router/navigation.ts';
@@ -6,17 +7,21 @@ import {TIER_LABELS, type Operator} from '../../../data/index.ts';
 import {avatarSrc} from '../../lib/ui/assets.ts';
 import {fx} from '../format.ts';
 import {useQuickrefActions} from '../state.ts';
-import {inRun} from '../planStore.ts';
+import {inRun, runAltTargets, runSlotMap} from '../planStore.ts';
 import Chip from './Chip.vue';
 import {useWikiPanel} from '../wikiPanel.ts';
 /** 干员目录和搜索结果通过 showWikiLink 开启同一套 Wiki 角标。 */
-defineProps<{
+const props = defineProps<{
   operator: Operator;
   showElite?: boolean;
   showWikiLink?: boolean;
 }>();
 const actions = useQuickrefActions();
 const wikiPanel = useWikiPanel();
+const runSlot = computed(() => runSlotMap.value.get(props.operator.name));
+const altTargets = computed(
+  () => runAltTargets.value.get(props.operator.name) ?? [],
+);
 </script>
 <template>
   <article
@@ -24,6 +29,7 @@ const wikiPanel = useWikiPanel();
       'oc',
       {
         inplan: inRun.has(operator.name),
+        inalt: !inRun.has(operator.name) && altTargets.length > 0,
         'wiki-selected':
           wikiPanel?.isOpen.value &&
           wikiPanel.operatorName.value === operator.name,
@@ -48,7 +54,12 @@ const wikiPanel = useWikiPanel();
           decoding="async" />
         <b>{{ operator.name }}</b>
         <i class="tn">{{ TIER_LABELS[operator.tier] }}</i>
-        <span v-if="inRun.has(operator.name)" class="inp">✓ 本局</span>
+        <span v-if="runSlot" class="inp">
+          {{ runSlot.core ? '★ 本局核心' : '✓ 本局' }}
+        </span>
+        <span v-else-if="altTargets.length" class="inp alt">
+          ⇄ 备选·替{{ altTargets[0] }}
+        </span>
       </div>
       <div class="row">
         <Chip

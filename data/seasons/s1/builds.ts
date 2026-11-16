@@ -20,6 +20,7 @@ export const S1_CORE_BUILDS: Readonly<Record<string, CoreBuild>> = {
     addons: ['投资人', '奥术', '远见'],
     strategies: ['杜遥夜', '望', '阿米娅'],
     equipment: ['炎国短刀', '瓶装烈性反应', '随身身份牌'],
+    alternatives: {余: ['拜松', '矩'], 黍: ['风絮']},
     tips: [
       '拜松、矩、风絮开 3 炎；拿仇白、黍触发获得时叠层',
       '老鲤、山、可露希尔开 3 投资人；过渡用铃兰时朝向仇白或黍',
@@ -42,6 +43,7 @@ export const S1_CORE_BUILDS: Readonly<Record<string, CoreBuild>> = {
     addons: ['迅捷', '精准', '灵巧', '奥术'],
     strategies: ['佩佩', '“变形者集群”', '娜仁图亚'],
     equipment: ['萨尔贡浓茶', '迅捷作战粮'],
+    alternatives: {森蚺: ['艾丝黛尔'], 异客: ['至简']},
     tips: [
       '艾丝黛尔、泡泡开技能叠层，至简低价过渡',
       '中期找佩佩、鸿雪叠层；浓茶与莎草补回转',
@@ -88,6 +90,7 @@ export const S1_CORE_BUILDS: Readonly<Record<string, CoreBuild>> = {
     addons: ['奥术', '灵巧', '协防干员'],
     strategies: ['休露丝', '耶拉'],
     equipment: ['谢拉格不融冰', '雪祀之衣'],
+    alternatives: {极光: ['角峰']},
     tips: [
       '先用 3 谢配治疗过渡，角峰或不融冰制造寒冷',
       '初雪、圣聆初雪按冻结叠层；凛御银灰放在叠层手身后抬高上限',
@@ -134,6 +137,7 @@ export const S1_CORE_BUILDS: Readonly<Record<string, CoreBuild>> = {
     addons: ['奇迹', '迅捷', '精准'],
     strategies: ['裁度', '贾维'],
     equipment: ['叙拉古正装', '驱逐者防暴装备'],
+    alternatives: {伺夜: ['拉普兰德'], 忍冬: ['奥斯塔']},
     tips: [
       '复奏、安洁莉娜按刷新叠层，忍冬、奥斯塔送刷新；过渡可用塞雷娅复制安洁莉娜',
       '铃兰朝向有获得时特质的干员；中期伺夜输出，后期补荒芜拉普兰德',
