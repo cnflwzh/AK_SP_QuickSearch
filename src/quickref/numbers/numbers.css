@@ -171,15 +171,20 @@
 .nt-dealer { display: grid; gap: 10px; min-width: 0; }
 .nt-dealer-bar { margin-bottom: 0; gap: 8px; }
 .nt-dealer-bar .seg { padding: 2px; }
-.nt-dealer-bar .seg button { min-height: 32px; padding: 4px 10px; }
+.nt-dealer-bar .seg button { min-height: 34px; padding: 4px 10px; }
 .nt-dealer-bar-actions { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.nt-dealer-hint-btn { min-height: 34px; padding: 4px 10px; white-space: nowrap; border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); color: var(--accent); }
+.nt-dealer-hint-btn.used { opacity: .68; }
 .nt-dealer-stat-pill { font-size: 12px; color: var(--ink2); padding: 4px 8px; border-radius: 999px; background: var(--surface2); border: 1px solid var(--line); white-space: nowrap; }
 .nt-dealer-stat-pill b { font: 600 14px var(--fn); color: var(--accent); }
 .nt-dealer-combo { font-style: normal; font-weight: 700; color: var(--red); }
+.nt-dealer-hint-count { font-style: normal; font-weight: 700; color: var(--accent); }
 
 .nt-dealer-stage { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(240px, .8fr); gap: 12px; align-items: center; }
 .nt-dealer-mission { display: grid; gap: 6px; min-width: 0; }
 .nt-dealer-mission-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.nt-dealer-kind-tag { background: color-mix(in srgb, var(--accent) 12%, var(--surface2)); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.nt-dealer-hinted-tag { background: color-mix(in srgb, var(--accent) 16%, var(--surface2)); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); }
 .nt-dealer-target-badge {
   --c: var(--teal);
   display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 5px;
@@ -225,15 +230,22 @@
   padding: 10px 7px 8px; border: 0; background: transparent; color: var(--ink); text-align: center;
 }
 .numbers-tools .nt-dealer-pick:disabled { opacity: 1; cursor: default; }
-.nt-dealer-info {
+.nt-dealer-info,
+.nt-dealer-equip-info {
   position: absolute; top: 4px; left: 4px; width: 22px; height: 22px; padding: 0;
   border: 1px solid var(--line); border-radius: 999px; background: var(--surface2);
   color: var(--ink3); font: 600 11px/1 var(--fb); display: grid; place-items: center; z-index: 1;
 }
-.nt-dealer-info:hover { border-color: var(--accent); color: var(--accent); background: var(--surface); }
+.nt-dealer-equip-info { top: 29px; font-size: 10px; color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.nt-dealer-info:hover,
+.nt-dealer-equip-info:hover { border-color: var(--accent); color: var(--accent); background: var(--surface); }
 
 .nt-dealer-pic { position: relative; width: 52px; height: 52px; flex-shrink: 0; }
 .nt-dealer-pic img { width: 100%; height: 100%; border-radius: 7px; object-fit: cover; background: var(--tc, var(--surface2)); border: 2px solid var(--tc, var(--line)); }
+.nt-dealer-card.equip .nt-dealer-pic img,
+.nt-dealer-card.bounty .nt-dealer-pic img { object-fit: contain; padding: 4px; background: var(--surface2); }
+.nt-dealer-card.strategy .nt-dealer-pic img { object-fit: cover; object-position: top center; border-color: color-mix(in srgb, #2563eb 50%, var(--line)); }
+.nt-dealer-card.bounty .nt-dealer-pic img { border-color: color-mix(in srgb, #b91c1c 50%, var(--line)); }
 .nt-dealer-card.punched .nt-dealer-pic img,
 .nt-dealer-card.calibrated .nt-dealer-pic img { filter: grayscale(.35); opacity: .78; }
 .nt-dealer-tier {
@@ -241,6 +253,9 @@
   background: var(--tc, var(--surface2)); color: #fff; font: 700 10px/1.45 var(--fn);
   box-shadow: 0 1px 2px rgba(0, 0, 0, .25);
 }
+.nt-dealer-card[data-t="0"] .nt-dealer-tier { background: var(--ink2); color: var(--surface); }
+.nt-dealer-card.strategy .nt-dealer-tier { background: #2563eb; color: #fff; }
+.nt-dealer-card.bounty .nt-dealer-tier { background: #b91c1c; color: #fff; }
 .nt-dealer-stamp {
   position: absolute; inset: auto -6px -4px; font-size: 10px; line-height: 1.4; padding: 0 4px;
   border-radius: 4px; font-weight: 700; white-space: nowrap; text-align: center;
@@ -251,6 +266,14 @@
 .nt-dealer-stamp.kept { background: color-mix(in srgb, var(--teal) 16%, var(--surface)); color: var(--teal); border: 1px solid color-mix(in srgb, var(--teal) 55%, var(--line)); }
 
 .nt-dealer-name { font-size: 13px; line-height: 1.2; margin-top: 2px; }
+.nt-dealer-equip-chip {
+  display: inline-flex; align-items: center; gap: 3px; max-width: 100%;
+  padding: 1px 6px; border-radius: 4px; font-size: 10.5px; line-height: 1.35;
+  background: color-mix(in srgb, var(--accent) 11%, var(--surface2));
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--line)); color: var(--ink);
+}
+.nt-dealer-equip-chip img { width: 14px; height: 14px; flex-shrink: 0; border-radius: 2px; object-fit: contain; }
+.nt-dealer-equip-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nt-dealer-covs { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; }
 .nt-dealer-cov {
   --c: var(--teal); font-size: 10.5px; line-height: 1.35; padding: 1px 5px; border-radius: 3px;
@@ -258,6 +281,7 @@
   background: color-mix(in srgb, var(--c) 10%, var(--surface2)); color: var(--ink2); white-space: nowrap;
 }
 .nt-dealer-cov.match { background: var(--c); color: #fff; border-color: var(--c); font-weight: 700; }
+.nt-dealer-cov.mismatch { background: color-mix(in srgb, var(--red) 11%, var(--surface2)); border-color: color-mix(in srgb, var(--red) 45%, var(--line)); color: var(--red); font-weight: 600; }
 .nt-dealer-trait {
   font-size: 11px; line-height: 1.45; color: var(--ink2); text-align: left; width: 100%;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
@@ -387,9 +411,12 @@
 @media (max-height: 600px) {
   .numbers-tools > .bar { margin-bottom: 5px; }
   .nt-dealer { gap: 5px; }
-  .nt-dealer-bar { gap: 6px; }
-  .nt-dealer-bar .seg button { min-height: 30px; padding: 2px 9px; }
-  .nt-dealer-bar .btn { min-height: 34px; padding: 4px 10px; }
+  .nt-dealer-bar { gap: 5px; }
+  .nt-dealer-bar .seg button { min-height: 34px; padding: 2px 8px; font-size: 12px; }
+  .nt-dealer-bar select { min-height: 34px; max-width: 136px; padding-left: 6px; padding-right: 20px; font-size: 12px; text-overflow: ellipsis; }
+  .nt-dealer-bar-actions { gap: 5px; }
+  .nt-dealer-stat-pill { padding: 3px 6px; font-size: 11.5px; }
+  .nt-dealer-bar .btn { min-height: 34px; padding: 4px 8px; font-size: 12px; }
   .nt-dealer-stage { padding: 5px 10px; gap: 8px; }
   .nt-dealer-mission { gap: 2px; }
   .nt-dealer-memo-main { font-size: 11.5px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -402,8 +429,12 @@
   .nt-dealer-ult { min-height: 34px; padding: 3px 8px; font-size: 12px; }
   .nt-dealer-shop { gap: 5px; }
   .nt-dealer-pick { padding: 4px 4px 3px; gap: 2px; }
+  .nt-dealer-info, .nt-dealer-equip-info { width: 20px; height: 20px; left: 3px; font-size: 10px; }
+  .nt-dealer-info { top: 3px; }
+  .nt-dealer-equip-info { top: 26px; }
   .nt-dealer-pic { width: 32px; height: 32px; }
   .nt-dealer-name { font-size: 12px; margin-top: 1px; }
+  .nt-dealer-equip-chip { font-size: 10px; padding: 1px 4px; }
   .nt-dealer-prompt { font-size: 10.5px; }
   .nt-dealer-hit-cta { padding: 1px 7px; font-size: 10.5px; }
   .nt-dealer-trait { font-size: 10.5px; line-height: 1.3; -webkit-line-clamp: 2; }

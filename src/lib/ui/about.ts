@@ -1,7 +1,7 @@
 /** Shared lazy About dialog, mounted once and disposed during HMR. */
 import { createApp } from 'vue';
 import AboutDialog from './AboutDialog.vue';
-import { ABOUT_VERSION } from '../../data/credits.ts';
+import { ABOUT_VERSION } from '../../../data/credits.ts';
 
 const STORAGE_KEY = 'wsq.about';
 const seenVersion = () => { try { return localStorage.getItem(STORAGE_KEY); } catch { return null; } };

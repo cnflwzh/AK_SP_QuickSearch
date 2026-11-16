@@ -1,8 +1,9 @@
 import type {
   DealerGrade,
   DealerPosterModel,
+  HintBadgeTone,
   VerdictTone,
-} from '../../lib/dealerGame.ts';
+} from '../../lib/dealer/index.ts';
 
 const POSTER_W = 760;
 const POSTER_H = 520;
@@ -35,6 +36,14 @@ const GRADE_STYLE: Readonly<
   S: {bg: '#e8f5f3', border: '#0f766c', fg: '#0f766c'},
   A: {bg: '#ebf7ef', border: '#2d8a4b', fg: '#2d8a4b'},
   B: {bg: '#eef3f2', border: '#7a8b88', fg: '#465a57'},
+};
+
+const HINT_BADGE_STYLE: Readonly<
+  Record<HintBadgeTone, {bg: string; border: string; fg: string}>
+> = {
+  blind: {bg: '#e8f5f3', border: '#8ecbc3', fg: '#0f766c'},
+  hinted: {bg: '#fff1e6', border: '#d96b27', fg: '#b54708'},
+  assist: {bg: '#fdf4e3', border: '#e2b76b', fg: '#b46a07'},
 };
 
 const VERDICT_STYLE: Readonly<
@@ -238,9 +247,13 @@ function drawHeroAndDealerPanel(
   const stampX = px + pw - stampW - 16;
   const stampY = py + 12;
 
-  // 左上方眉题胶囊行
+  // 左上方眉题胶囊行（动态测量宽度并安全避让右上角评级印章）
+  const pillGap = 6;
+  let cursorX = innerLeft;
+  const maxPillsRight = stampX - 10;
+
   const badgeW = drawPill(ctx, {
-    x: innerLeft,
+    x: cursorX,
     y: py + 12,
     h: 22,
     text: model.badgeText,
@@ -248,11 +261,12 @@ function drawHeroAndDealerPanel(
     border: '#8ecbc3',
     fg: TEAL,
     font: `600 11px ${FONT_SANS}`,
-    padX: 9,
+    padX: 8,
   });
+  cursorX += badgeW + pillGap;
 
   const modeW = drawPill(ctx, {
-    x: innerLeft + badgeW + 7,
+    x: cursorX,
     y: py + 12,
     h: 22,
     text: model.modeLabel,
@@ -260,20 +274,42 @@ function drawHeroAndDealerPanel(
     border: '#e5c17e',
     fg: ACCENT,
     font: `700 11px ${FONT_SANS}`,
-    padX: 9,
+    padX: 8,
   });
+  cursorX += modeW + pillGap;
 
-  drawPill(ctx, {
-    x: innerLeft + badgeW + 7 + modeW + 7,
+  const hintStyle = HINT_BADGE_STYLE[model.hintBadge.tone];
+  const hintW = drawPill(ctx, {
+    x: cursorX,
     y: py + 12,
     h: 22,
-    text: model.spoilerNotice,
-    bg: '#ebf7ef',
-    border: '#9bd2ad',
-    fg: '#1f7040',
-    font: `600 11px ${FONT_SANS}`,
-    padX: 9,
+    text: model.hintBadge.text,
+    bg: hintStyle.bg,
+    border: hintStyle.border,
+    fg: hintStyle.fg,
+    font: `700 11px ${FONT_SANS}`,
+    padX: 8,
   });
+  cursorX += hintW + pillGap;
+
+  const spoilerAvailW = maxPillsRight - cursorX;
+  if (spoilerAvailW >= 54) {
+    const spoilerFont = `600 11px ${FONT_SANS}`;
+    ctx.font = spoilerFont;
+    const naturalW = Math.ceil(ctx.measureText(model.spoilerNotice).width + 16);
+    drawPill(ctx, {
+      x: cursorX,
+      y: py + 12,
+      h: 22,
+      text: model.spoilerNotice,
+      bg: '#ebf7ef',
+      border: '#9bd2ad',
+      fg: '#1f7040',
+      font: spoilerFont,
+      padX: 8,
+      fixedWidth: naturalW > spoilerAvailW ? spoilerAvailW : undefined,
+    });
+  }
 
   // 主称号与副标题
   const maxTitleW = stampX - 16 - innerLeft;
@@ -286,7 +322,7 @@ function drawHeroAndDealerPanel(
   ctx.fillStyle = INK2;
   ctx.fillText(fitText(ctx, model.rank.subtitle, maxTitleW), innerLeft, py + 84);
 
-  // 右上角质检评级印章
+  // 右上角痛扁评级印章
   const gs = GRADE_STYLE[model.grade];
   fillRoundedBox(ctx, stampX, stampY, stampW, stampH, 9, gs.bg, gs.border, 1.4);
   ctx.save();
@@ -300,7 +336,7 @@ function drawHeroAndDealerPanel(
   ctx.textAlign = 'center';
   ctx.font = `600 10px ${FONT_SANS}`;
   ctx.fillStyle = INK2;
-  ctx.fillText('质检评级', stampX + stampW / 2, stampY + 18);
+  ctx.fillText('痛扁评级', stampX + stampW / 2, stampY + 18);
 
   ctx.font = `700 31px ${FONT_NUM}`;
   ctx.fillStyle = gs.fg;
@@ -487,11 +523,37 @@ function drawVerdictCards(
     ctx.font = `700 15px ${FONT_SANS}`;
     ctx.fillStyle = style.titleFg;
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText(fitText(ctx, verdict.title, cardW - 14), centerX, topY + 119);
+    ctx.fillText(fitText(ctx, verdict.title, cardW - 14), centerX, topY + 117);
 
-    ctx.font = `500 11.5px ${FONT_SANS}`;
-    ctx.fillStyle = style.detailFg;
-    ctx.fillText(fitText(ctx, verdict.detail, cardW - 14), centerX, topY + 141);
+    if (verdict.usedHint) {
+      fillRoundedBox(
+        ctx,
+        cx + 8,
+        topY + 126,
+        cardW - 16,
+        21,
+        4,
+        '#fff1e6',
+        '#d96b27',
+        0.9,
+      );
+      ctx.font = `700 10.5px ${FONT_SANS}`;
+      ctx.fillStyle = '#b54708';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(
+        fitText(ctx, verdict.detail, cardW - 22),
+        centerX,
+        topY + 137,
+      );
+    } else {
+      ctx.font = `500 11.5px ${FONT_SANS}`;
+      ctx.fillStyle = style.detailFg;
+      ctx.fillText(
+        fitText(ctx, verdict.detail, cardW - 14),
+        centerX,
+        topY + 141,
+      );
+    }
     ctx.textAlign = 'left';
   });
 }

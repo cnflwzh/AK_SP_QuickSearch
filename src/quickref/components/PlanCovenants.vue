@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { CovenantStat } from '../../lib/planner.ts';
+import type { CovenantStat } from '../../lib/plans/index.ts';
 import { color } from '../format.ts';
 /**
  * 盟约进度条：每格一名干员，竖线标出激活 / 强化门槛。

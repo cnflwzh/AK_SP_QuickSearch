@@ -2,7 +2,7 @@
 import {
   CORE_BUILDS, MIXED_BUILDS, COVENANTS, OPERATOR, TIERS, TIER_LABELS, rosterOf, lineupCovenantCount,
 } from '../../../data/index';
-import { html, range } from '../../lib/dom';
+import { html, range } from '../../lib/ui/dom';
 import { op, eq, st, cv, avatar, color } from '../chips';
 
 function sparkline(name: string) {

@@ -1,5 +1,5 @@
-import type { EnemyMovement, LeaderBattlefield, MapPos } from '../../data/types.ts';
-import { LEADER_BATTLEFIELDS } from '../../data/leader-movement.ts';
+import type { EnemyMovement, LeaderBattlefield, MapPos } from '../../../data/types.ts';
+import { LEADER_BATTLEFIELDS } from '../../../data/leader-movement.ts';
 
 type Wall = { left: number; right: number; top: number; bottom: number };
 type Edge = { to: number; distance: number };

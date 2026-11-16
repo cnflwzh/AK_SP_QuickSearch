@@ -1,5 +1,5 @@
 import { LEADERS, BOUNTIES, DECISION_ROUNDS } from '../../../data/index';
-import { html, range, wan } from '../../lib/dom';
+import { html, range, wan } from '../../lib/ui/dom';
 /** Format the joint-defense SVG; omit moving dots when reduced motion is requested. */
 export function jointDefense(prefersReducedMotion: boolean) {
  const out: Record<string, string> = {};

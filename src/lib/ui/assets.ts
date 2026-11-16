@@ -1,5 +1,5 @@
 /** 图片资源路径。名称查不到时返回空字符串，调用方据此省略 <img> */
-import { OPERATOR, EQUIP, STRATEGY, LEADER } from '../../data/index.ts';
+import { OPERATOR, EQUIP, STRATEGY, LEADER } from '../../../data/index.ts';
 
 const IMG = '/assets/img';
 

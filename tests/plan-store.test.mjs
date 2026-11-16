@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { nextTick } from 'vue';
-import { blankPlan } from '../src/lib/planner.ts';
+import { blankPlan } from '../src/lib/plans/index.ts';
 import { STRATEGIES } from '../data/index.ts';
 
 test('preset storage retains configured drafts, flushes on exit and follows cross-page selection', async () => {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted } from 'vue';
-import { whileVisible } from '../../lib/visibility';
+import { whileVisible } from '../../lib/ui/visibility';
 import { jointDefense } from '../chapters/enemiesView';
 import Markup from './Markup';
 // Keep the same SVG nodes so whileVisible can resume animation if the OS preference changes.

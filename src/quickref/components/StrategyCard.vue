@@ -2,8 +2,8 @@
 import NavigationLink from './NavigationLink.vue';
 import {cardLocation} from '../../router/navigation.ts';
 import {isCoreCovenant, type Strategy} from '../../../data/index.ts';
-import {portraitSrc} from '../../lib/assets.ts';
-import {esc} from '../../lib/dom.ts';
+import {portraitSrc} from '../../lib/ui/assets.ts';
+import {esc} from '../../lib/ui/dom.ts';
 import {fx, hpWidth} from '../format.ts';
 import {useQuickrefActions} from '../state.ts';
 import Chip from './Chip.vue';

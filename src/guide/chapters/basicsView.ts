@@ -2,7 +2,7 @@
 import {
   DIFFICULTIES, MODES, DECISION_ROUNDS, SOLO_LEVELS, ROUND_TIME, CREDIT,
 } from '../../../data/index';
-import { html } from '../../lib/dom';
+import { html } from '../../lib/ui/dom';
 import { cv } from '../chips';
 
 function difficulty(out: Record<string, string>) {

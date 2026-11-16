@@ -9,8 +9,8 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { BUILD_NAMES, CORE_BUILDS, ALL_COVENANTS } from '../../data/index.ts';
 import { color } from './format.ts';
-import { blankPlan, builtinPlan, covenantStats, loadPlans, newId, samePlan, savePlans, type CovenantStat, type Plan } from '../lib/planner.ts';
-import { mergePlanBackup, type PlanBackupMerge } from '../lib/planBackup.ts';
+import { blankPlan, builtinPlan, covenantStats, loadPlans, newId, samePlan, savePlans, type CovenantStat, type Plan } from '../lib/plans/index.ts';
+import { mergePlanBackup, type PlanBackupMerge } from '../lib/plans/backup.ts';
 // The route adapter selects a preset; this store does not depend on the browser router.
 const selectedPresetKey = ref(BUILD_NAMES[0]);
 

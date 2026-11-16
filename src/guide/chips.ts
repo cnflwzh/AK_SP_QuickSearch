@@ -2,7 +2,7 @@
  * 教程页的小组件。与速查页不同，这里的芯片只是展示用的 <span>，不可点击。
  */
 import { OPERATOR, EQUIP, STRATEGY, TIER_LABELS, covenantColor } from '../../data/index';
-import { avatarSrc, equipIconSrc, portraitSrc, img } from '../lib/assets';
+import { avatarSrc, equipIconSrc, portraitSrc, img } from '../lib/ui/assets';
 
 /** 盟约色；附加盟约统一用强调色 */
 export const color = (name: string) => covenantColor(name, 'var(--accent)');

@@ -14,7 +14,7 @@ import {
   readShareText,
   unpackSharePayload,
   writeShareText,
-} from '../shareCodec.ts';
+} from './shareCodec.ts';
 import {
   MAX_LAYERS,
   MAX_NOTE,

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { OPERATOR, TIER_LABELS } from '../../../data/index.ts';
-import { avatarSrc, equipIconSrc } from '../../lib/assets.ts';
-import type { OwnedEquipment } from '../../lib/runAdvisor.ts';
+import { avatarSrc, equipIconSrc } from '../../lib/ui/assets.ts';
+import type { OwnedEquipment } from '../../lib/recommendation/live/runAdvisor.ts';
 
 withDefaults(defineProps<{
   name?: string;

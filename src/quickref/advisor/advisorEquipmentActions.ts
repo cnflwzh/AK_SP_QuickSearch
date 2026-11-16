@@ -1,5 +1,5 @@
 import { EQUIPMENT } from '../../../data/index.ts';
-import { MAX_EQ } from '../../lib/planner.ts';
+import { MAX_EQ } from '../../lib/plans/index.ts';
 import { MAX_RECORDED_EQUIPMENT } from '../../lib/recommendation/live/advisorState.ts';
 import { type AdvisorRun } from '../../lib/recommendation/live/advisorTypes.ts';
 import { type AdvisorChange } from './advisorSession.ts';

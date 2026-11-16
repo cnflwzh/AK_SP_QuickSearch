@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
-import { whileVisible } from '../../lib/visibility';
+import { whileVisible } from '../../lib/ui/visibility';
 
 interface Enemy { x: number; willDie: boolean; dieAt: number; dot: SVGCircleElement; state: 'alive' | 'killed' | 'leaked' }
 const svg = ref<SVGSVGElement>();

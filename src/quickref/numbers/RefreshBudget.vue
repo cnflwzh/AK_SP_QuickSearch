@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import type { Operator } from '../../../data/types.ts';
 import { operatorPrice } from '../../../data/rules.ts';
-import { refreshBudget } from '../../lib/numberTools.ts';
+import { refreshBudget } from '../../lib/numbers/numberTools.ts';
 import NumberInput from './NumberInput.vue';
 
 const props = defineProps<{ level: number; target?: Operator }>();

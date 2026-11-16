@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { OPERATORS, OPERATOR } from '../data/index.ts';
-import { covenantStats, createLineupEvaluator, newSlot, suggestions } from '../src/lib/planner.ts';
-import { createRecruitmentPool, newAdvisorRun, recommendRecruits, runLineupGoal, sanitizeAdvisorRun } from '../src/lib/runAdvisor.ts';
+import { covenantStats, createLineupEvaluator, newSlot, suggestions } from '../src/lib/plans/index.ts';
+import { createRecruitmentPool, newAdvisorRun, recommendRecruits, runLineupGoal, sanitizeAdvisorRun } from '../src/lib/recommendation/live/runAdvisor.ts';
 
 const owned = (name, deployed = true) => ({ name, deployed, copies: 1, elite: false });
 const runWith = (names, extra = {}) => ({ ...newAdvisorRun(), format: 'standard', level: 6, operators: names.map(name => owned(name)), ...extra });
@@ -186,7 +186,7 @@ test('guaranteed equipment acquisition preserves quantity and exact name, not ra
 });
 
 test('already owned reserve deployment is independent from acquisition and budget', async () => {
-  const { recommendDeployments } = await import('../src/lib/runAdvisor.ts');
+  const { recommendDeployments } = await import('../src/lib/recommendation/live/runAdvisor.ts');
   const run = runWith(['拜松', '风絮'], { funds: 0 });
   run.operators.push(owned('矩', false));
   const old = structuredClone(run);
@@ -219,7 +219,7 @@ test('score explanation sums to total while affordability is a separate gate', (
 });
 
 test('full-roster suggestions remain finite, deterministic and do not mutate inputs', async () => {
-  const { recommendDeployments } = await import('../src/lib/runAdvisor.ts');
+  const { recommendDeployments } = await import('../src/lib/recommendation/live/runAdvisor.ts');
   const run = runWith(['拜松', '矩', '风絮', '山', '仇白', '夜莺', '焰尾', '寒檀'], { round: 9, funds: 2, layers: { 炎: 70, 远见: 80 } });
   run.operators.push(owned('逻各斯', false), { ...owned('涤火杰西卡', false), elite: true });
   run.equipment = [{ id: 'one', name: '维式重锤', holder: '涤火杰西卡', advanced: false }];
@@ -244,7 +244,7 @@ test('full-roster suggestions remain finite, deterministic and do not mutate inp
 });
 
 test('verified restricted mode excludes its static pool and disabled covenant effects', async () => {
-  const { effectiveBans } = await import('../src/lib/runAdvisor.ts');
+  const { effectiveBans } = await import('../src/lib/recommendation/live/runAdvisor.ts');
   const run = runWith([], { mode: 'restricted', shop: ['焰尾', '逻各斯'] });
   const available = createRecruitmentPool(run);
   assert.equal(available('焰尾'), false); // 卡西米尔
@@ -477,7 +477,7 @@ test('a restricted-pool rejection leaves owned gear and the preceding undo snaps
 });
 
 test('pool bans distinguish a missing core from all missing native addons', async () => {
-  const { isBanned } = await import('../src/lib/planner.ts');
+  const { isBanned } = await import('../src/lib/plans/index.ts');
   assert.equal(isBanned('承曦格雷伊', new Set(['灵巧'])), false);
   assert.equal(isBanned('承曦格雷伊', new Set(['灵巧', '精准'])), true);
   assert.equal(isBanned('史尔特尔', new Set(['突袭'])), false);
@@ -538,7 +538,7 @@ test('deterministic rest producers cross a shared threshold jointly and award it
 });
 
 test('reserve promotion values the new deployment option without charging for an already free one', async () => {
-  const { recommendDeployments } = await import('../src/lib/runAdvisor.ts');
+  const { recommendDeployments } = await import('../src/lib/recommendation/live/runAdvisor.ts');
   const run = runWith(['拜松'], { mainCovenant: 'mixed', shop: ['矩'] });
   run.operators[0].elite = true;
   run.operators.push({ ...owned('矩', false), copies: 2 });
@@ -601,7 +601,7 @@ test('Sussurro selects a roster-aware one-trigger target rather than multiplying
 });
 
 test('free deployment considers replacing a solo member even when field slots are empty', async () => {
-  const { recommendDeployments } = await import('../src/lib/runAdvisor.ts');
+  const { recommendDeployments } = await import('../src/lib/recommendation/live/runAdvisor.ts');
   const run = runWith(['艾丝黛尔'], { mainCovenant: 'mixed', operators: [
     owned('艾丝黛尔'), { ...owned('地灵', false), elite: true },
   ] });
@@ -822,7 +822,7 @@ test('all saved routes guide equal-value choices without replacing rules, funds 
   const conflict = recommendRecruits(run, 5, [route, secondRoute]);
   assert.equal(conflict.find(item => item.operator.name === '夕').preferenceScore, conflict.find(item => item.operator.name === '风絮').preferenceScore);
   const { createAdvisorPreferenceEvaluator } = await import('../src/lib/recommendation/live/advisorPreferences.ts');
-  const { builtinPlan } = await import('../src/lib/planner.ts');
+  const { builtinPlan } = await import('../src/lib/plans/index.ts');
   const alternate = saved('可替换位置', ['拜松', '矩']);
   alternate.ops[0].alt = ['风絮'];
   const context = { field: [newSlot('拜松')], reserve: [], mainCovenant: '', strategy: '' };

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ALL_COVENANTS, OPERATORS, OPERATOR } from '../data/index.ts';
-import { banReplace, builtinPlan, covenantStats, isBanned, newSlot, suggestions } from '../src/lib/planner.ts';
+import { banReplace, builtinPlan, covenantStats, isBanned, newSlot, suggestions } from '../src/lib/plans/index.ts';
 
 test('manual choices are reserved before automatic choices for earlier slots', () => {
   const ops = builtinPlan('炎').ops, bans = ['炎'];

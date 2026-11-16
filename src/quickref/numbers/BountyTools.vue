@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, toRefs } from 'vue';
-import LiveStatus from '../../lib/LiveStatus.vue';
+import LiveStatus from '../../lib/ui/LiveStatus.vue';
 import { BOUNTIES } from '../../../data/rules.ts';
-import { enemyIconSrc } from '../../lib/assets.ts';
-import { nameScore, normalize } from '../../lib/match.ts';
+import { enemyIconSrc } from '../../lib/ui/assets.ts';
+import { nameScore, normalize } from '../../lib/ui/match.ts';
 import Segmented from '../components/Segmented.vue';
 import { useNumberToolsState } from './useNumberToolsState.ts';
 

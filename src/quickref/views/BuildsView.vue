@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { CORE_BUILDS, COVENANTS, OPERATOR, EQUIP, STRATEGY, buildByName, type Operator } from '../../../data/index.ts';
-import { round1 } from '../../lib/dom.ts';
-import { avatarSrc } from '../../lib/assets.ts';
+import { round1 } from '../../lib/ui/dom.ts';
+import { avatarSrc } from '../../lib/ui/assets.ts';
 import { banReplace } from '../../lib/recommendation/index.ts';
-import { atLayers, blankPlan, covenantStats, decodePlan, type Decoded } from '../../lib/planner.ts';
+import { atLayers, blankPlan, covenantStats, decodePlan, type Decoded } from '../../lib/plans/index.ts';
 import { useQuickrefActions } from '../state.ts';
 import {
   presetOf, presets, current, editing, runKey, runBans, saveError, presetColor, selectPreset, newPreset, copyPreset, removePreset, restorePreset,
@@ -20,7 +20,7 @@ import OperatorRequestButton from '../components/OperatorRequestButton.vue';
  * 流派：内置流派和我的流派都是预设。默认只读查看，局内扫一眼；点「编辑」进入规划器。
  * 「本局打这套」把它设为本局流派，盟约 / 效果 / 干员页随之高亮。
  */
-import { lazyView } from '../../lib/lazyView.ts';
+import { lazyView } from '../../lib/ui/lazyView.ts';
 import { currentRoute, routeQuery, updateQuery, navigate, buildLocation } from '../../router/navigation.ts';
 import { buildKey } from '../../router/entities.ts';
 import { queryText } from '../../router/location.ts';

@@ -1,4 +1,4 @@
-import { settleInitialFonts } from './lib/fonts.ts';
+import { settleInitialFonts } from './lib/runtime/fonts.ts';
 
 /** Mount content and controls first; visited-only offline caching starts after first paint. */
 const screen = document.getElementById('load-screen');
@@ -21,7 +21,7 @@ try {
     const unmount = await mountQuickref();
     import.meta.hot?.dispose(unmount);
   }
-  const { initPeek } = await import('./lib/peek.ts');
+  const { initPeek } = await import('./lib/ui/peek.ts');
   const disposePeek = initPeek();
   import.meta.hot?.dispose(disposePeek);
   await settleInitialFonts();
@@ -33,13 +33,13 @@ try {
   await painted();
   // 统计下载独立于启动流程，网络不可达时也不影响速查和教程使用。
   if (import.meta.env.PROD && import.meta.env.VITE_GA_MEASUREMENT_ID?.trim()) {
-    import('./lib/analytics.ts').then(module => module.initializeAnalytics()).catch(() => {});
+    import('./lib/runtime/analytics.ts').then(module => module.initializeAnalytics()).catch(() => {});
   }
-  import('./lib/about.ts').then(module => {
+  import('./lib/ui/about.ts').then(module => {
     const dispose = module.initAbout();
     import.meta.hot?.dispose(dispose);
   }).catch(() => {});
-  import('./lib/deferred.ts').then(module => module.loadDeferredAssets()).catch(() => {});
+  import('./lib/runtime/deferred.ts').then(module => module.loadDeferredAssets()).catch(() => {});
 } catch (error) {
   clearTimeout(slow);
   if (screen) screen.dataset.state = 'error';

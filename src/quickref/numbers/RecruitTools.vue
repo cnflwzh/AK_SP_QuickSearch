@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, toRefs } from 'vue';
-import LiveStatus from '../../lib/LiveStatus.vue';
+import LiveStatus from '../../lib/ui/LiveStatus.vue';
 import { OPERATORS } from '../../../data/operators.ts';
 import { DISPATCH_BY_MODE, DISPATCH_MODES, operatorPrice, TIER_LABELS } from '../../../data/rules.ts';
 import { SHOP_MODE_IDS } from '../../../data/numberTools.ts';
 import type { Operator } from '../../../data/types.ts';
-import { avatarSrc } from '../../lib/assets.ts';
-import { nameScore, normalize } from '../../lib/match.ts';
-import { synthesisTier } from '../../lib/numberTools.ts';
+import { avatarSrc } from '../../lib/ui/assets.ts';
+import { nameScore, normalize } from '../../lib/ui/match.ts';
+import { synthesisTier } from '../../lib/numbers/numberTools.ts';
 import { cardLocation } from '../../router/navigation.ts';
 import { useQuickrefActions } from '../state.ts';
 import NavigationLink from '../components/NavigationLink.vue';
