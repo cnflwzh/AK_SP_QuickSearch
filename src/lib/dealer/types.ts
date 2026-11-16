@@ -1,4 +1,9 @@
-import type {Bounty, Equipment, Operator, Strategy} from '../../../data/types.ts';
+import type {
+  Bounty,
+  Equipment,
+  Operator,
+  Strategy,
+} from '../../../data/index.ts';
 
 export const DEALER_SHOP_SIZE = 5;
 export const DAILY_ROUND_COUNT = 5;
@@ -20,25 +25,15 @@ export type EquipChallengeTheme =
   | 'combo_recipe'
   | 'price_thrift';
 export type TriggerChallengeTheme =
-  | 'on_acquire'
-  | 'rest_end'
-  | 'prep_type'
-  | 'in_battle_stack';
+  'on_acquire' | 'rest_end' | 'prep_type' | 'in_battle_stack';
 export type TierCheckTheme = 'low_shop_3' | 'high_core_56' | 'high_equip_56';
 export type StrategyChallengeTheme =
-  | 'faction_exclusive'
-  | 'active_command'
-  | 'stack_focus'
-  | 'high_hp';
+  'faction_exclusive' | 'active_command' | 'stack_focus' | 'high_hp';
 export type BountyChallengeTheme = 'big_bounty' | 'safe_bounty';
 export type HintLevel = 'blind' | 'clue' | 'open';
 export type HintBadgeTone = 'blind' | 'hinted' | 'assist';
 export type CardStatus =
-  | 'unseen'
-  | 'punched'
-  | 'shielded'
-  | 'calibrated'
-  | 'kept';
+  'unseen' | 'punched' | 'shielded' | 'calibrated' | 'kept';
 export type MatrixCell = '👊' | '⚡' | '🟩' | '💥';
 
 export interface TraitSegment {

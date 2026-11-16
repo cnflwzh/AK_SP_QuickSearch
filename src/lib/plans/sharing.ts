@@ -4,6 +4,7 @@ import {
   EQUIP,
   EQUIPMENT,
   OPERATORS,
+  SHARE_OPERATOR_IDS,
   STRATEGIES,
   STRATEGY,
   type Operator,
@@ -38,24 +39,15 @@ export type Shared = Pick<
   'name' | 'ops' | 'strategy' | 'note' | 'layers'
 >;
 
-// 短编号使用固定 char_ID 表，干员在展示列表中换位置不会改变分享码含义。
-const SHARE_OP_IDS = [
-  2, 113, 127, 129, 135, 140, 143, 150, 171, 174, 179, 180, 183, 185, 188, 193,
-  194, 195, 199, 202, 206, 218, 219, 237, 249, 258, 263, 264, 274, 291, 293,
-  322, 325, 328, 332, 333, 337, 341, 346, 347, 350, 355, 358, 367, 381, 391,
-  400, 416, 420, 422, 423, 426, 427, 430, 437, 455, 469, 472, 474, 484, 485,
-  488, 492, 496, 499, 616, 1012, 1014, 1016, 1019, 1023, 1027, 1031, 1034, 1036,
-  1038, 1039, 1040, 1042, 1045, 1046, 1047, 1051, 2015, 2025, 2026, 4009, 4010,
-  4013, 4016, 4026, 4027, 4031, 4037, 4041, 4042, 4046, 4047, 4054, 4055, 4058,
-  4064, 4065, 4066, 4072, 4082, 4088, 4098, 4114, 4116, 4133, 4134, 4137, 4139,
-  4145, 4146, 4147, 4151, 4162, 4163, 4165, 4166, 4177, 4179, 4193, 4198, 4202,
-  4203, 4204, 4207, 4211, 4221, 4222, 4224, 4226, 4228, 4230, 4231, 4232, 4244,
-  4245, 4247,
-];
+// 短编号优先使用赛季固定 char_ID 表，新增干员追加在表尾，避免既有分享码位次漂移。
 const opId = (op: Operator): number =>
   +(op.avatar.match(/^char_(\d+)_/)?.[1] ?? 0);
 const OP_BY_ID = new Map(OPERATORS.map((op) => [opId(op), op]));
-const OP_BY_NO = SHARE_OP_IDS.map((id) => OP_BY_ID.get(id));
+const KNOWN_SHARE_IDS = new Set(SHARE_OPERATOR_IDS);
+const OP_BY_NO = [
+  ...SHARE_OPERATOR_IDS.map((id) => OP_BY_ID.get(id)),
+  ...OPERATORS.filter((op) => !KNOWN_SHARE_IDS.has(opId(op))),
+];
 const OP_NO = new Map(
   OP_BY_NO.flatMap((op, i) => (op ? [[op.name, i] as const] : [])),
 );
@@ -136,7 +128,7 @@ export function decodePlan(input: string): Decoded | null {
     link?.[1] ?? input.match(/(?:^|[^A-Za-z0-9_-])WS([A-Za-z0-9_-]+)/)?.[1];
   if (!token) return null;
   try {
-    const { reader, mode, hasCore } = unpackSharePayload(token);
+    const {reader, mode, hasCore} = unpackSharePayload(token);
     const count = reader.read(4),
       strategyNo = reader.read(6),
       nameLength = reader.read(5),
@@ -174,7 +166,7 @@ export function decodePlan(input: string): Decoded | null {
         if (candidate === name || alt.includes(candidate)) return null;
         alt.push(candidate);
       }
-      ops.push({ name, elite, core, eq, alt });
+      ops.push({name, elite, core, eq, alt});
     }
     const layers: Layers = {};
     if (reader.read(1)) {

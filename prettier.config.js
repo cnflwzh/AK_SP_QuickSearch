@@ -6,5 +6,7 @@ export default {
   trailingComma: 'all',
   bracketSpacing: false,
   endOfLine: 'lf',
-  htmlWhitespaceSensitivity: 'strict',
+  // Vue 模板按结构换行，避免把 > 移到下一行内容前面。
+  htmlWhitespaceSensitivity: 'ignore',
+  bracketSameLine: true,
 };

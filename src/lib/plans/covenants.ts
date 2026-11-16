@@ -4,10 +4,13 @@ import {
   COVENANTS,
   EQUIP,
   OPERATOR,
+  RESERVE_COVENANTS,
   isCoreCovenant,
 } from '../../../data/index.ts';
-import { type Layers, type PlanOp } from './model.ts';
-const ISOMORPH = '变形同构体';
+import {type Layers, type PlanOp} from './model.ts';
+
+export {RESERVE_COVENANTS} from '../../../data/index.ts';
+
 export interface CovenantStat {
   name: string;
   core: boolean;
@@ -40,26 +43,21 @@ export function covenantsOf(slot: PlanOp): {
   granted: string[];
 } {
   const own = OPERATOR[slot.name]?.covenants ?? [];
-  const granted = slot.eq.includes(ISOMORPH)
+  const hasCompanion = slot.eq.some(
+    (eqName) => EQUIP[eqName]?.mechanics?.grantsCompanionCovenant,
+  );
+  const granted = hasCompanion
     ? slot.eq
         .map((name) => EQUIP[name]?.covenant)
         .filter((c): c is string => !!c && !own.includes(c))
     : [];
-  return { own, granted: [...new Set(granted)] };
+  return {own, granted: [...new Set(granted)]};
 }
 
 export const bonusNeedOf = (bonus: string): number =>
   +(bonus.match(/^(\d+)名(?!精锐)/)?.[1] ?? 0);
 export const bonusLayersOf = (bonus: string): number =>
   +(bonus.match(/(\d+)层/)?.[1] ?? 0);
-
-/** 效果或强化条件里出现“层”的盟约，才需要填层数 */
-/** 这些经济盟约按场上与整备区的不同干员合计，其余盟约只数场上。 */
-export const RESERVE_COVENANTS: ReadonlySet<string> = new Set([
-  '远见',
-  '奇迹',
-  '投资人',
-]);
 
 /** 返回场上盟约状态；reserve 只为允许整备区计数的经济盟约提供人数。 */
 export function covenantStats(
@@ -71,14 +69,14 @@ export function covenantStats(
   const members = new Map<string, Set<string>>(),
     granted = new Map<string, Set<string>>();
   for (const slot of ops) {
-    const { own, granted: extra } = covenantsOf(slot);
+    const {own, granted: extra} = covenantsOf(slot);
     for (const c of [...own, ...extra])
       (members.get(c) ?? members.set(c, new Set()).get(c)!).add(slot.name);
     for (const c of extra)
       (granted.get(c) ?? granted.set(c, new Set()).get(c)!).add(slot.name);
   }
   for (const slot of reserve) {
-    const { own, granted: extra } = covenantsOf(slot);
+    const {own, granted: extra} = covenantsOf(slot);
     for (const c of [...own, ...extra].filter((name) =>
       RESERVE_COVENANTS.has(name),
     )) {
@@ -87,27 +85,45 @@ export function covenantStats(
         (granted.get(c) ?? granted.set(c, new Set()).get(c)!).add(slot.name);
     }
   }
-  // 绝技按全场精锐计数，不依赖干员原有盟约；数据表里没有原生绝技干员。
+  // 按全场精锐计数的盟约不依赖干员原有盟约，从已部署精锐干员汇总。
   const eliteMembers = new Set(ops.filter((o) => o.elite).map((o) => o.name));
-  if (eliteMembers.size) members.set('绝技', eliteMembers);
-  const harmony = members.has('调和') && !inactive.has('调和');
   const elites = eliteMembers.size;
+  if (elites) {
+    for (const name of ALL_COVENANTS) {
+      if (COVENANTS[name].mechanics?.countMode !== 'fieldElites') continue;
+      const set = members.get(name) ?? new Set<string>();
+      for (const opName of eliteMembers) set.add(opName);
+      members.set(name, set);
+    }
+  }
+  // 人数加成仅来自自身已激活的盟约，避免未满足门槛时提前生效。
+  const coreBonus = ALL_COVENANTS.reduce((sum, name) => {
+    const covenant = COVENANTS[name];
+    const count = members.get(name)?.size ?? 0;
+    const maxCount = covenant.mechanics?.maxCount;
+    const active =
+      !inactive.has(name) &&
+      count >= covenant.need &&
+      (maxCount === undefined || count <= maxCount);
+    return sum + (active ? (covenant.mechanics?.addsCoreCount ?? 0) : 0);
+  }, 0);
   // 强化状态随层数变化，只更新数值和提示，避免拖动层数时列表跳位。
   return ALL_COVENANTS.filter(
     (name) => members.has(name) && !inactive.has(name),
   )
     .map((name) => {
       const cov = COVENANTS[name],
-        core = isCoreCovenant(name);
+        core = isCoreCovenant(name),
+        mechanics = cov.mechanics;
       const list = [...members.get(name)!];
-      const extra = core && harmony ? 1 : 0;
+      const extra = core ? coreBonus : 0;
       const count = list.length + extra;
-      const bonusElite = name === '绝技';
-      const bonusNeed = bonusElite
-        ? 5
-        : bonusNeedOf(cov.bonus) || (core ? 6 : 0);
+      const bonusElite = mechanics?.countMode === 'fieldElites';
+      const bonusNeed =
+        mechanics?.bonusNeed ?? (bonusNeedOf(cov.bonus) || (core ? 6 : 0));
       const bonusLayers = bonusNeed ? 0 : bonusLayersOf(cov.bonus);
-      const broken = name === '独行' && count > 1;
+      const maxCount = mechanics?.maxCount;
+      const broken = maxCount !== undefined && count > maxCount;
       const active = !broken && count >= cov.need;
       const bonusCount = bonusElite ? elites : count;
       const bonusActive =
