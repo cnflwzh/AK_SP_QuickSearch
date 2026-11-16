@@ -136,3 +136,27 @@ test('revealing hints after a hit saves the same current cards and hint counters
     restored.round.value.impostorTotal,
   );
 });
+
+test('visible assistance persists across modes, round changes and resets', async (t) => {
+  mockStorage(t);
+  const game = await loadGame();
+  game.setHintLevel('open');
+  game.setMode('free');
+  assert.equal(game.round.value.usedHint, true);
+  game.setHintLevel('blind');
+  finishRound(game);
+  assert.equal(game.session.value.history[0].usedHint, true);
+  game.setHintLevel('open');
+  game.nextRound();
+  assert.equal(game.round.value.usedHint, true);
+  game.resetFree();
+  assert.equal(game.round.value.usedHint, true);
+  game.setFocusCovenant('谢拉格');
+  assert.equal(game.round.value.usedHint, true);
+  game.setMode('daily');
+  game.replayDaily();
+  assert.equal(game.round.value.usedHint, true);
+  finishRound(game);
+  game.nextRound();
+  assert.equal(game.round.value.usedHint, true);
+});
