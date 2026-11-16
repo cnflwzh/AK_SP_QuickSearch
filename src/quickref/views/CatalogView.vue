@@ -6,7 +6,9 @@ import {
   OPERATOR_TYPES,
   OPERATOR_TRIGGERS,
   matchesOperatorTrigger,
+  EQUIP,
   EQUIPMENT,
+  EQUIPMENT_COMBOS,
   EQUIPMENT_RECIPES,
   STRATEGIES,
   ALL_COVENANTS,
@@ -15,13 +17,17 @@ import {
   STRATEGY_CATEGORIES,
   isCoreCovenant,
 } from '../../../data/index.ts';
+import {equipIconSrc} from '../../lib/ui/assets.ts';
 import {updateQuery} from '../../router/navigation.ts';
-import {state} from '../state.ts';
+import {state, useQuickrefActions} from '../state.ts';
 import {
   inRunAny,
+  isRunBannedOp,
   run,
+  runBans,
   runEquipMaterials,
   runEquipRecommended,
+  runStrategies,
 } from '../planStore.ts';
 import {useCatalogEntrance} from '../catalogEntrance.ts';
 import RunBanner from '../components/RunBanner.vue';
@@ -31,14 +37,27 @@ import EquipmentCard from '../components/EquipmentCard.vue';
 import StrategyCard from '../components/StrategyCard.vue';
 const vEnter = useCatalogEntrance();
 defineProps<{kind: 'op' | 'eq' | 'st'}>();
+const actions = useQuickrefActions();
+
+/* ---------- 干员 ---------- */
 const onlyRunOps = ref(false);
+const hideBannedOps = ref(false);
 const filterToRunOps = computed(
   () => onlyRunOps.value && !!run.value && inRunAny.value.size > 0,
+);
+const bannedCount = computed(() =>
+  runBans.value.length
+    ? OPERATORS.filter((o) => isRunBannedOp(o.name)).length
+    : 0,
+);
+const hideBannedActive = computed(
+  () => hideBannedOps.value && bannedCount.value > 0,
 );
 const operators = computed(() =>
   OPERATORS.filter(
     (o) =>
       (!filterToRunOps.value || inRunAny.value.has(o.name)) &&
+      (!hideBannedActive.value || !isRunBannedOp(o.name)) &&
       (!state.opTier || o.tier === state.opTier) &&
       (!state.opCovenant || o.covenants.includes(state.opCovenant)) &&
       (!state.opType || o.type === state.opType) &&
@@ -49,6 +68,7 @@ const operatorFiltersActive = computed(
   () =>
     !!(
       filterToRunOps.value ||
+      hideBannedActive.value ||
       state.opTier ||
       state.opCovenant ||
       state.opTrigger ||
@@ -57,38 +77,109 @@ const operatorFiltersActive = computed(
 );
 function clearOperatorFilters(): void {
   onlyRunOps.value = false;
+  hideBannedOps.value = false;
   void updateQuery({tier: null, covenant: null, trigger: null, type: null});
 }
+
+/* ---------- 装备 ---------- */
 // 组合是筛选入口，成品仍保留原来的 VI 阶，不增加重复装备。
 const COMBO_FILTER = TIERS.length + 1;
 const onlyRunEq = ref(false);
+const eqCovenant = ref('');
+const craftPickerOpen = ref(false);
+const selectedMaterial = ref('');
+const equipCovenants = computed(() =>
+  ALL_COVENANTS.filter((cov) => EQUIPMENT.some((eq) => eq.covenant === cov)),
+);
+const comboMaterials = computed(() =>
+  [...new Set(EQUIPMENT_COMBOS.flatMap(([a, b]) => [a, b]))].filter((name) =>
+    Object.hasOwn(EQUIP, name),
+  ),
+);
+const matchedRecipes = computed(() =>
+  selectedMaterial.value
+    ? EQUIPMENT_COMBOS.filter((recipe) =>
+        recipe.includes(selectedMaterial.value),
+      )
+    : [],
+);
+const recipeItemSet = computed(() => new Set(matchedRecipes.value.flat()));
 const hasRunEquip = computed(
   () =>
     !!run.value &&
     (runEquipRecommended.value.size > 0 || runEquipMaterials.value.size > 0),
 );
 const filterToRunEq = computed(() => onlyRunEq.value && hasRunEquip.value);
+const showCraftBar = computed(
+  () =>
+    craftPickerOpen.value ||
+    state.eqTier === COMBO_FILTER ||
+    !!selectedMaterial.value,
+);
+const equipmentFiltersActive = computed(
+  () =>
+    !!(
+      filterToRunEq.value ||
+      state.eqTier ||
+      eqCovenant.value ||
+      selectedMaterial.value
+    ),
+);
+function selectMaterial(name: string): void {
+  selectedMaterial.value = selectedMaterial.value === name ? '' : name;
+}
+function toggleCraftPicker(): void {
+  if (craftPickerOpen.value) {
+    craftPickerOpen.value = false;
+    selectedMaterial.value = '';
+  } else {
+    craftPickerOpen.value = true;
+  }
+}
+function clearEquipFilters(): void {
+  onlyRunEq.value = false;
+  eqCovenant.value = '';
+  selectedMaterial.value = '';
+  craftPickerOpen.value = false;
+  if (state.eqTier) state.eqTier = 0;
+}
 const equipment = computed(() =>
-  EQUIPMENT.filter(
-    (e) =>
-      (!filterToRunEq.value ||
-        runEquipRecommended.value.has(e.name) ||
-        runEquipMaterials.value.has(e.name)) &&
-      (state.eqTier === COMBO_FILTER
-        ? Object.hasOwn(EQUIPMENT_RECIPES, e.name)
-        : !state.eqTier || e.tier === state.eqTier),
-  ),
+  EQUIPMENT.filter((e) => {
+    if (selectedMaterial.value) return recipeItemSet.value.has(e.name);
+    if (
+      filterToRunEq.value &&
+      !runEquipRecommended.value.has(e.name) &&
+      !runEquipMaterials.value.has(e.name)
+    )
+      return false;
+    if (eqCovenant.value === '__any__') {
+      if (!e.covenant) return false;
+    } else if (eqCovenant.value && e.covenant !== eqCovenant.value) {
+      return false;
+    }
+    return state.eqTier === COMBO_FILTER
+      ? Object.hasOwn(EQUIPMENT_RECIPES, e.name)
+      : !state.eqTier || e.tier === state.eqTier;
+  }),
+);
+
+/* ---------- 策略 ---------- */
+const onlyRunSt = ref(false);
+const filterToRunSt = computed(
+  () => onlyRunSt.value && !!run.value && runStrategies.value.all.size > 0,
 );
 const strategies = computed(() => {
   const category = STRATEGY_CATEGORIES[state.stCategory];
   return STRATEGIES.filter(
     (s) =>
-      category === '全部' ||
-      (category === '阵营'
-        ? isCoreCovenant(s.category)
-        : s.category === category),
+      (!filterToRunSt.value || runStrategies.value.all.has(s.name)) &&
+      (category === '全部' ||
+        (category === '阵营'
+          ? isCoreCovenant(s.category)
+          : s.category === category)),
   );
 });
+
 const operatorGroups = computed(() =>
   TIERS.map((tier) => ({
     tier,
@@ -113,6 +204,19 @@ const equipmentGroups = computed(() =>
         :aria-pressed="filterToRunOps"
         @click="onlyRunOps = !onlyRunOps">
         本局抓牌 {{ inRunAny.size }}
+      </button>
+      <button
+        v-if="bannedCount"
+        type="button"
+        :class="['run-ban-btn', {on: hideBannedActive}]"
+        :aria-pressed="hideBannedActive"
+        title="隐藏本局禁池盟约的干员"
+        @click="hideBannedOps = !hideBannedOps">
+        {{
+          hideBannedActive
+            ? `已藏禁池 -${bannedCount}`
+            : `排除禁池 ${bannedCount}`
+        }}
       </button>
       <Segmented
         :labels="['全部', ...TIER_LABELS.slice(1)]"
@@ -167,7 +271,16 @@ const equipmentGroups = computed(() =>
           show-wiki-link />
       </div>
     </template>
-    <div v-if="!operators.length" class="empty">—</div>
+    <div v-if="!operators.length" class="empty">
+      <span>当前筛选下没有干员</span>
+      <button
+        v-if="operatorFiltersActive"
+        type="button"
+        class="filter-clear"
+        @click="clearOperatorFilters">
+        清空筛选
+      </button>
+    </div>
   </template>
   <template v-else-if="kind === 'eq'">
     <div class="bar" data-key="filters">
@@ -184,7 +297,83 @@ const equipmentGroups = computed(() =>
         :active="state.eqTier"
         attr="eqt"
         @change="state.eqTier = $event" />
+      <select
+        v-if="equipCovenants.length"
+        v-model="eqCovenant"
+        aria-label="装备盟约">
+        <option value="">全部盟约</option>
+        <option value="__any__">可转盟约装</option>
+        <option v-for="cov in equipCovenants" :key="cov" :value="cov">
+          {{ cov }}
+        </option>
+      </select>
+      <button
+        v-if="comboMaterials.length"
+        type="button"
+        :class="['run-filter-btn', {on: craftPickerOpen || !!selectedMaterial}]"
+        :aria-pressed="craftPickerOpen || !!selectedMaterial"
+        @click="toggleCraftPicker">
+        散件合成
+      </button>
+      <button
+        v-if="equipmentFiltersActive"
+        type="button"
+        class="filter-clear"
+        @click="clearEquipFilters">
+        重置
+      </button>
       <span class="cnt">{{ equipment.length }} 件</span>
+    </div>
+    <div v-if="showCraftBar" class="eq-craft-bar" aria-label="散件合成反查">
+      <div class="eq-craft-pills">
+        <span class="k">选散件反查</span>
+        <button
+          v-for="mat in comboMaterials"
+          :key="mat"
+          type="button"
+          :class="['eq-craft-pill', {on: selectedMaterial === mat}]"
+          :aria-pressed="selectedMaterial === mat"
+          @click="selectMaterial(mat)">
+          <img
+            v-if="equipIconSrc(mat)"
+            :src="equipIconSrc(mat)"
+            alt=""
+            width="18"
+            height="18"
+            loading="lazy" />
+          {{ mat }}
+        </button>
+      </div>
+      <div v-if="matchedRecipes.length" class="eq-craft-results">
+        <div
+          v-for="recipe in matchedRecipes"
+          :key="recipe[2]"
+          class="eq-craft-row">
+          <button
+            type="button"
+            class="eq-craft-item"
+            :class="{self: recipe[0] === selectedMaterial}"
+            @click="actions.openDetail('eq', recipe[0])">
+            {{ recipe[0] }}
+          </button>
+          <span aria-hidden="true">＋</span>
+          <button
+            type="button"
+            class="eq-craft-item"
+            :class="{self: recipe[1] === selectedMaterial}"
+            @click="actions.openDetail('eq', recipe[1])">
+            {{ recipe[1] }}
+          </button>
+          <span aria-hidden="true">→</span>
+          <button
+            type="button"
+            class="eq-craft-item result"
+            @click="actions.openDetail('eq', recipe[2])">
+            {{ recipe[2] }}
+          </button>
+          <small v-if="EQUIP[recipe[2]]">{{ EQUIP[recipe[2]].effect }}</small>
+        </div>
+      </div>
     </div>
     <template v-for="group in equipmentGroups" :key="group.tier">
       <div
@@ -204,9 +393,27 @@ const equipmentGroups = computed(() =>
           :item="item" />
       </div>
     </template>
+    <div v-if="!equipment.length" class="empty">
+      <span>当前筛选下没有装备</span>
+      <button
+        v-if="equipmentFiltersActive"
+        type="button"
+        class="filter-clear"
+        @click="clearEquipFilters">
+        清空筛选
+      </button>
+    </div>
   </template>
   <template v-else>
     <div class="bar">
+      <button
+        v-if="run && runStrategies.all.size"
+        type="button"
+        :class="['run-filter-btn', {on: filterToRunSt}]"
+        :aria-pressed="filterToRunSt"
+        @click="onlyRunSt = !onlyRunSt">
+        本局策略 {{ runStrategies.all.size }}
+      </button>
       <Segmented
         :labels="STRATEGY_CATEGORIES"
         :active="state.stCategory"
@@ -220,6 +427,18 @@ const equipmentGroups = computed(() =>
         v-for="strategy in strategies"
         :key="strategy.name"
         :strategy="strategy" />
+    </div>
+    <div v-if="!strategies.length" class="empty">
+      <span>当前筛选下没有策略</span>
+      <button
+        type="button"
+        class="filter-clear"
+        @click="
+          onlyRunSt = false;
+          state.stCategory = 0;
+        ">
+        显示全部策略
+      </button>
     </div>
   </template>
   <LiveStatus

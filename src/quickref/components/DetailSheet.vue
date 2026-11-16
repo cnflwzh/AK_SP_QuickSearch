@@ -9,7 +9,6 @@ import {
   TIER_LABELS,
   TIER_STATS,
   COVENANTS,
-  buildsUsing,
   isCoreCovenant,
   rosterOf,
 } from '../../../data/index.ts';
@@ -22,13 +21,20 @@ import {
   bonusHeadcount,
   bonusText,
 } from '../format.ts';
-import {MAX_OPS} from '../../lib/plans/index.ts';
+import {MAX_EQ, MAX_OPS} from '../../lib/plans/index.ts';
 import {useQuickrefActions, type DetailSelection} from '../state.ts';
 import {
-  inRun,
+  isRunBannedOp,
+  presetsUsing,
   quickTargetPreset,
   runAltTargets,
+  runEquipMaterials,
+  runEquipOwners,
+  runEquipRecommended,
   runSlotMap,
+  runStrategies,
+  setStrategyInQuickBuild,
+  toggleEquipInQuickBuild,
   toggleOpInQuickBuild,
 } from '../planStore.ts';
 import Chip from './Chip.vue';
@@ -46,6 +52,9 @@ const covenantEffects = ref<HTMLElement | null>(null);
 let returnFocus: HTMLElement | null = null;
 const operator = computed(() =>
   props.selection?.kind === 'op' ? OPERATOR[props.selection.name] : undefined,
+);
+const opBanned = computed(() =>
+  operator.value ? isRunBannedOp(operator.value.name) : false,
 );
 const opRunSlot = computed(() =>
   operator.value ? runSlotMap.value.get(operator.value.name) : undefined,
@@ -88,6 +97,17 @@ const showCovenantEffects = computed(
 const equipment = computed(() =>
   props.selection?.kind === 'eq' ? EQUIP[props.selection.name] : undefined,
 );
+const eqOwners = computed(() =>
+  equipment.value ? (runEquipOwners.value.get(equipment.value.name) ?? []) : [],
+);
+const eqInRec = computed(() =>
+  equipment.value ? runEquipRecommended.value.has(equipment.value.name) : false,
+);
+const eqCraftsInto = computed(() =>
+  equipment.value
+    ? (runEquipMaterials.value.get(equipment.value.name) ?? [])
+    : [],
+);
 const equipmentRecipes = computed(() =>
   equipment.value
     ? EQUIPMENT_COMBOS.filter((recipe) =>
@@ -98,6 +118,28 @@ const equipmentRecipes = computed(() =>
 const strategy = computed(() =>
   props.selection?.kind === 'st' ? STRATEGY[props.selection.name] : undefined,
 );
+const stIsPrimary = computed(() =>
+  strategy.value ? runStrategies.value.primary === strategy.value.name : false,
+);
+const stInRun = computed(() =>
+  strategy.value ? runStrategies.value.all.has(strategy.value.name) : false,
+);
+const strategyQuickSelected = computed(
+  () =>
+    !!strategy.value &&
+    quickTargetPreset.value?.plan.strategy === strategy.value.name,
+);
+const strategyQuickLabel = computed(() => {
+  const target = quickTargetPreset.value;
+  if (!target) return '＋ 用TA建流派';
+  const shortName =
+    target.plan.name.length > 5
+      ? `${target.plan.name.slice(0, 5)}…`
+      : target.plan.name;
+  return strategyQuickSelected.value
+    ? `✓ 已设为「${shortName}」策略`
+    : `＋ 设为「${shortName}」策略`;
+});
 const stats = computed(() =>
   operator.value ? TIER_STATS[operator.value.tier - 1] : undefined,
 );
@@ -114,14 +156,7 @@ const mates = computed(() => {
 });
 const builds = computed(() =>
   props.selection
-    ? buildsUsing(
-        props.selection.kind === 'op'
-          ? 'lineup'
-          : props.selection.kind === 'eq'
-            ? 'equipment'
-            : 'strategies',
-        props.selection.name,
-      )
+    ? presetsUsing(props.selection.kind, props.selection.name)
     : [],
 );
 watch(
@@ -207,14 +242,11 @@ onBeforeUnmount(() => dialog.value?.close());
             </div>
             <div class="operator-detail-title">
               <h3 id="detail-title">{{ operator.name }}</h3>
+              <span v-if="opBanned" class="tag r">本局禁池</span>
               <span v-if="opRunSlot" class="tag t">
                 {{ opRunSlot.core ? '★ 本局核心' : '✓ 本局主力' }}
               </span>
-              <span
-                v-else-if="
-                  inRun.has(operator.name) === false && opAltTargets.length
-                "
-                class="tag a">
+              <span v-else-if="!opBanned && opAltTargets.length" class="tag a">
                 ⇄ 备选·替{{ opAltTargets[0] }}
               </span>
             </div>
@@ -269,7 +301,16 @@ onBeforeUnmount(() => dialog.value?.close());
               <i class="tn">{{ TIER_LABELS[equipment.tier] }} 阶</i>
               <span class="tag a">{{ equipment.price }} 资金</span>
             </div>
-            <h3 id="detail-title">{{ equipment.name }}</h3>
+            <div class="operator-detail-title">
+              <h3 id="detail-title">{{ equipment.name }}</h3>
+              <span v-if="eqOwners.length" class="tag t">
+                ✓ 给{{ eqOwners.join('·') }}
+              </span>
+              <span v-else-if="eqInRec" class="tag t">✓ 本局推荐</span>
+              <span v-else-if="eqCraftsInto.length" class="tag a">
+                ⇄ 合{{ eqCraftsInto[0] }}
+              </span>
+            </div>
             <div class="row">
               <Chip
                 v-if="equipment.covenant"
@@ -305,12 +346,24 @@ onBeforeUnmount(() => dialog.value?.close());
                 {{ strategy.unlock }}
               </span>
             </div>
-            <h3 id="detail-title">{{ strategy.name }}</h3>
+            <div class="operator-detail-title">
+              <h3 id="detail-title">{{ strategy.name }}</h3>
+              <span v-if="stIsPrimary" class="tag a">★ 本局首选</span>
+              <span v-else-if="stInRun" class="tag t">✓ 本局备选</span>
+            </div>
             <div class="hpbig">
               <b>{{ strategy.hp }}</b>
               <div class="trk">
                 <div :style="{width: hpWidth(strategy.hp) + '%'}"></div>
               </div>
+            </div>
+            <div class="strategy-quick-row">
+              <button
+                type="button"
+                :class="['operator-quick-build', {on: strategyQuickSelected}]"
+                @click="setStrategyInQuickBuild(strategy.name)">
+                {{ strategyQuickLabel }}
+              </button>
             </div>
           </div>
           <button
@@ -348,6 +401,50 @@ onBeforeUnmount(() => dialog.value?.close());
           <div v-else-if="strategy" class="ef" style="--c: var(--teal)">
             <span class="tag t">{{ strategy.skill }}</span>
             <div v-html="fx(strategy.effect)"></div>
+          </div>
+          <div
+            v-if="
+              equipment &&
+              quickTargetPreset &&
+              quickTargetPreset.plan.ops.length
+            "
+            class="sh-eq-assign">
+            <h5 class="cnt" style="margin: 0 0 6px">
+              配给「{{ quickTargetPreset.plan.name }}」
+            </h5>
+            <div class="row">
+              <button
+                v-for="slot in quickTargetPreset.plan.ops"
+                :key="slot.name"
+                type="button"
+                :class="['sh-eq-slot', {on: slot.eq.includes(equipment.name)}]"
+                :disabled="
+                  !slot.eq.includes(equipment.name) && slot.eq.length >= MAX_EQ
+                "
+                :title="
+                  slot.eq.includes(equipment.name)
+                    ? `从 ${slot.name} 卸下${equipment.name}`
+                    : slot.eq.length >= MAX_EQ
+                      ? `${slot.name} 装备已满 ${MAX_EQ}/${MAX_EQ}`
+                      : `给 ${slot.name} 佩戴${equipment.name}`
+                "
+                @click="toggleEquipInQuickBuild(slot.name, equipment.name)">
+                <img
+                  v-if="avatarSrc(slot.name)"
+                  :src="avatarSrc(slot.name)"
+                  alt=""
+                  width="20"
+                  height="20" />
+                <span>{{ slot.name }}</span>
+                <small>
+                  {{
+                    slot.eq.includes(equipment.name)
+                      ? '✓'
+                      : `${slot.eq.length}/${MAX_EQ}`
+                  }}
+                </small>
+              </button>
+            </div>
           </div>
           <div v-if="equipmentRecipes.length">
             <h5 class="cnt" style="margin: 0 0 6px">组合配方</h5>
@@ -510,9 +607,56 @@ onBeforeUnmount(() => dialog.value?.close());
 @media (max-height: 600px) {
   .operator-quick-build,
   .operator-detail-actions :deep(.operator-request),
-  .operator-detail-actions :deep(.prts-link) {
+  .operator-detail-actions :deep(.prts-link),
+  .sh-eq-slot {
     min-height: 34px;
   }
+}
+.strategy-quick-row {
+  margin-top: 6px;
+}
+.sh-eq-assign {
+  display: grid;
+  gap: 2px;
+}
+.sh-eq-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 3px 8px;
+  border: 1px solid var(--line2);
+  border-radius: 6px;
+  background: var(--surface2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.sh-eq-slot img {
+  border-radius: 3px;
+  background: var(--tc, var(--surface2));
+}
+.sh-eq-slot small {
+  font-family: var(--fn);
+  font-size: 11px;
+  color: var(--ink3);
+}
+.sh-eq-slot:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.sh-eq-slot.on {
+  border-color: var(--teal);
+  background: var(--teal-soft);
+  color: var(--teal);
+  font-weight: 600;
+}
+.sh-eq-slot.on small {
+  color: var(--teal);
+}
+.sh-eq-slot:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 /* 窄屏将关闭键留在右上角，三枚操作按钮铺到底部整行，避免挤压标题或撑高头部。 */
 @media (max-width: 560px) {

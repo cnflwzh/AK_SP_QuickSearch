@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed} from 'vue';
+import {computed, onBeforeUnmount, ref} from 'vue';
 import {
   LEADER_MAP,
   LEADER_BATTLEFIELDS,
@@ -18,6 +18,7 @@ import {
 } from '../../lib/leaders/leader.ts';
 import {routeQuery, updateQuery} from '../../router/navigation.ts';
 import {queryText} from '../../router/location.ts';
+import {runLeaderKey, setRunLeader} from '../planStore.ts';
 import {state, setLeader} from '../state.ts';
 import Segmented from './Segmented.vue';
 import LeaderMap from './LeaderMap.vue';
@@ -115,6 +116,33 @@ const hiddenCounters = computed(() =>
   props.leader.counters.filter((c) => c.hidden),
 );
 const portrait = computed(() => leaderSrc(props.leader.name));
+const isRunLeader = computed(() => runLeaderKey.value === props.leader.name);
+const briefCopied = ref(false);
+let briefTimer: ReturnType<typeof setTimeout> | undefined;
+onBeforeUnmount(() => clearTimeout(briefTimer));
+function toggleRunLeader(): void {
+  setRunLeader(isRunLeader.value ? '' : props.leader.name);
+}
+async function copyLeaderBrief(): Promise<void> {
+  const hiddenPart = now.value.hidden
+    ? ` · 隐秘核心 ${wan(now.value.hidden)}`
+    : '';
+  const summary = counters.value
+    .slice(0, 3)
+    .map((c) => `[${c.tag}] ${c.text.replace(/<[^>]+>/g, '')}`)
+    .join('；');
+  const text = `${props.leader.name}（${now.value.label} ${wan(now.value.hp)} · 均伤 ${dps(now.value.hp)}/秒${hiddenPart}）${summary ? `\n要点：${summary}` : ''}`;
+  clearTimeout(briefTimer);
+  try {
+    await navigator.clipboard.writeText(text);
+    briefCopied.value = true;
+    briefTimer = setTimeout(() => {
+      briefCopied.value = false;
+    }, 1500);
+  } catch {
+    window.prompt('复制发给好友的领袖要点', text);
+  }
+}
 </script>
 <template>
   <article class="lwd" :data-key="`ldd:${leader.name}`">
@@ -144,6 +172,22 @@ const portrait = computed(() => leaderSrc(props.leader.name));
           </i>
           <i v-if="patrols(leader)" class="lwb pt">巡逻</i>
           <i v-if="leader.hiddenCore" class="lwb hc">隐秘核心</i>
+        </div>
+        <div class="lwd-acts">
+          <button
+            type="button"
+            :class="['lw-act-btn', {on: isRunLeader}]"
+            :aria-pressed="isRunLeader"
+            @click="toggleRunLeader">
+            {{ isRunLeader ? '✓ 本局领袖' : '▶ 设为本局' }}
+          </button>
+          <button
+            type="button"
+            class="lw-act-btn"
+            title="复制血量与前三条核心对策，方便发给没开语音的好友"
+            @click="copyLeaderBrief">
+            {{ briefCopied ? '已复制' : '复制要点' }}
+          </button>
         </div>
       </div>
       <div class="lwd-now">

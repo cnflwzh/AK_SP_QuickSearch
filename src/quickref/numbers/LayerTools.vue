@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed, nextTick, ref, toRefs} from 'vue';
+import {computed, nextTick, ref, toRefs, watch} from 'vue';
 import {
   ADDON_COVENANTS,
   ALL_COVENANTS,
@@ -11,12 +11,46 @@ import {
   LAYER_BREAKPOINTS,
 } from '../../../data/index.ts';
 import {color} from '../format.ts';
+import {run, runStats} from '../planStore.ts';
 import LayerCalculator from './LayerCalculator.vue';
 import {useNumberToolsState, type LayerSection} from './useNumberToolsState.ts';
 
+let lastAutoRunKey = '';
 const root = ref<HTMLElement>();
 const layerState = useNumberToolsState().layers;
 const {covenant: selected, section: selectedSection} = toRefs(layerState);
+watch(
+  () => run.value?.key ?? '',
+  (key) => {
+    if (!key) {
+      lastAutoRunKey = '';
+      return;
+    }
+    if (key === lastAutoRunKey) return;
+    const stats = runStats.value;
+    const hasLayerScale = (name: string) =>
+      COVENANTS[name]?.scaling.length > 0 ||
+      !!LAYER_BREAKPOINTS[name] ||
+      !!CYCLE_REWARDS[name];
+    const picked =
+      stats.find((s) => s.core && s.active && hasLayerScale(s.name)) ??
+      stats.find((s) => s.active && hasLayerScale(s.name)) ??
+      stats.find((s) => hasLayerScale(s.name));
+    if (!picked) return;
+    lastAutoRunKey = key;
+    selected.value = picked.name;
+    selectedSection.value = LAYER_BREAKPOINTS[picked.name]
+      ? 'threshold'
+      : CYCLE_REWARDS[picked.name]
+        ? 'cycle'
+        : HEADCOUNT_BREAKPOINTS.some((h) => h.covenant === picked.name)
+          ? 'headcount'
+          : 'threshold';
+    const savedLayers = run.value?.plan.layers[picked.name] ?? 0;
+    if (savedLayers > 0) layerState.count = savedLayers;
+  },
+  {immediate: true},
+);
 const detailOrder = computed(() =>
   selectedSection.value === 'cycle'
     ? 3

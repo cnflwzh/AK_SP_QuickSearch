@@ -1,4 +1,10 @@
-import {CYCLE_REWARDS, LAYER_BREAKPOINTS} from '../../../data/index.ts';
+import {
+  CYCLE_REWARDS,
+  LAYER_BREAKPOINTS,
+  OPERATORS,
+  RESTRICTED_MODE_COVENANTS,
+} from '../../../data/index.ts';
+import {isBanned} from '../recommendation/planning.ts';
 
 /** 返回严格高于当前层数的下一项；全部达到时返回 undefined。 */
 export function nextLayerBreakpoint(covenant: string, layers: number) {
@@ -42,4 +48,90 @@ export function refreshBudget(
 /** 合成奖励：当前调度等级 +1，最高 VI 阶，随机三选一。 */
 export function synthesisTier(level: number): number {
   return Math.min(6, level + 1);
+}
+
+/** 在给定同阶未禁池干员数下，三选一中至少出现 1 张目标干员的概率（0–1）。 */
+export function synthesisHitRate(activeTierCount: number, picks = 3): number {
+  if (activeTierCount <= 0) return 0;
+  if (activeTierCount <= picks) return 1;
+  return picks / activeTierCount;
+}
+
+export interface PoolBreakdown {
+  readonly targetBanned: boolean;
+  readonly shopPoolTotal: number;
+  readonly shopPoolActive: number;
+  readonly rewardTierTotal: number;
+  readonly rewardTierActive: number;
+  readonly targetTierTotal: number;
+  readonly targetTierActive: number;
+  readonly rewardHitRate: number;
+  readonly targetSynthesisHitRate: number;
+}
+
+/**
+ * 结合当前调度等级、本局禁池与调度模式（精简池/全池），
+ * 统计可刷总池与三选一合成奖励的真实池容量及命中率，不修改输入。
+ */
+export function poolBreakdown(
+  level: number,
+  targetName: string,
+  bannedCovenants: Iterable<string> = [],
+  restrictedMode = false,
+): PoolBreakdown {
+  const effectiveBans = new Set<string>(bannedCovenants);
+  if (restrictedMode) {
+    for (const covenant of RESTRICTED_MODE_COVENANTS) {
+      effectiveBans.add(covenant);
+    }
+  }
+  const rewardTier = synthesisTier(level);
+  const target = OPERATORS.find((op) => op.name === targetName);
+  const targetBanned = target ? isBanned(target.name, effectiveBans) : false;
+
+  let shopPoolTotal = 0;
+  let shopPoolActive = 0;
+  let rewardTierTotal = 0;
+  let rewardTierActive = 0;
+  let targetTierTotal = 0;
+  let targetTierActive = 0;
+
+  for (const op of OPERATORS) {
+    /* 辅助/召唤类干员（stars === 0）不进入商店刷新与合成三选一随机池。 */
+    if (op.stars === 0) continue;
+    const active = !isBanned(op.name, effectiveBans);
+    if (op.tier <= level) {
+      shopPoolTotal++;
+      if (active) shopPoolActive++;
+    }
+    if (op.tier === rewardTier) {
+      rewardTierTotal++;
+      if (active) rewardTierActive++;
+    }
+    if (target && op.tier === target.tier) {
+      targetTierTotal++;
+      if (active) targetTierActive++;
+    }
+  }
+
+  const rewardHitRate =
+    target && !targetBanned && target.tier === rewardTier
+      ? synthesisHitRate(rewardTierActive)
+      : 0;
+  const targetSynthesisHitRate =
+    target && !targetBanned && target.tier > 1
+      ? synthesisHitRate(targetTierActive)
+      : 0;
+
+  return {
+    targetBanned,
+    shopPoolTotal,
+    shopPoolActive,
+    rewardTierTotal,
+    rewardTierActive,
+    targetTierTotal,
+    targetTierActive,
+    rewardHitRate,
+    targetSynthesisHitRate,
+  };
 }

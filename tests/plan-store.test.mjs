@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {nextTick} from 'vue';
-import {EQUIPMENT_COMBOS, OPERATORS, STRATEGIES} from '../data/index.ts';
+import {
+  EQUIPMENT_COMBOS,
+  LEADERS,
+  OPERATORS,
+  STRATEGIES,
+} from '../data/index.ts';
 import {MAX_OPS, blankPlan, newSlot} from '../src/lib/plans/index.ts';
 
 test('preset storage retains configured drafts, flushes on exit and follows cross-page selection', async () => {
@@ -142,6 +147,39 @@ test('preset storage retains configured drafts, flushes on exit and follows cros
   store.setRun('炎');
   assert.equal(store.runBaseBuild.value?.name, '炎');
   assert.ok(store.runStrategies.value.all.size >= 1);
+
+  // 测试本局领袖锚点、全局禁池联动、装备/策略快捷编队与自建流派反查
+  const leaderName = LEADERS[0].name;
+  store.setRunLeader(leaderName);
+  assert.equal(store.runLeaderKey.value, leaderName);
+  assert.equal(store.runLeader.value?.name, leaderName);
+  assert.equal(values.get('wsq.leader'), leaderName);
+
+  const customCheck = {
+    ...blankPlan('详情反查与禁池测试'),
+    ops: [{...newSlot(opA), eq: [combo[2]]}],
+    strategy: STRATEGIES[0].name,
+  };
+  const customCheckKey = store.addPlan(customCheck);
+  store.setRun(customCheckKey);
+  assert.ok(store.presetsUsing('op', opA).includes(customCheckKey));
+  assert.ok(store.presetsUsing('eq', combo[2]).includes(customCheckKey));
+  assert.ok(
+    store.presetsUsing('st', STRATEGIES[0].name).includes(customCheckKey),
+  );
+
+  assert.equal(store.toggleEquipInQuickBuild(opA, combo[0]), 'added');
+  assert.equal(store.runEquipOwners.value.get(combo[0])?.[0], opA);
+  assert.equal(store.toggleEquipInQuickBuild(opA, combo[0]), 'removed');
+  assert.equal(store.setStrategyInQuickBuild(STRATEGIES[1].name).status, 'set');
+  assert.equal(store.runStrategies.value.primary, STRATEGIES[1].name);
+
+  store.toggleBan(OPERATORS[0].covenants[0]);
+  assert.equal(store.isRunBannedOp(opA), true);
+  store.endRun();
+  assert.equal(store.runKey.value, '');
+  assert.equal(store.runLeaderKey.value, '');
+  assert.equal(store.runBans.value.length, 0);
 
   await nextTick();
   store.flushSave();

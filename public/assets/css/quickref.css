@@ -3232,12 +3232,71 @@ mark {
 .bfx-fold[open] > summary { margin-bottom: 8px; }
 .bfx-fold > summary .hint { font-weight: 400; font-size: 11.5px; color: var(--ink3); }
 .bfx .fxc { animation: bfx-in .3s ease-out backwards; }
+/* ---------- 顶栏教程收起 / 搜索视图切换 / 禁池联动 / 散件合成 / 领袖锚点 ---------- */
+.qhead-main { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; min-width: 0; }
+.qhead.collapsed { grid-template-columns: minmax(0,1fr) auto; padding-block: 10px 8px; gap: 10px; }
+.qhead.collapsed h1 { font-size: clamp(24px, 4.5vw, 34px); }
+.qhead.collapsed h1 small { margin-left: 8px; }
+.qhead-compact { display: flex; align-items: center; gap: 6px; justify-self: end; }
+.guide-mini, .guide-fold { font: inherit; font-size: 12px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line2); background: var(--surface); color: var(--ink2); text-decoration: none; cursor: pointer; white-space: nowrap; min-height: 28px; display: inline-flex; align-items: center; }
+.guide-mini { border-color: color-mix(in srgb, var(--teal) 50%, var(--line)); color: var(--teal); font-weight: 600; }
+.guide-mini:hover, .guide-fold:hover { border-color: var(--accent); color: var(--accent); }
+.bar .run-ban-btn { border: 1px solid color-mix(in srgb, var(--red) 45%, var(--line)); background: color-mix(in srgb, var(--red) 6%, var(--surface)); color: var(--red); border-radius: 999px; min-height: 34px; padding: 4px 11px; font-size: 12.5px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.bar .run-ban-btn:hover { background: color-mix(in srgb, var(--red) 12%, var(--surface)); }
+.bar .run-ban-btn.on { background: var(--red); border-color: var(--red); color: #fff; }
+.eq-recipe .self { color: var(--accent); font-weight: 700; }
+.eq-craft-bar { display: grid; gap: 8px; margin: -4px 0 12px; padding: 8px 10px; border: 1px dashed var(--line2); border-radius: 8px; background: var(--surface2); }
+.eq-craft-pills { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.eq-craft-pills .k { font-size: 12px; color: var(--ink3); margin-right: 2px; }
+.eq-craft-pill { display: inline-flex; align-items: center; gap: 4px; min-height: 34px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line2); background: var(--surface); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }
+.eq-craft-pill:hover { border-color: var(--accent); }
+.eq-craft-pill.on { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.eq-craft-results { display: grid; gap: 5px; padding-top: 6px; border-top: 1px dashed var(--line); }
+.eq-craft-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; font-size: 12.5px; }
+.eq-craft-row small { color: var(--ink2); font-size: 12px; margin-left: 4px; }
+.eq-craft-item { border: 1px solid var(--line); background: var(--surface); border-radius: 5px; min-height: 30px; padding: 2px 8px; font: inherit; font-size: 12px; color: var(--ink); cursor: pointer; }
+.eq-craft-item:hover { border-color: var(--accent); }
+.eq-craft-item.self { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.eq-craft-item.result { border-color: var(--teal); color: var(--teal); font-weight: 700; }
+.empty:has(button) { display: grid; justify-items: center; gap: 10px; }
+.empty .filter-clear { border: 1px solid var(--line2); background: var(--surface); color: var(--ink2); border-radius: 6px; min-height: 34px; padding: 4px 12px; font-size: 13px; cursor: pointer; }
+.empty .filter-clear:hover { border-color: var(--accent); color: var(--accent); }
+.sec.sr-op-sec::after { order: 2; }
+.sr-elite-seg { order: 3; margin: 0; font-weight: 400; }
+.oc.is-banned { opacity: .62; border-style: dashed; }
+.oc .inp.ban { background: var(--red); color: #fff; }
+.fxc-ban-toggle { font: inherit; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 5px; border: 1px solid color-mix(in srgb, var(--red) 45%, var(--line)); background: var(--surface2); color: var(--red); cursor: pointer; white-space: nowrap; min-height: 26px; }
+.fxc-ban-toggle.on { background: var(--red); border-color: var(--red); color: #fff; }
+.runb .nm.muted { color: var(--ink3); font-weight: 500; font-size: 13px; }
+.runb-tools { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.runb-tools .x { margin-left: 0; }
+.runb-ban-btn { font: inherit; font-size: 12px; font-weight: 600; min-height: 28px; padding: 2px 9px; border-radius: 999px; border: 1px dashed color-mix(in srgb, var(--red) 50%, var(--line)); background: var(--surface); color: var(--ink2); cursor: pointer; white-space: nowrap; }
+.runb-ban-btn.on { border-style: solid; border-color: var(--red); color: var(--red); background: color-mix(in srgb, var(--red) 10%, var(--surface)); font-weight: 700; }
+.runb-ld { display: inline-flex; align-items: center; gap: 4px; font: inherit; font-size: 12px; font-weight: 600; min-height: 28px; padding: 2px 8px 2px 3px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--red) 40%, var(--line)); background: var(--surface); color: var(--ink); cursor: pointer; white-space: nowrap; }
+.runb-ld:hover { border-color: var(--red); color: var(--red); }
+.runb-ld img { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; background: #120b0b; }
+.runb-ld i { font-style: normal; font-size: 10px; font-weight: 700; padding: 0 4px; border-radius: 4px; color: var(--hc); background: color-mix(in srgb, var(--hc) 14%, transparent); }
+.runb-bans { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px 8px 2px; border-top: 1px dashed var(--line); }
+.runb-bans .k { font-size: 11.5px; color: var(--ink3); margin-right: 2px; }
+.runb-bans .bc { --c: var(--teal); font: inherit; font-size: 12px; cursor: pointer; border-radius: 6px; padding: 2px 8px; min-height: 28px; border: 1px solid var(--line2); background: var(--surface); color: var(--ink2); }
+.runb-bans .bc.on { border-color: var(--red); color: var(--red); text-decoration: line-through; font-weight: 700; background: color-mix(in srgb, var(--red) 8%, var(--surface)); }
+.runb-bans .bc-clear { font: inherit; font-size: 11.5px; cursor: pointer; border: 1px solid var(--line2); border-radius: 6px; background: var(--surface2); color: var(--ink2); min-height: 28px; padding: 2px 8px; margin-left: auto; }
+.bsel .ban-hit { font-style: normal; font-size: 10.5px; font-weight: 700; color: #fff; background: var(--red); border-radius: 999px; padding: 0 5px; }
+.bpick .bc-more { font: inherit; font-size: 12px; cursor: pointer; border: 1px dashed var(--line2); border-radius: 6px; padding: 2px 8px; background: var(--surface); color: var(--ink3); min-height: 28px; }
+.bpick .bc-more:hover { border-color: var(--accent); color: var(--accent); }
+.lwr.is-run-leader { border-color: var(--teal); border-left-color: var(--teal); background: color-mix(in srgb, var(--teal) 6%, var(--surface)); }
+.lwb.run { color: #fff; background: var(--teal); font-weight: 700; }
+.lwd-acts { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
+.lw-act-btn { font: inherit; font-size: 12px; min-height: 30px; padding: 2px 9px; border-radius: 6px; border: 1px solid var(--line2); background: var(--surface2); color: var(--ink); cursor: pointer; white-space: nowrap; }
+.lw-act-btn:hover { border-color: var(--accent); color: var(--accent); }
+.lw-act-btn.on { border-color: var(--teal); background: var(--teal); color: #fff; font-weight: 700; }
 @media (pointer: coarse) {
-  .balt-chip, .balt-target, .pl-note-prompts button { min-height: 36px; }
+  .balt-chip, .balt-target, .pl-note-prompts button, .guide-fold, .guide-mini, .runb-ban-btn, .runb-ld, .lw-act-btn { min-height: 36px; }
 }
 @media (max-height: 600px) {
   .cv-run-picks { padding: 6px 8px; gap: 5px; }
-  .cv-rp, .cv-only-btn, .bar .run-filter-btn, .pl-starter-covs button, .bimp-bar button { min-height: 34px; }
+  .cv-rp, .cv-only-btn, .bar .run-filter-btn, .bar .run-ban-btn, .pl-starter-covs button, .bimp-bar button, .runb-ban-btn, .runb-ld, .runb-bans .bc, .runb-bans .bc-clear, .lw-act-btn, .fxc-ban-toggle, .bpick .bc-more, .eq-craft-pill, .eq-craft-item, .empty .filter-clear { min-height: 34px; }
+  .runb { padding: 4px 8px 4px 0; margin-bottom: 6px; gap: 4px 6px; }
   .bgrab-stage { padding: 6px 8px; gap: 5px; }
   .bgrab-card { min-height: 38px; padding: 3px 7px; }
   .bfx-fold > summary { min-height: 34px; }

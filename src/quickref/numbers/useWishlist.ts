@@ -55,8 +55,28 @@ export function useWishlist() {
     save();
     return true;
   }
+  function addMany(incoming: readonly string[]): number {
+    const next = [...names.value];
+    let added = 0;
+    for (const name of incoming) {
+      if (next.length >= MAX_TARGETS) break;
+      if (!operatorsByName.has(name) || next.includes(name)) continue;
+      next.push(name);
+      added++;
+    }
+    if (added > 0) {
+      names.value = next;
+      save();
+    }
+    return added;
+  }
   function remove(name: string): void {
     names.value = names.value.filter((item) => item !== name);
+    save();
+  }
+  function clear(): void {
+    if (!names.value.length) return;
+    names.value = [];
     save();
   }
   return {
@@ -65,6 +85,8 @@ export function useWishlist() {
     saveFailed: readonly(saveFailed),
     maxTargets: MAX_TARGETS,
     add,
+    addMany,
     remove,
+    clear,
   };
 }
