@@ -364,11 +364,10 @@ function startNewRun(): void {
           :value="run.level"
           @change="
             advisor.setLevel(Number(($event.target as HTMLSelectElement).value))
-          "
-        >
-          <option v-for="level in 6" :key="level" :value="level"
-            >{{ level }} 本</option
-          >
+          ">
+          <option v-for="level in 6" :key="level" :value="level">
+            {{ level }} 本
+          </option>
         </select>
       </label>
       <div class="ra-strategy-control">
@@ -378,18 +377,16 @@ function startNewRun(): void {
           aria-haspopup="dialog"
           :aria-expanded="picker?.target === 'strategy'"
           :title="strategySkill || undefined"
-          @click="openPicker('strategy')"
-        >
+          @click="openPicker('strategy')">
           <img
             v-if="run.strategy"
             :src="portraitSrc(run.strategy)"
             alt=""
             width="24"
-            height="24"
-          />
-          <span class="ra-strategy-label">{{
-            run.strategy || '选择策略'
-          }}</span>
+            height="24" />
+          <span class="ra-strategy-label">
+            {{ run.strategy || '选择策略' }}
+          </span>
           <span class="control-chevron" aria-hidden="true"></span>
         </button>
         <button
@@ -397,9 +394,9 @@ function startNewRun(): void {
           type="button"
           class="ra-icon-button ra-clear-strategy"
           aria-label="清除策略"
-          @click="advisor.setStrategy('')"
-          >×</button
-        >
+          @click="advisor.setStrategy('')">
+          ×
+        </button>
       </div>
       <button
         type="button"
@@ -407,62 +404,61 @@ function startNewRun(): void {
         aria-haspopup="dialog"
         :class="{set: !!goal || !!unavailableNames.length}"
         :aria-expanded="poolSettingsOpen"
-        @click="poolSettingsOpen = true"
-      >
-        <span>{{ poolLabel }}</span><span
-          class="control-chevron"
-          aria-hidden="true"
-        ></span>
+        @click="poolSettingsOpen = true">
+        <span>{{ poolLabel }}</span>
+        <span class="control-chevron" aria-hidden="true"></span>
       </button>
       <div class="ra-toolbar-actions">
         <span
           class="ra-status"
           role="status"
           aria-live="polite"
-          :class="{'ra-warning': saveFailed, fresh: !!notice}"
-          >{{ statusText }}</span
-        >
+          :class="{'ra-warning': saveFailed, fresh: !!notice}">
+          {{ statusText }}
+        </span>
         <button
           type="button"
           class="ra-text-button ra-undo"
           :disabled="!canUndo"
-          @click="advisor.undo"
-        >
-          <span aria-hidden="true">↶</span> 撤销
+          @click="advisor.undo">
+          <span aria-hidden="true">↶</span>
+          撤销
         </button>
         <button
           type="button"
           class="ra-text-button ra-new-run"
           aria-haspopup="dialog"
-          @click="requestNewRun"
-          >新开一局</button
-        >
+          @click="requestNewRun">
+          新开一局
+        </button>
       </div>
     </header>
-    <p v-if="poolConflicts.length" class="ra-pool-conflict"
-      >{{ poolConflicts.join('、') }}与禁用设置冲突，请修正持有记录或<button
+    <p v-if="poolConflicts.length" class="ra-pool-conflict">
+      {{ poolConflicts.join('、') }}与禁用设置冲突，请修正持有记录或
+      <button
         type="button"
         class="ra-text-button"
-        @click="poolSettingsOpen = true"
-        >调整禁用</button
-      >。</p
-    >
+        @click="poolSettingsOpen = true">
+        调整禁用
+      </button>
+      。
+    </p>
 
     <div class="ra-workspace">
       <section class="ra-panel ra-field-panel" aria-labelledby="ra-field-title">
         <div class="ra-section-heading">
-          <h3 id="ra-field-title"
-            >上场
-            <small>{{ deployed.length }} / {{ deploymentLimit }}</small></h3
-          >
+          <h3 id="ra-field-title">
+            上场
+            <small>{{ deployed.length }} / {{ deploymentLimit }}</small>
+          </h3>
           <span class="ra-muted">点头像编辑</span>
           <button
             type="button"
             class="ra-text-button"
             aria-haspopup="dialog"
-            @click="openPicker('deployed')"
-            >＋ 记录干员</button
-          >
+            @click="openPicker('deployed')">
+            ＋ 记录干员
+          </button>
         </div>
         <div class="ra-covenant-strip">
           <span
@@ -471,20 +467,20 @@ function startNewRun(): void {
             class="ra-covenant"
             :class="{inactive: !covenant.active}"
             :data-cv="covenant.name"
-            :style="{'--c': covenantColor(covenant.name, 'var(--teal)')}"
-          >
-            <i></i>{{ covenant.name }}
-            <b
-              >{{ covenant.count }}/{{
+            :style="{'--c': covenantColor(covenant.name, 'var(--teal)')}">
+            <i></i>
+            {{ covenant.name }}
+            <b>
+              {{ covenant.count }}/{{
                 covenant.active
                   ? covenant.bonusNeed || covenant.need
                   : covenant.need
-              }}</b
-            >
+              }}
+            </b>
           </span>
-          <span v-if="!visibleCovenants.length" class="ra-muted"
-            >记录干员后显示盟约进度</span
-          >
+          <span v-if="!visibleCovenants.length" class="ra-muted">
+            记录干员后显示盟约进度
+          </span>
         </div>
         <div class="ra-field-grid">
           <AdvisorSlot
@@ -504,16 +500,14 @@ function startNewRun(): void {
               operator
                 ? selectEntity({kind: 'operator', id: operator.name})
                 : openPicker('deployed')
-            "
-          />
+            " />
         </div>
       </section>
 
       <aside
         ref="sidePanel"
         class="ra-panel ra-side-panel"
-        aria-labelledby="ra-side-title"
-      >
+        aria-labelledby="ra-side-title">
         <div class="ra-side-heading">
           <h3 id="ra-side-title">
             {{
@@ -523,40 +517,41 @@ function startNewRun(): void {
                   ? '本轮商店'
                   : '抓取建议'
             }}
-            <small>{{
-              run.shop.length
-                ? `${run.shop.length} 张 · 按推荐排序`
-                : run.candidateSource === 'promotion'
-                  ? `${promotionRewardTier(run.level)} 阶 · 免费三选一`
-                  : `${run.level} 本可找目标`
-            }}</small>
+            <small>
+              {{
+                run.shop.length
+                  ? `${run.shop.length} 张 · 按推荐排序`
+                  : run.candidateSource === 'promotion'
+                    ? `${promotionRewardTier(run.level)} 阶 · 免费三选一`
+                    : `${run.level} 本可找目标`
+              }}
+            </small>
           </h3>
           <button
             v-if="run.shop.length"
             type="button"
             class="ra-text-button ra-muted-action"
-            @click="advisor.clearShop"
-            >清空</button
-          >
+            @click="advisor.clearShop">
+            清空
+          </button>
           <button
             v-if="run.shop.length"
             type="button"
             class="btn ra-shop-button"
             aria-haspopup="dialog"
-            @click="openPicker('shop')"
-            >改候选</button
-          >
+            @click="openPicker('shop')">
+            改候选
+          </button>
         </div>
-        <label class="ra-candidate-source"
-          >候选来源
+        <label class="ra-candidate-source">
+          候选来源
           <select
             :value="run.candidateSource"
             @change="
               advisor.setCandidateSource(
                 ($event.target as HTMLSelectElement).value as CandidateSource,
               )
-            "
-          >
+            ">
             <option value="shop">商店 / 特殊刷新</option>
             <option value="promotion">晋升奖励 · 免费三选一</option>
           </select>
@@ -568,13 +563,12 @@ function startNewRun(): void {
             type="button"
             class="ra-shop-cta"
             aria-haspopup="dialog"
-            @click="openPicker('shop')"
-          >
-            <b>＋</b
-            ><span
-              ><strong>录入{{ candidateLabel }}</strong
-              ><small>只比较这批牌，按收益排序</small></span
-            >
+            @click="openPicker('shop')">
+            <b>＋</b>
+            <span>
+              <strong>录入{{ candidateLabel }}</strong>
+              <small>只比较这批牌，按收益排序</small>
+            </span>
           </button>
           <AdvisorRecommendations
             :advice="recommendations"
@@ -583,25 +577,23 @@ function startNewRun(): void {
             :empty-message="adviceEmptyMessage"
             @recruit="advisor.recruitCandidate"
             @remove="advisor.removeShopCandidate"
-            @details="(name) => openDetails('op', name)"
-          />
+            @details="(name) => openDetails('op', name)" />
           <AdvisorDeployments
             :advice="deploymentRecommendations"
             @deploy="
               (name, replace) => advisor.setDeployment(name, true, replace)
-            "
-          />
+            " />
           <details class="ra-method">
             <summary>建议依据</summary>
-            <p
-              >优先推进主盟约目标，结合特质产出、精锐和装备评估。可在「方向 /
+            <p>
+              优先推进主盟约目标，结合特质产出、精锐和装备评估。可在「方向 /
               禁用」补充模式、回合、资金与层数。资金随局面手动更新。晋升奖励选中一张后清空其余候选。3
               人目标为混搭留位，6 人目标追人数强化。禁用牌不参与推荐；{{
                 reserveCovenantNames
                   ? `${reserveCovenantNames}计入整备区，其他盟约只计上场`
                   : '所有盟约只计上场'
-              }}。满员抓取先入整备区，替换由你决定。</p
-            >
+              }}。满员抓取先入整备区，替换由你决定。
+            </p>
           </details>
         </div>
       </aside>
@@ -613,33 +605,31 @@ function startNewRun(): void {
               type="button"
               :class="{active: storageView === 'reserve'}"
               :aria-pressed="storageView === 'reserve'"
-              @click="storageView = 'reserve'"
-            >
-              整备区 <b>{{ reserve.length }}</b>
+              @click="storageView = 'reserve'">
+              整备区
+              <b>{{ reserve.length }}</b>
             </button>
             <button
               type="button"
               :class="{active: storageView === 'equipment'}"
               :aria-pressed="storageView === 'equipment'"
-              @click="storageView = 'equipment'"
-            >
-              装备 <b>{{ run.equipment.length }}</b>
+              @click="storageView = 'equipment'">
+              装备
+              <b>{{ run.equipment.length }}</b>
             </button>
           </div>
           <button
             type="button"
             class="ra-text-button"
             aria-haspopup="dialog"
-            @click="openPicker(storageView)"
-          >
+            @click="openPicker(storageView)">
             ＋ {{ storageView === 'reserve' ? '记录备选' : '记录装备' }}
           </button>
         </div>
         <div
           v-if="storageView === 'reserve'"
           class="ra-storage-strip"
-          aria-label="整备区"
-        >
+          aria-label="整备区">
           <AdvisorSlot
             v-for="operator in reserve"
             :key="operator.name"
@@ -652,18 +642,18 @@ function startNewRun(): void {
               selection?.kind === 'operator' &&
               selection.id === operator.name
             "
-            @select="selectEntity({kind: 'operator', id: operator.name})"
-          />
+            @select="selectEntity({kind: 'operator', id: operator.name})" />
           <AdvisorSlot
             compact
             empty-label="记录备选"
-            @select="openPicker('reserve')"
-          />
-          <span v-if="!reserve.length" class="ra-storage-hint"
-            >对子和备选放这里<template v-if="reserveCovenantHints"
-              ><br />{{ reserveCovenantHints }}也计人数</template
-            ></span
-          >
+            @select="openPicker('reserve')" />
+          <span v-if="!reserve.length" class="ra-storage-hint">
+            对子和备选放这里
+            <template v-if="reserveCovenantHints">
+              <br />
+              {{ reserveCovenantHints }}也计人数
+            </template>
+          </span>
         </div>
         <div v-else class="ra-storage-strip" aria-label="装备仓库">
           <button
@@ -678,19 +668,17 @@ function startNewRun(): void {
                 selection.id === item.id,
             }"
             :aria-label="`编辑装备${item.name}`"
-            @click="selectEntity({kind: 'equipment', id: item.id})"
-          >
+            @click="selectEntity({kind: 'equipment', id: item.id})">
             <img :src="equipIconSrc(item.name)" alt="" width="32" height="32" />
-            <b>{{ item.name }}</b><small
-              >{{ item.advanced ? '进阶 · ' : ''
-              }}{{ item.holder || '仓库' }}</small
-            >
+            <b>{{ item.name }}</b>
+            <small>
+              {{ item.advanced ? '进阶 · ' : '' }}{{ item.holder || '仓库' }}
+            </small>
           </button>
           <AdvisorSlot
             compact
             empty-label="记录装备"
-            @select="openPicker('equipment')"
-          />
+            @select="openPicker('equipment')" />
         </div>
       </section>
     </div>
@@ -715,20 +703,19 @@ function startNewRun(): void {
       "
       :wide="!!picker || poolSettingsOpen"
       @close="closeOverlay"
-      @back="picker = null"
-    >
+      @back="picker = null">
       <div v-if="newRunConfirmationOpen" class="ra-reset-confirmation">
-        <p
-          >清空本局的阵容、装备、商店和禁用设置，重新从 1
-          本开始？新开后仍可撤销一次。</p
-        >
+        <p>
+          清空本局的阵容、装备、商店和禁用设置，重新从 1
+          本开始？新开后仍可撤销一次。
+        </p>
         <div class="ra-reset-actions">
-          <button type="button" class="btn" @click="closeOverlay"
-            >保留本局</button
-          >
-          <button type="button" class="btn p" @click="startNewRun"
-            >确认新开</button
-          >
+          <button type="button" class="btn" @click="closeOverlay">
+            保留本局
+          </button>
+          <button type="button" class="btn p" @click="startNewRun">
+            确认新开
+          </button>
         </div>
       </div>
       <AdvisorPicker
@@ -758,19 +745,16 @@ function startNewRun(): void {
         @remove="removeCandidate"
         @details="openDetails"
         @done="finishPicker"
-        @undo="advisor.undo"
-      />
+        @undo="advisor.undo" />
       <AdvisorPoolSettings
         v-else-if="poolSettingsOpen"
-        @exclude-operator="openPicker('excluded')"
-      />
+        @exclude-operator="openPicker('excluded')" />
       <AdvisorInspector
         v-else-if="selection"
         :selection="selection"
         @add-equipment="(holder) => openPicker('equipment', holder)"
         @details="openDetails"
-        @removed="clearSelection"
-      />
+        @removed="clearSelection" />
     </AdvisorOverlay>
   </div>
 </template>

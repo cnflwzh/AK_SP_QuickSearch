@@ -360,13 +360,15 @@ onUnmounted(() => {
   <div :class="['quickref-layout', {'wiki-open': wikiPanel.isOpen.value}]">
     <div class="quickref-content" :inert="wikiPanel.isOpen.value && !!detail">
       <SkipLink target-id="view" sticky-header="#qbar" />
-      <header class="wrap qhead"
-        ><div
-          ><h1
-            >卫戍速查<small>{{ SEASON_META.title }}</small></h1
-          ></div
-        ><a class="guide" href="/guide.html"
-          ><svg ref="guideAnimation" viewBox="0 0 72 72" aria-hidden="true">
+      <header class="wrap qhead">
+        <div>
+          <h1>
+            卫戍速查
+            <small>{{ SEASON_META.title }}</small>
+          </h1>
+        </div>
+        <a class="guide" href="/guide.html">
+          <svg ref="guideAnimation" viewBox="0 0 72 72" aria-hidden="true">
             <circle class="ring" cx="36" cy="36" r="26" />
             <circle class="nd" cx="36" cy="10" r="6" />
             <circle class="nd" cx="58.5" cy="49" r="6" />
@@ -376,33 +378,52 @@ onUnmounted(() => {
                 id="gmv"
                 dur="5s"
                 repeatCount="indefinite"
-                path="M36,10 A26,26 0 1 1 35.9,10"
-              />
-            </circle></svg
-          ><div
-            ><div class="k">GUIDE</div><b>图解教程</b
-            ><div class="qsteps"
-              ><span><i>01</i>入门</span><span><i>02</i>招募升本</span
-              ><span><i>03</i>刷怪</span><span><i>04</i>盟约</span
-              ><span><i>05</i>流派</span></div
-            ></div
-          ><span class="go">▸</span></a
-        ></header
-      >
-      <div id="qbar" ref="searchBar" :class="['qbar', {searching}]"
-        ><div class="wrap"
-          ><label id="sbox" :class="['search', {has: searching}]"
-            ><svg
+                path="M36,10 A26,26 0 1 1 35.9,10" />
+            </circle>
+          </svg>
+          <div>
+            <div class="k">GUIDE</div>
+            <b>图解教程</b>
+            <div class="qsteps">
+              <span>
+                <i>01</i>
+                入门
+              </span>
+              <span>
+                <i>02</i>
+                招募升本
+              </span>
+              <span>
+                <i>03</i>
+                刷怪
+              </span>
+              <span>
+                <i>04</i>
+                盟约
+              </span>
+              <span>
+                <i>05</i>
+                流派
+              </span>
+            </div>
+          </div>
+          <span class="go">▸</span>
+        </a>
+      </header>
+      <div id="qbar" ref="searchBar" :class="['qbar', {searching}]">
+        <div class="wrap">
+          <label id="sbox" :class="['search', {has: searching}]">
+            <svg
               viewBox="0 0 24 24"
               aria-hidden="true"
               focusable="false"
               fill="none"
               stroke-width="2"
-              stroke-linecap="round"
-            >
+              stroke-linecap="round">
               <circle cx="11" cy="11" r="7" />
-              <path d="M20 20l-3.5-3.5" /></svg
-            ><input
+              <path d="M20 20l-3.5-3.5" />
+            </svg>
+            <input
               id="q"
               ref="searchInput"
               type="search"
@@ -412,18 +433,19 @@ onUnmounted(() => {
               aria-label="搜索"
               @input="search"
               @compositionstart="composing = true"
-              @compositionend="compositionEnd"
-            /><kbd>/</kbd
-            ><button
+              @compositionend="compositionEnd" />
+            <kbd>/</kbd>
+            <button
               id="qx"
               type="button"
               class="x"
               aria-label="清空或收起搜索"
-              @click.prevent="clearAndFocus"
-              >✕</button
-            ></label
-          ><nav id="tabs" ref="tabBar" class="tabs" aria-label="速查栏目"
-            ><RouterLink
+              @click.prevent="clearAndFocus">
+              ✕
+            </button>
+          </label>
+          <nav id="tabs" ref="tabBar" class="tabs" aria-label="速查栏目">
+            <RouterLink
               v-for="tab in tabs"
               :key="tab.id"
               :to="tabLocation(tab.id)"
@@ -431,13 +453,13 @@ onUnmounted(() => {
               :class="{on: currentRoute.meta.tab === tab.id}"
               :aria-current="
                 currentRoute.meta.tab === tab.id ? 'page' : undefined
-              "
-              >{{ tab.label
-              }}<i v-if="tab.count">{{ tab.count }}</i></RouterLink
-            ></nav
-          ></div
-        ></div
-      >
+              ">
+              {{ tab.label }}
+              <i v-if="tab.count">{{ tab.count }}</i>
+            </RouterLink>
+          </nav>
+        </div>
+      </div>
       <main
         id="view"
         ref="view"
@@ -446,35 +468,33 @@ onUnmounted(() => {
         aria-label="速查内容"
         @touchstart.passive="touchStart"
         @touchend.passive="touchEnd"
-        @touchcancel.passive="touchCancel"
-      >
+        @touchcancel.passive="touchCancel">
         <div v-if="navigationError" class="route-message" role="alert">
           <span>页面加载失败，请检查网络后重试。</span>
           <button type="button" @click="retryNavigation">重试</button>
           <button type="button" @click="reloadPage">刷新页面</button>
         </div>
-        <div v-if="routeNotice" class="route-message" role="status"
-          >{{ routeNotice
-          }}<button type="button" @click="routeNotice = ''">关闭</button></div
-        >
+        <div v-if="routeNotice" class="route-message" role="status">
+          {{ routeNotice }}
+          <button type="button" @click="routeNotice = ''">关闭</button>
+        </div>
         <div
           class="pane"
           :data-key="renderedQuery ? 'search' : state.tab"
-          :data-slide="slide || undefined"
-        >
+          :data-slide="slide || undefined">
           <SearchView v-if="renderedQuery" :query="renderedQuery" />
-          <div v-show="!renderedQuery"
-            ><RouterView v-slot="{Component}">
-              <component :is="Component" /> </RouterView
-          ></div>
+          <div v-show="!renderedQuery">
+            <RouterView v-slot="{Component}">
+              <component :is="Component" />
+            </RouterView>
+          </div>
         </div>
       </main>
     </div>
     <PrtsPanel
       v-if="wikiPanel.isOpen.value"
       :operator-name="wikiPanel.operatorName.value"
-      @close="wikiPanel.close()"
-    />
+      @close="wikiPanel.close()" />
     <DetailSheet :selection="detail" :split-view="wikiPanel.isOpen.value" />
   </div>
 </template>

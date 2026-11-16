@@ -50,14 +50,13 @@ function selectTool(index: number): void {
         :labels="toolLabels"
         :active="activeIndex"
         attr="number-tool"
-        @change="selectTool"
-      />
+        @change="selectTool" />
     </nav>
     <!-- 仅工具切换产生过渡；临时输入和详情弹窗更新不重建面板。 -->
     <Transition name="number-panel" mode="out-in">
-      <KeepAlive :max="5"
-        ><component :is="panels[activeTool]" :key="activeTool"
-      /></KeepAlive>
+      <KeepAlive :max="5">
+        <component :is="panels[activeTool]" :key="activeTool" />
+      </KeepAlive>
     </Transition>
     <ExtraRules v-if="activeTool !== 'advisor' && activeTool !== 'dealer'" />
   </div>

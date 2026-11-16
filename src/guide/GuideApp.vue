@@ -172,23 +172,23 @@ onBeforeUnmount(() => {
   <header class="wrap hero">
     <div>
       <div class="kicker">ARKNIGHTS · STRONGHOLD PROTOCOL</div>
-      <h1
-        >卫戍协议<span>{{ SEASON_META.guideSubtitle }}</span></h1
-      >
-      <div class="kpis" id="kpis"
-        ><div v-for="[value, label] in kpis" :key="label" class="kpi"
-          ><b>{{ value }}</b
-          ><span>{{ label }}</span></div
-        ></div
-      >
+      <h1>
+        卫戍协议
+        <span>{{ SEASON_META.guideSubtitle }}</span>
+      </h1>
+      <div class="kpis" id="kpis">
+        <div v-for="[value, label] in kpis" :key="label" class="kpi">
+          <b>{{ value }}</b>
+          <span>{{ label }}</span>
+        </div>
+      </div>
     </div>
     <svg
       ref="loop"
       class="loop"
       viewBox="0 0 320 320"
       role="img"
-      aria-label="休整期、作战阶段、联防阶段循环"
-    >
+      aria-label="休整期、作战阶段、联防阶段循环">
       <defs>
         <marker
           id="ah"
@@ -197,8 +197,7 @@ onBeforeUnmount(() => {
           refY="5"
           markerWidth="6"
           markerHeight="6"
-          orient="auto"
-        >
+          orient="auto">
           <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)" />
         </marker>
       </defs>
@@ -206,18 +205,15 @@ onBeforeUnmount(() => {
       <path
         class="arc"
         d="M196,54 A112,112 0 0 1 262,200"
-        marker-end="url(#ah)"
-      />
+        marker-end="url(#ah)" />
       <path
         class="arc"
         d="M222,256 A112,112 0 0 1 98,256"
-        marker-end="url(#ah)"
-      />
+        marker-end="url(#ah)" />
       <path
         class="arc"
         d="M58,200 A112,112 0 0 1 124,54"
-        marker-end="url(#ah)"
-      />
+        marker-end="url(#ah)" />
       <text class="core" x="160" y="158">每回合</text>
       <text class="core2" x="160" y="180">ROUND LOOP</text>
       <g class="nd">
@@ -239,48 +235,61 @@ onBeforeUnmount(() => {
         <animateMotion
           dur="6s"
           repeatCount="indefinite"
-          path="M160,48 A112,112 0 1 1 159.9,48"
-        />
+          path="M160,48 A112,112 0 1 1 159.9,48" />
       </circle>
     </svg>
   </header>
 
-  <nav class="top" aria-label="教程章节"
-    ><div class="wrap" id="nav" @click="navigate">
-      <a href="/index.html" class="home"><i>◂</i>速查</a>
+  <nav class="top" aria-label="教程章节">
+    <div class="wrap" id="nav" @click="navigate">
+      <a href="/index.html" class="home">
+        <i>◂</i>
+        速查
+      </a>
       <a
         href="#c1"
         :class="{on: active === 'c1'}"
-        :aria-current="active === 'c1' ? 'location' : undefined"
-        ><i>01</i>入门</a
-      ><a
+        :aria-current="active === 'c1' ? 'location' : undefined">
+        <i>01</i>
+        入门
+      </a>
+      <a
         href="#c2"
         :class="{on: active === 'c2'}"
-        :aria-current="active === 'c2' ? 'location' : undefined"
-        ><i>02</i>招募与升本</a
-      ><a
+        :aria-current="active === 'c2' ? 'location' : undefined">
+        <i>02</i>
+        招募与升本
+      </a>
+      <a
         href="#c3"
         :class="{on: active === 'c3'}"
-        :aria-current="active === 'c3' ? 'location' : undefined"
-        ><i>03</i>刷怪</a
-      ><a
+        :aria-current="active === 'c3' ? 'location' : undefined">
+        <i>03</i>
+        刷怪
+      </a>
+      <a
         href="#c4"
         :class="{on: active === 'c4'}"
-        :aria-current="active === 'c4' ? 'location' : undefined"
-        ><i>04</i>盟约进阶</a
-      ><a
+        :aria-current="active === 'c4' ? 'location' : undefined">
+        <i>04</i>
+        盟约进阶
+      </a>
+      <a
         href="#c5"
         :class="{on: active === 'c5'}"
-        :aria-current="active === 'c5' ? 'location' : undefined"
-        ><i>05</i>流派</a
-      ><a
+        :aria-current="active === 'c5' ? 'location' : undefined">
+        <i>05</i>
+        流派
+      </a>
+      <a
         href="#c6"
         :class="{on: active === 'c6'}"
-        :aria-current="active === 'c6' ? 'location' : undefined"
-        ><i>06</i>图鉴</a
-      >
-    </div></nav
-  >
+        :aria-current="active === 'c6' ? 'location' : undefined">
+        <i>06</i>
+        图鉴
+      </a>
+    </div>
+  </nav>
 
   <main id="guide-content" class="wrap" tabindex="-1" aria-label="图解教程内容">
     <section
@@ -289,15 +298,14 @@ onBeforeUnmount(() => {
       class="chap"
       :id="id"
       :aria-busy="busy[id] ? 'true' : undefined"
-      :data-loaded="components[id] ? 'true' : undefined"
-    >
+      :data-loaded="components[id] ? 'true' : undefined">
       <button
         v-if="errors[id]"
         type="button"
         class="btn chapter-retry"
-        @click="backgroundLoad(id)"
-        >重新加载本章</button
-      >
+        @click="backgroundLoad(id)">
+        重新加载本章
+      </button>
       <component v-if="components[id]" :is="components[id]" />
       <Markup v-else :html="placeholders[id]" />
     </section>

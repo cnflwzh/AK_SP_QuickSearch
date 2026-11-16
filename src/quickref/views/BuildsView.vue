@@ -296,8 +296,7 @@ watch(
     :class="[
       'bsel',
       {'is-editing': editing && !importOpen && activePanel !== 'backup'},
-    ]"
-  >
+    ]">
     <button
       v-for="x in coreList"
       :key="x.key"
@@ -306,10 +305,10 @@ watch(
       :style="{'--c': presetColor(x)}"
       :data-bd="x.key"
       :aria-pressed="x.key === p.key"
-      @click="selectBuild(x.key)"
-      >{{ x.plan.name
-      }}<i v-if="x.modified" class="md" title="已修改">✎</i></button
-    >
+      @click="selectBuild(x.key)">
+      {{ x.plan.name }}
+      <i v-if="x.modified" class="md" title="已修改">✎</i>
+    </button>
     <span class="sp"></span>
     <button
       v-for="x in mixedList"
@@ -319,10 +318,10 @@ watch(
       style="--c: var(--accent)"
       :data-bd="x.key"
       :aria-pressed="x.key === p.key"
-      @click="selectBuild(x.key)"
-      >{{ x.plan.name
-      }}<i v-if="x.modified" class="md" title="已修改">✎</i></button
-    >
+      @click="selectBuild(x.key)">
+      {{ x.plan.name }}
+      <i v-if="x.modified" class="md" title="已修改">✎</i>
+    </button>
     <span class="sp"></span>
     <span class="bk">我的</span>
     <button
@@ -333,31 +332,31 @@ watch(
       style="--c: var(--accent)"
       :data-bd="x.key"
       :aria-pressed="x.key === p.key"
-      @click="selectBuild(x.key)"
-      >{{ x.plan.name }}</button
-    >
+      @click="selectBuild(x.key)">
+      {{ x.plan.name }}
+    </button>
     <button type="button" class="add" @click="createBuild">＋ 新建</button>
     <button
       type="button"
       :class="['add', {on: importOpen}]"
       :aria-expanded="importOpen"
       :aria-controls="importOpen ? 'build-import' : undefined"
-      @click="togglePanel('import')"
-      >导入</button
-    >
+      @click="togglePanel('import')">
+      导入
+    </button>
     <button
       type="button"
       :class="['add', {on: activePanel === 'backup'}]"
       :aria-expanded="activePanel === 'backup'"
       :aria-controls="activePanel === 'backup' ? 'build-backup' : undefined"
-      @click="togglePanel('backup')"
-      >备份与恢复</button
-    >
+      @click="togglePanel('backup')">
+      备份与恢复
+    </button>
   </div>
 
-  <p v-if="saveError" class="pl-warn" role="status"
-    >本地保存失败，请先复制分享码保留流派。</p
-  >
+  <p v-if="saveError" class="pl-warn" role="status">
+    本地保存失败，请先复制分享码保留流派。
+  </p>
 
   <PlanBackupPanel v-if="activePanel === 'backup'" id="build-backup" />
 
@@ -366,21 +365,19 @@ watch(
       v-model="importText"
       class="pl-paste"
       placeholder="粘贴分享码或链接"
-      aria-label="分享码"
-    />
+      aria-label="分享码" />
     <template v-if="imported">
       <PlanSummary
         :ops="imported.plan.ops"
         :strategy="imported.plan.strategy"
         :note="imported.plan.note"
         :layers="imported.plan.layers"
-        :title="imported.plan.name || '导入的流派'"
-      />
-      <div class="pl-row"
-        ><button type="button" class="pri" @click="acceptImport"
-          >存为我的流派</button
-        ></div
-      >
+        :title="imported.plan.name || '导入的流派'" />
+      <div class="pl-row">
+        <button type="button" class="pri" @click="acceptImport">
+          存为我的流派
+        </button>
+      </div>
     </template>
     <p v-else-if="importText.trim()" class="pl-warn">认不出这个分享码</p>
   </section>
@@ -397,37 +394,35 @@ watch(
           type="button"
           :class="['pri', {in: isRun}]"
           :disabled="!p.plan.ops.length"
-          @click="setRun(isRun ? '' : p.key)"
-          >{{ isRun ? '✓ 本局 · 结束' : '▶ 本局打这套' }}</button
-        >
+          @click="setRun(isRun ? '' : p.key)">
+          {{ isRun ? '✓ 本局 · 结束' : '▶ 本局打这套' }}
+        </button>
         <button
           type="button"
           :class="{on: activePanel === 'share'}"
           :aria-expanded="activePanel === 'share'"
           :aria-controls="activePanel === 'share' ? 'build-share' : undefined"
-          @click="togglePanel('share')"
-          >分享</button
-        >
+          @click="togglePanel('share')">
+          分享
+        </button>
         <button type="button" @click="editBuild(p.key)">编辑</button>
         <button type="button" @click="duplicateBuild(p.key)">复制</button>
         <OperatorRequestButton
           :names="p.plan.ops.map((slot) => slot.name)"
-          :build-name="p.plan.name"
-        />
-        <button v-if="p.modified" type="button" @click="restore"
-          >恢复默认</button
-        >
-        <button v-if="!p.builtin" type="button" class="dg" @click="remove"
-          >删除</button
-        >
+          :build-name="p.plan.name" />
+        <button v-if="p.modified" type="button" @click="restore">
+          恢复默认
+        </button>
+        <button v-if="!p.builtin" type="button" class="dg" @click="remove">
+          删除
+        </button>
       </span>
     </div>
 
     <PlanSharePanel
       v-if="activePanel === 'share'"
       id="build-share"
-      :plan="p.plan"
-    />
+      :plan="p.plan" />
 
     <div v-if="needs.length" class="bneed">
       <span class="k">需要盟约</span>
@@ -442,90 +437,82 @@ watch(
         :style="{'--c': color(s.name)}"
         :data-cv="s.name"
         data-peek="off"
-        @click="actions.openCovenant(s.name)"
-        >{{ s.name }}<small>{{ s.count }}/{{ s.need }}</small></button
-      >
+        @click="actions.openCovenant(s.name)">
+        {{ s.name }}
+        <small>{{ s.count }}/{{ s.need }}</small>
+      </button>
       <button
         type="button"
         :class="['bbtn', {on: banOpen || myBans.length}]"
         :aria-expanded="banOpen || !!myBans.length"
-        @click="banOpen = !banOpen"
-        >有盟约被 ban？</button
-      >
+        @click="banOpen = !banOpen">
+        有盟约被 ban？
+      </button>
     </div>
 
     <div v-if="banOpen || myBans.length" class="bban">
-      <div class="bpick"
-        ><span class="k">点选被 ban 的</span
-        ><button
+      <div class="bpick">
+        <span class="k">点选被 ban 的</span>
+        <button
           v-for="s in bannable"
           :key="s.name"
           type="button"
           :class="['bc', {on: runBans.includes(s.name)}]"
           :aria-pressed="runBans.includes(s.name)"
           :style="{'--c': color(s.name)}"
-          @click="toggleBan(s.name)"
-          >{{ s.name }}</button
-        ></div
-      >
+          @click="toggleBan(s.name)">
+          {{ s.name }}
+        </button>
+      </div>
       <template v-if="ban">
         <div v-for="pk in ban.picks" :key="pk.replaces" class="bpk">
           <span
             class="av off"
             :data-t="OPERATOR[pk.replaces].tier"
             :data-op="pk.replaces"
-            :title="`${pk.replaces} 不会出现`"
-            ><img
-              :src="avatarSrc(pk.replaces)"
-              alt=""
-              width="36"
-              height="36"
-            /><small>{{ pk.replaces }}</small></span
-          >
+            :title="`${pk.replaces} 不会出现`">
+            <img :src="avatarSrc(pk.replaces)" alt="" width="36" height="36" />
+            <small>{{ pk.replaces }}</small>
+          </span>
           <b class="ar">→</b>
           <button
             type="button"
             class="av to"
             :data-t="OPERATOR[pk.name].tier"
             :data-op="pk.name"
-            @click="actions.openDetail('op', pk.name)"
-            ><img
-              :src="avatarSrc(pk.name)"
-              alt=""
-              width="36"
-              height="36"
-            /><small>{{ pk.name }}</small></button
-          >
-          <span class="g"
-            ><i v-for="c in pk.gains" :key="c" :style="{'--c': color(c)}">{{
-              c
-            }}</i></span
-          >
-          <span v-if="pk.alts.length" class="alts"
-            ><span class="k">或</span
-            ><button
+            @click="actions.openDetail('op', pk.name)">
+            <img :src="avatarSrc(pk.name)" alt="" width="36" height="36" />
+            <small>{{ pk.name }}</small>
+          </button>
+          <span class="g">
+            <i v-for="c in pk.gains" :key="c" :style="{'--c': color(c)}">
+              {{ c }}
+            </i>
+          </span>
+          <span v-if="pk.alts.length" class="alts">
+            <span class="k">或</span>
+            <button
               v-for="a in pk.alts"
               :key="a"
               type="button"
               :data-t="OPERATOR[a].tier"
               :data-op="a"
               :aria-label="`换成 ${a}`"
-              @click="pickAlt(pk.replaces, a)"
-              ><img :src="avatarSrc(a)" alt="" width="28" height="28" /></button
-          ></span>
+              @click="pickAlt(pk.replaces, a)">
+              <img :src="avatarSrc(a)" alt="" width="28" height="28" />
+            </button>
+          </span>
         </div>
         <div
           v-for="n in ban.removed.filter(
             (n) => !ban!.picks.some((pk) => pk.replaces === n),
           )"
           :key="n"
-          class="bpk"
-        >
-          <span class="av off" :data-t="OPERATOR[n].tier" :data-op="n"
-            ><img :src="avatarSrc(n)" alt="" width="36" height="36" /><small>{{
-              n
-            }}</small></span
-          >
+          class="bpk">
+          <span class="av off" :data-t="OPERATOR[n].tier" :data-op="n">
+            <img :src="avatarSrc(n)" alt="" width="36" height="36" />
+            <small>{{ n }}</small>
+          </span>
           <span class="hint">找不到能补回盟约的替代</span>
         </div>
         <div class="bres">
@@ -534,57 +521,64 @@ watch(
             v-for="s in banAfter"
             :key="s.name"
             :class="['c', 'on', {max: s.bonusActive}]"
-            :style="{'--c': color(s.name)}"
-            >{{ s.name }}<small>{{ s.count }}/{{ s.need }}</small></span
-          >
+            :style="{'--c': color(s.name)}">
+            {{ s.name }}
+            <small>{{ s.count }}/{{ s.need }}</small>
+          </span>
           <span
             v-for="l in ban.lost"
             :key="l"
             class="c lost"
-            :style="{'--c': color(l)}"
-            >{{ l }}<small>失效</small></span
-          >
-          <button type="button" class="pri" @click="saveBan"
-            >存为新流派 · 本局打它</button
-          >
+            :style="{'--c': color(l)}">
+            {{ l }}
+            <small>失效</small>
+          </span>
+          <button type="button" class="pri" @click="saveBan">
+            存为新流派 · 本局打它
+          </button>
         </div>
       </template>
-      <p v-else class="hint"
-        >被 ban 盟约的干员整局不会出现，点上面的盟约看替代方案</p
-      >
+      <p v-else class="hint">
+        被 ban 盟约的干员整局不会出现，点上面的盟约看替代方案
+      </p>
     </div>
 
-    <div
-      ><h5
-        >终盘阵容<template v-if="coreBase">
-          · <span class="tag a" style="padding: 0 6px">核心</span></template
-        ></h5
-      >
-      <div v-if="lineup.length" class="tiles"
-        ><OperatorTile
+    <div>
+      <h5>
+        终盘阵容
+        <template v-if="coreBase">
+          ·
+          <span class="tag a" style="padding: 0 6px">核心</span>
+        </template>
+      </h5>
+      <div v-if="lineup.length" class="tiles">
+        <OperatorTile
           v-for="operator in lineup"
           :key="operator.name"
           :operator="operator"
           :extra-class="carries.has(operator.name) ? 'core' : ''"
-          show-tier
-      /></div>
+          show-tier />
+      </div>
       <div v-else class="empty">还没有干员，点「编辑」排阵容</div>
-      <div v-if="withAlts.length" class="balt"
-        ><span class="k">备选</span
-        ><span v-for="o in withAlts" :key="o.name"
-          ><b>{{ o.name }}</b> → {{ o.alt.join('、') }}</span
-        ></div
-      >
+      <div v-if="withAlts.length" class="balt">
+        <span class="k">备选</span>
+        <span v-for="o in withAlts" :key="o.name">
+          <b>{{ o.name }}</b>
+          → {{ o.alt.join('、') }}
+        </span>
+      </div>
     </div>
-    <div v-if="effects.length" class="bfx"
-      ><h5>盟约效果<span class="hint">终盘阵容已成型</span></h5>
+    <div v-if="effects.length" class="bfx">
+      <h5>
+        盟约效果
+        <span class="hint">终盘阵容已成型</span>
+      </h5>
       <div class="fxg">
         <article
           v-for="(c, i) in effects"
           :key="c.name"
           :class="['fxc', 'on', {max: c.bonusActive}]"
-          :style="{'--c': color(c.name), animationDelay: i * 0.05 + 's'}"
-        >
+          :style="{'--c': color(c.name), animationDelay: i * 0.05 + 's'}">
           <header>
             <button
               type="button"
@@ -592,67 +586,70 @@ watch(
               :data-cv="c.name"
               data-peek="off"
               :title="`查看${c.name}盟约页`"
-              @click="actions.openCovenant(c.name)"
-              >{{ c.name }}</button
-            >
+              @click="actions.openCovenant(c.name)">
+              {{ c.name }}
+            </button>
             <span class="need">{{ c.need }} 人</span>
-            <span class="mine" :title="c.members.join('、')"
-              >{{ c.count }} / {{ c.need
-              }}<template v-if="c.layers"> · {{ c.layers }} 层</template></span
-            >
+            <span class="mine" :title="c.members.join('、')">
+              {{ c.count }} / {{ c.need }}
+              <template v-if="c.layers">· {{ c.layers }} 层</template>
+            </span>
           </header>
           <p v-html="c.effect"></p>
-          <p v-if="c.bonus" class="bn"
-            ><span :class="['tag', c.bonusActive ? 'a' : '']">{{
-              c.bonusActive ? '已强化' : c.bonusLabel
-            }}</span>
-            <span v-html="c.bonus"></span
-          ></p>
+          <p v-if="c.bonus" class="bn">
+            <span :class="['tag', c.bonusActive ? 'a' : '']">
+              {{ c.bonusActive ? '已强化' : c.bonusLabel }}
+            </span>
+            <span v-html="c.bonus"></span>
+          </p>
         </article>
       </div>
     </div>
     <div class="bgrid">
-      <div v-if="tips.length"
-        ><h5>要点</h5
-        ><ol class="qsteps"
-          ><li
+      <div v-if="tips.length">
+        <h5>要点</h5>
+        <ol class="qsteps">
+          <li
             v-for="(tip, index) in tips"
             :key="index"
-            :style="{animationDelay: index * 0.06 + 's'}"
-            ><span>{{ tip }}</span></li
-          ></ol
-        ></div
-      >
+            :style="{animationDelay: index * 0.06 + 's'}">
+            <span>{{ tip }}</span>
+          </li>
+        </ol>
+      </div>
       <div style="display: grid; gap: 12px; align-content: start">
-        <div v-if="strategies.length" data-key="strategies"
-          ><h5>策略</h5
-          ><div class="row"
-            ><Chip
+        <div v-if="strategies.length" data-key="strategies">
+          <h5>策略</h5>
+          <div class="row">
+            <Chip
               v-for="name in strategies"
               :key="name"
               kind="st"
-              :name="name" /></div
-        ></div>
-        <div v-if="equipment.length" data-key="equipment"
-          ><h5>装备</h5
-          ><div class="row"
-            ><Chip
+              :name="name" />
+          </div>
+        </div>
+        <div v-if="equipment.length" data-key="equipment">
+          <h5>装备</h5>
+          <div class="row">
+            <Chip
               v-for="name in equipment"
               :key="name"
               kind="eq"
-              :name="name" /></div
-        ></div>
+              :name="name" />
+          </div>
+        </div>
       </div>
     </div>
-    <div v-if="main" class="qcalc" :style="{'--c': accent}"
-      ><div class="vals"
-        ><div v-for="layers in [0, 50, 100, 150, 200]" :key="layers"
-          ><span>{{ layers }} 层 · {{ main.label }}</span
-          ><b
-            >{{ round1(main.at(layers)) }}<small>{{ main.unit }}</small></b
-          ></div
-        ></div
-      ></div
-    >
+    <div v-if="main" class="qcalc" :style="{'--c': accent}">
+      <div class="vals">
+        <div v-for="layers in [0, 50, 100, 150, 200]" :key="layers">
+          <span>{{ layers }} 层 · {{ main.label }}</span>
+          <b>
+            {{ round1(main.at(layers)) }}
+            <small>{{ main.unit }}</small>
+          </b>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

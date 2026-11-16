@@ -1,10 +1,17 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import {nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue';
 
 /** 手机编辑面板的容器；内容由调用方 Teleport 到 contentId，保持桌面和手机共用同一套表单。 */
 /** fit：内容较少的编辑面板按内容高度显示；列表类面板保持固定高度，避免切换筛选时跳动。 */
-const props = defineProps<{ open: boolean; title: string; context: string; contentId: string; canGoBack: boolean; fit?: boolean }>();
-const emit = defineEmits<{ close: []; back: [] }>();
+const props = defineProps<{
+  open: boolean;
+  title: string;
+  context: string;
+  contentId: string;
+  canGoBack: boolean;
+  fit?: boolean;
+}>();
+const emit = defineEmits<{close: []; back: []}>();
 const dialog = ref<HTMLDialogElement>();
 const heading = ref<HTMLElement>();
 const content = ref<HTMLElement>();
@@ -24,24 +31,32 @@ onMounted(() => {
   window.visualViewport?.addEventListener('scroll', syncViewport);
 });
 
-watch([() => props.open, () => props.context], async ([open, context]) => {
-  await nextTick();
-  if (!dialog.value || open !== props.open || context !== props.context) return;
-  if (open) {
-    syncViewport();
-    if (!dialog.value.open) {
-      returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      dialog.value.showModal();
+watch(
+  [() => props.open, () => props.context],
+  async ([open, context]) => {
+    await nextTick();
+    if (!dialog.value || open !== props.open || context !== props.context)
+      return;
+    if (open) {
+      syncViewport();
+      if (!dialog.value.open) {
+        returnFocus =
+          document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
+        dialog.value.showModal();
+      }
+      if (content.value) content.value.scrollTop = 0;
+      // 不自动聚焦搜索框，避免打开面板便弹出软键盘、遮住候选干员。
+      heading.value?.focus({preventScroll: true});
+    } else if (dialog.value.open) {
+      dialog.value.close();
+      if (returnFocus?.isConnected) returnFocus.focus({preventScroll: true});
+      returnFocus = null;
     }
-    if (content.value) content.value.scrollTop = 0;
-    // 不自动聚焦搜索框，避免打开面板便弹出软键盘、遮住候选干员。
-    heading.value?.focus({ preventScroll: true });
-  } else if (dialog.value.open) {
-    dialog.value.close();
-    if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
-    returnFocus = null;
-  }
-}, { flush: 'post' });
+  },
+  {flush: 'post'},
+);
 
 onBeforeUnmount(() => {
   dialog.value?.close();
@@ -53,16 +68,36 @@ onBeforeUnmount(() => {
 <template>
   <Teleport to="body">
     <dialog
-      ref="dialog" :class="['pl', 'pl-sheet', 'workbench-controls', { fit }]" aria-labelledby="planner-sheet-title"
-      :style="{ '--planner-viewport-height': viewportHeight, '--planner-viewport-bottom': viewportBottom }"
-      @cancel.prevent="emit('close')" @keydown.esc.stop.prevent="emit('close')" @click.self="emit('close')"
-    >
+      ref="dialog"
+      :class="['pl', 'pl-sheet', 'workbench-controls', {fit}]"
+      aria-labelledby="planner-sheet-title"
+      :style="{
+        '--planner-viewport-height': viewportHeight,
+        '--planner-viewport-bottom': viewportBottom,
+      }"
+      @cancel.prevent="emit('close')"
+      @keydown.esc.stop.prevent="emit('close')"
+      @click.self="emit('close')">
       <header class="pl-sheet-heading">
-        <button v-if="canGoBack" type="button" class="btn" @click="emit('back')">‹ 返回</button>
-        <h3 id="planner-sheet-title" ref="heading" tabindex="-1">{{ title }}</h3>
-        <button type="button" class="btn pri" @click="emit('close')">完成</button>
+        <button
+          v-if="canGoBack"
+          type="button"
+          class="btn"
+          @click="emit('back')">
+          ‹ 返回
+        </button>
+        <h3 id="planner-sheet-title" ref="heading" tabindex="-1">
+          {{ title }}
+        </h3>
+        <button type="button" class="btn pri" @click="emit('close')">
+          完成
+        </button>
       </header>
-      <div :id="contentId" ref="content" class="pl-sheet-content" data-noswipe></div>
+      <div
+        :id="contentId"
+        ref="content"
+        class="pl-sheet-content"
+        data-noswipe></div>
     </dialog>
   </Teleport>
 </template>
@@ -85,25 +120,85 @@ onBeforeUnmount(() => {
   overflow: hidden;
   gap: 0;
 }
-.pl-sheet.fit { height: auto; }
-.pl-sheet:not([open]) { display: none; }
-.pl-sheet[open] { display: flex; flex-direction: column; animation: planner-sheet-in .2s ease-out; }
-.pl-sheet::backdrop { background: rgba(5, 12, 14, .5); }
-.pl-sheet-heading { display: flex; align-items: center; gap: 8px; flex: none; padding: 12px; border-bottom: 1px solid var(--line); }
-.pl-sheet-heading h3 { flex: 1; margin: 0; font-size: 16px; min-width: 0; }
-.pl-sheet-heading h3:focus { outline: none; }
-.pl-sheet-heading button { flex: none; min-height: 40px; }
-.pl-sheet-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 12px max(16px, var(--safe-area-bottom)); }
-:global(html:has(dialog.pl-sheet[open])) { overflow: hidden; }
+.pl-sheet.fit {
+  height: auto;
+}
+.pl-sheet:not([open]) {
+  display: none;
+}
+.pl-sheet[open] {
+  display: flex;
+  flex-direction: column;
+  animation: planner-sheet-in 0.2s ease-out;
+}
+.pl-sheet::backdrop {
+  background: rgba(5, 12, 14, 0.5);
+}
+.pl-sheet-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.pl-sheet-heading h3 {
+  flex: 1;
+  margin: 0;
+  font-size: 16px;
+  min-width: 0;
+}
+.pl-sheet-heading h3:focus {
+  outline: none;
+}
+.pl-sheet-heading button {
+  flex: none;
+  min-height: 40px;
+}
+.pl-sheet-content {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 12px max(16px, var(--safe-area-bottom));
+}
+:global(html:has(dialog.pl-sheet[open])) {
+  overflow: hidden;
+}
 /* 矮窗口（安卓横屏小窗、横屏手机）：面板几乎占满高度，页眉收紧，把空间留给列表。 */
 @media (max-height: 600px) {
-  .pl-sheet { max-height: calc(var(--planner-viewport-height, 100dvh) - 6px); height: calc(var(--planner-viewport-height, 100dvh) - 6px); }
-  .pl-sheet.fit { height: auto; }
-  .pl-sheet-heading { padding: 5px 10px; }
-  .pl-sheet-heading h3 { font-size: 14px; }
-  .pl-sheet-heading button { min-height: 34px; }
-  .pl-sheet-content { padding-top: 8px; }
+  .pl-sheet {
+    max-height: calc(var(--planner-viewport-height, 100dvh) - 6px);
+    height: calc(var(--planner-viewport-height, 100dvh) - 6px);
+  }
+  .pl-sheet.fit {
+    height: auto;
+  }
+  .pl-sheet-heading {
+    padding: 5px 10px;
+  }
+  .pl-sheet-heading h3 {
+    font-size: 14px;
+  }
+  .pl-sheet-heading button {
+    min-height: 34px;
+  }
+  .pl-sheet-content {
+    padding-top: 8px;
+  }
 }
-@keyframes planner-sheet-in { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .pl-sheet[open] { animation: none; } }
+@keyframes planner-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pl-sheet[open] {
+    animation: none;
+  }
+}
 </style>

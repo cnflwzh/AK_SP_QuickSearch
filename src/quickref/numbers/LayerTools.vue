@@ -76,25 +76,25 @@ async function select(
       <select
         :value="selected"
         aria-label="选择盟约计算"
-        @change="select(($event.target as HTMLSelectElement).value)"
-      >
+        @change="select(($event.target as HTMLSelectElement).value)">
         <optgroup
           v-for="group in groups"
           :key="group.label"
-          :label="group.label"
-        >
-          <option v-for="name in group.names" :key="name" :value="name">{{
-            name
-          }}</option>
+          :label="group.label">
+          <option v-for="name in group.names" :key="name" :value="name">
+            {{ name }}
+          </option>
         </optgroup>
       </select>
     </div>
 
     <div class="nt-layer-layout">
       <section class="nc nt-threshold-list" aria-label="层数门槛速查">
-        <div class="nt-threshold-heading"
-          ><span>盟约</span><span>层数</span><span>关键变化</span></div
-        >
+        <div class="nt-threshold-heading">
+          <span>盟约</span>
+          <span>层数</span>
+          <span>关键变化</span>
+        </div>
         <button
           v-for="name in COMMON_LAYER_COVENANTS"
           :key="name"
@@ -104,19 +104,22 @@ async function select(
           :style="{'--c': color(name)}"
           :aria-pressed="isSelected(name, 'threshold')"
           aria-controls="numbers-layer-calculator"
-          @click="select(name)"
-        >
-          <span class="nt-covenant-name"
-            ><b>{{ name }}</b
-            ><small>{{ COVENANTS[name].need }} 名</small></span
-          >
-          <span class="nt-threshold-number">{{
-            LAYER_BREAKPOINTS[name].map((point) => point.layers).join(' / ')
-          }}</span>
-          <span class="nt-threshold-effect"
-            >{{ LAYER_BREAKPOINTS[name].map((point) => point.effect).join('；')
-            }}<i>›</i></span
-          >
+          @click="select(name)">
+          <span class="nt-covenant-name">
+            <b>{{ name }}</b>
+            <small>{{ COVENANTS[name].need }} 名</small>
+          </span>
+          <span class="nt-threshold-number">
+            {{
+              LAYER_BREAKPOINTS[name].map((point) => point.layers).join(' / ')
+            }}
+          </span>
+          <span class="nt-threshold-effect">
+            {{
+              LAYER_BREAKPOINTS[name].map((point) => point.effect).join('；')
+            }}
+            <i>›</i>
+          </span>
         </button>
       </section>
 
@@ -130,20 +133,19 @@ async function select(
           :class="{selected: isSelected(name, 'cycle')}"
           :aria-pressed="isSelected(name, 'cycle')"
           aria-controls="numbers-layer-calculator"
-          @click="select(name, 'cycle')"
-        >
-          <b :style="{color: color(name)}">{{ name }}</b><span class="tag"
-            >每 {{ cycle.every }} 层</span
-          ><span>{{ cycle.reward }}</span
-          ><i>›</i>
+          @click="select(name, 'cycle')">
+          <b :style="{color: color(name)}">{{ name }}</b>
+          <span class="tag">每 {{ cycle.every }} 层</span>
+          <span>{{ cycle.reward }}</span>
+          <i>›</i>
         </button>
       </section>
 
       <section class="nc nt-headcount-list" aria-label="人数强化">
-        <header class="nt-heading"
-          ><h4 aria-level="3">人数强化</h4
-          ><small class="nt-muted">{{ headcountSubtitle }}</small></header
-        >
+        <header class="nt-heading">
+          <h4 aria-level="3">人数强化</h4>
+          <small class="nt-muted">{{ headcountSubtitle }}</small>
+        </header>
         <p class="nt-muted">核心盟约：6 名不同干员触发强化</p>
         <button
           v-for="item in HEADCOUNT_BREAKPOINTS"
@@ -153,19 +155,18 @@ async function select(
           :class="{selected: isSelected(item.covenant, 'headcount')}"
           :aria-pressed="isSelected(item.covenant, 'headcount')"
           aria-controls="numbers-layer-calculator"
-          @click="select(item.covenant, 'headcount')"
-        >
-          <b>{{ item.covenant }}</b><span class="tag">{{ item.condition }}</span
-          ><span>{{ item.effect }}</span
-          ><i>›</i>
+          @click="select(item.covenant, 'headcount')">
+          <b>{{ item.covenant }}</b>
+          <span class="tag">{{ item.condition }}</span>
+          <span>{{ item.effect }}</span>
+          <i>›</i>
         </button>
       </section>
 
       <div
         id="numbers-layer-calculator"
         class="nt-layer-detail"
-        :style="{'--detail-order': detailOrder}"
-      >
+        :style="{'--detail-order': detailOrder}">
         <LayerCalculator v-model:layers="layerState.count" :name="selected" />
       </div>
     </div>

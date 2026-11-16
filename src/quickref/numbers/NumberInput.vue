@@ -66,6 +66,5 @@ function commit(event: Event): void {
     :placeholder="placeholder"
     @input="read"
     @blur="commit"
-    @keydown.enter="commit"
-  />
+    @keydown.enter="commit" />
 </template>

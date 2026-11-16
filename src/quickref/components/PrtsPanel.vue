@@ -1,19 +1,31 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue';
-import { operatorWikiUrl } from '../../lib/prts/prts.ts';
+import {
+  computed,
+  defineAsyncComponent,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+} from 'vue';
+import {operatorWikiUrl} from '../../lib/prts/prts.ts';
 
-const props = defineProps<{ operatorName: string }>();
-const emit = defineEmits<{ close: [] }>();
+const props = defineProps<{operatorName: string}>();
+const emit = defineEmits<{close: []}>();
 // 正文解析和清理只在打开 Wiki 后加载，不进入速查首屏的依赖链。
 const PrtsReader = defineAsyncComponent(() => import('./PrtsReader.vue'));
-const url = computed(() => `${operatorWikiUrl(props.operatorName)}#${encodeURIComponent('特性')}`);
+const url = computed(
+  () => `${operatorWikiUrl(props.operatorName)}#${encodeURIComponent('特性')}`,
+);
 const heading = ref<HTMLHeadingElement | null>(null);
 const toolbar = ref<HTMLElement | null>(null);
 const toolbarHeight = ref(44);
 let toolbarObserver: ResizeObserver | undefined;
 onMounted(() => {
-  heading.value?.focus({ preventScroll: true });
-  const updateHeight = () => { toolbarHeight.value = Math.ceil(toolbar.value?.getBoundingClientRect().height ?? 44); };
+  heading.value?.focus({preventScroll: true});
+  const updateHeight = () => {
+    toolbarHeight.value = Math.ceil(
+      toolbar.value?.getBoundingClientRect().height ?? 44,
+    );
+  };
   updateHeight();
   toolbarObserver = new ResizeObserver(updateHeight);
   if (toolbar.value) toolbarObserver.observe(toolbar.value);
@@ -22,17 +34,41 @@ onBeforeUnmount(() => toolbarObserver?.disconnect());
 </script>
 
 <template>
-  <aside class="prts-panel" aria-labelledby="prts-panel-title" @keydown.esc.stop="emit('close')">
+  <aside
+    class="prts-panel"
+    aria-labelledby="prts-panel-title"
+    @keydown.esc.stop="emit('close')">
     <header ref="toolbar" class="prts-panel-header">
       <div class="prts-panel-heading">
         <span>PRTS Wiki</span>
-        <h2 id="prts-panel-title" ref="heading" tabindex="-1" :title="operatorName">{{ operatorName }}</h2>
+        <h2
+          id="prts-panel-title"
+          ref="heading"
+          tabindex="-1"
+          :title="operatorName">
+          {{ operatorName }}
+        </h2>
       </div>
-      <a :href="url" target="_blank" rel="noopener noreferrer" data-prts-link :aria-label="`在新标签页打开${operatorName}的 PRTS Wiki`">独立打开 ↗</a>
-      <button type="button" aria-label="关闭 PRTS 侧栏" title="关闭 PRTS 侧栏" @click="emit('close')">✕</button>
+      <a
+        :href="url"
+        target="_blank"
+        rel="noopener noreferrer"
+        data-prts-link
+        :aria-label="`在新标签页打开${operatorName}的 PRTS Wiki`">
+        独立打开 ↗
+      </a>
+      <button
+        type="button"
+        aria-label="关闭 PRTS 侧栏"
+        title="关闭 PRTS 侧栏"
+        @click="emit('close')">
+        ✕
+      </button>
     </header>
     <div class="prts-panel-content">
-      <PrtsReader :operator-name="operatorName" :top-inset="toolbarHeight + 12"/>
+      <PrtsReader
+        :operator-name="operatorName"
+        :top-inset="toolbarHeight + 12" />
     </div>
   </aside>
 </template>
@@ -41,7 +77,10 @@ onBeforeUnmount(() => toolbarObserver?.disconnect());
 .prts-panel {
   --wiki-control-size: 32px;
   --wiki-toolbar-padding: 6px;
-  --wiki-toolbar-top: max(var(--wiki-toolbar-padding), env(safe-area-inset-top));
+  --wiki-toolbar-top: max(
+    var(--wiki-toolbar-padding),
+    env(safe-area-inset-top)
+  );
   position: fixed;
   inset: 0 0 0 auto;
   z-index: 80;
@@ -54,7 +93,7 @@ onBeforeUnmount(() => toolbarObserver?.disconnect());
   border-left: 1px solid var(--line2);
   background: var(--surface);
   box-shadow: -8px 0 24px #00000012;
-  animation: wiki-panel-in .18s ease-out;
+  animation: wiki-panel-in 0.18s ease-out;
 }
 .prts-panel-header {
   position: absolute;
@@ -68,7 +107,9 @@ onBeforeUnmount(() => toolbarObserver?.disconnect());
   background: linear-gradient(180deg, var(--surface) 0%, transparent 100%);
   pointer-events: none;
 }
-.prts-panel-header > * { pointer-events: auto; }
+.prts-panel-header > * {
+  pointer-events: auto;
+}
 .prts-panel-heading,
 .prts-panel-header a,
 .prts-panel-header button {
@@ -87,8 +128,23 @@ onBeforeUnmount(() => toolbarObserver?.disconnect());
   margin-right: auto;
   padding: 0 10px;
 }
-.prts-panel-heading > span { flex: none; color: var(--teal); font-size: 10px; letter-spacing: .04em; white-space: nowrap; }
-.prts-panel-heading h2 { min-width: 0; margin: 0; color: var(--ink); font-size: 16px; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prts-panel-heading > span {
+  flex: none;
+  color: var(--teal);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.prts-panel-heading h2 {
+  min-width: 0;
+  margin: 0;
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .prts-panel-header a {
   display: inline-flex;
   align-items: center;
@@ -101,21 +157,59 @@ onBeforeUnmount(() => toolbarObserver?.disconnect());
   text-decoration: none;
   white-space: nowrap;
 }
-.prts-panel-header button { display: grid; place-items: center; flex: none; width: var(--wiki-control-size); height: var(--wiki-control-size); padding: 0; color: var(--ink2); cursor: pointer; }
-.prts-panel-header :is(a, button):hover { border-color: var(--line2); background: var(--surface2); }
-.prts-panel-header button:hover { color: var(--ink); }
-.prts-panel-header :is(a, button, h2):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.prts-panel-header button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--wiki-control-size);
+  height: var(--wiki-control-size);
+  padding: 0;
+  color: var(--ink2);
+  cursor: pointer;
+}
+.prts-panel-header :is(a, button):hover {
+  border-color: var(--line2);
+  background: var(--surface2);
+}
+.prts-panel-header button:hover {
+  color: var(--ink);
+}
+.prts-panel-header :is(a, button, h2):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
 .prts-panel-content {
   position: relative;
   flex: 1;
   min-height: 0;
   /* 正文铺在渐变下方；章节留白由阅读器内部滚动定位处理。 */
 }
-@keyframes wiki-panel-in { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
-@media (pointer: coarse) {
-  .prts-panel { --wiki-control-size: 44px; --wiki-toolbar-padding: 4px; }
-  .prts-panel-header { gap: 6px; padding-inline: 10px; }
-  .prts-panel-header a { padding-inline: 8px; }
+@keyframes wiki-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
-@media (prefers-reduced-motion: reduce) { .prts-panel { animation: none; } }
+@media (pointer: coarse) {
+  .prts-panel {
+    --wiki-control-size: 44px;
+    --wiki-toolbar-padding: 4px;
+  }
+  .prts-panel-header {
+    gap: 6px;
+    padding-inline: 10px;
+  }
+  .prts-panel-header a {
+    padding-inline: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .prts-panel {
+    animation: none;
+  }
+}
 </style>

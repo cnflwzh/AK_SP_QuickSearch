@@ -17,10 +17,9 @@ const actions = useQuickrefActions();
     class="oc"
     :data-key="`st:${strategy.name}`"
     style="--tc: var(--teal)"
-    :data-st="strategy.name"
-  >
-    <div class="h"
-      ><img
+    :data-st="strategy.name">
+    <div class="h">
+      <img
         v-if="portraitSrc(strategy.name)"
         class="sp"
         :src="portraitSrc(strategy.name)"
@@ -28,30 +27,30 @@ const actions = useQuickrefActions();
         width="88"
         height="88"
         loading="lazy"
-        decoding="async"
-      /><b>{{ strategy.name }}</b
-      ><Chip
+        decoding="async" />
+      <b>{{ strategy.name }}</b>
+      <Chip
         v-if="isCoreCovenant(strategy.category)"
         kind="cv"
         :name="strategy.category"
-        static
-      /><span v-else class="tag">{{ strategy.category }}</span></div
-    >
-    <div class="hp"
-      ><span>{{ strategy.hp }}</span
-      ><div class="trk"
-        ><div :style="{width: hpWidth(strategy.hp) + '%'}"></div></div
-    ></div>
+        static />
+      <span v-else class="tag">{{ strategy.category }}</span>
+    </div>
+    <div class="hp">
+      <span>{{ strategy.hp }}</span>
+      <div class="trk">
+        <div :style="{width: hpWidth(strategy.hp) + '%'}"></div>
+      </div>
+    </div>
     <div
       class="tx"
       v-html="
         `<span style='color:var(--ink);font-weight:500'>${esc(strategy.skill)}</span>\u3000${fx(strategy.effect)}`
-      "
-    ></div>
-    <div
-      ><span :class="['tag', {t: strategy.unlock === '初始'}]">{{
-        strategy.unlock
-      }}</span></div
-    >
+      "></div>
+    <div>
+      <span :class="['tag', {t: strategy.unlock === '初始'}]">
+        {{ strategy.unlock }}
+      </span>
+    </div>
   </NavigationLink>
 </template>

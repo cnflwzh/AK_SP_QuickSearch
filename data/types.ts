@@ -15,7 +15,6 @@ export interface Operator {
 export interface EquipmentMechanics {
   readonly grantsCompanionCovenant?: boolean;
   readonly deploymentSlotBonus?: number;
-  readonly dealerDecoy?: readonly ('transmute' | 'consumable')[];
 }
 
 export interface Equipment {
@@ -461,6 +460,11 @@ export interface SeasonMeta {
 }
 
 export interface SeasonRules {
+  /** 每日练习使用固定顺序，不能随装备展示列表重排。 */
+  readonly dealerDecoys: {
+    readonly transmute: readonly string[];
+    readonly consumable: readonly string[];
+  };
   readonly tierLabels: readonly string[];
   readonly tiers: readonly number[];
   readonly dispatchLevels: readonly DispatchLevel[];

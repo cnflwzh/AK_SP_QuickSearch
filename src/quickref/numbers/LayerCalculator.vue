@@ -61,32 +61,33 @@ function setLayers(value: number | null): void {
   <section
     class="qcalc ncalc nt-calculator"
     :style="{'--c': color(name)}"
-    :aria-label="`${name}层数计算`"
-  >
+    :aria-label="`${name}层数计算`">
     <header class="nt-heading">
-      <div
-        ><h4 aria-level="3">{{ name }}</h4
-        ><span class="nt-muted">{{ countCondition }}</span></div
-      >
+      <div>
+        <h4 aria-level="3">{{ name }}</h4>
+        <span class="nt-muted">{{ countCondition }}</span>
+      </div>
     </header>
 
     <template v-if="covenant.scaling.length">
       <div class="nt-layer-input">
-        <label class="layer-value"
-          >当前层数
+        <label class="layer-value">
+          当前层数
           <NumberInput
             class="lv"
             :value="layers"
             :max="LAYER_INPUT_LIMIT"
             label="当前盟约层数"
-            @change="setLayers"
-        /></label>
-        <span v-if="next" class="nt-gap"
-          >还差 <b>{{ next.layers - layers }}</b> 层</span
-        >
-        <span v-else-if="breakpoints.length" class="nt-achieved"
-          >层数门槛已达成</span
-        >
+            @change="setLayers" />
+        </label>
+        <span v-if="next" class="nt-gap">
+          还差
+          <b>{{ next.layers - layers }}</b>
+          层
+        </span>
+        <span v-else-if="breakpoints.length" class="nt-achieved">
+          层数门槛已达成
+        </span>
       </div>
       <input
         type="range"
@@ -96,8 +97,7 @@ function setLayers(value: number | null): void {
         :value="layers"
         aria-label="拖动调整盟约层数"
         :aria-valuetext="`${layers} 层`"
-        @input="setLayers(($event.target as HTMLInputElement).valueAsNumber)"
-      />
+        @input="setLayers(($event.target as HTMLInputElement).valueAsNumber)" />
       <div class="q" aria-label="快捷层数">
         <button
           v-for="value in quickLayers"
@@ -105,31 +105,28 @@ function setLayers(value: number | null): void {
           type="button"
           :class="{on: layers === value}"
           :aria-pressed="layers === value"
-          @click="setLayers(value)"
-          >{{ value }}</button
-        >
+          @click="setLayers(value)">
+          {{ value }}
+        </button>
       </div>
 
       <div class="vals nt-values">
         <div
           v-for="(scaling, index) in covenant.scaling"
           :key="scaling.label"
-          class="nt-value"
-        >
+          class="nt-value">
           <span>{{ scaling.label }}</span>
-          <b
-            >{{ round1(scaling.at(layers))
-            }}<small>{{ scaling.unit }}</small></b
-          >
-          <small v-if="next"
-            >{{ next.layers }} 层 → {{ round1(scaling.at(next.layers))
-            }}{{ scaling.unit }}</small
-          >
-          <small
-            v-if="SCALING_CONDITIONS[name]?.[index]"
-            class="nt-condition"
-            >{{ SCALING_CONDITIONS[name][index] }}</small
-          >
+          <b>
+            {{ round1(scaling.at(layers)) }}
+            <small>{{ scaling.unit }}</small>
+          </b>
+          <small v-if="next">
+            {{ next.layers }} 层 → {{ round1(scaling.at(next.layers))
+            }}{{ scaling.unit }}
+          </small>
+          <small v-if="SCALING_CONDITIONS[name]?.[index]" class="nt-condition">
+            {{ SCALING_CONDITIONS[name][index] }}
+          </small>
         </div>
       </div>
 
@@ -137,21 +134,25 @@ function setLayers(value: number | null): void {
         <div
           v-for="point in breakpoints"
           :key="point.layers"
-          :class="{reached: layers >= point.layers}"
-        >
-          <span class="nt-point">{{ point.layers }}<small>层</small></span>
+          :class="{reached: layers >= point.layers}">
+          <span class="nt-point">
+            {{ point.layers }}
+            <small>层</small>
+          </span>
           <span>{{ point.effect }}</span>
-          <small>{{
-            layers >= point.layers ? '已达成' : `差 ${point.layers - layers}`
-          }}</small>
+          <small>
+            {{
+              layers >= point.layers ? '已达成' : `差 ${point.layers - layers}`
+            }}
+          </small>
         </div>
       </div>
       <div v-if="cycle" class="nt-cycle">
         <span>每 {{ cycle.every }} 层 · {{ cycle.reward }}</span>
-        <b
-          >下一档 {{ cycle.target }} 层
-          <small>还差 {{ cycle.remaining }}</small></b
-        >
+        <b>
+          下一档 {{ cycle.target }} 层
+          <small>还差 {{ cycle.remaining }}</small>
+        </b>
       </div>
 
       <div v-if="previewLayers !== undefined" class="nt-ranges">
@@ -161,8 +162,7 @@ function setLayers(value: number | null): void {
             :aria-label="
               preview || layers >= previewLayers ? '周围八格' : '周围四格'
             "
-            role="img"
-          >
+            role="img">
             <span
               v-for="cell in cells"
               :key="cell"
@@ -172,15 +172,17 @@ function setLayers(value: number | null): void {
                   cell,
                   preview || layers >= previewLayers,
                 ),
-              }"
-              >{{ cell === 4 ? '◆' : '' }}</span
-            >
+              }">
+              {{ cell === 4 ? '◆' : '' }}
+            </span>
           </div>
-          <figcaption>{{
-            preview
-              ? `${previewLayers} 层起 · 周围 8 格`
-              : `当前 · 周围 ${layers >= previewLayers ? 8 : 4} 格`
-          }}</figcaption>
+          <figcaption>
+            {{
+              preview
+                ? `${previewLayers} 层起 · 周围 8 格`
+                : `当前 · 周围 ${layers >= previewLayers ? 8 : 4} 格`
+            }}
+          </figcaption>
         </figure>
       </div>
     </template>
@@ -188,14 +190,14 @@ function setLayers(value: number | null): void {
     <p
       v-if="!covenant.scaling.length"
       class="nt-effect"
-      v-html="fx(covenant.effect)"
-    ></p>
+      v-html="fx(covenant.effect)"></p>
     <p v-if="covenant.bonus && !breakpoints.length" class="nt-condition-block">
       <span class="tag">{{ isCore ? '6 名不同干员' : '人数强化' }}</span>
       <span v-html="fx(covenant.bonus)"></span>
     </p>
     <details v-if="covenant.scaling.length" class="nt-inline-details">
-      <summary>作用条件与公式</summary><p v-html="fx(covenant.effect)"></p>
+      <summary>作用条件与公式</summary>
+      <p v-html="fx(covenant.effect)"></p>
     </details>
     <footer class="nt-links">
       <RouterLink :to="covenantLocation(name)">盟约详情 ↗</RouterLink>
@@ -203,9 +205,9 @@ function setLayers(value: number | null): void {
         :to="{
           path: '/operators',
           query: {covenant: covenantId(name), type: 'stacking'},
-        }"
-        >查叠层干员 ↗</RouterLink
-      >
+        }">
+        查叠层干员 ↗
+      </RouterLink>
     </footer>
   </section>
 </template>

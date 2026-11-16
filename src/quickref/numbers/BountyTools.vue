@@ -31,72 +31,70 @@ const bounties = computed(() => {
 
 <template>
   <div class="nt-bounties">
-    <div class="bar nt-toolbar"
-      ><h4 class="nt-section-title" aria-level="2">悬赏收益</h4
-      ><span class="nt-muted">{{ bounties.length }} 项</span></div
-    >
+    <div class="bar nt-toolbar">
+      <h4 class="nt-section-title" aria-level="2">悬赏收益</h4>
+      <span class="nt-muted">{{ bounties.length }} 项</span>
+    </div>
     <section class="nc">
       <div class="bar nt-bounty-controls">
         <input
           v-model="search"
           type="search"
           placeholder="搜索悬赏敌人"
-          aria-label="搜索悬赏敌人"
-        />
+          aria-label="搜索悬赏敌人" />
         <Segmented
           :labels="filters.map((filter) => filter.label)"
           :active="filters.findIndex((filter) => filter.id === payout)"
           attr="bounty-payout"
-          @change="payout = filters[$event].id"
-        />
-        <select v-model="sort" aria-label="悬赏排序"
-          ><option value="">默认顺序</option
-          ><option value="reward">资金从高到低</option></select
-        >
+          @change="payout = filters[$event].id" />
+        <select v-model="sort" aria-label="悬赏排序">
+          <option value="">默认顺序</option>
+          <option value="reward">资金从高到低</option>
+        </select>
       </div>
-      <div class="nt-bounty-heading"
-        ><span>悬赏敌人</span><span>资金</span><span>发放时机</span></div
-      >
+      <div class="nt-bounty-heading">
+        <span>悬赏敌人</span>
+        <span>资金</span>
+        <span>发放时机</span>
+      </div>
       <div class="nt-bounty-list">
         <div
           v-for="bounty in bounties"
           :key="bounty.name"
           class="nt-bounty-row"
-          :class="{recurring: bounty.when !== '下场'}"
-        >
-          <span class="nt-bounty-enemy"
-            ><img
+          :class="{recurring: bounty.when !== '下场'}">
+          <span class="nt-bounty-enemy">
+            <img
               :src="enemyIconSrc(bounty.enemyId)"
               alt=""
               width="36"
               height="36"
               loading="lazy"
-              decoding="async"
-            /><span>{{ bounty.name }}</span></span
-          >
-          <strong>+{{ bounty.funds }}</strong
-          ><span class="tag">{{ bounty.when }}</span>
+              decoding="async" />
+            <span>{{ bounty.name }}</span>
+          </span>
+          <strong>+{{ bounty.funds }}</strong>
+          <span class="tag">{{ bounty.when }}</span>
         </div>
       </div>
-      <div v-if="!bounties.length" class="nt-no-results"
-        ><p>没有匹配的悬赏</p
-        ><button
+      <div v-if="!bounties.length" class="nt-no-results">
+        <p>没有匹配的悬赏</p>
+        <button
           type="button"
           class="btn"
           @click="
             search = '';
             payout = '';
-          "
-          >清空筛选</button
-        ></div
-      >
+          ">
+          清空筛选
+        </button>
+      </div>
     </section>
     <LiveStatus
       :message="
         bounties.length
           ? `悬赏筛选结果：${bounties.length} 项`
           : '没有匹配的悬赏'
-      "
-    />
+      " />
   </div>
 </template>
