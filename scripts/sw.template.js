@@ -17,7 +17,7 @@ const FONT_CACHE = 'wsq-font-local-v1';
 const ALLOWED = new Set([...CORE, ...IMAGES].map(path => new URL(path, self.registration.scope).href));
 const APP_SHELL = new URL('index.html', self.registration.scope).href;
 const GUIDE_SHELL = new URL('guide.html', self.registration.scope).href;
-const isAppPath = path => /^\/(?:index(?:\.html)?\/?|(?:overview|builds|covenants|operators|equipment|strategies|leaders|numbers)(?:\/.*)?)?$/.test(path);
+const isAppPath = path => /^\/(?:index(?:\.html)?\/?|(?:overview|builds|covenants|operators|equipment|strategies|leaders|tools|numbers)(?:\/.*)?)?$/.test(path);
 const isGuidePath = path => /^\/guide(?:\.html)?\/?$/.test(path);
 
 /** All quick-reference URLs share one shell; filters must not create unbounded HTML cache entries. */

@@ -74,6 +74,14 @@
     {
       "source": "/numbers/*",
       "destination": "/index.html"
+    },
+    {
+      "source": "/tools",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/tools/*",
+      "destination": "/index.html"
     }
   ],
   "headers": [
@@ -326,6 +334,24 @@
     },
     {
       "source": "/numbers/*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/tools",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/tools/*",
       "headers": [
         {
           "key": "Cache-Control",

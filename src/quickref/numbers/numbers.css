@@ -230,13 +230,16 @@
   padding: 10px 7px 8px; border: 0; background: transparent; color: var(--ink); text-align: center;
 }
 .numbers-tools .nt-dealer-pick:disabled { opacity: 1; cursor: default; }
+/* 详情操作占据独立布局空间，触控区域不会覆盖头像或换行后的装备名。 */
+.nt-dealer-card-actions { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 4px 0; }
+.nt-dealer-card-actions + .nt-dealer-pick { padding-top: 4px; }
 .nt-dealer-info,
 .nt-dealer-equip-info {
-  position: absolute; top: 4px; left: 4px; width: 34px; height: 34px; padding: 0;
+  flex: 0 0 34px; width: 34px; height: 34px; padding: 0;
   border: 1px solid var(--line); border-radius: 999px; background: var(--surface2);
   color: var(--ink3); font: 600 11px/1 var(--fb); display: grid; place-items: center; z-index: 1;
 }
-.nt-dealer-equip-info { top: 41px; font-size: 10px; color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.nt-dealer-equip-info { font-size: 10px; color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
 .nt-dealer-info:hover,
 .nt-dealer-equip-info:hover { border-color: var(--accent); color: var(--accent); background: var(--surface); }
 
@@ -273,7 +276,7 @@
   border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--line)); color: var(--ink);
 }
 .nt-dealer-equip-chip img { width: 14px; height: 14px; flex-shrink: 0; border-radius: 2px; object-fit: contain; }
-.nt-dealer-equip-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nt-dealer-equip-chip span { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
 .nt-dealer-covs { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; }
 .nt-dealer-cov {
   --c: var(--teal); font-size: 10.5px; line-height: 1.35; padding: 1px 5px; border-radius: 3px;
@@ -429,9 +432,7 @@
   .nt-dealer-ult { min-height: 34px; padding: 3px 8px; font-size: 12px; }
   .nt-dealer-shop { gap: 5px; }
   .nt-dealer-pick { padding: 4px 4px 3px; gap: 2px; }
-  .nt-dealer-info, .nt-dealer-equip-info { width: 34px; height: 34px; left: 3px; font-size: 10px; }
-  .nt-dealer-info { top: 3px; }
-  .nt-dealer-equip-info { top: 40px; }
+  .nt-dealer-info, .nt-dealer-equip-info { width: 34px; height: 34px; font-size: 10px; }
   .nt-dealer-pic { width: 32px; height: 32px; }
   .nt-dealer-name { font-size: 12px; margin-top: 1px; }
   .nt-dealer-equip-chip { font-size: 10px; padding: 1px 4px; }

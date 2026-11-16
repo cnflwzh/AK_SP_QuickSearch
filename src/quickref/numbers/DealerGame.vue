@@ -130,7 +130,7 @@ function changeHint(event: Event): void {
 }
 
 function dealerShareLink(): string {
-  const resolved = router.resolve({path: '/numbers', query: {tool: 'dealer'}});
+  const resolved = router.resolve({name: 'tools', query: {tool: 'dealer'}});
   return new URL(resolved.href, window.location.origin).href;
 }
 
@@ -492,6 +492,43 @@ function inspectCardDetail(
           ]"
           :data-t="cardTierData(card)"
         >
+          <div
+            v-if="card.detailKind || card.attachedEquip"
+            class="nt-dealer-card-actions"
+          >
+            <button
+              v-if="card.detailKind"
+              type="button"
+              class="nt-dealer-info"
+              :aria-label="`查看${card.title}详情`"
+              :title="
+                card.status === 'unseen' &&
+                !isRoundCleared &&
+                state.hintLevel === 'blind'
+                  ? '查看详情（本轮未通关时将计入提示）'
+                  : '查看详情'
+              "
+              @click="inspectCardDetail(index, card.detailKind, card.title)"
+            >
+              i
+            </button>
+            <button
+              v-if="card.attachedEquip"
+              type="button"
+              class="nt-dealer-equip-info"
+              :aria-label="`查看装备${card.attachedEquip.name}详情`"
+              :title="
+                card.status === 'unseen' &&
+                !isRoundCleared &&
+                state.hintLevel === 'blind'
+                  ? '查看携带装备详情（将计入场中提示）'
+                  : '查看携带装备详情'
+              "
+              @click="inspectCardDetail(index, 'eq', card.attachedEquip.name)"
+            >
+              装
+            </button>
+          </div>
           <button
             type="button"
             class="nt-dealer-pick"
@@ -577,39 +614,6 @@ function inspectCardDetail(
               <span class="nt-dealer-hit-cta">👊 揪出串场</span>
             </template>
           </button>
-
-          <button
-            v-if="card.detailKind"
-            type="button"
-            class="nt-dealer-info"
-            :aria-label="`查看${card.title}详情`"
-            :title="
-              card.status === 'unseen' &&
-              !isRoundCleared &&
-              state.hintLevel === 'blind'
-                ? '查看详情（本轮未通关时将计入提示）'
-                : '查看详情'
-            "
-            @click="inspectCardDetail(index, card.detailKind, card.title)"
-          >
-            i
-          </button>
-          <button
-            v-if="card.attachedEquip"
-            type="button"
-            class="nt-dealer-equip-info"
-            :aria-label="`查看装备${card.attachedEquip.name}详情`"
-            :title="
-              card.status === 'unseen' &&
-              !isRoundCleared &&
-              state.hintLevel === 'blind'
-                ? '查看携带装备详情（将计入场中提示）'
-                : '查看携带装备详情'
-            "
-            @click="inspectCardDetail(index, 'eq', card.attachedEquip.name)"
-          >
-            装
-          </button>
         </article>
       </section>
 
@@ -617,7 +621,7 @@ function inspectCardDetail(
         <span class="nt-dealer-footer-tip">
           <template v-if="isRoundCleared">
             <template v-if="round.cards[0]?.detailKind">
-              已翻开本轮全部 5 张信息，点右下角继续（此时点左上角
+              已翻开本轮全部 5 张信息，点右下角继续（此时点卡片顶部
               <b>i</b> 复盘不计提示）。
             </template>
             <template v-else>
