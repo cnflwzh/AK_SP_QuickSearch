@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue';
-import { encodePlan, shareUrl, type Plan } from '../../lib/planner.ts';
-import { downloadBlob } from '../../lib/download.ts';
+import { encodePlan, shareUrl, type Plan } from '../../lib/plans/index.ts';
+import { downloadBlob } from '../../lib/ui/download.ts';
 
 /** 分享传入方案的当前内容；查看页和编辑页共用，不会修改或保存方案。 */
 const props = defineProps<{ plan: Plan }>();
@@ -26,7 +26,7 @@ async function saveImage(): Promise<void> {
   // 导出期间切换或继续编辑，也让图片、二维码和文件名来自同一份快照。
   const snapshot: Plan = JSON.parse(JSON.stringify(props.plan));
   try {
-    const { planImage } = await import('../../lib/planImage.ts');
+    const { planImage } = await import('../../lib/plans/image.ts');
     const blob = await planImage(snapshot, shareUrl(encodePlan(snapshot)));
     if (!blob) throw new Error('Image export failed');
     downloadBlob(blob, `${snapshot.name || '阵容'}.png`);

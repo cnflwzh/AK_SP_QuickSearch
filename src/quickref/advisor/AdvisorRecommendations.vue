@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { avatarSrc } from '../../lib/assets.ts';
-import type { RecruitAdvice } from '../../lib/runAdvisor.ts';
+import { avatarSrc } from '../../lib/ui/assets.ts';
+import type { RecruitAdvice } from '../../lib/recommendation/live/runAdvisor.ts';
 
 /**
  * 抓取建议列表。录入商店时它就是商店本身：按推荐排序，可直接记录抓到或移出候选；

@@ -1,6 +1,6 @@
 /** 领袖卡片的共用格式：能力文本上色、伤害类型配色、简称。速查页领袖标签与速览卡片共用。 */
-import type { CounterTag, Leader, LeaderDamage } from '../../data/index.ts';
-import { esc } from './dom.ts';
+import type { CounterTag, Leader, LeaderDamage } from '../../../data/index.ts';
+import { esc } from '../ui/dom.ts';
 
 const DAMAGE_CLASS: Readonly<Record<LeaderDamage, string>> = {
   物理: 'phy', 法术: 'arts', 真实: 'true', 侵蚀: 'ero', 凋亡: 'apo', 神经: 'neu',

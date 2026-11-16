@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { OPERATOR, EQUIP, STRATEGY, CORE_BUILDS, TIER_LABELS } from '../../../data/index.ts';
-import { avatarSrc, equipIconSrc, portraitSrc } from '../../lib/assets.ts';
+import { avatarSrc, equipIconSrc, portraitSrc } from '../../lib/ui/assets.ts';
 import { color } from '../format.ts';
 import { useQuickrefActions } from '../state.ts';
 import { buildLocation, covenantLocation, cardLocation } from '../../router/navigation.ts';

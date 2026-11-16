@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { advisorDeploymentLimit, newAdvisorRun, recommendDeployments, recommendRecruits, sanitizeAdvisorRun } from '../src/lib/runAdvisor.ts';
+import { advisorDeploymentLimit, newAdvisorRun, recommendDeployments, recommendRecruits, sanitizeAdvisorRun } from '../src/lib/recommendation/live/runAdvisor.ts';
 
 const names = ['拜松', '矩', '乌有', '风絮', '余', '仇白', '黍', '老鲤', '夕'];
 const owned = name => ({ name, copies: 1, elite: false, deployed: true });

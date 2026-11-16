@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue';
-import { operatorWikiUrl } from '../../lib/prts.ts';
+import { operatorWikiUrl } from '../../lib/prts/prts.ts';
 
 const props = defineProps<{ operatorName: string }>();
 const emit = defineEmits<{ close: [] }>();

@@ -3,7 +3,7 @@ import NavigationLink from './NavigationLink.vue';
 import { cardLocation } from '../../router/navigation.ts';
 import { computed } from 'vue';
 import { EQUIPMENT_RECIPES, type Equipment } from '../../../data/index.ts';
-import { equipIconSrc } from '../../lib/assets.ts';
+import { equipIconSrc } from '../../lib/ui/assets.ts';
 import { fx } from '../format.ts';
 import { useQuickrefActions } from '../state.ts';
 import Chip from './Chip.vue';

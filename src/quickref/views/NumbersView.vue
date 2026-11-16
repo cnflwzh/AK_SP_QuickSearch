@@ -15,6 +15,7 @@ const panels = {
   layers: LayerTools,
   recruit: defineAsyncComponent(() => import('../numbers/RecruitTools.vue')),
   bounty: defineAsyncComponent(() => import('../numbers/BountyTools.vue')),
+  dealer: defineAsyncComponent(() => import('../numbers/DealerGame.vue')),
 };
 const visibleTools = computed(() => NUMBER_TOOLS.filter(tool => tool.id !== 'advisor' || advisorPreviewEnabled.value));
 const activeTool = computed<NumberTool>(() => {
@@ -40,8 +41,8 @@ function selectTool(index: number): void {
     </nav>
     <!-- 仅工具切换产生过渡；临时输入和详情弹窗更新不重建面板。 -->
     <Transition name="number-panel" mode="out-in">
-      <KeepAlive :max="4"><component :is="panels[activeTool]" :key="activeTool"/></KeepAlive>
+      <KeepAlive :max="5"><component :is="panels[activeTool]" :key="activeTool"/></KeepAlive>
     </Transition>
-    <ExtraRules v-if="activeTool !== 'advisor'"/>
+    <ExtraRules v-if="activeTool !== 'advisor' && activeTool !== 'dealer'"/>
   </div>
 </template>

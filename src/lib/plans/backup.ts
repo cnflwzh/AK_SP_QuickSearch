@@ -1,6 +1,7 @@
 /** 流派备份文件的读写与合并；不读写浏览器存储，也不修改传入的方案。 */
-import { OPERATOR, EQUIP, STRATEGY, COVENANTS, BUILD_NAMES } from '../../data/index.ts';
-import { MAX_OPS, MAX_EQ, MAX_ALT, MAX_NOTE, MAX_LAYERS, newId, usesLayers, type Plan, type PlanOp } from './planner.ts';
+import { OPERATOR, EQUIP, STRATEGY, COVENANTS, BUILD_NAMES } from '../../../data/index.ts';
+import { MAX_OPS, MAX_EQ, MAX_ALT, MAX_NOTE, MAX_LAYERS, usesLayers, type Plan, type PlanOp } from './model.ts';
+import { newId } from './storage.ts';
 
 const BACKUP_FORMAT = 'weishu-quickref-builds';
 const BACKUP_VERSION = 1;

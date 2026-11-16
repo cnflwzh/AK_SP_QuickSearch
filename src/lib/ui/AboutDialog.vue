@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { PURPOSE, WIKIS, UPLOADERS, FURTHER_READING, LICENSES, REPO_URL, spaceUrl, videoUrl } from '../../data/credits.ts';
+import { PURPOSE, WIKIS, UPLOADERS, FURTHER_READING, LICENSES, REPO_URL, spaceUrl, videoUrl } from '../../../data/credits.ts';
 const emit = defineEmits<{ seen: [] }>();
 const dialog = ref<HTMLDialogElement>();
 const body = ref<HTMLElement>();

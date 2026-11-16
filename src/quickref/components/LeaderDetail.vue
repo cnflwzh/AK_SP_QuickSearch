@@ -7,15 +7,15 @@ import {
   ROUND_TIME,
   type Leader,
 } from '../../../data/index.ts';
-import {leaderSrc} from '../../lib/assets.ts';
-import {wan} from '../../lib/dom.ts';
+import {leaderSrc} from '../../lib/ui/assets.ts';
+import {wan} from '../../lib/ui/dom.ts';
 import {
   abilityLabel,
   counterClass,
   damageClass,
   leaderFx,
   patrols,
-} from '../../lib/leader.ts';
+} from '../../lib/leaders/leader.ts';
 import {routeQuery, updateQuery} from '../../router/navigation.ts';
 import {queryText} from '../../router/location.ts';
 import {state, setLeader} from '../state.ts';

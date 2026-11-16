@@ -4,7 +4,7 @@
  * 拼音只从音节边界开始匹配，"he" 不会命中 "shen" 中间的 he。
  * 拼音表由 scripts/gen_pinyin.mjs 生成（data/pinyin.ts）。
  */
-import { PINYIN } from '../../data/pinyin.ts';
+import { PINYIN } from '../../../data/pinyin.ts';
 
 const ASCII = /^[a-z0-9]+$/;
 const SEPARATORS = /[\s·・'"“”]/g;

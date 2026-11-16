@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import LiveStatus from '../../lib/LiveStatus.vue';
+import LiveStatus from '../../lib/ui/LiveStatus.vue';
 import { OPERATORS, OPERATOR_TYPES, OPERATOR_TRIGGERS, matchesOperatorTrigger, EQUIPMENT, EQUIPMENT_RECIPES, STRATEGIES, ALL_COVENANTS, TIERS, TIER_LABELS, STRATEGY_CATEGORIES, isCoreCovenant } from '../../../data/index.ts';
 import { updateQuery } from '../../router/navigation.ts';
 import { state } from '../state.ts';

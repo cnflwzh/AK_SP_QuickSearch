@@ -1,4 +1,4 @@
-import { CYCLE_REWARDS, LAYER_BREAKPOINTS } from '../../data/numberTools.ts';
+import { CYCLE_REWARDS, LAYER_BREAKPOINTS } from '../../../data/numberTools.ts';
 
 /** 返回严格高于当前层数的下一项；全部达到时返回 undefined。 */
 export function nextLayerBreakpoint(covenant: string, layers: number) {

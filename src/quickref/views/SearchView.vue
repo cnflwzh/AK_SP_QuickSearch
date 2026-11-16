@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { ALL_COVENANTS, OPERATORS, EQUIPMENT, STRATEGIES, LEADERS, BUILD_NAMES } from '../../../data/index.ts';
-import { normalize, nameScore } from '../../lib/match.ts';
+import { normalize, nameScore } from '../../lib/ui/match.ts';
 import { state } from '../state.ts';
 import Chip from '../components/Chip.vue';
 import LeaderRow from '../components/LeaderRow.vue';
 import OperatorCard from '../components/OperatorCard.vue';
 import EquipmentCard from '../components/EquipmentCard.vue';
 import StrategyCard from '../components/StrategyCard.vue';
-import LiveStatus from '../../lib/LiveStatus.vue';
+import LiveStatus from '../../lib/ui/LiveStatus.vue';
 const props = defineProps<{ query: string }>();
 const operatorLimit = ref(60);
 watch(() => props.query, () => { operatorLimit.value = 60; });

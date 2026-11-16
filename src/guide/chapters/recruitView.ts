@@ -2,8 +2,8 @@
 import {
   OPERATORS, OPERATOR, EQUIP, DISPATCH_LEVELS, DISPATCH_BY_MODE, TIER_STATS, TIER_LABELS, TIERS, EQUIPMENT_COMBOS,
 } from '../../../data/index';
-import { html, range } from '../../lib/dom';
-import { avatarSrc } from '../../lib/assets';
+import { html, range } from '../../lib/ui/dom';
+import { avatarSrc } from '../../lib/ui/assets';
 import { op, eq, st, cv, avatar, tierBadge } from '../chips';
 
 /** Format the selected dispatch mode table with its original upgrade and slot rules. */

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { newSlot } from '../src/lib/planner.ts';
+import { newSlot } from '../src/lib/plans/index.ts';
 import { explainStrategyTransition } from '../src/lib/recommendation/live/advisorStrategy.ts';
-import { newAdvisorRun, recommendRecruits } from '../src/lib/runAdvisor.ts';
+import { newAdvisorRun, recommendRecruits } from '../src/lib/recommendation/live/runAdvisor.ts';
 
 const names = ['拜松', '矩', '乌有', '风絮', '余', '仇白', '黍', '老鲤', '夕'];
 const field = count => names.slice(0, count).map(newSlot);

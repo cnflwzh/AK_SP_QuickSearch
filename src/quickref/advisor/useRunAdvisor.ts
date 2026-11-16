@@ -13,7 +13,7 @@ import {
 import { createAdvisorSession } from './advisorSession.ts';
 import { createAdvisorEquipmentActions } from './advisorEquipmentActions.ts';
 import { ALL_COVENANTS, STRATEGIES, isCoreCovenant } from '../../../data/index.ts';
-import { covenantStats, MAX_LAYERS, usesLayers } from '../../lib/planner.ts';
+import { covenantStats, MAX_LAYERS, usesLayers } from '../../lib/plans/index.ts';
 import {
   advisorDeploymentLimit,
   deployedLineup,

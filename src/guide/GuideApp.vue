@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { markRaw, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowReactive, type Component } from 'vue';
 import { OPERATORS } from '../../data/index';
-import { whileVisible } from '../lib/visibility';
+import { whileVisible } from '../lib/ui/visibility';
 import Markup from './components/Markup';
-import { decodeFragment } from '../lib/url.ts';
+import { decodeFragment } from '../lib/runtime/url.ts';
 import { placeholders } from './placeholders';
-import SkipLink from '../lib/SkipLink.vue';
+import SkipLink from '../lib/ui/SkipLink.vue';
 
 const props = defineProps<{ ready: () => void; failed: (error: unknown) => void }>();
 const loaders: Record<string, () => Promise<{ default: Component }>> = {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
-import { operatorWikiUrl } from '../../lib/prts.ts';
-import { createPrtsReaderDocument, fetchPrtsArticle } from '../../lib/prtsArticle.ts';
+import { operatorWikiUrl } from '../../lib/prts/prts.ts';
+import { createPrtsReaderDocument, fetchPrtsArticle } from '../../lib/prts/prtsArticle.ts';
 import readerStyles from '../wikiReader.css?raw';
 
 const props = defineProps<{

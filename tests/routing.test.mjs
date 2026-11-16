@@ -3,7 +3,7 @@ import test from 'node:test';
 import { ALL_COVENANTS, BUILD_NAMES, EQUIPMENT, OPERATORS, STRATEGIES, LEADERS } from '../data/index.ts';
 import { buildId, buildKey, covenantId, covenantName, detailFromId, detailId } from '../src/router/entities.ts';
 import { normalizeQuery } from '../src/router/location.ts';
-import { decodeFragment } from '../src/lib/url.ts';
+import { decodeFragment } from '../src/lib/runtime/url.ts';
 
 test('public entity IDs are unique and every catalogue entry can be linked independently of ordering', () => {
   const ids = new Set();
@@ -39,8 +39,8 @@ test('numbers links retain navigation destinations without calculator inputs or 
     payout: 'multi', sort: 'reward', bountyQuery: '假想敌',
   };
   assert.deepEqual(normalizeQuery('nu', transient), {});
-  for (const tool of ['recruit', 'bounty']) {
-    const query = { ...transient, tool, q: '  攻击  ', card: detailId('op', '凛御银灰') };
+  for (const tool of ['recruit', 'bounty', 'dealer']) {
+    const query = {...transient, tool, q: '  攻击  ', card: detailId('op', '凛御银灰')};
     const original = structuredClone(query);
     const destination = { tool, q: '攻击', card: query.card };
     assert.deepEqual(normalizeQuery('nu', query), destination);

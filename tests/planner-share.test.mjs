@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { deflateSync } from 'fflate';
 import { ALL_COVENANTS, BUILD_NAMES, buildByName, EQUIPMENT, OPERATORS, STRATEGIES } from '../data/index.ts';
-import { decodePlan, encodePlan, newSlot, shareUrl, usesLayers } from '../src/lib/planner.ts';
-import { BitReader, BitWriter, packSharePayload, readShareText, unpackSharePayload, writeShareText } from '../src/lib/shareCodec.ts';
-import { TEXT_CODE_GROUPS } from '../src/lib/shareTextCodebook.ts';
+import { decodePlan, encodePlan, newSlot, shareUrl, usesLayers } from '../src/lib/plans/index.ts';
+import { BitReader, BitWriter, packSharePayload, readShareText, unpackSharePayload, writeShareText } from '../src/lib/plans/shareCodec.ts';
+import { TEXT_CODE_GROUPS } from '../src/lib/plans/shareTextCodebook.ts';
 
 const layerNames = ALL_COVENANTS.filter(usesLayers);
 const empty = () => ({ name: '', note: '', ops: [], strategy: '', layers: {} });
