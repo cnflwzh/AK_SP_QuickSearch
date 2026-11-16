@@ -7,7 +7,7 @@ export const TAB_IDS = ['fx', 'bd', 'cv', 'op', 'eq', 'st', 'ld', 'nu'] as const
 export type TabId = typeof TAB_IDS[number];
 export const PAGE_PATHS: Record<TabId, string> = {
   fx: '/overview', bd: '/builds', cv: '/covenants', op: '/operators',
-  eq: '/equipment', st: '/strategies', ld: '/leaders', nu: '/numbers',
+  eq: '/equipment', st: '/strategies', ld: '/leaders', nu: '/tools',
 };
 export const PAGE_LABELS: Record<TabId, string> = {
   fx: '速览', bd: '流派', cv: '盟约详情', op: '干员', eq: '装备', st: '策略', ld: '领袖', nu: '小工具',

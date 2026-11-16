@@ -344,7 +344,7 @@ test('share report formats spoiler-free rank, hint badges, round summary, and re
     dateKey: '2026-11-15',
     history: [blindSummary],
     stats,
-    shareUrl: 'https://example.com/numbers?tool=dealer',
+    shareUrl: 'https://example.com/tools?tool=dealer',
   });
   assert.ok(blindShare.includes('#1115'));
   assert.ok(blindShare.includes('👁️ 全程盲猜'));
@@ -353,7 +353,7 @@ test('share report formats spoiler-free rank, hint badges, round summary, and re
   assert.ok(blindShare.includes('🎯零误判'));
   assert.ok(!blindShare.includes('(💡)'));
   assert.ok(blindShare.includes('🔒考题已防剧透隐藏'));
-  assert.ok(blindShare.includes('https://example.com/numbers?tool=dealer'));
+  assert.ok(blindShare.includes('https://example.com/tools?tool=dealer'));
 
   const second = rounds[1];
   second.usedHint = true;
@@ -366,7 +366,7 @@ test('share report formats spoiler-free rank, hint badges, round summary, and re
     dateKey: '2026-11-15',
     history: [blindSummary, hintedSummary],
     stats: {...stats, hintsUsed: 2, hintedRounds: 1},
-    shareUrl: 'https://example.com/numbers?tool=dealer',
+    shareUrl: 'https://example.com/tools?tool=dealer',
   });
   assert.ok(hintedShare.includes('💡 场中提示 ×2'));
   assert.ok(hintedShare.includes('🎯零误判(💡)'));
@@ -399,7 +399,7 @@ test('poster model annotates blind vs hinted rounds cleanly without spoilers', (
     dateKey: '2026-11-16',
     history: [summary],
     stats: blindStats,
-    shareUrl: 'https://example.com/numbers?tool=dealer',
+    shareUrl: 'https://example.com/tools?tool=dealer',
   });
   assert.equal(blindPoster.hintBadge.tone, 'blind');
   assert.equal(blindPoster.hintBadge.text, '👁️ 全程盲猜');
@@ -434,7 +434,7 @@ test('poster model annotates blind vs hinted rounds cleanly without spoilers', (
     history: [summary, hintedRound2Done, equipRound3Done],
     currentRound: fourth,
     stats: {...blindStats, roundsCleared: 3, hintsUsed: 2, hintedRounds: 2},
-    shareUrl: 'https://example.com/numbers?tool=dealer',
+    shareUrl: 'https://example.com/tools?tool=dealer',
   });
   assert.equal(hintedPoster.modeLabel, '今日同题 #1116');
   assert.equal(hintedPoster.fileName, '卫戍速查-痛扁发牌-1116.png');
@@ -465,7 +465,7 @@ test('poster model annotates blind vs hinted rounds cleanly without spoilers', (
     dateKey: '2026-11-16',
     history: allKindsHistory,
     stats: {...blindStats, roundsCleared: 5},
-    shareUrl: 'https://example.com/numbers?tool=dealer',
+    shareUrl: 'https://example.com/tools?tool=dealer',
   });
   assert.deepEqual(
     dailyAllKindsPoster.verdicts.map((v) => v.scopeLabel),
@@ -477,7 +477,7 @@ test('poster model annotates blind vs hinted rounds cleanly without spoilers', (
     dateKey: '2026-11-16',
     history: allKindsHistory,
     stats: {...blindStats, roundsCleared: 5, hintsUsed: 1, hintedRounds: 1},
-    shareUrl: 'https://example.com/numbers?tool=dealer',
+    shareUrl: 'https://example.com/tools?tool=dealer',
     usedAssistOnly: true,
   });
   assert.equal(assistPoster.hintBadge.tone, 'assist');
@@ -654,7 +654,7 @@ test('all copy excludes dehumanizing or merchandise terms toward operators', () 
       dateKey: '2026-11-16',
       history: [],
       stats,
-      shareUrl: 'https://example.com/numbers?tool=dealer',
+      shareUrl: 'https://example.com/tools?tool=dealer',
     });
     collected.push(
       dailyPoster.badgeText,
@@ -672,7 +672,7 @@ test('all copy excludes dehumanizing or merchandise terms toward operators', () 
         dateKey: '2026-11-16',
         history: [],
         stats,
-        shareUrl: 'https://example.com/numbers?tool=dealer',
+        shareUrl: 'https://example.com/tools?tool=dealer',
       }),
     );
   }
