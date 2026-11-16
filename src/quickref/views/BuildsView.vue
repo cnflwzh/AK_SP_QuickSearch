@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import {computed, onUnmounted, ref, watch} from 'vue';
 import {
+  BANNABLE_COVENANTS,
   CORE_BUILDS,
   COVENANTS,
   DEFAULT_BUILD_ID,
   OPERATOR,
   EQUIP,
   STRATEGY,
+  TIER_LABELS,
   buildByName,
   isBannableCovenant,
   type Operator,
@@ -19,7 +21,10 @@ import {
   blankPlan,
   covenantStats,
   decodePlan,
+  equipNotes,
+  planCost,
   type Decoded,
+  type PlanOp,
 } from '../../lib/plans/index.ts';
 import {useQuickrefActions} from '../state.ts';
 import {
@@ -29,6 +34,7 @@ import {
   editing,
   runKey,
   runBans,
+  isRunBannedOp,
   saveError,
   presetColor,
   selectPreset,
@@ -48,6 +54,7 @@ import OperatorTile from '../components/OperatorTile.vue';
 import PlanSummary from '../components/PlanSummary.vue';
 import PlanSharePanel from '../components/PlanSharePanel.vue';
 import OperatorRequestButton from '../components/OperatorRequestButton.vue';
+import Segmented from '../components/Segmented.vue';
 /**
  * 流派：内置流派和我的流派都是预设。默认只读查看，局内扫一眼；点「编辑」进入规划器。
  * 「本局打这套」把它设为本局流派，盟约 / 效果 / 干员页随之高亮。
@@ -124,18 +131,64 @@ const coreBase = computed(() =>
   p.value.plan.base ? CORE_BUILDS[p.value.plan.base] : undefined,
 );
 const accent = computed(() => presetColor(p.value));
-const carries = computed(
-  () =>
-    new Set(
-      p.value.plan.ops.filter((slot) => slot.core).map((slot) => slot.name),
+const slotEntries = computed(() =>
+  p.value.plan.ops
+    .map((slot) => ({slot, operator: OPERATOR[slot.name]}))
+    .filter(
+      (entry): entry is {slot: PlanOp; operator: Operator} => !!entry.operator,
     ),
 );
-const lineup = computed(() =>
-  p.value.plan.ops
-    .map((o) => OPERATOR[o.name])
-    .filter((o): o is Operator => !!o),
+const withAlts = computed(() =>
+  slotEntries.value.filter((entry) => entry.slot.alt.length > 0),
 );
-const withAlts = computed(() => p.value.plan.ops.filter((o) => o.alt.length));
+const lineupMode = ref<0 | 1>(0);
+const shortViewport =
+  typeof window !== 'undefined' &&
+  window.matchMedia('(max-height: 600px)').matches;
+interface GrabItem {
+  operator: Operator;
+  slot?: PlanOp;
+  replaces: string[];
+}
+const GRAB_STAGES: readonly {
+  label: string;
+  range: string;
+  tiers: readonly number[];
+}[] = [
+  {label: '前期抓牌', range: 'Ⅰ–Ⅱ 阶', tiers: [1, 2]},
+  {label: '中期抓牌', range: 'Ⅲ–Ⅳ 阶', tiers: [3, 4]},
+  {label: '后期抓牌', range: 'Ⅴ–Ⅵ 阶', tiers: [5, 6]},
+];
+const grabStages = computed(() => {
+  const mainNames = new Set(slotEntries.value.map((e) => e.operator.name));
+  const items: GrabItem[] = slotEntries.value.map(({slot, operator}) => ({
+    operator,
+    slot,
+    replaces: [],
+  }));
+  const altTargets = new Map<string, string[]>();
+  for (const {slot} of slotEntries.value) {
+    for (const altName of slot.alt) {
+      if (mainNames.has(altName) || !OPERATOR[altName]) continue;
+      const list = altTargets.get(altName);
+      if (list) {
+        if (!list.includes(slot.name)) list.push(slot.name);
+      } else {
+        altTargets.set(altName, [slot.name]);
+      }
+    }
+  }
+  for (const [altName, replaces] of altTargets) {
+    items.push({operator: OPERATOR[altName], replaces});
+  }
+  items.sort(
+    (a, b) => a.operator.tier - b.operator.tier || +!!b.slot - +!!a.slot,
+  );
+  return GRAB_STAGES.map((stage) => ({
+    ...stage,
+    items: items.filter((item) => stage.tiers.includes(item.operator.tier)),
+  })).filter((stage) => stage.items.length > 0);
+});
 const stats = computed(() =>
   covenantStats(p.value.plan.ops, p.value.plan.layers),
 );
@@ -177,6 +230,15 @@ const strategies = computed(() =>
     ...new Set([p.value.plan.strategy, ...(base.value?.strategies ?? [])]),
   ].filter((s) => STRATEGY[s]),
 );
+const primaryStrategy = computed(() => STRATEGY[p.value.plan.strategy]);
+const planEquipNotes = computed(() => equipNotes(p.value.plan.ops));
+const cost = computed(() => planCost(p.value.plan.ops));
+const coreNames = computed(() =>
+  p.value.plan.ops.filter((s) => s.core).map((s) => s.name),
+);
+const assignedEquips = computed(() =>
+  slotEntries.value.filter(({slot}) => slot.eq.length > 0),
+);
 const equipment = computed(() =>
   [
     ...new Set([
@@ -201,8 +263,27 @@ function restore(): void {
 
 /* ---------- 盟约被 ban：被 ban 盟约的干员不会出现，给出替代 ---------- */
 const banOpen = ref(false);
+const showAllBans = ref(false);
+const banImpact = computed(() => {
+  const map = new Map<string, number>();
+  if (!runBans.value.length) return map;
+  for (const item of presets.value) {
+    const count = item.plan.ops.filter((s) => isRunBannedOp(s.name)).length;
+    if (count > 0) map.set(item.key, count);
+  }
+  return map;
+});
 const myBans = computed(() =>
-  runBans.value.filter((b) => bannable.value.some((s) => s.name === b)),
+  runBans.value.filter(
+    (b) =>
+      bannable.value.some((s) => s.name === b) ||
+      p.value.plan.ops.some((s) => isRunBannedOp(s.name)),
+  ),
+);
+const visibleBanCovenants = computed(() =>
+  showAllBans.value
+    ? BANNABLE_COVENANTS
+    : [...new Set([...bannable.value.map((s) => s.name), ...runBans.value])],
 );
 const forced = ref<Record<string, string>>({});
 watch(
@@ -266,10 +347,24 @@ function togglePanel(name: 'import' | 'backup' | 'share'): void {
 
 /* ---------- 导入：分享码 / 链接 ---------- */
 const importText = ref('');
+const pasteError = ref('');
+const canReadClipboard =
+  typeof navigator !== 'undefined' &&
+  typeof navigator.clipboard?.readText === 'function';
 const imported = computed<Decoded | null>(() =>
   importText.value.trim() ? decodePlan(importText.value) : null,
 );
-function acceptImport(): void {
+async function pasteImport(): Promise<void> {
+  pasteError.value = '';
+  try {
+    const text = await navigator.clipboard.readText();
+    if (text) importText.value = text;
+    else pasteError.value = '剪贴板里还没有内容。';
+  } catch {
+    pasteError.value = '浏览器未授予读取剪贴板权限，请手动粘贴。';
+  }
+}
+function acceptImport(andRun = false): void {
   const d = imported.value;
   if (!d) return;
   const key = addPlan({
@@ -279,9 +374,11 @@ function acceptImport(): void {
     note: d.plan.note,
     layers: d.plan.layers,
   });
+  if (andRun) setRun(key);
   // Only explicit import consumes the fragment; preview survives WeChat -> browser handoff.
   void navigate({path: buildLocation(key), query: {}, hash: ''}, true);
   importText.value = '';
+  pasteError.value = '';
 }
 watch(
   () => currentRoute.value.hash,
@@ -308,6 +405,12 @@ watch(
       @click="selectBuild(x.key)">
       {{ x.plan.name }}
       <i v-if="x.modified" class="md" title="已修改">✎</i>
+      <i
+        v-if="banImpact.get(x.key)"
+        class="ban-hit"
+        :title="`本局禁池缺 ${banImpact.get(x.key)} 人`">
+        -{{ banImpact.get(x.key) }}
+      </i>
     </button>
     <span class="sp"></span>
     <button
@@ -321,6 +424,12 @@ watch(
       @click="selectBuild(x.key)">
       {{ x.plan.name }}
       <i v-if="x.modified" class="md" title="已修改">✎</i>
+      <i
+        v-if="banImpact.get(x.key)"
+        class="ban-hit"
+        :title="`本局禁池缺 ${banImpact.get(x.key)} 人`">
+        -{{ banImpact.get(x.key) }}
+      </i>
     </button>
     <span class="sp"></span>
     <span class="bk">我的</span>
@@ -334,6 +443,12 @@ watch(
       :aria-pressed="x.key === p.key"
       @click="selectBuild(x.key)">
       {{ x.plan.name }}
+      <i
+        v-if="banImpact.get(x.key)"
+        class="ban-hit"
+        :title="`本局禁池缺 ${banImpact.get(x.key)} 人`">
+        -{{ banImpact.get(x.key) }}
+      </i>
     </button>
     <button type="button" class="add" @click="createBuild">＋ 新建</button>
     <button
@@ -361,11 +476,17 @@ watch(
   <PlanBackupPanel v-if="activePanel === 'backup'" id="build-backup" />
 
   <section v-if="importOpen" id="build-import" class="pl-panel bimp">
-    <input
-      v-model="importText"
-      class="pl-paste"
-      placeholder="粘贴分享码或链接"
-      aria-label="分享码" />
+    <div class="bimp-bar">
+      <input
+        v-model="importText"
+        class="pl-paste"
+        placeholder="粘贴分享码、链接或整段攻略文案"
+        aria-label="分享码" />
+      <button v-if="canReadClipboard" type="button" @click="pasteImport">
+        粘贴
+      </button>
+    </div>
+    <p v-if="pasteError" class="pl-warn" role="status">{{ pasteError }}</p>
     <template v-if="imported">
       <PlanSummary
         :ops="imported.plan.ops"
@@ -374,8 +495,9 @@ watch(
         :layers="imported.plan.layers"
         :title="imported.plan.name || '导入的流派'" />
       <div class="pl-row">
-        <button type="button" class="pri" @click="acceptImport">
-          存为我的流派
+        <button type="button" @click="acceptImport(false)">存为我的流派</button>
+        <button type="button" class="pri" @click="acceptImport(true)">
+          导入并设为本局
         </button>
       </div>
     </template>
@@ -398,6 +520,13 @@ watch(
           {{ isRun ? '✓ 本局 · 结束' : '▶ 本局打这套' }}
         </button>
         <button
+          v-if="isRun && needs.length"
+          type="button"
+          class="b-go-cv"
+          @click="actions.openCovenant(needs[0].name)">
+          去盟约抓牌 ▸
+        </button>
+        <button
           type="button"
           :class="{on: activePanel === 'share'}"
           :aria-expanded="activePanel === 'share'"
@@ -407,7 +536,19 @@ watch(
         </button>
         <button type="button" @click="editBuild(p.key)">编辑</button>
         <button type="button" @click="duplicateBuild(p.key)">复制</button>
+        <template
+          v-if="coreNames.length && coreNames.length < p.plan.ops.length">
+          <OperatorRequestButton
+            :names="coreNames"
+            :build-name="p.plan.name"
+            label="求核心" />
+          <OperatorRequestButton
+            :names="p.plan.ops.map((slot) => slot.name)"
+            :build-name="p.plan.name"
+            label="求整队" />
+        </template>
         <OperatorRequestButton
+          v-else
           :names="p.plan.ops.map((slot) => slot.name)"
           :build-name="p.plan.name" />
         <button v-if="p.modified" type="button" @click="restore">
@@ -454,14 +595,21 @@ watch(
       <div class="bpick">
         <span class="k">点选被 ban 的</span>
         <button
-          v-for="s in bannable"
-          :key="s.name"
+          v-for="covName in visibleBanCovenants"
+          :key="covName"
           type="button"
-          :class="['bc', {on: runBans.includes(s.name)}]"
-          :aria-pressed="runBans.includes(s.name)"
-          :style="{'--c': color(s.name)}"
-          @click="toggleBan(s.name)">
-          {{ s.name }}
+          :class="['bc', {on: runBans.includes(covName)}]"
+          :aria-pressed="runBans.includes(covName)"
+          :style="{'--c': color(covName)}"
+          @click="toggleBan(covName)">
+          {{ covName }}
+        </button>
+        <button
+          type="button"
+          class="bc-more"
+          :aria-expanded="showAllBans"
+          @click="showAllBans = !showAllBans">
+          {{ showAllBans ? '收起其他盟约' : '其他盟约 ▾' }}
         </button>
       </div>
       <template v-if="ban">
@@ -544,35 +692,205 @@ watch(
     </div>
 
     <div>
-      <h5>
-        终盘阵容
-        <template v-if="coreBase">
-          ·
-          <span class="tag a" style="padding: 0 6px">核心</span>
-        </template>
-      </h5>
-      <div v-if="lineup.length" class="tiles">
-        <OperatorTile
-          v-for="operator in lineup"
-          :key="operator.name"
-          :operator="operator"
-          :extra-class="carries.has(operator.name) ? 'core' : ''"
-          show-tier />
+      <div class="bsec-head">
+        <h5>
+          {{ lineupMode === 0 ? '终盘阵容' : '按等阶抓牌顺序' }}
+          <template v-if="lineupMode === 0 && coreBase">
+            ·
+            <span class="tag a" style="padding: 0 6px">核心</span>
+          </template>
+          <span v-if="slotEntries.length" class="cnt">
+            · {{ slotEntries.length }} 人 · 招募 {{ cost.recruit }}
+            <template v-if="cost.elites">· {{ cost.elites }} 精锐</template>
+          </span>
+        </h5>
+        <Segmented
+          v-if="slotEntries.length"
+          :labels="['终盘阵容', '按等阶抓牌']"
+          :active="lineupMode"
+          attr="bdl"
+          @change="lineupMode = $event as 0 | 1" />
       </div>
+      <template v-if="slotEntries.length">
+        <template v-if="lineupMode === 0">
+          <div class="tiles">
+            <OperatorTile
+              v-for="entry in slotEntries"
+              :key="entry.operator.name"
+              :operator="entry.operator"
+              :slot-meta="entry.slot"
+              show-tier />
+          </div>
+          <div v-if="withAlts.length" class="balt">
+            <span class="k">过渡 / 备选</span>
+            <div class="balt-list">
+              <span
+                v-for="{slot} in withAlts"
+                :key="slot.name"
+                class="balt-row">
+                <button
+                  v-for="altName in slot.alt"
+                  :key="altName"
+                  type="button"
+                  class="balt-chip"
+                  :data-t="OPERATOR[altName]?.tier"
+                  :data-op="altName"
+                  @click="actions.openDetail('op', altName)">
+                  <img
+                    v-if="avatarSrc(altName)"
+                    :src="avatarSrc(altName)"
+                    alt=""
+                    width="22"
+                    height="22"
+                    loading="lazy" />
+                  <i class="tn">
+                    {{ TIER_LABELS[OPERATOR[altName]?.tier ?? 0] }}
+                  </i>
+                  <b>{{ altName }}</b>
+                </button>
+                <span class="balt-to">→ 替</span>
+                <button
+                  type="button"
+                  class="balt-target"
+                  @click="actions.openDetail('op', slot.name)">
+                  {{ slot.name }}
+                </button>
+              </span>
+            </div>
+          </div>
+        </template>
+        <div v-else class="bgrab-stages">
+          <section
+            v-for="stage in grabStages"
+            :key="stage.label"
+            class="bgrab-stage">
+            <header>
+              <b>{{ stage.label }}</b>
+              <span class="tag">{{ stage.range }}</span>
+            </header>
+            <div class="bgrab-items">
+              <button
+                v-for="item in stage.items"
+                :key="item.operator.name"
+                type="button"
+                :class="[
+                  'bgrab-card',
+                  {core: item.slot?.core, alt: !item.slot},
+                ]"
+                :data-t="item.operator.tier"
+                :data-op="item.operator.name"
+                @click="actions.openDetail('op', item.operator.name)">
+                <img
+                  v-if="avatarSrc(item.operator.name)"
+                  :src="avatarSrc(item.operator.name)"
+                  alt=""
+                  width="32"
+                  height="32"
+                  loading="lazy" />
+                <span class="bgrab-info">
+                  <span class="bgrab-nm">
+                    <i class="tn">{{ TIER_LABELS[item.operator.tier] }}</i>
+                    <b>
+                      {{ item.slot?.core ? '★ ' : '' }}{{ item.operator.name }}
+                    </b>
+                  </span>
+                  <small v-if="item.slot" class="bgrab-sub">
+                    <template v-if="item.slot.elite">精锐</template>
+                    <template v-if="item.slot.elite && item.slot.eq.length">
+                      ·
+                    </template>
+                    <template v-if="item.slot.eq.length">
+                      {{ item.slot.eq.join('/') }}
+                    </template>
+                    <template v-if="!item.slot.elite && !item.slot.eq.length">
+                      主力
+                    </template>
+                  </small>
+                  <small v-else class="bgrab-sub alt">
+                    ⇄ 过渡/替{{ item.replaces.join('·') }}
+                  </small>
+                </span>
+              </button>
+            </div>
+          </section>
+        </div>
+      </template>
       <div v-else class="empty">还没有干员，点「编辑」排阵容</div>
-      <div v-if="withAlts.length" class="balt">
-        <span class="k">备选</span>
-        <span v-for="o in withAlts" :key="o.name">
-          <b>{{ o.name }}</b>
-          → {{ o.alt.join('、') }}
-        </span>
+    </div>
+    <div class="bgrid">
+      <div v-if="tips.length">
+        <h5>打法要点</h5>
+        <ol class="qsteps">
+          <li
+            v-for="(tip, index) in tips"
+            :key="index"
+            :style="{animationDelay: index * 0.06 + 's'}">
+            <span>{{ tip }}</span>
+          </li>
+        </ol>
+      </div>
+      <div style="display: grid; gap: 12px; align-content: start">
+        <div v-if="strategies.length" data-key="strategies">
+          <h5>策略</h5>
+          <div class="row">
+            <Chip
+              v-for="name in strategies"
+              :key="name"
+              kind="st"
+              :name="name" />
+          </div>
+          <p v-if="primaryStrategy" class="b-st-fx">
+            <span class="tag t">{{ primaryStrategy.skill }}</span>
+            <span v-html="fx(primaryStrategy.effect)"></span>
+          </p>
+        </div>
+        <div
+          v-if="equipment.length || planEquipNotes.length"
+          data-key="equipment">
+          <h5>装备与配装</h5>
+          <div v-if="equipment.length" class="row">
+            <Chip
+              v-for="name in equipment"
+              :key="name"
+              kind="eq"
+              :name="name" />
+          </div>
+          <div v-if="assignedEquips.length" class="b-eq-assign">
+            <span
+              v-for="{slot} in assignedEquips"
+              :key="slot.name"
+              class="b-eq-slot">
+              <button
+                type="button"
+                class="b-eq-op"
+                @click="actions.openDetail('op', slot.name)">
+                {{ slot.name }}
+              </button>
+              <i aria-hidden="true">→</i>
+              <Chip
+                v-for="(eqName, index) in slot.eq"
+                :key="index"
+                kind="eq"
+                :name="eqName" />
+            </span>
+          </div>
+          <ul v-if="planEquipNotes.length" class="b-eq-notes">
+            <li
+              v-for="(note, index) in planEquipNotes"
+              :key="index"
+              :class="note.kind">
+              <b>{{ note.op }}</b>
+              {{ note.text }}
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
-    <div v-if="effects.length" class="bfx">
-      <h5>
-        盟约效果
-        <span class="hint">终盘阵容已成型</span>
-      </h5>
+    <details v-if="effects.length" class="bfx bfx-fold" :open="!shortViewport">
+      <summary>
+        盟约效果详情
+        <span class="hint">已成型 {{ effects.length }} 个</span>
+      </summary>
       <div class="fxg">
         <article
           v-for="(c, i) in effects"
@@ -604,42 +922,7 @@ watch(
           </p>
         </article>
       </div>
-    </div>
-    <div class="bgrid">
-      <div v-if="tips.length">
-        <h5>要点</h5>
-        <ol class="qsteps">
-          <li
-            v-for="(tip, index) in tips"
-            :key="index"
-            :style="{animationDelay: index * 0.06 + 's'}">
-            <span>{{ tip }}</span>
-          </li>
-        </ol>
-      </div>
-      <div style="display: grid; gap: 12px; align-content: start">
-        <div v-if="strategies.length" data-key="strategies">
-          <h5>策略</h5>
-          <div class="row">
-            <Chip
-              v-for="name in strategies"
-              :key="name"
-              kind="st"
-              :name="name" />
-          </div>
-        </div>
-        <div v-if="equipment.length" data-key="equipment">
-          <h5>装备</h5>
-          <div class="row">
-            <Chip
-              v-for="name in equipment"
-              :key="name"
-              kind="eq"
-              :name="name" />
-          </div>
-        </div>
-      </div>
-    </div>
+    </details>
     <div v-if="main" class="qcalc" :style="{'--c': accent}">
       <div class="vals">
         <div v-for="layers in [0, 50, 100, 150, 200]" :key="layers">

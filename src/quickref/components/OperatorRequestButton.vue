@@ -3,7 +3,11 @@ import {computed, onBeforeUnmount, ref, watch} from 'vue';
 import {OPERATOR} from '../../../data/index.ts';
 
 /** names 为实际要找的干员；提供 buildName 时生成整队求牌文本，否则生成单人求牌文本。 */
-const props = defineProps<{names: readonly string[]; buildName?: string}>();
+const props = defineProps<{
+  names: readonly string[];
+  buildName?: string;
+  label?: string;
+}>();
 const names = computed(() => [...new Set(props.names)].filter(Boolean));
 // 聊天文本使用数字等阶，便于队友按调度中心等级找牌。
 const requestedOperators = computed(() =>
@@ -67,11 +71,13 @@ async function copyRequestText(): Promise<void> {
       copied
         ? '已复制求牌文本'
         : buildName !== undefined
-          ? '求求：复制整队干员名单'
+          ? `${props.label || '求求'}：复制干员名单`
           : `求求：复制${names.join('、')}的求牌文本`
     "
     @click="copyRequestText">
-    <span aria-live="polite">{{ copied ? '已复制' : '求求' }}</span>
+    <span aria-live="polite">
+      {{ copied ? '已复制' : props.label || '求求' }}
+    </span>
   </button>
 </template>
 

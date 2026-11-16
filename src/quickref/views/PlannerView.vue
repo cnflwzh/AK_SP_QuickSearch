@@ -3,12 +3,14 @@ import {computed, nextTick, ref, watch} from 'vue';
 import {
   OPERATORS,
   OPERATOR,
+  OPERATOR_TYPES,
   EQUIPMENT,
   EQUIP,
   STRATEGIES,
   STRATEGY,
   STRATEGY_CATEGORIES,
   COVENANTS,
+  CORE_COVENANTS,
   ALL_COVENANTS,
   TIERS,
   TIER_LABELS,
@@ -33,6 +35,7 @@ import {
 } from '../../lib/plans/index.ts';
 import {suggestions, alternatesFor} from '../../lib/recommendation/index.ts';
 import {
+  current,
   presets,
   editingId,
   plan,
@@ -40,7 +43,9 @@ import {
   planOps as ops,
   inPlan,
   planStats as stats,
+  setRun,
 } from '../planStore.ts';
+import {useQuickrefActions} from '../state.ts';
 import {color, fx} from '../format.ts';
 import Segmented from '../components/Segmented.vue';
 import PlanCovenants from '../components/PlanCovenants.vue';
@@ -62,6 +67,60 @@ import {
   buildKey,
 } from '../../router/entities.ts';
 const emit = defineEmits<{done: []}>();
+const actions = useQuickrefActions();
+const noteInput = ref<HTMLTextAreaElement | null>(null);
+const NOTE_PROMPTS = [
+  ['+ 前期过渡', '前期过渡：'],
+  ['+ 中期抓牌', '中期抓牌：'],
+  ['+ 站位配装', '站位配装：'],
+] as const;
+function insertNotePrompt(prefix: string): void {
+  const currentNote = plan.value.note;
+  if (currentNote.includes(prefix)) {
+    noteInput.value?.focus();
+    return;
+  }
+  const sep = currentNote && !currentNote.endsWith('\n') ? '\n' : '';
+  const next = (currentNote + sep + prefix).slice(0, MAX_NOTE);
+  plan.value.note = next;
+  touch();
+  void nextTick(() => {
+    const el = noteInput.value;
+    if (!el) return;
+    el.focus();
+    el.setSelectionRange(next.length, next.length);
+  });
+}
+function finishAndRun(): void {
+  if (!ops.value.length) return;
+  setRun(current.value.key);
+  emit('done');
+}
+function startWithCovenant(cov: string): void {
+  poolCovenant.value = cov;
+  if (compact.value) void openOperators();
+}
+function applyTemplatePreset(key: string): void {
+  const source = presets.value.find((x) => x.key === key)?.plan;
+  if (!source) return;
+  plan.value.ops = JSON.parse(JSON.stringify(source.ops)) as PlanOp[];
+  plan.value.strategy = source.strategy;
+  plan.value.layers = {...source.layers};
+  if (!plan.value.note.trim()) plan.value.note = source.note;
+  editing.value = -1;
+  picking.value = '';
+  replacing.value = false;
+  touch();
+}
+function onSelectPlanCovenant(cov: string): void {
+  poolCovenant.value = poolCovenant.value === cov ? '' : cov;
+  if (compact.value && poolCovenant.value) {
+    picking.value = '';
+    replacing.value = false;
+    editing.value = -1;
+    mobilePanel.value = 'operators';
+  }
+}
 watch(editingId, () => {
   closeMobilePanel();
   mobileSection.value = 'lineup';
@@ -98,7 +157,7 @@ const mobileTitle = computed(() => {
     case 'equipment':
       return `装备 · ${slot.value?.name ?? ''}（${slot.value?.eq.length ?? 0}/${MAX_EQ}）`;
     case 'alternatives':
-      return `备选 · ${slot.value?.name ?? ''}（${slot.value?.alt.length ?? 0}/${MAX_ALT}）`;
+      return `过渡/备选 · ${slot.value?.name ?? ''}（${slot.value?.alt.length ?? 0}/${MAX_ALT}）`;
     case 'strategies':
       return '选择策略';
     default:
@@ -217,6 +276,25 @@ function dropEquip(i: number): void {
 const altSuggest = computed(() =>
   slot.value ? alternatesFor(slot.value, ops.value, 8, plan.value.layers) : [],
 );
+const earlyTransitionSuggest = computed(() => {
+  const s = slot.value;
+  if (!s || OPERATOR[s.name].tier < 3) return [];
+  const targetCovs = OPERATOR[s.name].covenants;
+  return OPERATORS.filter(
+    (o) =>
+      o.tier <= 2 &&
+      o.name !== s.name &&
+      !inPlan.value.has(o.name) &&
+      !s.alt.includes(o.name) &&
+      o.covenants.some((c) => targetCovs.includes(c)),
+  )
+    .sort(
+      (a, b) =>
+        +b.covenants.some((c) => present.value.has(c)) -
+          +a.covenants.some((c) => present.value.has(c)) || a.tier - b.tier,
+    )
+    .slice(0, 8);
+});
 function addAlt(name: string): void {
   const s = slot.value;
   if (
@@ -308,15 +386,38 @@ const poolQuery = computed({
     void updateQuery({poolQuery: value || null}, true);
   },
 });
+const poolType = ref('');
+const hasPoolFilter = computed(
+  () =>
+    !!(
+      poolQuery.value ||
+      poolCovenant.value ||
+      poolType.value ||
+      poolTier.value
+    ),
+);
+function resetPoolFilters(): void {
+  poolType.value = '';
+  void updateQuery({
+    poolQuery: null,
+    poolCovenant: null,
+    poolTier: null,
+  });
+}
 const pool = computed(() => {
+  const raw = poolQuery.value.trim();
   const q = normalize(poolQuery.value);
   return OPERATORS.filter(
     (o) =>
       (!poolTier.value || o.tier === poolTier.value) &&
       (!poolCovenant.value || o.covenants.includes(poolCovenant.value)) &&
-      (!q ||
+      (!poolType.value || o.type === poolType.value) &&
+      (!raw ||
         nameScore(o.name, q) > 0 ||
-        o.covenants.some((c) => c === poolQuery.value.trim())),
+        o.covenants.some((c) => c === raw) ||
+        o.trait.includes(raw) ||
+        o.elite.includes(raw) ||
+        o.type.includes(raw)),
   );
 });
 const poolGroups = computed(() =>
@@ -456,6 +557,9 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
         </button>
         <template v-if="!compact">
           <i class="sep"></i>
+          <button type="button" :disabled="!ops.length" @click="finishAndRun">
+            完成并设为本局
+          </button>
           <button type="button" class="pri" @click="emit('done')">完成</button>
         </template>
       </span>
@@ -522,7 +626,7 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
           <h4>
             阵容
             <span class="tag">{{ ops.length }} / {{ MAX_OPS }}</span>
-            <span class="hint">点头像编辑 · 小头像是备选</span>
+            <span class="hint">点头像编辑 · 小头像是过渡/备选</span>
           </h4>
           <div class="pl-slots">
             <button
@@ -602,6 +706,45 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
             </button>
           </div>
 
+          <div v-if="!ops.length" class="pl-starter">
+            <div class="pl-starter-row">
+              <span class="k">选主轴盟约开排</span>
+              <div class="pl-starter-covs">
+                <button
+                  v-for="cov in CORE_COVENANTS"
+                  :key="cov"
+                  type="button"
+                  :class="{on: poolCovenant === cov}"
+                  :style="{'--c': color(cov)}"
+                  @click="startWithCovenant(cov)">
+                  {{ cov }}
+                </button>
+              </div>
+            </div>
+            <label class="pl-starter-row">
+              <span class="k">或套用现有流派微调</span>
+              <select
+                aria-label="套用现有流派微调"
+                value=""
+                @change="
+                  applyTemplatePreset(
+                    ($event.target as HTMLSelectElement).value,
+                  );
+                  ($event.target as HTMLSelectElement).value = '';
+                ">
+                <option value="">选择参考流派…</option>
+                <option
+                  v-for="x in presets.filter(
+                    (x) => x.plan.id !== plan.id && x.plan.ops.length > 0,
+                  )"
+                  :key="x.key"
+                  :value="x.key">
+                  {{ x.builtin ? '' : '我的 · ' }}{{ x.plan.name }}
+                </option>
+              </select>
+            </label>
+          </div>
+
           <Teleport :to="panelTarget" :disabled="!compact" defer>
             <div
               v-if="
@@ -634,6 +777,12 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
                     </small>
                   </span>
                   <span class="pl-edit-flags">
+                    <button
+                      type="button"
+                      class="pl-detail-btn"
+                      @click="actions.openDetail('op', slot.name)">
+                      详情
+                    </button>
                     <Segmented
                       :labels="['初始', '精锐']"
                       :active="slot.elite ? 1 : 0"
@@ -703,7 +852,7 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
                   </span>
                 </div>
                 <div class="pl-edit-line pl-alts">
-                  <span class="k">备选</span>
+                  <span class="k">过渡/备选</span>
                   <span class="pl-edit-cells">
                     <span
                       v-for="(a, k) in slot.alt"
@@ -727,7 +876,7 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
                       <button
                         type="button"
                         class="x"
-                        aria-label="移除备选"
+                        aria-label="移除过渡/备选"
                         @click="dropAlt(k)">
                         ×
                       </button>
@@ -741,7 +890,7 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
                         picking === 'alt' ? 'planner-alternatives' : undefined
                       "
                       @click="openPicker('alt')">
-                      ＋ 备选
+                      ＋ 过渡/备选
                     </button>
                   </span>
                 </div>
@@ -750,31 +899,65 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
                   id="planner-alternatives"
                   class="pl-pick pl-altpick">
                   <span class="hint">
-                    同盟约、等阶相近 · 也可以在右侧干员列表里点选
+                    前期打工或抓不到主选时的平替，设本局后盟约页同步高亮 ·
+                    也可在右侧列表点选
                   </span>
-                  <div class="pl-pick-g">
-                    <button
-                      v-for="o in altSuggest"
-                      :key="o.name"
-                      type="button"
-                      :data-t="o.tier"
-                      :data-op="o.name"
-                      @click="addAlt(o.name)">
-                      <img
-                        :src="avatarSrc(o.name)"
-                        alt=""
-                        width="34"
-                        height="34"
-                        loading="lazy" />
-                      <small>{{ o.name }}</small>
-                      <span class="dots">
-                        <u
-                          v-for="c in o.covenants"
-                          :key="c"
-                          :style="{'--c': color(c)}"></u>
-                      </span>
-                    </button>
-                  </div>
+                  <template v-if="earlyTransitionSuggest.length">
+                    <span class="pl-altpick-sub">前期打工（Ⅰ–Ⅱ 阶同盟约）</span>
+                    <div class="pl-pick-g">
+                      <button
+                        v-for="o in earlyTransitionSuggest"
+                        :key="o.name"
+                        type="button"
+                        :data-t="o.tier"
+                        :data-op="o.name"
+                        @click="addAlt(o.name)">
+                        <img
+                          :src="avatarSrc(o.name)"
+                          alt=""
+                          width="34"
+                          height="34"
+                          loading="lazy" />
+                        <small>{{ TIER_LABELS[o.tier] }} {{ o.name }}</small>
+                        <span class="dots">
+                          <u
+                            v-for="c in o.covenants"
+                            :key="c"
+                            :style="{'--c': color(c)}"></u>
+                        </span>
+                      </button>
+                    </div>
+                  </template>
+                  <template v-if="altSuggest.length">
+                    <span
+                      v-if="earlyTransitionSuggest.length"
+                      class="pl-altpick-sub">
+                      同位平替（抓不到时替换）
+                    </span>
+                    <div class="pl-pick-g">
+                      <button
+                        v-for="o in altSuggest"
+                        :key="o.name"
+                        type="button"
+                        :data-t="o.tier"
+                        :data-op="o.name"
+                        @click="addAlt(o.name)">
+                        <img
+                          :src="avatarSrc(o.name)"
+                          alt=""
+                          width="34"
+                          height="34"
+                          loading="lazy" />
+                        <small>{{ o.name }}</small>
+                        <span class="dots">
+                          <u
+                            v-for="c in o.covenants"
+                            :key="c"
+                            :style="{'--c': color(c)}"></u>
+                        </span>
+                      </button>
+                    </div>
+                  </template>
                 </div>
                 <div class="pl-edit-actions">
                   <span class="pl-move">
@@ -941,17 +1124,31 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
               流派说明
               <span class="hint">{{ plan.note.length }}/{{ MAX_NOTE }}</span>
             </summary>
-            <label class="pl-note">
-              <span class="k">流派说明</span>
-              <textarea
-                v-model="plan.note"
-                :maxlength="MAX_NOTE"
-                rows="4"
-                placeholder="核心思路、靠谁输出、前期怎么过渡、几层转型、抓不到核心时怎么换"
-                aria-label="流派说明"
-                @input="touch"></textarea>
-              <small>{{ plan.note.length }}/{{ MAX_NOTE }}</small>
-            </label>
+            <div class="pl-note-box">
+              <div class="pl-note-head">
+                <span class="k">打法要点与抓牌说明</span>
+                <span class="pl-note-prompts">
+                  <button
+                    v-for="[label, prefix] in NOTE_PROMPTS"
+                    :key="label"
+                    type="button"
+                    @click="insertNotePrompt(prefix)">
+                    {{ label }}
+                  </button>
+                </span>
+              </div>
+              <label class="pl-note">
+                <textarea
+                  ref="noteInput"
+                  v-model="plan.note"
+                  :maxlength="MAX_NOTE"
+                  rows="4"
+                  placeholder="可分行写：前期谁过渡、几本找核心、装备给谁、抓不到核心怎么平替"
+                  aria-label="流派说明"
+                  @input="touch"></textarea>
+                <small>{{ plan.note.length }}/{{ MAX_NOTE }}</small>
+              </label>
+            </div>
           </details>
         </section>
 
@@ -963,8 +1160,14 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
           <h4>
             盟约
             <span class="tag">{{ active.length }} 激活</span>
+            <span class="hint">点盟约名筛干员</span>
           </h4>
-          <PlanCovenants :stats="stats" :layers="plan.layers" />
+          <PlanCovenants
+            :stats="stats"
+            :layers="plan.layers"
+            interactive
+            :selected="poolCovenant"
+            @select="onSelectPlanCovenant" />
         </section>
 
         <!-- 补位 -->
@@ -1090,7 +1293,7 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
             <span>
               点选干员 → 加为
               <b>{{ slot.name }}</b>
-              的备选（{{ slot.alt.length }}/{{ MAX_ALT }}）
+              的过渡/备选（前期打工或平替，{{ slot.alt.length }}/{{ MAX_ALT }}）
             </span>
             <button v-if="!compact" type="button" @click="openPicker('alt')">
               完成
@@ -1130,7 +1333,7 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
             <input
               v-model="poolQuery"
               type="search"
-              placeholder="名字 / 拼音"
+              placeholder="名字 / 拼音 / 特质词"
               aria-label="搜索干员" />
             <select v-model="poolCovenant" aria-label="盟约">
               <option value="">全部盟约</option>
@@ -1138,41 +1341,81 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
                 {{ name }}
               </option>
             </select>
+            <select v-model="poolType" aria-label="特质类型">
+              <option value="">全部类型</option>
+              <option v-for="typeName in OPERATOR_TYPES" :key="typeName">
+                {{ typeName }}
+              </option>
+            </select>
             <Segmented
               :labels="['全部', ...TIER_LABELS.slice(1)]"
               :active="poolTier"
               attr="plt"
               @change="poolTier = $event" />
+            <button
+              v-if="hasPoolFilter"
+              type="button"
+              class="filter-clear"
+              @click="resetPoolFilters">
+              重置
+            </button>
           </div>
           <div
             v-if="
               compact &&
               picking === 'alt' &&
-              altSuggest.length &&
+              (earlyTransitionSuggest.length || altSuggest.length) &&
               !poolQuery &&
               !poolCovenant &&
+              !poolType &&
               !poolTier
             "
             class="pl-pick pl-altpick">
-            <h4>推荐备选</h4>
-            <div class="pl-pick-g">
-              <button
-                v-for="o in altSuggest"
-                :key="o.name"
-                type="button"
-                :data-t="o.tier"
-                :data-op="o.name"
-                :disabled="poolDisabled(o.name)"
-                @click="addAlt(o.name)">
-                <img
-                  :src="avatarSrc(o.name)"
-                  alt=""
-                  width="34"
-                  height="34"
-                  loading="lazy" />
-                <small>{{ o.name }}</small>
-              </button>
-            </div>
+            <h4>推荐过渡 / 备选</h4>
+            <template v-if="earlyTransitionSuggest.length">
+              <span class="pl-altpick-sub">前期打工（Ⅰ–Ⅱ 阶同盟约）</span>
+              <div class="pl-pick-g">
+                <button
+                  v-for="o in earlyTransitionSuggest"
+                  :key="o.name"
+                  type="button"
+                  :data-t="o.tier"
+                  :data-op="o.name"
+                  :disabled="poolDisabled(o.name)"
+                  @click="addAlt(o.name)">
+                  <img
+                    :src="avatarSrc(o.name)"
+                    alt=""
+                    width="34"
+                    height="34"
+                    loading="lazy" />
+                  <small>{{ TIER_LABELS[o.tier] }} {{ o.name }}</small>
+                </button>
+              </div>
+            </template>
+            <template v-if="altSuggest.length">
+              <span v-if="earlyTransitionSuggest.length" class="pl-altpick-sub">
+                同位平替（抓不到时替换）
+              </span>
+              <div class="pl-pick-g">
+                <button
+                  v-for="o in altSuggest"
+                  :key="o.name"
+                  type="button"
+                  :data-t="o.tier"
+                  :data-op="o.name"
+                  :disabled="poolDisabled(o.name)"
+                  @click="addAlt(o.name)">
+                  <img
+                    :src="avatarSrc(o.name)"
+                    alt=""
+                    width="34"
+                    height="34"
+                    loading="lazy" />
+                  <small>{{ o.name }}</small>
+                </button>
+              </div>
+            </template>
           </div>
           <template v-for="g in poolGroups" :key="g.tier">
             <div class="tierh" :data-t="g.tier">
@@ -1220,7 +1463,16 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
               </button>
             </div>
           </template>
-          <div v-if="!pool.length" class="empty">—</div>
+          <div v-if="!pool.length" class="empty">
+            没有匹配的干员
+            <button
+              v-if="hasPoolFilter"
+              type="button"
+              class="filter-clear"
+              @click="resetPoolFilters">
+              清空筛选
+            </button>
+          </div>
         </section>
       </Teleport>
     </div>
@@ -1243,12 +1495,19 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
         :aria-pressed="mobileSection === 'effects'"
         aria-controls="planner-covenants planner-effects"
         @click="showSection('effects')">
-        盟约·层数
+        盟约
       </button>
       <button type="button" aria-haspopup="dialog" @click="openOperators()">
         ＋ 干员
       </button>
-      <button type="button" class="pri" @click="emit('done')">完成</button>
+      <button type="button" @click="emit('done')">完成</button>
+      <button
+        type="button"
+        class="pri"
+        :disabled="!ops.length"
+        @click="finishAndRun">
+        设为本局
+      </button>
     </nav>
   </div>
 </template>

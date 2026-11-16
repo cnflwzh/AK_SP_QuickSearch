@@ -9,6 +9,7 @@ import {
 } from '../../../data/index.ts';
 import {avatarSrc, equipIconSrc, portraitSrc} from '../../lib/ui/assets.ts';
 import {color} from '../format.ts';
+import {presetColor, presetOf} from '../planStore.ts';
 import {useQuickrefActions} from '../state.ts';
 import {
   buildLocation,
@@ -38,9 +39,19 @@ const picture = computed(() =>
       ? equipIconSrc(props.name)
       : portraitSrc(props.name),
 );
+const buildPreset = computed(() =>
+  props.kind === 'build' ? presetOf(props.name) : undefined,
+);
+const displayLabel = computed(() =>
+  buildPreset.value ? buildPreset.value.plan.name : props.name,
+);
 const accent = computed(() =>
-  props.kind === 'build' && !CORE_BUILDS[props.name]
-    ? 'var(--accent)'
+  props.kind === 'build'
+    ? buildPreset.value
+      ? presetColor(buildPreset.value)
+      : !CORE_BUILDS[props.name]
+        ? 'var(--accent)'
+        : color(props.name)
     : color(props.name),
 );
 const destination = computed(() =>
@@ -58,7 +69,7 @@ function activate(): void {
 </script>
 <template>
   <span v-if="props.static" class="cv" :style="{'--c': accent}">
-    {{ name }}
+    {{ displayLabel }}
   </span>
   <NavigationLink
     :to="destination"
@@ -69,7 +80,7 @@ function activate(): void {
     :style="{'--c': accent}"
     :data-cv="kind === 'cv' ? name : undefined"
     :data-build="kind === 'build' ? name : undefined">
-    {{ name }}{{ kind === 'build' ? ' ▸' : '' }}
+    {{ displayLabel }}{{ kind === 'build' ? ' ▸' : '' }}
   </NavigationLink>
   <NavigationLink
     :to="destination"

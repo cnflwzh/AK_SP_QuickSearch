@@ -15,7 +15,6 @@ import {
   EQUIPMENT,
   STRATEGIES,
   LEADERS,
-  BUILD_COUNT,
   SEASON_META,
 } from '../../data/index.ts';
 import {prefersReducedMotion} from '../lib/ui/dom.ts';
@@ -41,8 +40,9 @@ import {
   tabLocation,
   updateQuery,
 } from '../router/navigation.ts';
+import {topSearchTarget} from './searchRanking.ts';
 import {whileVisible} from '../lib/ui/visibility.ts';
-import {current as selectedPreset, flushSave} from './planStore.ts';
+import {current as selectedPreset, flushSave, presets} from './planStore.ts';
 import {lazyView} from '../lib/ui/lazyView.ts';
 import DetailSheet from './components/DetailSheet.vue';
 import PrtsPanel from './components/PrtsPanel.vue';
@@ -56,13 +56,20 @@ const TAB_META: Record<TabId, {label: string; count: number | ''}> = {
   fx: {label: '速览', count: ''},
   cv: {label: '盟约详情', count: ALL_COVENANTS.length},
   op: {label: '干员', count: OPERATORS.length},
-  bd: {label: '流派', count: BUILD_COUNT},
+  bd: {label: '流派', count: ''},
   eq: {label: '装备', count: EQUIPMENT.length},
   st: {label: '策略', count: STRATEGIES.length},
   ld: {label: '领袖', count: LEADERS.length},
   nu: {label: '小工具', count: ''},
 };
-const tabs = TAB_IDS.map((id) => ({id, ...TAB_META[id]}));
+const tabs = computed(() =>
+  TAB_IDS.map((id) => ({
+    id,
+    ...(id === 'bd'
+      ? {label: '流派', count: presets.value.length}
+      : TAB_META[id]),
+  })),
+);
 const renderedQuery = computed(() => queryText(currentRoute.value.query, 'q'));
 const query = ref(renderedQuery.value);
 const composing = ref(false);
@@ -297,8 +304,11 @@ function touchEnd(event: TouchEvent): void {
     event.timeStamp - start.at > 700
   )
     return;
+  const tabList = tabs.value;
   const next =
-    tabs[tabs.findIndex((tab) => tab.id === state.tab) + (dx < 0 ? 1 : -1)];
+    tabList[
+      tabList.findIndex((tab) => tab.id === state.tab) + (dx < 0 ? 1 : -1)
+    ];
   if (next) void show(next.id);
 }
 function keydown(event: KeyboardEvent): void {
@@ -335,18 +345,62 @@ function outsidePicker(event: MouseEvent): void {
   )
     state.pickerOpen = false;
 }
+const GUIDE_COLLAPSED_KEY = 'wsq.guideCollapsed';
+function readGuideCollapsed(): boolean {
+  try {
+    return localStorage.getItem(GUIDE_COLLAPSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+const guideCollapsed = ref(readGuideCollapsed());
+function toggleGuideCollapsed(): void {
+  guideCollapsed.value = !guideCollapsed.value;
+  try {
+    localStorage.setItem(GUIDE_COLLAPSED_KEY, guideCollapsed.value ? '1' : '0');
+  } catch {
+    /* 隐私模式下允许仅会话内收起 */
+  }
+}
+function onSearchEnter(event: KeyboardEvent): void {
+  if (composing.value || event.isComposing || !query.value.trim()) return;
+  const hit = topSearchTarget(
+    query.value,
+    presets.value.map((preset) => ({
+      key: preset.key,
+      name: preset.plan.name,
+    })),
+  );
+  if (!hit) return;
+  event.preventDefault();
+  clearTimeout(searchTimer);
+  if (hit.kind === 'op' || hit.kind === 'eq' || hit.kind === 'st') {
+    openDetail(hit.kind, hit.id);
+    return;
+  }
+  clearSearch();
+  if (hit.kind === 'cv') void openCovenant(hit.id);
+  else if (hit.kind === 'bd') void openBuild(hit.id);
+  else void openLeader(hit.id);
+}
+watch(guideAnimation, (svg, _previous, onCleanup) => {
+  stopGuideAnimation?.();
+  stopGuideAnimation = undefined;
+  if (!svg) return;
+  svg.pauseAnimations();
+  stopGuideAnimation = whileVisible(svg, () => {
+    svg.unpauseAnimations();
+    return () => svg.pauseAnimations();
+  });
+  onCleanup(() => {
+    stopGuideAnimation?.();
+    stopGuideAnimation = undefined;
+  });
+});
 onMounted(() => {
   scheduleTabScroll();
   document.addEventListener('keydown', keydown);
   document.addEventListener('click', outsidePicker);
-  if (guideAnimation.value) {
-    const svg = guideAnimation.value;
-    svg.pauseAnimations();
-    stopGuideAnimation = whileVisible(svg, () => {
-      svg.unpauseAnimations();
-      return () => svg.pauseAnimations();
-    });
-  }
 });
 onUnmounted(() => {
   cancelAnimationFrame(tabScrollFrame);
@@ -360,14 +414,24 @@ onUnmounted(() => {
   <div :class="['quickref-layout', {'wiki-open': wikiPanel.isOpen.value}]">
     <div class="quickref-content" :inert="wikiPanel.isOpen.value && !!detail">
       <SkipLink target-id="view" sticky-header="#qbar" />
-      <header class="wrap qhead">
-        <div>
+      <header :class="['wrap qhead', {collapsed: guideCollapsed}]">
+        <div class="qhead-main">
           <h1>
             卫戍速查
             <small>{{ SEASON_META.title }}</small>
           </h1>
+          <button
+            v-if="!guideCollapsed"
+            type="button"
+            class="guide-fold"
+            title="收起教程大卡片，留出更多首屏列表空间"
+            aria-label="收起教程卡片"
+            aria-expanded="true"
+            @click="toggleGuideCollapsed">
+            收起
+          </button>
         </div>
-        <a class="guide" href="/guide.html">
+        <a v-if="!guideCollapsed" class="guide" href="/guide.html">
           <svg ref="guideAnimation" viewBox="0 0 72 72" aria-hidden="true">
             <circle class="ring" cx="36" cy="36" r="26" />
             <circle class="nd" cx="36" cy="10" r="6" />
@@ -409,6 +473,16 @@ onUnmounted(() => {
           </div>
           <span class="go">▸</span>
         </a>
+        <div v-else class="qhead-compact">
+          <a class="guide-mini" href="/guide.html">图解教程 ▸</a>
+          <button
+            type="button"
+            class="guide-fold"
+            aria-expanded="false"
+            @click="toggleGuideCollapsed">
+            展开
+          </button>
+        </div>
       </header>
       <div id="qbar" ref="searchBar" :class="['qbar', {searching}]">
         <div class="wrap">
@@ -428,10 +502,11 @@ onUnmounted(() => {
               ref="searchInput"
               type="search"
               :value="query"
-              placeholder="干员 / 装备 / 策略 / 盟约 / 特质，支持拼音"
+              placeholder="干员 / 装备 / 策略 / 盟约 / 特质，支持拼音（Enter 直开首项）"
               autocomplete="off"
               aria-label="搜索"
               @input="search"
+              @keydown.enter="onSearchEnter"
               @compositionstart="composing = true"
               @compositionend="compositionEnd" />
             <kbd>/</kbd>
@@ -519,6 +594,10 @@ onUnmounted(() => {
   padding-top: max(16px, env(safe-area-inset-top));
   padding-bottom: 12px;
 }
+.wiki-open .qhead.collapsed {
+  padding-top: max(8px, env(safe-area-inset-top));
+  padding-bottom: 8px;
+}
 .wiki-open .qhead h1 {
   font-size: 34px;
   white-space: nowrap;
@@ -526,7 +605,8 @@ onUnmounted(() => {
 .wiki-open .qhead h1 small,
 .wiki-open .guide svg,
 .wiki-open .guide .k,
-.wiki-open .guide .qsteps {
+.wiki-open .guide .qsteps,
+.wiki-open .qhead .guide-fold {
   display: none;
 }
 .wiki-open .guide {

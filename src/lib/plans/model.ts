@@ -11,7 +11,7 @@ export const MAX_EQ = 2;
 /** 每个位置的备选干员数：抓不到主选时的次级选择 */
 export const MAX_ALT = 3;
 /** 流派说明字数上限 */
-export const MAX_NOTE = 150;
+export const MAX_NOTE = 240;
 /** 盟约层数：滑条到 1000，输入框可以填到 9999 */
 export const LAYER_SLIDER = 1000;
 export const MAX_LAYERS = 9999;

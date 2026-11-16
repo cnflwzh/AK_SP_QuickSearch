@@ -6,11 +6,13 @@ import {
   EQUIPMENT,
   STRATEGIES,
   LEADERS,
-  BUILD_NAMES,
 } from '../../../data/index.ts';
 import {normalize, nameScore} from '../../lib/ui/match.ts';
+import {matchedOnlyElite} from '../searchRanking.ts';
+import {presets} from '../planStore.ts';
 import {state} from '../state.ts';
 import Chip from '../components/Chip.vue';
+import Segmented from '../components/Segmented.vue';
 import LeaderRow from '../components/LeaderRow.vue';
 import OperatorCard from '../components/OperatorCard.vue';
 import EquipmentCard from '../components/EquipmentCard.vue';
@@ -18,6 +20,7 @@ import StrategyCard from '../components/StrategyCard.vue';
 import LiveStatus from '../../lib/ui/LiveStatus.vue';
 const props = defineProps<{query: string}>();
 const operatorLimit = ref(60);
+const eliteMode = ref<0 | 1 | 2>(0);
 watch(
   () => props.query,
   () => {
@@ -33,6 +36,8 @@ function descriptionOf<T>(item: T, textOf: (item: T) => string): string {
 /** 各目录补充的检索条件；同分时默认保留数据表顺序。 */
 interface SearchOptions<T> {
   descriptionOf?: (item: T) => string;
+  /** 可原地编辑的流派每次读取描述，同时保留 Vue 对成员和策略的依赖跟踪。 */
+  mutableDescription?: boolean;
   matchesRelatedName?: (item: T) => boolean;
   tieBreak?: (a: T, b: T) => number;
 }
@@ -53,7 +58,10 @@ function rankBy<T>(
         nameScore(nameOf(item), query) ||
         (options.matchesRelatedName?.(item) ? relatedNameScore : 0) ||
         (options.descriptionOf &&
-        descriptionOf(item, options.descriptionOf).includes(query)
+        (options.mutableDescription
+          ? normalize(options.descriptionOf(item))
+          : descriptionOf(item, options.descriptionOf)
+        ).includes(query)
           ? 1
           : 0),
     }))
@@ -81,7 +89,17 @@ const results = computed(() => {
   const matchingCovenants = new Set(covenants);
   return {
     covenants,
-    builds: rankBy(BUILD_NAMES, q, (name) => name),
+    builds: rankBy(presets.value, q, (preset) => preset.plan.name, {
+      mutableDescription: true,
+      matchesRelatedName: (preset) =>
+        preset.key !== preset.plan.name && nameScore(preset.key, q) > 0,
+      descriptionOf: (preset) =>
+        preset.plan.note +
+        '|' +
+        preset.plan.strategy +
+        '|' +
+        preset.plan.ops.flatMap((o) => [o.name, ...o.alt, ...o.eq]).join('/'),
+    }).map((preset) => preset.key),
     operators: rankBy(OPERATORS, q, (operator) => operator.name, {
       matchesRelatedName: (operator) =>
         operator.covenants.some((name) => matchingCovenants.has(name)),
@@ -166,15 +184,30 @@ const resultSummary = computed(() => {
     </div>
   </template>
   <template v-if="results.operators.length">
-    <div class="sec" role="heading" aria-level="2" data-key="heading:干员">
+    <div
+      class="sec sr-op-sec"
+      role="heading"
+      aria-level="2"
+      data-key="heading:干员">
       干员
       <span class="n">{{ results.operators.length }}</span>
+      <Segmented
+        class="sr-elite-seg"
+        :labels="['自动', '初始', '精锐']"
+        :active="eliteMode"
+        attr="srel"
+        @change="eliteMode = $event as 0 | 1 | 2" />
     </div>
     <div class="qg" data-key="operators">
       <OperatorCard
         v-for="operator in results.operators.slice(0, operatorLimit)"
         :key="operator.name"
         :operator="operator"
+        :show-elite="
+          eliteMode === 2 ||
+          (eliteMode === 0 && matchedOnlyElite(operator, query))
+        "
+        :elite-matched="eliteMode === 0 && matchedOnlyElite(operator, query)"
         show-wiki-link />
     </div>
     <button

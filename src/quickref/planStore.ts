@@ -10,20 +10,31 @@ import {computed, reactive, ref, watch} from 'vue';
 import {
   BUILD_NAMES,
   CORE_BUILDS,
+  EQUIP,
+  EQUIPMENT_RECIPES,
+  LEADER,
+  OPERATOR,
+  STRATEGY,
+  buildByName,
+  buildsUsing,
   isBannableCovenant,
 } from '../../data/index.ts';
 import {color} from './format.ts';
 import {
+  MAX_EQ,
+  MAX_OPS,
   blankPlan,
   builtinPlan,
   covenantStats,
   loadPlans,
   newId,
+  newSlot,
   samePlan,
   savePlans,
   type CovenantStat,
   type Plan,
 } from '../lib/plans/index.ts';
+import {isBanned} from '../lib/recommendation/index.ts';
 import {mergePlanBackup, type PlanBackupMerge} from '../lib/plans/backup.ts';
 // The route adapter selects a preset; this store does not depend on the browser router.
 const selectedPresetKey = ref(BUILD_NAMES[0]);
@@ -239,16 +250,27 @@ const storedBans = ((): string[] => {
 
 const storedRun = read('wsq.run');
 export const runKey = ref(presetOf(storedRun) ? storedRun : '');
-/** 本局被 ban 的盟约（玩家自己勾的，只用于替代推荐） */
+/** 本局被 ban 的盟约（玩家自己勾的，用于替代推荐、图鉴禁池隐藏与真实抓牌概率） */
 export const runBans = ref<string[]>(storedBans);
+export const runBanSet = computed(() => new Set(runBans.value));
+const storedLeader = read('wsq.leader');
+export const runLeaderKey = ref(
+  Object.hasOwn(LEADER, storedLeader) ? storedLeader : '',
+);
 const stopRun = watch(runKey, (key) => write('wsq.run', key), {flush: 'sync'});
 const stopBans = watch(
   runBans,
   (bans) => write('wsq.bans', JSON.stringify(bans)),
   {deep: true, flush: 'sync'},
 );
+const stopLeader = watch(runLeaderKey, (key) => write('wsq.leader', key), {
+  flush: 'sync',
+});
 export const run = computed(() =>
   runKey.value ? presetOf(runKey.value) : undefined,
+);
+export const runLeader = computed(() =>
+  runLeaderKey.value ? LEADER[runLeaderKey.value] : undefined,
 );
 /** 换一套流派或结束本局；结束时清掉勾选的 ban */
 export function setRun(key: string): void {
@@ -256,20 +278,236 @@ export function setRun(key: string): void {
   runKey.value = key;
   if (!key) runBans.value = [];
 }
+export function setRunLeader(name: string): void {
+  if (name && !Object.hasOwn(LEADER, name)) return;
+  runLeaderKey.value = name;
+}
+/** 一键结束本局（清空本局流派、禁池与领袖标记）。 */
+export function endRun(): void {
+  runKey.value = '';
+  runBans.value = [];
+  runLeaderKey.value = '';
+}
 export function toggleBan(name: string): void {
   if (!isBannableCovenant(name)) return;
   const i = runBans.value.indexOf(name);
   if (i >= 0) runBans.value.splice(i, 1);
   else runBans.value.push(name);
 }
+export function clearBans(): void {
+  runBans.value = [];
+}
+export function isRunBannedOp(name: string): boolean {
+  return runBanSet.value.size > 0 && isBanned(name, runBanSet.value);
+}
 export const runOps = computed(() => run.value?.plan.ops ?? []);
 export const inRun = computed(() => new Set(runOps.value.map((o) => o.name)));
+export const runSlotMap = computed(
+  () => new Map(runOps.value.map((slot) => [slot.name, slot])),
+);
+export const runAltTargets = computed(() => {
+  const map = new Map<string, string[]>();
+  for (const slot of runOps.value) {
+    for (const alt of slot.alt) {
+      if (inRun.value.has(alt)) continue;
+      const list = map.get(alt);
+      if (list) {
+        if (!list.includes(slot.name)) list.push(slot.name);
+      } else {
+        map.set(alt, [slot.name]);
+      }
+    }
+  }
+  return map;
+});
+export const inRunAlt = computed(() => new Set(runAltTargets.value.keys()));
+export const inRunAny = computed(
+  () => new Set([...inRun.value, ...inRunAlt.value]),
+);
 export const runStats = computed<CovenantStat[]>(() =>
   run.value ? covenantStats(run.value.plan.ops, run.value.plan.layers) : [],
 );
 export const runStat = computed(
   () => new Map(runStats.value.map((s) => [s.name, s])),
 );
+export const runBaseBuild = computed(() =>
+  run.value?.plan.base ? buildByName(run.value.plan.base) : undefined,
+);
+export const runEquipOwners = computed(() => {
+  const map = new Map<string, string[]>();
+  for (const slot of runOps.value) {
+    for (const eq of slot.eq) {
+      const list = map.get(eq);
+      if (list) {
+        if (!list.includes(slot.name)) list.push(slot.name);
+      } else {
+        map.set(eq, [slot.name]);
+      }
+    }
+  }
+  return map;
+});
+export const runEquipRecommended = computed(
+  () =>
+    new Set(
+      [
+        ...runOps.value.flatMap((o) => o.eq),
+        ...(runBaseBuild.value?.equipment ?? []),
+      ].filter((e) => Object.hasOwn(EQUIP, e)),
+    ),
+);
+export const runEquipMaterials = computed(() => {
+  const map = new Map<string, string[]>();
+  for (const target of runEquipRecommended.value) {
+    const recipe = EQUIPMENT_RECIPES[target];
+    if (!recipe) continue;
+    for (const mat of [recipe[0], recipe[1]]) {
+      const list = map.get(mat);
+      if (list) {
+        if (!list.includes(target)) list.push(target);
+      } else {
+        map.set(mat, [target]);
+      }
+    }
+  }
+  return map;
+});
+export const runStrategies = computed(() => {
+  const primary = run.value?.plan.strategy ?? '';
+  const all = new Set(
+    [primary, ...(runBaseBuild.value?.strategies ?? [])].filter((s) =>
+      Object.hasOwn(STRATEGY, s),
+    ),
+  );
+  return {
+    primary: Object.hasOwn(STRATEGY, primary) ? primary : '',
+    all,
+  };
+});
+
+export const quickTargetPreset = computed<Preset | undefined>(() => {
+  if (editing.value)
+    return presets.value.find((p) => p.plan.id === editingId.value);
+  if (run.value && !run.value.builtin) return run.value;
+  return myPresets.value[0];
+});
+
+export function toggleOpInQuickBuild(opName: string): {
+  status: 'added' | 'removed' | 'full' | 'created';
+  key: string;
+  planName: string;
+} {
+  if (!Object.hasOwn(OPERATOR, opName)) {
+    return {status: 'full', key: '', planName: ''};
+  }
+  const existing = quickTargetPreset.value;
+  if (existing) {
+    const target = existing.plan;
+    const index = target.ops.findIndex((slot) => slot.name === opName);
+    if (index >= 0) {
+      target.ops.splice(index, 1);
+      target.updated = Date.now();
+      return {status: 'removed', key: existing.key, planName: target.name};
+    }
+    if (target.ops.length >= MAX_OPS) {
+      return {status: 'full', key: existing.key, planName: target.name};
+    }
+    target.ops.push(newSlot(opName));
+    target.updated = Date.now();
+    return {status: 'added', key: existing.key, planName: target.name};
+  }
+  const created = blankPlan(`我的流派 ${myPresets.value.length + 1}`);
+  created.ops.push(newSlot(opName));
+  const key = addPlan(created);
+  if (!runKey.value) setRun(key);
+  return {status: 'created', key, planName: created.name};
+}
+
+/** 反查使用了某干员、装备或策略的流派（同时涵盖内置预设与玩家自建流派）。 */
+export function presetsUsing(kind: 'op' | 'eq' | 'st', name: string): string[] {
+  const staticSet = new Set(
+    buildsUsing(
+      kind === 'op' ? 'lineup' : kind === 'eq' ? 'equipment' : 'strategies',
+      name,
+    ),
+  );
+  return presets.value
+    .filter((preset) => {
+      if (kind === 'op') {
+        return (
+          preset.plan.ops.some(
+            (slot) => slot.name === name || slot.alt.includes(name),
+          ) ||
+          (preset.builtin && !preset.modified && staticSet.has(preset.key))
+        );
+      }
+      if (kind === 'eq') {
+        return (
+          preset.plan.ops.some((slot) => slot.eq.includes(name)) ||
+          (preset.plan.base
+            ? (buildByName(preset.plan.base)?.equipment.includes(name) ?? false)
+            : false) ||
+          (preset.builtin && !preset.modified && staticSet.has(preset.key))
+        );
+      }
+      return (
+        preset.plan.strategy === name ||
+        (preset.plan.base
+          ? (buildByName(preset.plan.base)?.strategies.includes(name) ?? false)
+          : false) ||
+        (preset.builtin && !preset.modified && staticSet.has(preset.key))
+      );
+    })
+    .map((preset) => preset.key);
+}
+
+export function toggleEquipInQuickBuild(
+  opName: string,
+  eqName: string,
+): 'added' | 'removed' | 'full' | 'missing' {
+  if (!Object.hasOwn(EQUIP, eqName) || !quickTargetPreset.value) {
+    return 'missing';
+  }
+  const target = quickTargetPreset.value.plan;
+  const slot = target.ops.find((item) => item.name === opName);
+  if (!slot) return 'missing';
+  const index = slot.eq.indexOf(eqName);
+  if (index >= 0) {
+    slot.eq.splice(index, 1);
+    target.updated = Date.now();
+    return 'removed';
+  }
+  if (slot.eq.length >= MAX_EQ) return 'full';
+  slot.eq.push(eqName);
+  target.updated = Date.now();
+  return 'added';
+}
+
+export function setStrategyInQuickBuild(stName: string): {
+  status: 'set' | 'cleared' | 'created';
+  key: string;
+  planName: string;
+} {
+  if (!Object.hasOwn(STRATEGY, stName)) {
+    return {status: 'cleared', key: '', planName: ''};
+  }
+  const existing = quickTargetPreset.value;
+  if (existing) {
+    const target = existing.plan;
+    target.strategy = target.strategy === stName ? '' : stName;
+    target.updated = Date.now();
+    return {
+      status: target.strategy ? 'set' : 'cleared',
+      key: existing.key,
+      planName: target.name,
+    };
+  }
+  const created = blankPlan(`我的流派 ${myPresets.value.length + 1}`);
+  created.strategy = stName;
+  const key = addPlan(created);
+  if (!runKey.value) setRun(key);
+  return {status: 'created', key, planName: created.name};
+}
 
 /** 开发热更新时也释放模块级监听器，避免每次更新叠加存档任务。 */
 if (import.meta.hot)
@@ -278,6 +516,7 @@ if (import.meta.hot)
     stopSaving();
     stopRun();
     stopBans();
+    stopLeader();
     window.removeEventListener('pagehide', saveOnExit);
     document.removeEventListener('visibilitychange', saveOnHidden);
   });

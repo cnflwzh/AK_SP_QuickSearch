@@ -12,23 +12,24 @@ export {
   builtinPlan,
   samePlan,
 } from './model.ts';
-export type { PlanOp, Layers, Plan } from './model.ts';
+export type {PlanOp, Layers, Plan} from './model.ts';
 export {
   covenantsOf,
   RESERVE_COVENANTS,
   covenantStats,
   atLayers,
 } from './covenants.ts';
-export type { CovenantStat } from './covenants.ts';
-export { copiesFor, planCost, equipNotes } from './costs.ts';
-export type { PlanCost, EquipNote } from './costs.ts';
+export type {CovenantStat} from './covenants.ts';
+export {copiesFor, planCost, equipNotes} from './costs.ts';
+export type {PlanCost, EquipNote} from './costs.ts';
 export {
   CODE_PREFIX,
   encodePlan,
   decodePlan,
   shareUrl,
+  formatPlanShareText,
 } from './sharing.ts';
-export type { Shared, Decoded } from './sharing.ts';
+export type {Shared, Decoded} from './sharing.ts';
 export {
   newId,
   blankPlan,
