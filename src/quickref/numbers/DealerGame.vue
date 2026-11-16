@@ -130,7 +130,7 @@ function changeHint(event: Event): void {
 }
 
 function dealerShareLink(): string {
-  const resolved = router.resolve({path: '/numbers', query: {tool: 'dealer'}});
+  const resolved = router.resolve({name: 'tools', query: {tool: 'dealer'}});
   return new URL(resolved.href, window.location.origin).href;
 }
 

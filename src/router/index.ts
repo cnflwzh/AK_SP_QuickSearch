@@ -26,7 +26,8 @@ const routes: RouteRecordRaw[] = [
   { path: '/equipment', name: 'equipment', meta: { tab: 'eq' }, component: catalog, props: { kind: 'eq' } },
   { path: '/strategies', name: 'strategies', meta: { tab: 'st' }, component: catalog, props: { kind: 'st' } },
   { path: '/leaders/:id?', name: 'leaders', meta: { tab: 'ld' }, component: () => import('../quickref/views/LeadersView.vue') },
-  { path: '/numbers', name: 'numbers', meta: { tab: 'nu' }, component: () => import('../quickref/views/NumbersView.vue') },
+  { path: '/tools', name: 'tools', meta: { tab: 'nu' }, component: () => import('../quickref/views/NumbersView.vue') },
+  { path: '/numbers', redirect: to => ({ path: '/tools', query: to.query, hash: to.hash }) },
   { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('../quickref/views/NotFoundView.vue') },
 ];
 
@@ -34,7 +35,8 @@ const routes: RouteRecordRaw[] = [
 function entryPath(hash: string): string {
   if (hash.startsWith('#p=')) return '/builds';
   try {
-    const saved = localStorage.getItem('wsq.location');
+    const stored = localStorage.getItem('wsq.location');
+    const saved = stored?.replace(/^\/numbers(?=[?#]|$)/, '/tools');
     if (saved && TAB_IDS.some(tab => saved === PAGE_PATHS[tab] || saved.startsWith(PAGE_PATHS[tab] + '/') || saved.startsWith(PAGE_PATHS[tab] + '?'))) return saved;
     const oldTab = localStorage.getItem('wsq.tab');
     if (TAB_IDS.includes(oldTab as TabId)) return PAGE_PATHS[oldTab as TabId];

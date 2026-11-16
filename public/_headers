@@ -61,3 +61,8 @@
   Cache-Control: no-cache
 /numbers/*
   Cache-Control: no-cache
+
+/tools
+  Cache-Control: no-cache
+/tools/*
+  Cache-Control: no-cache
