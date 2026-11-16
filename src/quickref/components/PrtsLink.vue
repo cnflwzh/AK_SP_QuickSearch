@@ -1,14 +1,21 @@
 <script setup lang="ts">
-import { operatorWikiUrl } from '../../lib/prts/prts.ts';
-import { useWikiPanel } from '../wikiPanel.ts';
+import {operatorWikiUrl} from '../../lib/prts/prts.ts';
+import {useWikiPanel} from '../wikiPanel.ts';
 
 /** 干员卡片和详情共用的 Wiki 外链，name 为完整干员名称。 */
-const props = defineProps<{ name: string }>();
+const props = defineProps<{name: string}>();
 const wikiPanel = useWikiPanel();
 
 /** 宽屏点击或触摸进入侧栏；组合键和窄屏继续使用原生外链。 */
 function openWiki(event: MouseEvent): void {
-  if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+  if (
+    event.button !== 0 ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.shiftKey ||
+    event.altKey
+  )
+    return;
   if (wikiPanel?.open(props.name)) {
     event.preventDefault();
   }
@@ -27,10 +34,22 @@ function openWiki(event: MouseEvent): void {
     data-peek="off"
     data-prts-link
     @click.stop="openWiki"
-    @auxclick.stop
-  >
+    @auxclick.stop>
     PRTS
-    <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 2h5v5M14 2 7 9M6 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-3"/></svg>
+    <svg
+      viewBox="0 0 16 16"
+      width="12"
+      height="12"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+      focusable="false">
+      <path
+        d="M9 2h5v5M14 2 7 9M6 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-3" />
+    </svg>
   </a>
 </template>
 
@@ -50,10 +69,20 @@ function openWiki(event: MouseEvent): void {
   text-decoration: none;
   white-space: nowrap;
 }
-.prts-link svg { flex: none; }
-.prts-link:hover { background: var(--teal-soft); }
-.prts-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.prts-link svg {
+  flex: none;
+}
+.prts-link:hover {
+  background: var(--teal-soft);
+}
+.prts-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 @media (pointer: coarse) {
-  .prts-link { min-width: 44px; min-height: 44px; }
+  .prts-link {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 </style>

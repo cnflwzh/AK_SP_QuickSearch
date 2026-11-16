@@ -33,6 +33,15 @@ export default defineConfig([
       'no-undef': 'off',
       // Existing chapter components use single-word names; renaming is unrelated.
       'vue/multi-word-component-names': 'off',
+      // 与 Prettier bracketSameLine 保持一致，结束尖括号跟随最后一个属性。
+      'vue/html-closing-bracket-newline': [
+        'error',
+        {
+          singleline: 'never',
+          multiline: 'never',
+          selfClosingTag: {singleline: 'never', multiline: 'never'},
+        },
+      ],
     },
   },
   {

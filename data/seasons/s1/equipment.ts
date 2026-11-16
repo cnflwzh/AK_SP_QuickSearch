@@ -39,7 +39,6 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e02',
     effect: '装备时销毁，获得1资金',
     advanced: '装备时销毁，获得2资金',
-    mechanics: {dealerDecoy: ['transmute']},
   },
   {
     name: '随身身份牌',
@@ -49,7 +48,6 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e03',
     effect: '装备时销毁，携带者所属盟约层数+3（无需激活）',
     advanced: '装备时销毁，携带者所属盟约层数+6（无需激活）',
-    mechanics: {dealerDecoy: ['transmute']},
   },
   {
     name: '源石溶剂',
@@ -59,7 +57,6 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e04',
     effect: '每秒流失60生命，攻击力+40%',
     advanced: '每秒流失60生命，攻击力+60%',
-    mechanics: {dealerDecoy: ['consumable']},
   },
   {
     name: '虹彩活血饮料',
@@ -69,7 +66,6 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e05',
     effect: '无法被治疗，每秒回复75生命',
     advanced: '无法被治疗，每秒回复150生命',
-    mechanics: {dealerDecoy: ['transmute']},
   },
   {
     name: '雪祀之衣',
@@ -79,7 +75,6 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e06',
     effect: '生命上限+15%，更不易被攻击，阻挡-1',
     advanced: '生命上限+25%，更不易被攻击，阻挡-1',
-    mechanics: {dealerDecoy: ['transmute']},
   },
   {
     name: '不屈弹射器',
@@ -152,7 +147,6 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e14',
     effect: '休整期结束时，携带者已激活盟约层数+1',
     advanced: '休整期结束时，携带者已激活盟约层数+2',
-    mechanics: {dealerDecoy: ['transmute', 'consumable']},
   },
   {
     name: '聚合急救箱',
@@ -216,7 +210,6 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e21',
     effect: '生命上限+25%；身前无干员再+15%',
     advanced: '生命上限+45%；身前无干员再+25%',
-    mechanics: {dealerDecoy: ['transmute']},
   },
   {
     name: '阿戈尔重刃',
@@ -289,7 +282,6 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e29',
     effect: '每次造成伤害，所属已激活盟约临时层数+1（每场12）',
     advanced: '每次造成伤害，所属已激活盟约临时层数+2（每场24）',
-    mechanics: {dealerDecoy: ['transmute', 'consumable']},
   },
   {
     name: '伊比利亚骨刺刀',
@@ -317,7 +309,6 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e32',
     effect: '免疫晕眩、冻结等状态；配不退者力场→不退者卫护系统',
     advanced: null,
-    mechanics: {dealerDecoy: ['transmute']},
   },
   {
     name: '寻呼模块',
@@ -381,7 +372,6 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e39',
     effect: '被击倒时立刻复活（每场1次）',
     advanced: '被击倒时立刻复活（每场2次）',
-    mechanics: {dealerDecoy: ['transmute']},
   },
   {
     name: '莱塔尼亚小鼓',
@@ -409,7 +399,6 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e42',
     effect: '技能所需技力-20%，技能期间攻速-25%',
     advanced: '技能所需技力-40%，技能期间攻速-25%',
-    mechanics: {dealerDecoy: ['transmute']},
   },
   {
     name: '一次性促销券',
@@ -455,7 +444,6 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e47',
     effect: '攻击力+30%，伤害转为弱点伤害',
     advanced: '攻击力+50%，伤害转为弱点伤害',
-    mechanics: {dealerDecoy: ['transmute']},
   },
   {
     name: '信标',
@@ -465,7 +453,6 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e48',
     effect: '销毁携带干员，出现2名同阶干员免费选1；原干员下回合送给队友',
     advanced: null,
-    mechanics: {dealerDecoy: ['consumable']},
   },
   {
     name: '拟态物质',
@@ -475,7 +462,6 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e49',
     effect: '已有2名该初始干员时再给1名（直接三连）；否则随机1名同阶',
     advanced: null,
-    mechanics: {dealerDecoy: ['consumable']},
   },
   {
     name: '博士投影',
@@ -485,7 +471,6 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e50',
     effect: '下回合开始时使携带者晋升精锐',
     advanced: '立即使携带者晋升精锐',
-    mechanics: {dealerDecoy: ['transmute', 'consumable']},
   },
   {
     name: '天马之盔',
@@ -513,7 +498,6 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e53',
     effect: '每种激活盟约使携带者攻击、生命+6%（8次）',
     advanced: '每种激活盟约使携带者攻击、生命+12%（8次）',
-    mechanics: {dealerDecoy: ['transmute', 'consumable']},
   },
   {
     name: '人事部记录',
@@ -532,7 +516,6 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e55',
     effect: '对元素爆发中的敌人伤害+30%',
     advanced: '对元素爆发中的敌人伤害+50%',
-    mechanics: {dealerDecoy: ['transmute']},
   },
   {
     name: '不退者力场',
@@ -588,7 +571,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e61',
     effect: '携带者获得另一件携带装备对应的盟约',
     advanced: null,
-    mechanics: {grantsCompanionCovenant: true, dealerDecoy: ['consumable']},
+    mechanics: {grantsCompanionCovenant: true},
   },
   {
     name: '动能加速器',

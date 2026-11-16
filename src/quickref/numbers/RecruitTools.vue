@@ -112,62 +112,59 @@ const searchSummary = computed(() => {
     <div class="bar nt-toolbar">
       <h4 class="nt-section-title" aria-level="2">找牌与升本</h4>
       <select :value="shopMode" aria-label="调度模式" @change="changeMode">
-        <option v-for="(id, index) in SHOP_MODE_IDS" :key="id" :value="id">{{
-          DISPATCH_MODES[index]
-        }}</option>
+        <option v-for="(id, index) in SHOP_MODE_IDS" :key="id" :value="id">
+          {{ DISPATCH_MODES[index] }}
+        </option>
       </select>
     </div>
     <section class="nc nt-recruit-grid" aria-label="目标干员与刷新预算">
       <section class="nt-operator-search">
-        <header class="nt-heading"
-          ><h4 aria-level="3">目标干员</h4
-          ><span class="nt-muted">名字 / 拼音 / 盟约</span></header
-        >
+        <header class="nt-heading">
+          <h4 aria-level="3">目标干员</h4>
+          <span class="nt-muted">名字 / 拼音 / 盟约</span>
+        </header>
         <div class="bar nt-search-row">
           <input
             type="search"
             :value="search"
             placeholder="找谁？"
             aria-label="查找目标干员"
-            @input="searchOperators"
-          />
+            @input="searchOperators" />
           <button
             v-if="search"
             type="button"
             class="btn nt-text-button"
-            @click="search = ''"
-            >清空</button
-          >
+            @click="search = ''">
+            清空
+          </button>
         </div>
         <template v-if="search">
-          <label class="nt-checkbox"
-            ><input v-model="onlyAvailable" type="checkbox" />仅看当前等级可刷
-            <small>{{ searchResults.length }} 名</small></label
-          >
+          <label class="nt-checkbox">
+            <input v-model="onlyAvailable" type="checkbox" />
+            仅看当前等级可刷
+            <small>{{ searchResults.length }} 名</small>
+          </label>
           <div class="nt-search-results">
             <div
               v-for="operator in visibleResults"
               :key="operator.name"
               class="nt-search-result"
-              :class="{selected: target?.name === operator.name}"
-            >
+              :class="{selected: target?.name === operator.name}">
               <button
                 type="button"
                 class="nt-select-operator"
-                @click="selectTarget(operator)"
-              >
+                @click="selectTarget(operator)">
                 <img
                   :src="avatarSrc(operator.name)"
                   alt=""
                   width="36"
                   height="36"
                   loading="lazy"
-                  decoding="async"
-                />
-                <span
-                  ><b>{{ operator.name }}</b
-                  ><small>{{ operator.covenants.join(' · ') }}</small></span
-                >
+                  decoding="async" />
+                <span>
+                  <b>{{ operator.name }}</b>
+                  <small>{{ operator.covenants.join(' · ') }}</small>
+                </span>
                 <span class="nt-tier">{{ TIER_LABELS[operator.tier] }}</span>
               </button>
               <button
@@ -177,9 +174,9 @@ const searchSummary = computed(() => {
                 :disabled="
                   names.includes(operator.name) || names.length >= maxTargets
                 "
-                @click="addTarget(operator)"
-                >{{ names.includes(operator.name) ? '✓' : '+' }}</button
-              >
+                @click="addTarget(operator)">
+                {{ names.includes(operator.name) ? '✓' : '+' }}
+              </button>
             </div>
           </div>
           <p v-if="!searchResults.length" class="nt-muted">没有匹配的干员</p>
@@ -187,9 +184,9 @@ const searchSummary = computed(() => {
             v-if="searchResults.length > 12 && !showAllResults"
             type="button"
             class="btn nt-text-button"
-            @click="showAllResults = true"
-            >展开其余 {{ searchResults.length - 12 }} 名</button
-          >
+            @click="showAllResults = true">
+            展开其余 {{ searchResults.length - 12 }} 名
+          </button>
         </template>
 
         <div v-if="target" class="nt-target">
@@ -198,23 +195,24 @@ const searchSummary = computed(() => {
               :to="cardLocation('op', target.name)"
               :activate="() => actions.openDetail('op', target!.name)"
               class="nt-target-name"
-              :data-op="target.name"
-            >
+              :data-op="target.name">
               <img
                 :src="avatarSrc(target.name)"
                 alt=""
                 width="44"
                 height="44"
                 loading="lazy"
-                decoding="async"
-              />
-              <span
-                ><b>{{ target.name }} <small>↗</small></b
-                ><small
-                  >{{ TIER_LABELS[target.tier] }} 阶 · 基础价
-                  {{ operatorPrice(target) }}</small
-                ></span
-              >
+                decoding="async" />
+              <span>
+                <b>
+                  {{ target.name }}
+                  <small>↗</small>
+                </b>
+                <small>
+                  {{ TIER_LABELS[target.tier] }} 阶 · 基础价
+                  {{ operatorPrice(target) }}
+                </small>
+              </span>
             </NavigationLink>
             <button
               type="button"
@@ -222,31 +220,37 @@ const searchSummary = computed(() => {
               :disabled="
                 names.includes(target.name) || names.length >= maxTargets
               "
-              @click="addTarget(target)"
-              >{{ names.includes(target.name) ? '已加入' : '+ 待找' }}</button
-            >
+              @click="addTarget(target)">
+              {{ names.includes(target.name) ? '已加入' : '+ 待找' }}
+            </button>
           </div>
           <div class="nt-eligibility">
-            <div :class="{available: target.tier <= level}"
-              ><small>普通刷新</small
-              ><b>{{
-                target.tier <= level ? '等阶已开放' : `${target.tier} 级起可刷`
-              }}</b
-              ><span
-                >当前 {{ level }} 级 · 最高 {{ TIER_LABELS[level] }} 阶</span
-              ></div
-            >
-            <div :class="{available: target.tier === rewardTier}"
-              ><small>合成奖励 · {{ TIER_LABELS[rewardTier] }} 阶</small
-              ><b>{{
-                target.tier === rewardTier
-                  ? '三选一中可出现'
-                  : target.tier === 1
-                    ? '合成奖励 II 阶起'
-                    : `${target.tier - 1} 级合成可出此阶`
-              }}</b
-              ><span>三名相同干员合成精锐</span></div
-            >
+            <div :class="{available: target.tier <= level}">
+              <small>普通刷新</small>
+              <b>
+                {{
+                  target.tier <= level
+                    ? '等阶已开放'
+                    : `${target.tier} 级起可刷`
+                }}
+              </b>
+              <span>
+                当前 {{ level }} 级 · 最高 {{ TIER_LABELS[level] }} 阶
+              </span>
+            </div>
+            <div :class="{available: target.tier === rewardTier}">
+              <small>合成奖励 · {{ TIER_LABELS[rewardTier] }} 阶</small>
+              <b>
+                {{
+                  target.tier === rewardTier
+                    ? '三选一中可出现'
+                    : target.tier === 1
+                      ? '合成奖励 II 阶起'
+                      : `${target.tier - 1} 级合成可出此阶`
+                }}
+              </b>
+              <span>三名相同干员合成精锐</span>
+            </div>
           </div>
         </div>
       </section>
@@ -256,140 +260,135 @@ const searchSummary = computed(() => {
         v-model:upgrade="budget.upgrade"
         v-model:reserve="budget.reserveOverride"
         :level="level"
-        :target="target"
-      />
+        :target="target" />
     </section>
 
     <section v-if="targets.length" class="nc nt-wishlist">
-      <header class="nt-heading"
-        ><h4 aria-level="3"
-          >待找清单 <small>{{ targets.length }}/{{ maxTargets }}</small></h4
-        ><button
-          type="button"
-          class="btn nt-text-button"
-          @click="copyTargets"
-          >{{ copied ? '已复制' : '复制给队友' }}</button
-        ></header
-      >
+      <header class="nt-heading">
+        <h4 aria-level="3">
+          待找清单
+          <small>{{ targets.length }}/{{ maxTargets }}</small>
+        </h4>
+        <button type="button" class="btn nt-text-button" @click="copyTargets">
+          {{ copied ? '已复制' : '复制给队友' }}
+        </button>
+      </header>
       <div class="nt-target-list">
         <div
           v-for="operator in targets"
           :key="operator.name"
-          class="nt-target-item"
-        >
+          class="nt-target-item">
           <button
             type="button"
             class="nt-select-operator"
-            @click="selectTarget(operator)"
-            ><img
+            @click="selectTarget(operator)">
+            <img
               :src="avatarSrc(operator.name)"
               alt=""
               width="36"
               height="36"
               loading="lazy"
-              decoding="async"
-            /><span
-              ><b>{{ operator.name }}</b
-              ><small
-                >{{ operator.tier }} 级起 ·
-                {{ operatorPrice(operator) }} 资金</small
-              ></span
-            ></button
-          >
+              decoding="async" />
+            <span>
+              <b>{{ operator.name }}</b>
+              <small>
+                {{ operator.tier }} 级起 · {{ operatorPrice(operator) }} 资金
+              </small>
+            </span>
+          </button>
           <button
             type="button"
             class="nt-remove"
             :aria-label="`移除待找${operator.name}`"
-            @click="removeTarget(operator.name)"
-            >×</button
-          >
+            @click="removeTarget(operator.name)">
+            ×
+          </button>
         </div>
       </div>
-      <p v-if="saveFailed" role="status" class="nt-warning"
-        >清单暂未保存，请检查浏览器的存储权限。</p
-      >
+      <p v-if="saveFailed" role="status" class="nt-warning">
+        清单暂未保存，请检查浏览器的存储权限。
+      </p>
       <textarea
         v-if="copyFallback"
         class="nt-copy-fallback"
         readonly
         aria-label="待找清单文本"
         :value="copyFallback"
-        @focus="($event.target as HTMLTextAreaElement).select()"
-      ></textarea>
+        @focus="($event.target as HTMLTextAreaElement).select()"></textarea>
     </section>
 
     <section class="nc nt-dispatch">
-      <header class="nt-heading"
-        ><h4 aria-level="3">当前等级</h4
-        ><span class="nt-muted">升级价每回合 −1</span></header
-      >
+      <header class="nt-heading">
+        <h4 aria-level="3">当前等级</h4>
+        <span class="nt-muted">升级价每回合 −1</span>
+      </header>
       <div class="nt-table-scroll">
         <table class="nt-dispatch-table">
-          <thead
-            ><tr
-              ><th scope="col">调度中心</th
-              ><th
+          <thead>
+            <tr>
+              <th scope="col">调度中心</th>
+              <th
                 v-for="row in levels"
                 :key="row.level"
                 scope="col"
-                :class="{current: level === row.level}"
-              >
+                :class="{current: level === row.level}">
                 <button
                   type="button"
                   class="btn"
                   :class="{p: level === row.level}"
                   :aria-pressed="level === row.level"
                   :aria-label="`当前等级 ${row.level}`"
-                  @click="changeLevel(row.level)"
-                  >{{ row.level }}<small>级</small></button
-                >
-              </th></tr
-            ></thead
-          >
+                  @click="changeLevel(row.level)">
+                  {{ row.level }}
+                  <small>级</small>
+                </button>
+              </th>
+            </tr>
+          </thead>
           <tbody>
-            <tr
-              ><th scope="row">升级初始价</th
-              ><td
+            <tr>
+              <th scope="row">升级初始价</th>
+              <td
                 v-for="row in levels"
                 :key="row.level"
                 :class="{current: level === row.level}"
-                :aria-label="row.upgradeCost === null ? '已满级' : undefined"
-                >{{ row.upgradeCost ?? '—' }}</td
-              ></tr
-            >
-            <tr
-              ><th scope="row">干员栏位</th
-              ><td
+                :aria-label="row.upgradeCost === null ? '已满级' : undefined">
+                {{ row.upgradeCost ?? '—' }}
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">干员栏位</th>
+              <td
                 v-for="row in levels"
                 :key="row.level"
-                :class="{current: level === row.level}"
-                >{{ row.operatorSlots }}</td
-              ></tr
-            >
-            <tr
-              ><th scope="row">刷新最高阶</th
-              ><td
+                :class="{current: level === row.level}">
+                {{ row.operatorSlots }}
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">刷新最高阶</th>
+              <td
                 v-for="row in levels"
                 :key="row.level"
-                :class="{current: level === row.level}"
-                >{{ TIER_LABELS[row.level] }}</td
-              ></tr
-            >
-            <tr
-              ><th scope="row">合成奖励阶</th
-              ><td
+                :class="{current: level === row.level}">
+                {{ TIER_LABELS[row.level] }}
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">合成奖励阶</th>
+              <td
                 v-for="row in levels"
                 :key="row.level"
-                :class="{current: level === row.level}"
-                >{{ TIER_LABELS[synthesisTier(row.level)] }}</td
-              ></tr
-            >
+                :class="{current: level === row.level}">
+                {{ TIER_LABELS[synthesisTier(row.level)] }}
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
-      <p class="nt-footnote"
-        >合成奖励：当前等级 +1 阶，最高 VI 阶，随机三选一</p
-      >
+      <p class="nt-footnote">
+        合成奖励：当前等级 +1 阶，最高 VI 阶，随机三选一
+      </p>
     </section>
     <LiveStatus :message="searchSummary" />
   </div>

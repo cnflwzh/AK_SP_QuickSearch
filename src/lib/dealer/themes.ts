@@ -3,6 +3,7 @@ import {
   ALL_COVENANTS,
   COMPANION_EQUIP_NAME,
   CORE_COVENANTS,
+  DEALER_DECOYS,
   EQUIPMENT,
   EQUIPMENT_COMBOS,
   matchesOperatorTrigger,
@@ -344,10 +345,5 @@ export const BOUNTY_THEME_META: Readonly<
   },
 };
 
-export const TRICKY_DECOY_EQUIP_NAMES: readonly string[] = EQUIPMENT.filter(
-  (eq) => eq.mechanics?.dealerDecoy?.includes('transmute'),
-).map((eq) => eq.name);
-
-export const CONSUMABLE_DECOY_NAMES: readonly string[] = EQUIPMENT.filter(
-  (eq) => eq.mechanics?.dealerDecoy?.includes('consumable'),
-).map((eq) => eq.name);
+export const TRICKY_DECOY_EQUIP_NAMES = DEALER_DECOYS.transmute;
+export const CONSUMABLE_DECOY_NAMES = DEALER_DECOYS.consumable;

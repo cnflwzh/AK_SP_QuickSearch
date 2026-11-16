@@ -334,3 +334,5 @@ export const LAYER_INPUT_LIMIT = 999;
 
 /** 模式 ID 与 DISPATCH_BY_MODE 保持同一索引，避免复用领袖难度误选费用表。 */
 export const SHOP_MODE_IDS = ['advanced', 'standard', 'fast'] as const;
+
+export const DEALER_DECOYS = CURRENT_SEASON.rules.dealerDecoys;

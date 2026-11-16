@@ -78,7 +78,7 @@ export function advisorDeploymentLimit(
   return (
     SEASON_META.baseDeploymentLimit +
     (run.personnelDocumentUsed
-      ? (DEPLOYMENT_BONUS_EQUIP?.mechanics?.deploymentSlotBonus ?? 1)
+      ? (DEPLOYMENT_BONUS_EQUIP?.mechanics?.deploymentSlotBonus ?? 0)
       : 0)
   );
 }

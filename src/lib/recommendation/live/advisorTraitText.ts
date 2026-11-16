@@ -274,7 +274,7 @@ export function resolveAcquisitionEffects(
     gains = [
       {
         covenant: levelScaling[2],
-        amount: level * (levelScaling[1] || elite ? 2 : 1),
+        amount: level * (levelScaling[1] ? 2 : 1),
       },
     ];
   }

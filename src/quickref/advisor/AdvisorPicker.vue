@@ -163,16 +163,15 @@ function clearFilters(): void {
           type="search"
           :placeholder="placeholder"
           autocomplete="off"
-          data-initial-focus
-        />
+          data-initial-focus />
       </label>
       <label v-if="kind !== 'st'">
         <span class="sr-only">按等阶筛选</span>
         <select v-model="tier">
           <option :value="0">全部等阶</option>
-          <option v-for="value in 6" :key="value" :value="value"
-            >{{ TIER_LABELS[value] }} 阶</option
-          >
+          <option v-for="value in 6" :key="value" :value="value">
+            {{ TIER_LABELS[value] }} 阶
+          </option>
         </select>
       </label>
       <label v-if="kind === 'op'" class="ra-picker-covenant">
@@ -182,28 +181,28 @@ function clearFilters(): void {
           <option
             v-for="name in ALL_COVENANTS.filter(isBannableCovenant)"
             :key="name"
-            :value="name"
-            >{{ name }}</option
-          >
+            :value="name">
+            {{ name }}
+          </option>
         </select>
       </label>
     </div>
     <div class="ra-picker-status">
-      <span
-        >{{ results.length }} 项{{
+      <span>
+        {{ results.length }} 项{{
           atCapacity ? ' · 已满，可移除已选项' : ` · 点卡片${action}`
-        }}</span
-      >
+        }}
+      </span>
       <button
         v-if="hasFilters"
         type="button"
         class="ra-text-button"
-        @click="clearFilters"
-        >清除筛选</button
-      >
-      <span class="ra-picker-notice" role="status" aria-live="polite">{{
-        notice
-      }}</span>
+        @click="clearFilters">
+        清除筛选
+      </button>
+      <span class="ra-picker-notice" role="status" aria-live="polite">
+        {{ notice }}
+      </span>
     </div>
     <div class="ra-picker-grid">
       <article
@@ -214,50 +213,49 @@ function clearFilters(): void {
           chosen: selectedNames.has(item.name),
           owned: kind === 'op' && ownedByName.has(item.name),
         }"
-        :data-t="item.tier"
-      >
+        :data-t="item.tier">
         <button
           type="button"
           class="ra-pick-entity"
           :disabled="isDisabled(item.name)"
           :aria-pressed="canDeselect ? selectedNames.has(item.name) : undefined"
           :aria-label="actionLabel(item.name)"
-          @click="choose(item.name)"
-        >
+          @click="choose(item.name)">
           <span class="ra-picker-picture">
             <img
               :src="item.image"
               alt=""
               width="44"
               height="44"
-              loading="lazy"
-            />
+              loading="lazy" />
             <i v-if="item.tier">{{ TIER_LABELS[item.tier] }}</i>
             <b v-if="selectedNames.has(item.name)">✓</b>
-            <b v-else-if="kind === 'op' && ownedByName.has(item.name)">{{
-              ownedByName.get(item.name)!.elite
-                ? '精'
-                : `×${ownedByName.get(item.name)!.copies}`
-            }}</b>
+            <b v-else-if="kind === 'op' && ownedByName.has(item.name)">
+              {{
+                ownedByName.get(item.name)!.elite
+                  ? '精'
+                  : `×${ownedByName.get(item.name)!.copies}`
+              }}
+            </b>
           </span>
           <strong>{{ item.name }}</strong>
-          <small>{{
-            disabledNames.includes(item.name) ? '已精锐' : item.detail
-          }}</small>
+          <small>
+            {{ disabledNames.includes(item.name) ? '已精锐' : item.detail }}
+          </small>
           <em
             v-if="stateLabel(item.name, item.tier)"
-            :class="{warn: item.tier > level && !ownershipLabel(item.name)}"
-            >{{ stateLabel(item.name, item.tier) }}</em
-          >
+            :class="{warn: item.tier > level && !ownershipLabel(item.name)}">
+            {{ stateLabel(item.name, item.tier) }}
+          </em>
         </button>
         <button
           type="button"
           class="ra-pick-info"
           :aria-label="`查看${item.name}详情`"
           title="详情"
-          @click="$emit('details', kind, item.name)"
-          >i</button
-        >
+          @click="$emit('details', kind, item.name)">
+          i
+        </button>
       </article>
       <div v-if="!results.length" class="ra-empty">
         <p>没有匹配的候选。</p>
@@ -265,42 +263,43 @@ function clearFilters(): void {
           v-if="hasFilters"
           type="button"
           class="btn"
-          @click="clearFilters"
-          >清除筛选</button
-        >
+          @click="clearFilters">
+          清除筛选
+        </button>
       </div>
     </div>
     <div class="ra-picker-footer">
       <div
         v-if="canDeselect && selectedItems.length"
         class="ra-picker-selected"
-        aria-label="已选候选"
-      >
+        aria-label="已选候选">
         <button
           v-for="item in selectedItems"
           :key="item.name"
           type="button"
           :aria-label="`移出${item.name}`"
-          @click="emit('remove', item.name)"
-        >
+          @click="emit('remove', item.name)">
           <img :src="item.image" alt="" width="22" height="22" loading="lazy" />
-          <span>{{ item.name }}</span><span aria-hidden="true">×</span>
+          <span>{{ item.name }}</span>
+          <span aria-hidden="true">×</span>
         </button>
       </div>
       <div class="ra-picker-actions">
-        <span class="ra-muted">{{
-          maxSelected ? `已选 ${selected.length} / ${maxSelected}` : summary
-        }}</span>
+        <span class="ra-muted">
+          {{
+            maxSelected ? `已选 ${selected.length} / ${maxSelected}` : summary
+          }}
+        </span>
         <button
           type="button"
           class="ra-text-button"
           :disabled="!canUndo"
-          @click="emit('undo')"
-          >撤销</button
-        >
-        <button type="button" class="btn p" @click="emit('done')">{{
-          doneLabel
-        }}</button>
+          @click="emit('undo')">
+          撤销
+        </button>
+        <button type="button" class="btn p" @click="emit('done')">
+          {{ doneLabel }}
+        </button>
       </div>
     </div>
   </div>

@@ -212,7 +212,13 @@ function createCountScorer(
     let score = 0;
     let extraCoreCount = 0;
     for (const booster of CORE_BOOSTERS) {
-      if (counts[booster.index] > 0 && !goals[booster.index].banned) {
+      const goal = goals[booster.index];
+      const count = counts[booster.index];
+      if (
+        !goal.banned &&
+        count >= goal.need &&
+        (goal.maxCount === undefined || count <= goal.maxCount)
+      ) {
         extraCoreCount += booster.amount;
       }
     }

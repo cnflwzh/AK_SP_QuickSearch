@@ -96,14 +96,17 @@ export function covenantStats(
       members.set(name, set);
     }
   }
-  const coreBonus = ALL_COVENANTS.reduce(
-    (sum, name) =>
-      sum +
-      (members.has(name) && !inactive.has(name)
-        ? (COVENANTS[name].mechanics?.addsCoreCount ?? 0)
-        : 0),
-    0,
-  );
+  // 人数加成仅来自自身已激活的盟约，避免未满足门槛时提前生效。
+  const coreBonus = ALL_COVENANTS.reduce((sum, name) => {
+    const covenant = COVENANTS[name];
+    const count = members.get(name)?.size ?? 0;
+    const maxCount = covenant.mechanics?.maxCount;
+    const active =
+      !inactive.has(name) &&
+      count >= covenant.need &&
+      (maxCount === undefined || count <= maxCount);
+    return sum + (active ? (covenant.mechanics?.addsCoreCount ?? 0) : 0);
+  }, 0);
   // 强化状态随层数变化，只更新数值和提示，避免拖动层数时列表跳位。
   return ALL_COVENANTS.filter(
     (name) => members.has(name) && !inactive.has(name),

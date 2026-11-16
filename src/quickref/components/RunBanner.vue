@@ -26,9 +26,9 @@ const covs = computed(() =>
       type="button"
       class="nm"
       :title="`查看「${run.plan.name}」`"
-      @click="actions.openBuild(runKey)"
-      >{{ run.plan.name }} ▸</button
-    >
+      @click="actions.openBuild(runKey)">
+      {{ run.plan.name }} ▸
+    </button>
     <span class="cvs">
       <button
         v-for="s in covs"
@@ -46,17 +46,18 @@ const covs = computed(() =>
         :style="{'--c': color(s.name)}"
         :data-cv="s.name"
         data-peek="off"
-        @click="actions.openCovenant(s.name)"
-        >{{ s.name }}<small>{{ s.count }}/{{ s.need }}</small></button
-      >
+        @click="actions.openCovenant(s.name)">
+        {{ s.name }}
+        <small>{{ s.count }}/{{ s.need }}</small>
+      </button>
     </span>
     <button
       type="button"
       class="x"
       title="结束本局"
       aria-label="结束本局"
-      @click="setRun('')"
-      >✕</button
-    >
+      @click="setRun('')">
+      ✕
+    </button>
   </div>
 </template>
