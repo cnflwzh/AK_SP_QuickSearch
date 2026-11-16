@@ -72,6 +72,8 @@ interface StoredDailyState {
   startedAssist?: boolean;
   currentUsedHint?: boolean;
   currentHintRevealed?: boolean;
+  /** 当前未结算轮的牌面状态，与累计统计一同恢复。 */
+  currentCards?: CardStatus[];
 }
 
 let replaySeq = 0;
@@ -94,7 +96,8 @@ function pickAvoid<T>(
   avoid: T | undefined,
   rng: () => number,
 ): T {
-  const filtered = avoid === undefined ? basePool : basePool.filter((x) => x !== avoid);
+  const filtered =
+    avoid === undefined ? basePool : basePool.filter((x) => x !== avoid);
   const pool = filtered.length ? filtered : basePool;
   return pool[Math.floor(rng() * pool.length)] ?? basePool[0];
 }
@@ -166,7 +169,8 @@ function createFreeRound(
     const basePool =
       kind === 'transmute' ? TRANSMUTE_COVENANTS : SELECTABLE_COVENANTS;
     const prevCov =
-      prevRound && (prevRound.kind === 'covenant' || prevRound.kind === 'transmute')
+      prevRound &&
+      (prevRound.kind === 'covenant' || prevRound.kind === 'transmute')
         ? prevRound.targetCovenant
         : undefined;
     targetCovenant = pickAvoid(basePool, prevCov, rng);
@@ -271,22 +275,20 @@ function loadDailySession(dateKey: string): ModeSession {
       });
       round.usedHint = Boolean(item.usedHint);
     }
-    fresh.history = saved.history.slice(0, maxHistory).map((item, i) => ({
-      roundNumber: item.roundNumber || i + 1,
-      roundKind: item.roundKind ?? fresh.rounds[i].kind,
-      targetCovenant: item.targetCovenant || fresh.rounds[i].targetCovenant,
-      matrix: item.matrix,
-      mistakes: Number(item.mistakes) || 0,
-      calibrated: Boolean(item.calibrated),
-      usedHint: Boolean(item.usedHint),
-    }));
-    fresh.roundIndex = Math.max(
-      0,
-      Math.min(DAILY_ROUND_COUNT - 1, Number(saved.roundIndex) || 0),
-    );
+    // 从已验证牌面重建摘要，避免存档元数据与实际题目脱节。
+    fresh.history = fresh.rounds.slice(0, maxHistory).map(summarizeRound);
+    if (
+      !Number.isInteger(saved.roundIndex) ||
+      saved.roundIndex! < 0 ||
+      saved.roundIndex! >= DAILY_ROUND_COUNT ||
+      (saved.roundIndex !== maxHistory && saved.roundIndex !== maxHistory - 1)
+    ) {
+      return createDailySession(dateKey);
+    }
+    fresh.roundIndex = saved.roundIndex!;
     fresh.combo = Math.max(0, Number(saved.combo) || 0);
     fresh.rage = Math.max(0, Math.min(100, Number(saved.rage) || 0));
-    fresh.dailyCompleted = Boolean(saved.dailyCompleted);
+    fresh.dailyCompleted = maxHistory === DAILY_ROUND_COUNT;
     fresh.showReport = fresh.dailyCompleted;
     fresh.playedBlind = Boolean(saved.playedBlind);
     fresh.startedAssist = Boolean(saved.startedAssist);
@@ -303,6 +305,25 @@ function loadDailySession(dateKey: string): ModeSession {
       };
     }
     const current = fresh.rounds[fresh.roundIndex];
+    if (saved.currentCards !== undefined && fresh.roundIndex === maxHistory) {
+      const statuses = saved.currentCards;
+      if (
+        !Array.isArray(statuses) ||
+        statuses.length !== current.cards.length ||
+        !statuses.every(
+          (status, index) =>
+            status === 'unseen' ||
+            (current.cards[index].isImpostor
+              ? status === 'punched'
+              : status === 'shielded'),
+        )
+      ) {
+        return createDailySession(dateKey);
+      }
+      current.cards.forEach((card, index) => {
+        card.status = statuses[index];
+      });
+    }
     const cleared = current.cards
       .filter((card) => card.isImpostor)
       .every((card) => card.status !== 'unseen');
@@ -335,6 +356,7 @@ function saveDailySession(dateKey: string, session: ModeSession): void {
       dailyCompleted: session.dailyCompleted,
       playedBlind: session.playedBlind,
       startedAssist: session.startedAssist,
+      currentCards: activeRound.cards.map((card) => card.status),
       currentUsedHint: activeRound?.usedHint ?? false,
       currentHintRevealed: activeRound?.hintRevealed ?? false,
     };
@@ -355,15 +377,18 @@ const state = reactive({
   free: createFreeSession(''),
 });
 
-function ensureCurrentDate(): void {
+/** 返回是否更换每日题，事件处理器据此拒绝来自旧牌面的点击。 */
+function ensureCurrentDate(): boolean {
   const today = localDateKey();
-  if (state.dateKey === today) return;
+  if (state.dateKey === today) return false;
   state.dateKey = today;
   state.daily = createDailySession(today);
+  saveDailySession(today, state.daily);
+  state.announcement = '已更新今日同题';
+  return true;
 }
 
 function activeSession(): ModeSession {
-  ensureCurrentDate();
   return state.mode === 'daily' ? state.daily : state.free;
 }
 
@@ -408,13 +433,13 @@ function completeCurrentRound(
     }
   }
   const summary = summarizeRound(round);
-  if (session.history.length <= session.roundIndex) {
-    session.history.push(summary);
-  }
+  session.history.push(summary);
+  // 分享只展示最近五轮；累计战绩单独统计，不保留无限增长的牌面与历史。
+  if (state.mode === 'free') session.history = session.history.slice(-5);
   session.stats = {
     ...session.stats,
     keptClean: session.stats.keptClean + keptCount,
-    roundsCleared: session.history.length,
+    roundsCleared: session.stats.roundsCleared + 1,
   };
   session.eventCount++;
   session.lastEvent = usedUltimate ? 'ultimate' : 'clear';
@@ -453,9 +478,7 @@ export function useDealerGame() {
   const rank = computed(() => evaluateDealerRank(session.value.stats));
   const usedAssistOnly = computed(() => {
     const s = session.value;
-    return (
-      !s.playedBlind && (s.startedAssist || state.hintLevel !== 'blind')
-    );
+    return !s.playedBlind && (s.startedAssist || state.hintLevel !== 'blind');
   });
   const dealerMood = computed(() => {
     const s = session.value;
@@ -486,6 +509,7 @@ export function useDealerGame() {
   }
 
   function tapCard(index: number): void {
+    if (ensureCurrentDate() && state.mode === 'daily') return;
     const s = session.value;
     const current = round.value;
     const card = current.cards[index];
@@ -516,6 +540,7 @@ export function useDealerGame() {
         );
         state.announcement = `识破串场条目「${card.title}」，痛扁发牌员一拳`;
       }
+      if (state.mode === 'daily') saveDailySession(state.dateKey, s);
       return;
     }
 
@@ -534,9 +559,11 @@ export function useDealerGame() {
       {name: card.title},
     );
     state.announcement = `「${card.title}」符合【${current.targetCovenant}】要求，误判提示`;
+    if (state.mode === 'daily') saveDailySession(state.dateKey, s);
   }
 
   function castUltimate(): void {
+    if (ensureCurrentDate() && state.mode === 'daily') return;
     const s = session.value;
     const current = round.value;
     if (s.rage < 100 || roundCleared(current)) return;
@@ -564,6 +591,7 @@ export function useDealerGame() {
 
   /** 在盲猜模式中主动点开本轮卡面线索提示（仅对当前轮生效，同时计入提示统计）。 */
   function requestRoundHint(): void {
+    if (ensureCurrentDate() && state.mode === 'daily') return;
     const s = session.value;
     const current = round.value;
     if (state.hintLevel !== 'blind' || roundCleared(current)) return;
@@ -576,6 +604,7 @@ export function useDealerGame() {
 
   /** 在本轮未通关时点击未翻开卡牌/携带装备详情也记录为场中查阅提示；通关复盘不计。 */
   function recordDetailPeek(index: number): void {
+    if (ensureCurrentDate() && state.mode === 'daily') return;
     const s = session.value;
     const current = round.value;
     const card = current.cards[index];
@@ -589,6 +618,7 @@ export function useDealerGame() {
   }
 
   function nextRound(): void {
+    if (ensureCurrentDate() && state.mode === 'daily') return;
     const s = session.value;
     if (!roundCleared(round.value)) return;
     if (state.mode === 'daily') {
@@ -605,9 +635,13 @@ export function useDealerGame() {
     }
 
     const prevRound = round.value;
-    const next = createFreeRound(s.roundIndex + 2, state.focusCovenant, prevRound);
-    s.rounds.push(next);
-    s.roundIndex = s.rounds.length - 1;
+    const next = createFreeRound(
+      prevRound.roundNumber + 1,
+      state.focusCovenant,
+      prevRound,
+    );
+    s.rounds = [next];
+    s.roundIndex = 0;
     s.lastEvent = 'deal';
     s.dealerLine = next.introLine;
     state.announcement = `刷新自由拷打第 ${next.roundNumber} 轮：${next.targetLabel}`;
@@ -628,15 +662,20 @@ export function useDealerGame() {
     state.focusCovenant = focus;
     if (state.mode !== 'free') return;
     const s = state.free;
-    const fresh = createFreeRound(s.rounds.length + 1, focus, round.value);
-    s.rounds.push(fresh);
-    s.roundIndex = s.rounds.length - 1;
+    const fresh = createFreeRound(
+      round.value.roundNumber + 1,
+      focus,
+      round.value,
+    );
+    s.rounds = [fresh];
+    s.roundIndex = 0;
     s.lastEvent = 'deal';
     s.dealerLine = fresh.introLine;
     s.showReport = false;
   }
 
   function setHintLevel(level: HintLevel): void {
+    ensureCurrentDate();
     state.hintLevel = level;
     const s = session.value;
     const current = round.value;
@@ -658,6 +697,7 @@ export function useDealerGame() {
   }
 
   function openReport(): void {
+    ensureCurrentDate();
     session.value.showReport = true;
   }
 
@@ -694,6 +734,7 @@ export function useDealerGame() {
 
   return {
     state,
+    refreshDate: ensureCurrentDate,
     session,
     round,
     isRoundCleared,

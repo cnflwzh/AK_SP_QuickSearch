@@ -8,7 +8,12 @@ import {
   STRATEGIES,
   TIER_LABELS,
 } from '../../../data/index.ts';
-import type {Bounty, Equipment, Operator, Strategy} from '../../../data/types.ts';
+import type {
+  Bounty,
+  Equipment,
+  Operator,
+  Strategy,
+} from '../../../data/types.ts';
 import {
   BOUNTY_DEAL_LINES,
   DEAL_LINES,
@@ -225,7 +230,9 @@ function createEquipmentCard(
   const meta = EQUIP_THEME_META[theme];
   const isImpostor = !meta.match(eq);
   const {triggerHint, secondaryClue} = buildEquipmentClue(eq, theme);
-  const fullText = eq.advanced ? `${eq.effect}；进阶：${eq.advanced}` : eq.effect;
+  const fullText = eq.advanced
+    ? `${eq.effect}；进阶：${eq.advanced}`
+    : eq.effect;
 
   return {
     cardKind: 'equipment',
@@ -316,7 +323,9 @@ function createTierOperatorCard(
 
 function createTierEquipmentCard(eq: Equipment): DealerCard {
   const matched = eq.tier >= 5;
-  const fullText = eq.advanced ? `${eq.effect}；进阶：${eq.advanced}` : eq.effect;
+  const fullText = eq.advanced
+    ? `${eq.effect}；进阶：${eq.advanced}`
+    : eq.effect;
   return {
     cardKind: 'equipment',
     equipment: eq,
@@ -355,7 +364,7 @@ function createStrategyCard(
 
   let triggerHint = `${st.category} · 生命 ${st.hp}`;
   if (theme === 'faction_exclusive' || theme === 'stack_focus') {
-    triggerHint = `生命 ${st.hp} · ${st.unlock ? '需前置解锁' : '初始可用'}`;
+    triggerHint = `生命 ${st.hp} · ${st.unlock && st.unlock !== '初始' ? '需前置解锁' : '初始可用'}`;
   } else if (theme === 'high_hp') {
     triggerHint = `分类：${st.category}`;
   }
@@ -436,7 +445,8 @@ function createBountyCard(
     cornerBadgeHidden: '💰?',
     hideTierBeforeReveal: true,
     isImpostor: !matched,
-    triggerHint: bounty.when === '下场' ? '单场即结赏金' : `周期：${bounty.when}`,
+    triggerHint:
+      bounty.when === '下场' ? '单场即结赏金' : `周期：${bounty.when}`,
     secondaryClue:
       bounty.when === '下场'
         ? '仅在下场胜利后发放赏金'
@@ -508,12 +518,7 @@ function buildCovenantRound(options: {
     : badPool;
 
   const goodPicked = sampleDistinctByName(freshGood, goodPool, goodCount, rng);
-  const badPicked = sampleDistinctByName(
-    freshBad,
-    badPool,
-    impostorCount,
-    rng,
-  );
+  const badPicked = sampleDistinctByName(freshBad, badPool, impostorCount, rng);
   for (const op of [...goodPicked, ...badPicked]) usedNames?.add(op.name);
 
   const canonical = [...goodPicked, ...badPicked].map((op) =>
@@ -798,7 +803,12 @@ function buildTierCheckRound(options: {
     const freshBad = usedNames
       ? badPool.filter((op) => !usedNames.has(op.name))
       : badPool;
-    const goodPicked = sampleDistinctByName(freshGood, goodPool, goodCount, rng);
+    const goodPicked = sampleDistinctByName(
+      freshGood,
+      goodPool,
+      goodCount,
+      rng,
+    );
     const badPicked = sampleDistinctByName(
       freshBad,
       badPool,
