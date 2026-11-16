@@ -1,6 +1,6 @@
-import { LAYER_BREAKPOINTS } from '../../../../data/numberTools.ts';
-import type { CovenantStat } from '../../plans/covenants.ts';
-import type { ValueContext } from './advisorValueTypes.ts';
+import {LAYER_BREAKPOINTS} from '../../../../data/index.ts';
+import type {CovenantStat} from '../../plans/covenants.ts';
+import type {ValueContext} from './advisorValueTypes.ts';
 /** 启发式门槛权重，既不是层数，也不是伤害加成。 */
 export const LAYER_MILESTONE_SCORE = 24;
 const MAX_SCORED_LAYER_GAIN = 24;

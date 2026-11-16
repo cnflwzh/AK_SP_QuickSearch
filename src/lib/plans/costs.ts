@@ -3,15 +3,15 @@ import {
   EQUIP,
   EQUIPMENT_COMBOS,
   OPERATOR,
+  operatorEliteCopies,
   operatorPrice,
 } from '../../../data/index.ts';
-import { covenantsOf } from './covenants.ts';
-import { type PlanOp } from './model.ts';
-const ISOMORPH = '变形同构体';
+import {covenantsOf} from './covenants.ts';
+import {type PlanOp} from './model.ts';
 /* ---------- 费用、装备 ---------- */
 
 export const copiesFor = (slot: PlanOp): number =>
-  slot.elite ? (slot.name === '星极' ? 2 : 3) : 1;
+  slot.elite ? operatorEliteCopies(slot.name) : 1;
 
 export interface PlanCost {
   recruit: number;
@@ -39,7 +39,7 @@ export function planCost(ops: readonly PlanOp[]): PlanCost {
       maxTier = Math.max(maxTier, EQUIP[name]?.tier ?? 0);
     }
   }
-  return { recruit, equipment, maxTier, elites, copies };
+  return {recruit, equipment, maxTier, elites, copies};
 }
 
 export interface EquipNote {
@@ -73,12 +73,17 @@ export function equipNotes(ops: readonly PlanOp[]): EquipNote[] {
         text: `${a} + ${b} → ${combo[2]}`,
         result: EQUIP[combo[2]]?.effect,
       });
-    for (const c of covenantsOf(slot).granted)
-      notes.push({
-        op: slot.name,
-        kind: 'grant',
-        text: `${ISOMORPH} → 获得【${c}】`,
-      });
+    const companion = slot.eq.find(
+      (eqName) => EQUIP[eqName]?.mechanics?.grantsCompanionCovenant,
+    );
+    if (companion) {
+      for (const c of covenantsOf(slot).granted)
+        notes.push({
+          op: slot.name,
+          kind: 'grant',
+          text: `${companion} → 获得【${c}】`,
+        });
+    }
   }
   return notes;
 }

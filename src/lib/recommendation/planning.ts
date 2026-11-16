@@ -1,27 +1,27 @@
 /** 静态方案推荐：补位、备选与禁用替换，不推测真实商店或回合。 */
 import {
-ALL_COVENANTS,
-COVENANTS,
-OPERATOR,
-OPERATORS,
-buildByName,
-isCoreCovenant,
-type Operator,
+  ALL_COVENANTS,
+  COVENANTS,
+  OPERATOR,
+  OPERATORS,
+  RESERVE_COVENANTS,
+  buildByName,
+  isCoreCovenant,
+  type Operator,
 } from '../../../data/index.ts';
 import {
-RESERVE_COVENANTS,
-bonusLayersOf,
-bonusNeedOf,
-covenantStats,
-covenantsOf,
-type CovenantStat,
+  bonusLayersOf,
+  bonusNeedOf,
+  covenantStats,
+  covenantsOf,
+  type CovenantStat,
 } from '../plans/covenants.ts';
 import {
-MAX_ALT,
-MAX_OPS,
-newSlot,
-type Layers,
-type PlanOp,
+  MAX_ALT,
+  MAX_OPS,
+  newSlot,
+  type Layers,
+  type PlanOp,
 } from '../plans/model.ts';
 /** 一次阵容变更的盟约变化；保留前后状态，供不同页面生成自己的说明。 */
 export interface CovenantChange {
@@ -62,7 +62,7 @@ export function defaultLineupGoal(covenant: string): LineupGoal {
   const members =
     build?.lineup.filter((name) => OPERATOR[name]?.covenants.includes(covenant))
       .length ?? 6;
-  return { covenant, target: members < 6 ? 3 : 6 };
+  return {covenant, target: members < 6 ? 3 : 6};
 }
 
 /** 至少两名本家才自动确定方向；同人数先看用户的核心标记，仍相同则不强行选边。 */
@@ -84,24 +84,33 @@ export function inferPrimaryCovenant(ops: readonly PlanOp[]): string {
     : '';
 }
 const COV_INDEX = new Map(ALL_COVENANTS.map((name, i) => [name, i]));
-const HARMONY_INDEX = COV_INDEX.get('调和')!;
-const ELITE_INDEX = COV_INDEX.get('绝技')!;
-const COV_RULES = ALL_COVENANTS.map((name) => ({
-  name,
-  core: isCoreCovenant(name),
-  need: COVENANTS[name].need,
-  bonusNeed:
-    name === '绝技'
-      ? 5
-      : bonusNeedOf(COVENANTS[name].bonus) || (isCoreCovenant(name) ? 6 : 0),
-  bonusLayers: bonusLayersOf(COVENANTS[name].bonus),
-  solo: name === '独行',
-}));
+const COV_RULES = ALL_COVENANTS.map((name) => {
+  const cov = COVENANTS[name];
+  const core = isCoreCovenant(name);
+  const bonusNeed =
+    cov.mechanics?.bonusNeed ?? (bonusNeedOf(cov.bonus) || (core ? 6 : 0));
+  return {
+    name,
+    core,
+    need: cov.need,
+    bonusNeed,
+    bonusLayers: bonusNeed ? 0 : bonusLayersOf(cov.bonus),
+    countMode: cov.mechanics?.countMode ?? 'members',
+    maxCount: cov.mechanics?.maxCount,
+    addsCoreCount: cov.mechanics?.addsCoreCount ?? 0,
+  };
+});
+const FIELD_ELITE_INDICES = COV_RULES.flatMap((rule, index) =>
+  rule.countMode === 'fieldElites' ? [index] : [],
+);
+const CORE_BOOSTERS = COV_RULES.flatMap((rule, index) =>
+  rule.addsCoreCount > 0 ? [{index, amount: rule.addsCoreCount}] : [],
+);
 const OP_INDEX = new Map(OPERATORS.map((op, i) => [op.name, i]));
 const OP_BITS = OPERATORS.map((_, i) => 1n << BigInt(i));
 
 function slotCovenants(slot: PlanOp): number[] {
-  const { own, granted } = covenantsOf(slot);
+  const {own, granted} = covenantsOf(slot);
   return [...new Set([...own, ...granted])].map((name) => COV_INDEX.get(name)!);
 }
 function lineupCounts(
@@ -114,7 +123,9 @@ function lineupCounts(
     if (seen.has(slot.name) || !OPERATOR[slot.name]) continue;
     seen.add(slot.name);
     for (const index of slotCovenants(slot)) counts[index]++;
-    if (slot.elite) counts[ELITE_INDEX]++;
+    if (slot.elite) {
+      for (const index of FIELD_ELITE_INDICES) counts[index]++;
+    }
   }
   // 同名在两个区域最多计一次；经济盟约保留各自的名字集合以支持装备赋予。
   for (const covenant of RESERVE_COVENANTS) {
@@ -199,13 +210,24 @@ function createCountScorer(
   });
   return (counts) => {
     let score = 0;
-    const harmony = counts[HARMONY_INDEX] > 0 && !bans.has('调和');
+    let extraCoreCount = 0;
+    for (const booster of CORE_BOOSTERS) {
+      const goal = goals[booster.index];
+      const count = counts[booster.index];
+      if (
+        !goal.banned &&
+        count >= goal.need &&
+        (goal.maxCount === undefined || count <= goal.maxCount)
+      ) {
+        extraCoreCount += booster.amount;
+      }
+    }
     for (let i = 0; i < goals.length; i++) {
       const goal = goals[i],
         members = counts[i];
       if (!members || goal.banned) continue;
-      const count = members + (goal.core && harmony ? 1 : 0);
-      if (goal.solo && count !== 1) continue;
+      const count = members + (goal.core ? extraCoreCount : 0);
+      if (goal.maxCount !== undefined && count > goal.maxCount) continue;
       const active = count >= goal.need;
       const bonus =
         active &&
@@ -222,7 +244,7 @@ function createCountScorer(
 
 /** 新人保留该位置的装备；精锐和原干员的核心标记清除，备选不计入实际阵容。 */
 function replacement(slot: PlanOp, name: string): PlanOp {
-  return { name, elite: false, core: false, eq: [...slot.eq], alt: [] };
+  return {name, elite: false, core: false, eq: [...slot.eq], alt: []};
 }
 function slotAffinity(slot: PlanOp, op: Operator): number {
   const original = OPERATOR[slot.name],
@@ -259,7 +281,7 @@ function changedCovenants(
                   next.count > (was?.count ?? 0)
                 ? 'up'
                 : null;
-    return kind ? [{ covenant, kind, before: was, after: next }] : [];
+    return kind ? [{covenant, kind, before: was, after: next}] : [];
   });
 }
 
@@ -326,7 +348,7 @@ export function createLineupEvaluator(
             (change.kind === 'up' &&
               (!!change.before || change.covenant === goal?.covenant)),
         ));
-    return { score, improves, stats, changes };
+    return {score, improves, stats, changes};
   };
 }
 
@@ -340,12 +362,12 @@ export function suggestions(
   const taken = new Set(ops.map((slot) => slot.name));
   const evaluate = createLineupEvaluator(ops, layers);
   return OPERATORS.filter((op) => !taken.has(op.name))
-    .map((op) => ({ op, evaluation: evaluate([...ops, newSlot(op.name)]) }))
-    .filter(({ evaluation }) => evaluation.improves)
-    .map(({ op, evaluation }) => ({
+    .map((op) => ({op, evaluation: evaluate([...ops, newSlot(op.name)])}))
+    .filter(({evaluation}) => evaluation.improves)
+    .map(({op, evaluation}) => ({
       op,
       score: evaluation.score,
-      gains: evaluation.changes.map(({ covenant, kind }) => ({
+      gains: evaluation.changes.map(({covenant, kind}) => ({
         covenant,
         kind,
       })),
@@ -484,7 +506,7 @@ export function banReplace(
   );
   const counts = lineupCounts(seeded);
   let beam: ReplacementSearch[] = [
-    { choices: [], counts, used: 0n, affinity: 0, score: evaluate(counts) },
+    {choices: [], counts, used: 0n, affinity: 0, score: evaluate(counts)},
   ];
   for (const slot of pending) {
     const candidates: ReplacementCandidate[] = available.map((op) => ({
@@ -511,7 +533,7 @@ export function banReplace(
         added = true;
       }
       // 候选全部耗尽时保留未填空位，不能重用干员或偷偷引入被 ban 的干员。
-      if (!added) expanded.push({ ...state, choices: [...state.choices, ''] });
+      if (!added) expanded.push({...state, choices: [...state.choices, '']});
     }
     expanded.sort((a, b) => b.score - a.score);
     const seen = new Map<bigint, Set<string>>();
@@ -579,7 +601,7 @@ export function banReplace(
       .sort((a, b) => b.score - a.score)
       .slice(0, MAX_ALT)
       .map((candidate) => candidate.name);
-    return [{ name, replaces: slot.name, alts: alternatives, gains }];
+    return [{name, replaces: slot.name, alts: alternatives, gains}];
   });
   const active = new Set(
     finalStats.filter((stat) => stat.active).map((stat) => stat.name),

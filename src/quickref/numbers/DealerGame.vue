@@ -269,14 +269,12 @@ function inspectCardDetail(
         :labels="modeLabels"
         :active="state.mode === 'daily' ? 0 : 1"
         attr="dealer-mode"
-        @change="switchMode"
-      />
+        @change="switchMode" />
       <select
         v-if="state.mode === 'free'"
         :value="state.focusCovenant"
         aria-label="指定特训内容"
-        @change="changeFocus"
-      >
+        @change="changeFocus">
         <option value="">综合特训（全题型）</option>
         <optgroup label="玩法专项">
           <option value="kind:covenant">盟约点名（干员归属）</option>
@@ -301,8 +299,7 @@ function inspectCardDetail(
       <select
         :value="state.hintLevel"
         aria-label="卡面提示难度"
-        @change="changeHint"
-      >
+        @change="changeHint">
         <option v-for="opt in hintOptions" :key="opt.id" :value="opt.id">
           {{ opt.label }}
         </option>
@@ -318,25 +315,26 @@ function inspectCardDetail(
           class="btn nt-dealer-hint-btn"
           :class="{used: round.hintRevealed}"
           :disabled="round.hintRevealed"
-          @click="game.requestRoundHint"
-        >
+          @click="game.requestRoundHint">
           {{ round.hintRevealed ? '💡 已开提示' : '💡 提示' }}
         </button>
         <span class="nt-dealer-stat-pill">
-          已打 <b>{{ defeatedTotal }}</b>
+          已打
+          <b>{{ defeatedTotal }}</b>
           <template v-if="session.combo >= 2">
-            · <em class="nt-dealer-combo">{{ session.combo }}连</em>
+            ·
+            <em class="nt-dealer-combo">{{ session.combo }}连</em>
           </template>
           <template v-if="hintsUsedTotal > 0">
-            · <em class="nt-dealer-hint-count">💡{{ hintsUsedTotal }}</em>
+            ·
+            <em class="nt-dealer-hint-count">💡{{ hintsUsedTotal }}</em>
           </template>
         </span>
         <button
           type="button"
           class="btn"
           :class="{p: session.showReport}"
-          @click="session.showReport ? game.closeReport() : game.openReport()"
-        >
+          @click="session.showReport ? game.closeReport() : game.openReport()">
           {{ session.showReport ? '返回牌局' : '战报/分享' }}
         </button>
       </div>
@@ -345,8 +343,7 @@ function inspectCardDetail(
     <section
       v-if="session.showReport"
       class="nc nt-dealer-report"
-      aria-label="痛扁发牌战报"
-    >
+      aria-label="痛扁发牌战报">
       <div class="nt-dealer-poster-wrap">
         <img
           v-if="posterDataUrl"
@@ -354,8 +351,7 @@ function inspectCardDetail(
           :src="posterDataUrl"
           :alt="`${rank.title} 战报图片`"
           width="760"
-          height="520"
-        />
+          height="520" />
       </div>
 
       <div class="nt-dealer-report-side">
@@ -363,8 +359,7 @@ function inspectCardDetail(
           <button
             type="button"
             class="btn p nt-dealer-poster-primary"
-            @click="copyShareImage"
-          >
+            @click="copyShareImage">
             {{
               imageStatus === 'copied'
                 ? '✓ 图片已复制，可直接粘贴到群聊'
@@ -390,16 +385,14 @@ function inspectCardDetail(
             v-if="state.mode === 'daily'"
             type="button"
             class="btn"
-            @click="game.replayDaily"
-          >
+            @click="game.replayDaily">
             重刷今日同题
           </button>
           <button
             v-if="state.mode === 'daily' && session.dailyCompleted"
             type="button"
             class="btn"
-            @click="switchToFreeAfterDaily"
-          >
+            @click="switchToFreeAfterDaily">
             去自由拷打无限刷
           </button>
         </div>
@@ -414,8 +407,7 @@ function inspectCardDetail(
           readonly
           aria-label="战报文本"
           :value="copyFallback"
-          @focus="($event.target as HTMLTextAreaElement).select()"
-        ></textarea>
+          @focus="($event.target as HTMLTextAreaElement).select()"></textarea>
       </div>
     </section>
 
@@ -427,8 +419,7 @@ function inspectCardDetail(
             <span class="tag nt-dealer-kind-tag">{{ round.missionTitle }}</span>
             <span
               class="nt-dealer-target-badge"
-              :style="{'--c': stageAccentColor}"
-            >
+              :style="{'--c': stageAccentColor}">
               {{ round.targetLabel }}
             </span>
             <span class="tag" :class="isRoundCleared ? 't' : 'r'">
@@ -444,7 +435,8 @@ function inspectCardDetail(
           </div>
           <p class="nt-dealer-memo-main">{{ round.missionSummary }}</p>
           <p v-if="round.missionBonus" class="nt-dealer-memo-bonus">
-            <b>要点</b>{{ round.missionBonus }}
+            <b>要点</b>
+            {{ round.missionBonus }}
           </p>
         </div>
 
@@ -459,12 +451,10 @@ function inspectCardDetail(
           <div class="nt-dealer-rage-row">
             <div
               class="nt-dealer-rage-meter"
-              :aria-label="`怒气值 ${session.rage}%`"
-            >
+              :aria-label="`怒气值 ${session.rage}%`">
               <div
                 class="nt-dealer-rage-fill"
-                :style="{width: `${session.rage}%`}"
-              ></div>
+                :style="{width: `${session.rage}%`}"></div>
               <span>怒气 {{ session.rage }}%</span>
             </div>
             <button
@@ -472,8 +462,7 @@ function inspectCardDetail(
               class="btn nt-dealer-ult"
               :class="{p: canCastUltimate, ready: canCastUltimate}"
               :disabled="!canCastUltimate"
-              @click="game.castUltimate"
-            >
+              @click="game.castUltimate">
               ⚡ 物理校准
             </button>
           </div>
@@ -490,12 +479,10 @@ function inspectCardDetail(
             card.cardKind,
             {cleared: isRoundCleared, equip: card.cardKind === 'equipment'},
           ]"
-          :data-t="cardTierData(card)"
-        >
+          :data-t="cardTierData(card)">
           <div
             v-if="card.detailKind || card.attachedEquip"
-            class="nt-dealer-card-actions"
-          >
+            class="nt-dealer-card-actions">
             <button
               v-if="card.detailKind"
               type="button"
@@ -508,8 +495,7 @@ function inspectCardDetail(
                   ? '查看详情（本轮未通关时将计入提示）'
                   : '查看详情'
               "
-              @click="inspectCardDetail(index, card.detailKind, card.title)"
-            >
+              @click="inspectCardDetail(index, card.detailKind, card.title)">
               i
             </button>
             <button
@@ -524,8 +510,7 @@ function inspectCardDetail(
                   ? '查看携带装备详情（将计入场中提示）'
                   : '查看携带装备详情'
               "
-              @click="inspectCardDetail(index, 'eq', card.attachedEquip.name)"
-            >
+              @click="inspectCardDetail(index, 'eq', card.attachedEquip.name)">
               装
             </button>
           </div>
@@ -538,8 +523,7 @@ function inspectCardDetail(
                 ? `指出${card.title}不符合「${round.targetCovenant}」并痛扁发牌员`
                 : `${card.title}：${card.revealTags.map((t) => t.label).join('、')}`
             "
-            @click="game.tapCard(index)"
-          >
+            @click="game.tapCard(index)">
             <div class="nt-dealer-pic">
               <img
                 :src="cardImgSrc(card)"
@@ -547,14 +531,12 @@ function inspectCardDetail(
                 width="52"
                 height="52"
                 loading="lazy"
-                decoding="async"
-              />
+                decoding="async" />
               <i class="nt-dealer-tier">{{ cardCornerBadge(card) }}</i>
               <b
                 v-if="card.status !== 'unseen'"
                 class="nt-dealer-stamp"
-                :class="card.status"
-              >
+                :class="card.status">
                 {{ statusLabels[card.status] }}
               </b>
             </div>
@@ -568,8 +550,7 @@ function inspectCardDetail(
                 width="14"
                 height="14"
                 loading="lazy"
-                decoding="async"
-              />
+                decoding="async" />
               <span>同构·{{ card.attachedEquip.name }}</span>
             </span>
 
@@ -582,27 +563,24 @@ function inspectCardDetail(
                   :class="{match: tag.match, mismatch: tag.mismatch}"
                   :style="
                     tag.covenant ? {'--c': color(tag.covenant)} : undefined
-                  "
-                >
+                  ">
                   {{ tag.label }}
                 </span>
               </div>
               <p
                 class="nt-dealer-trait"
-                :title="card.traitSegments.map((s) => s.text).join('')"
-              >
+                :title="card.traitSegments.map((s) => s.text).join('')">
                 <span
                   v-for="(seg, sIdx) in card.traitSegments"
                   :key="sIdx"
-                  :class="`seg-${seg.kind}`"
-                  >{{ seg.text }}</span
-                >
+                  :class="`seg-${seg.kind}`">
+                  {{ seg.text }}
+                </span>
               </p>
             </template>
 
             <template
-              v-else-if="state.hintLevel === 'clue' || round.hintRevealed"
-            >
+              v-else-if="state.hintLevel === 'clue' || round.hintRevealed">
               <span class="nt-dealer-clue">{{ card.triggerHint }}</span>
               <span class="nt-dealer-prompt">{{ card.secondaryClue }}</span>
             </template>
@@ -622,7 +600,8 @@ function inspectCardDetail(
           <template v-if="isRoundCleared">
             <template v-if="round.cards[0]?.detailKind">
               已翻开本轮全部 5 张信息，点右下角继续（此时点卡片顶部
-              <b>i</b> 复盘不计提示）。
+              <b>i</b>
+              复盘不计提示）。
             </template>
             <template v-else>
               已翻开本轮全部 5 张情报，点右下角继续下一轮。
@@ -638,8 +617,7 @@ function inspectCardDetail(
             v-if="state.mode === 'free' && session.stats.roundsCleared > 0"
             type="button"
             class="btn"
-            @click="game.resetFree"
-          >
+            @click="game.resetFree">
             重置战绩
           </button>
           <button
@@ -647,8 +625,7 @@ function inspectCardDetail(
             class="btn"
             :class="{p: isRoundCleared}"
             :disabled="!isRoundCleared"
-            @click="game.nextRound"
-          >
+            @click="game.nextRound">
             {{
               !isRoundCleared
                 ? `还剩 ${remainingImpostors} 处串场`

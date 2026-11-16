@@ -1,75 +1,72 @@
 /** 局内招募入口：比较可执行的动作，输出建议，不修改玩家记录。 */
 import {
-ALL_COVENANTS,
-BUILD_NAMES,
-OPERATORS,
-STRATEGIES,
-buildByName,
-operatorPrice,
-type Operator,
+  ALL_COVENANTS,
+  BUILD_NAMES,
+  OPERATORS,
+  STRATEGIES,
+  buildByName,
+  operatorPrice,
+  type Operator,
 } from '../../../../data/index.ts';
-import { covenantStats } from '../../plans/covenants.ts';
-import { type Plan,type PlanOp } from '../../plans/model.ts';
-import { createLineupEvaluator } from '../planning.ts';
+import {covenantStats} from '../../plans/covenants.ts';
+import {type Plan, type PlanOp} from '../../plans/model.ts';
+import {createLineupEvaluator} from '../planning.ts';
+import {createRunPreference, createValueContext} from './advisorEvaluation.ts';
 import {
-createRunPreference,
-createValueContext,
-} from './advisorEvaluation.ts';
-import {
-evaluateRecruitAction,
-type RecruitActionContext,
+  evaluateRecruitAction,
+  type RecruitActionContext,
 } from './advisorRecruitActions.ts';
-import { advisorRoundLimit,promotionRewardTier } from './advisorRules.ts';
+import {advisorRoundLimit, promotionRewardTier} from './advisorRules.ts';
 import {
-createRecruitmentPool,
-deployedLineup,
-effectiveBans,
-eliteCopyCount,
-operatorsByName,
-planSlot,
-recruitPriceRange,
-reserveLineup,
-runLineupGoal,
+  createRecruitmentPool,
+  deployedLineup,
+  effectiveBans,
+  eliteCopyCount,
+  operatorsByName,
+  planSlot,
+  recruitPriceRange,
+  reserveLineup,
+  runLineupGoal,
 } from './advisorState.ts';
-import { explainStrategyTransition } from './advisorStrategy.ts';
+import {explainStrategyTransition} from './advisorStrategy.ts';
 import type {
-AdvisorRun,
-RecordedOperator,
-RecruitAdvice,
+  AdvisorRun,
+  RecordedOperator,
+  RecruitAdvice,
 } from './advisorTypes.ts';
 import {
-acquisitionCommandOpportunity,
-acquisitionValue,
-covenantProductionValue,
-purchaseMilestoneAdjustment,
-recurringValue,
-restCommandOpportunity,
-teamValue,
+  acquisitionCommandOpportunity,
+  acquisitionValue,
+  covenantProductionValue,
+  purchaseMilestoneAdjustment,
+  recurringValue,
+  restCommandOpportunity,
+  teamValue,
 } from './advisorValue.ts';
 // 保留已有入口，页面与外部调用不必随内部职责拆分调整路径。
-export { recommendDeployments } from './advisorDeployments.ts';
+export {recommendDeployments} from './advisorDeployments.ts';
 export {
-MAX_RECORDED_EQUIPMENT,
-MAX_SHOP_CANDIDATES,
-advisorDeploymentLimit,
-createRecruitmentPool,
-deployedLineup,
-effectiveBans,
-eliteCopyCount,
-newAdvisorRun,
-operatorsByName,
-recruitPriceRange,
-reserveLineup,
-runLineupGoal,
-sanitizeAdvisorRun
+  MAX_RECORDED_EQUIPMENT,
+  MAX_SHOP_CANDIDATES,
+  advisorDeploymentLimit,
+  createRecruitmentPool,
+  deployedLineup,
+  effectiveBans,
+  eliteCopyCount,
+  newAdvisorRun,
+  operatorsByName,
+  recruitPriceRange,
+  reserveLineup,
+  runLineupGoal,
+  sanitizeAdvisorRun,
 } from './advisorState.ts';
 export type {
-AdviceBreakdown,
-AdvisorRun,
-DeploymentAdvice,
-OwnedEquipment,
-RecordedOperator,
-RecruitAdvice
+  AdviceBreakdown,
+  AdvisorRun,
+  DeploymentAdvice,
+  OwnedEquipment,
+  RecordedOperator,
+  RecruitAdvice,
 } from './advisorTypes.ts';
 const STRATEGIES_BY_NAME = new Map(
   STRATEGIES.map((strategy) => [strategy.name, strategy]),
@@ -98,7 +95,7 @@ function strategyAffinity(
 } {
   const strategy = STRATEGIES_BY_NAME.get(run.strategy);
   if (!strategy) {
-    return { score: 0, reason: '' };
+    return {score: 0, reason: ''};
   }
   if (
     ALL_COVENANTS.includes(strategy.category) &&
@@ -111,9 +108,9 @@ function strategyAffinity(
     };
   }
   if (elite && strategy.category === '精锐') {
-    return { score: 8, reason: `晋升精锐，契合${strategy.name}的精锐方向` };
+    return {score: 8, reason: `晋升精锐，契合${strategy.name}的精锐方向`};
   }
-  return { score: 0, reason: '' };
+  return {score: 0, reason: ''};
 }
 function equipmentAffinity(
   run: AdvisorRun,
@@ -141,7 +138,7 @@ function equipmentAffinity(
       };
     }
   }
-  return { score: 0, reason: '' };
+  return {score: 0, reason: ''};
 }
 /**
  * 返回最多 limit 条建议。商店不为空时只比较实物候选，否则按当前本数找目标。
@@ -225,7 +222,7 @@ function evaluateRecruitCandidate(
   operator: Operator,
   evaluationContext: RecruitEvaluationContext,
 ): RecruitAdvice {
-  const { run, lineup, previousStats, goal, preference, valueContext, owned } =
+  const {run, lineup, previousStats, goal, preference, valueContext, owned} =
     evaluationContext;
   const build = goal ? buildByName(goal.covenant) : undefined;
   const existing = owned.get(operator.name);
@@ -256,7 +253,7 @@ function evaluateRecruitCandidate(
       kind: 'skip' as const,
       label: '暂不追',
       score: -1000,
-      breakdown: { ...advice.breakdown, collection: -1000 },
+      breakdown: {...advice.breakdown, collection: -1000},
       reasons: ['已有精锐，本工具不再追同名合成'],
     };
   }
@@ -438,23 +435,25 @@ function applyPurchaseBudget(
       `价格待核：${price.min}—${price.max}资金，折扣/本轮首购状态未知`,
     );
   }
+  const reserveFloor = STRATEGIES_BY_NAME.get(run.strategy)?.advisor
+    ?.reserveFundsFloor;
   if (advice.affordable === false) {
     advice.label = '资金不足';
     advice.losses.push(
       `至少需要${price.min}资金，当前仅${run.funds}；仍可手动记录已获得的奖励牌`,
     );
   } else if (
+    reserveFloor &&
     run.candidateSource !== 'promotion' &&
-    run.strategy === '坎诺特' &&
     lastRound !== null &&
     (run.round === null || run.round < lastRound) &&
     run.funds !== null &&
-    run.funds >= 5 &&
-    run.funds - price.min < 5
+    run.funds >= reserveFloor.minFunds &&
+    run.funds - price.min < reserveFloor.minFunds
   ) {
-    advice.breakdown.economy = -30;
-    advice.score -= 30;
-    advice.losses.push('买入后不足5资金，可能失去下回合额外1资金');
+    advice.breakdown.economy = -reserveFloor.penalty;
+    advice.score -= reserveFloor.penalty;
+    advice.losses.push(reserveFloor.lossReason);
   }
 }
 /** 同收益才比较已保存路线和适配，最后保留原有价序与图鉴顺序。 */

@@ -123,69 +123,75 @@ const portrait = computed(() => leaderSrc(props.leader.name));
         type="button"
         class="lw-back"
         aria-label="返回领袖列表"
-        @click="setLeader('')"
-        >‹</button
-      >
+        @click="setLeader('')">
+        ‹
+      </button>
       <img
         class="lw-pic"
         :src="portrait"
         alt=""
         width="64"
         height="64"
-        decoding="async"
-      />
+        decoding="async" />
       <div class="lwd-t">
         <h3>{{ leader.name }}</h3>
-        <div class="row"
-          ><i
+        <div class="row">
+          <i
             v-for="damage in leader.damage"
             :key="damage"
-            :class="['ldt', damageClass(damage)]"
-            >{{ damage }}</i
-          ><i v-if="patrols(leader)" class="lwb pt">巡逻</i
-          ><i v-if="leader.hiddenCore" class="lwb hc">隐秘核心</i></div
-        >
+            :class="['ldt', damageClass(damage)]">
+            {{ damage }}
+          </i>
+          <i v-if="patrols(leader)" class="lwb pt">巡逻</i>
+          <i v-if="leader.hiddenCore" class="lwb hc">隐秘核心</i>
+        </div>
       </div>
       <div class="lwd-now">
-        <b>{{ wan(now.hp) }}</b><span
-          >{{ now.label }} · 120秒均伤 <em>{{ dps(now.hp) }}</em>/秒</span
-        >
+        <b>{{ wan(now.hp) }}</b>
+        <span>
+          {{ now.label }} · 120秒均伤
+          <em>{{ dps(now.hp) }}</em>
+          /秒
+        </span>
       </div>
     </header>
 
     <section class="lws ab">
       <h4>技能</h4>
-      <div class="lc-ab"
-        ><div
+      <div class="lc-ab">
+        <div
           v-for="(ability, i) in leader.abilities"
           :key="i"
-          :class="['lr', {sk: ability.skill}]"
-          ><span>{{ abilityLabel(ability.skill) }}</span
-          ><div v-html="leaderFx(ability.text)"></div></div
-      ></div>
+          :class="['lr', {sk: ability.skill}]">
+          <span>{{ abilityLabel(ability.skill) }}</span>
+          <div v-html="leaderFx(ability.text)"></div>
+        </div>
+      </div>
       <template v-if="leader.hiddenAbilities.length">
         <h5>隐秘核心</h5>
-        <div class="lc-ab hc"
-          ><div
+        <div class="lc-ab hc">
+          <div
             v-for="(ability, i) in leader.hiddenAbilities"
             :key="i"
-            :class="['lr', {sk: ability.skill}]"
-            ><span>{{ abilityLabel(ability.skill, true) }}</span
-            ><div v-html="leaderFx(ability.text)"></div></div
-        ></div>
+            :class="['lr', {sk: ability.skill}]">
+            <span>{{ abilityLabel(ability.skill, true) }}</span>
+            <div v-html="leaderFx(ability.text)"></div>
+          </div>
+        </div>
       </template>
     </section>
 
     <section class="lws ct">
       <h4>对策</h4>
-      <p class="leader-section-note"
-        >对策是 AI 根据 Boss 技能推测而得出的，并不代表真实的游玩建议。</p
-      >
+      <p class="leader-section-note">
+        对策是 AI 根据 Boss 技能推测而得出的，并不代表真实的游玩建议。
+      </p>
       <ul class="lwc">
-        <li v-for="(c, i) in counters" :key="i" :style="{'--i': i}"
-          ><i :class="['ctg', counterClass(c.tag)]">{{ c.tag }}</i
-          ><span v-html="leaderFx(c.text)"></span><small>{{ c.by }}</small></li
-        >
+        <li v-for="(c, i) in counters" :key="i" :style="{'--i': i}">
+          <i :class="['ctg', counterClass(c.tag)]">{{ c.tag }}</i>
+          <span v-html="leaderFx(c.text)"></span>
+          <small>{{ c.by }}</small>
+        </li>
       </ul>
       <template v-if="hiddenCounters.length">
         <h5>隐秘核心</h5>
@@ -193,130 +199,164 @@ const portrait = computed(() => leaderSrc(props.leader.name));
           <li
             v-for="(c, i) in hiddenCounters"
             :key="i"
-            :style="{'--i': i + counters.length}"
-            ><i :class="['ctg', counterClass(c.tag)]">{{ c.tag }}</i
-            ><span v-html="leaderFx(c.text)"></span
-            ><small>{{ c.by }}</small></li
-          >
+            :style="{'--i': i + counters.length}">
+            <i :class="['ctg', counterClass(c.tag)]">{{ c.tag }}</i>
+            <span v-html="leaderFx(c.text)"></span>
+            <small>{{ c.by }}</small>
+          </li>
         </ul>
       </template>
     </section>
 
     <section class="lws mp">
-      <h4
-        >站位图<span class="lwsw"
-          ><Segmented
+      <h4>
+        站位图
+        <span class="lwsw">
+          <Segmented
             :labels="['部署站位', '敌人路线']"
             :active="mapMode"
             attr="lwm"
-            @change="mapMode = $event" /><Segmented
+            @change="mapMode = $event" />
+          <Segmented
             v-if="leader.hiddenStage"
             :labels="['领袖', '隐秘核心']"
             :active="view"
             attr="lwv"
-            @change="view = $event" /></span
-      ></h4>
-      <p class="leader-section-note"
-        >该站位图中的干员摆放以及敌人行进路线仅供站位参考，并不代表实际游玩中的真实内容。</p
-      >
+            @change="view = $event" />
+        </span>
+      </h4>
+      <p class="leader-section-note">
+        该站位图中的干员摆放以及敌人行进路线仅供站位参考，并不代表实际游玩中的真实内容。
+      </p>
       <div
         v-if="layout"
         class="map-skills"
         role="group"
-        aria-label="选择技能范围"
-      >
+        aria-label="选择技能范围">
         <button
           v-for="z in layout.zones"
           :key="z.label"
           type="button"
           :class="{on: scene === z, hc: z.tone === 'hc'}"
           :aria-pressed="scene === z"
-          @click="updateQuery({skill: z.label})"
-          >{{ z.label }}</button
-        >
+          @click="updateQuery({skill: z.label})">
+          {{ z.label }}
+        </button>
       </div>
       <div v-if="mapMode" class="map-controls">
         <select
           v-model="state.leaderTerrain"
           class="map-picker"
-          aria-label="选择实际场地"
-        >
+          aria-label="选择实际场地">
           <option
             v-for="option in LEADER_BATTLEFIELDS"
             :key="option.id"
-            :value="option.id"
-            >{{ option.name }}</option
-          >
+            :value="option.id">
+            {{ option.name }}
+          </option>
         </select>
         <Segmented
           :labels="['左侧', '全场', '右侧']"
           :active="state.leaderMapSide"
           attr="map-side"
-          @change="state.leaderMapSide = $event"
-        />
+          @change="state.leaderMapSide = $event" />
       </div>
-      <div class="map-terrain-key"
-        ><b>{{ mapMode ? terrain.name : LEADER_MAP.name }}</b
-        ><span><i class="terrain-road"></i>地面</span
-        ><span title="地面敌人不可通行，可部署干员"
-          ><i class="terrain-barrier"></i>地形障碍</span
-        ><span><i class="terrain-crate"></i>阻隔工事</span
-        ><span><i class="terrain-wall"></i>禁行</span></div
-      >
+      <div class="map-terrain-key">
+        <b>{{ mapMode ? terrain.name : LEADER_MAP.name }}</b>
+        <span>
+          <i class="terrain-road"></i>
+          地面
+        </span>
+        <span title="地面敌人不可通行，可部署干员">
+          <i class="terrain-barrier"></i>
+          地形障碍
+        </span>
+        <span>
+          <i class="terrain-crate"></i>
+          阻隔工事
+        </span>
+        <span>
+          <i class="terrain-wall"></i>
+          禁行
+        </span>
+      </div>
       <LeaderMap
         :stage="stage"
         :layout="layout"
         :scene="scene"
         :portrait="portrait"
         :terrain="terrain"
-        :side="side"
-      />
+        :side="side" />
       <div v-if="scene" class="map-reading" aria-live="polite">
-        <div v-if="targetMarks.length" class="map-targets"
-          ><span>目标</span
-          ><b v-for="mark in targetMarks" :key="mark">{{ mark }}</b></div
-        >
+        <div v-if="targetMarks.length" class="map-targets">
+          <span>目标</span>
+          <b v-for="mark in targetMarks" :key="mark">{{ mark }}</b>
+        </div>
         <p>{{ scene.hint }}</p>
       </div>
       <div v-if="layout" class="lwlg ops">
-        <span v-for="[role, desc] in usedRoles" :key="role"
-          ><i :class="['op', ROLE_CLASS[role]]">{{ role }}</i
-          >{{ desc }}</span
-        >
-        <span v-if="scene"
-          ><i
+        <span v-for="[role, desc] in usedRoles" :key="role">
+          <i :class="['op', ROLE_CLASS[role]]">{{ role }}</i>
+          {{ desc }}
+        </span>
+        <span v-if="scene">
+          <i
             :class="[
               scene.shape.kind === 'line' ? 'zl' : 'zn',
               scene.tone ?? 'red',
-            ]"
-          ></i
-          >{{ scene.label }}</span
-        >
+            ]"></i>
+          {{ scene.label }}
+        </span>
       </div>
       <div v-else class="lwlg">
-        <span><i class="b"></i>领袖</span
-        ><span v-if="patrols(leader)"><i class="pt"></i>巡逻</span>
-        <span><i class="w"></i>地面</span><span><i class="f"></i>飞行</span>
-        <span v-if="stage.marks.some((m) => m.kind !== 'boss')"
-          ><i class="u"></i>特殊单位</span
-        >
-        <span><i class="s"></i>敌人入场</span><span><i class="x"></i>蓝门</span>
+        <span>
+          <i class="b"></i>
+          领袖
+        </span>
+        <span v-if="patrols(leader)">
+          <i class="pt"></i>
+          巡逻
+        </span>
+        <span>
+          <i class="w"></i>
+          地面
+        </span>
+        <span>
+          <i class="f"></i>
+          飞行
+        </span>
+        <span v-if="stage.marks.some((m) => m.kind !== 'boss')">
+          <i class="u"></i>
+          特殊单位
+        </span>
+        <span>
+          <i class="s"></i>
+          敌人入场
+        </span>
+        <span>
+          <i class="x"></i>
+          蓝门
+        </span>
       </div>
-      <h5 class="escort-heading">随行敌人<span>联合全场</span></h5>
+      <h5 class="escort-heading">
+        随行敌人
+        <span>联合全场</span>
+      </h5>
       <ul class="lwe">
-        <li v-for="e in escorts" :key="e.name"
-          ><b>{{ e.name }}</b
-          ><span class="n">×{{ e.count }}</span
-          ><i v-if="e.fly" class="lwb fl">飞行</i
-          ><span v-if="e.note" class="note" v-html="leaderFx(e.note)"></span
-        ></li>
+        <li v-for="e in escorts" :key="e.name">
+          <b>{{ e.name }}</b>
+          <span class="n">×{{ e.count }}</span>
+          <i v-if="e.fly" class="lwb fl">飞行</i>
+          <span v-if="e.note" class="note" v-html="leaderFx(e.note)"></span>
+        </li>
       </ul>
     </section>
 
     <section class="lws hp">
-      <h4
-        >生命值<span class="tag">时限 {{ LIMIT }} 秒 · 超时每秒 −1</span></h4
-      >
+      <h4>
+        生命值
+        <span class="tag">时限 {{ LIMIT }} 秒 · 超时每秒 −1</span>
+      </h4>
       <div class="lwhp">
         <button
           v-for="(r, i) in rows"
@@ -324,38 +364,44 @@ const portrait = computed(() => leaderSrc(props.leader.name));
           type="button"
           :class="['r', {on: i === state.mode}]"
           :aria-pressed="i === state.mode"
-          @click="state.mode = i"
-        >
+          @click="state.mode = i">
           <span class="k">{{ r.label }}</span>
           <span class="trk">
             <i
               class="m"
-              :style="{width: (r.hp / max) * 100 + '%', '--d': i * 0.06 + 's'}"
-            ></i>
+              :style="{
+                width: (r.hp / max) * 100 + '%',
+                '--d': i * 0.06 + 's',
+              }"></i>
             <i
               v-if="r.hidden"
               class="h"
               :style="{
                 width: (r.hidden / max) * 100 + '%',
                 '--d': i * 0.06 + 0.1 + 's',
-              }"
-            ></i>
+              }"></i>
           </span>
-          <span class="v"
-            ><b>{{ wan(r.hp) }}</b
-            ><small>{{ dps(r.hp) }}/秒</small></span
-          >
-          <span v-if="r.hidden" class="v hc"
-            ><b>{{ wan(r.hidden) }}</b
-            ><small>{{ dps(r.hidden) }}/秒</small></span
-          >
+          <span class="v">
+            <b>{{ wan(r.hp) }}</b>
+            <small>{{ dps(r.hp) }}/秒</small>
+          </span>
+          <span v-if="r.hidden" class="v hc">
+            <b>{{ wan(r.hidden) }}</b>
+            <small>{{ dps(r.hidden) }}/秒</small>
+          </span>
           <span v-else-if="leader.hiddenCore" class="v hc none">—</span>
         </button>
       </div>
-      <div v-if="leader.hiddenCore" class="lgd"
-        ><span><i class="m"></i>领袖</span
-        ><span><i class="h"></i>隐秘核心</span></div
-      >
+      <div v-if="leader.hiddenCore" class="lgd">
+        <span>
+          <i class="m"></i>
+          领袖
+        </span>
+        <span>
+          <i class="h"></i>
+          隐秘核心
+        </span>
+      </div>
     </section>
   </article>
 </template>

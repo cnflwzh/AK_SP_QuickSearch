@@ -23,18 +23,25 @@
 ├── LICENSE                 代码许可：GNU AGPL-3.0
 │
 ├── data/                   游戏数据
-│   ├── types.ts            数据类型与字段说明
-│   ├── operators.ts        干员：等阶、盟约、特质、精锐特质
-│   ├── covenants.ts        盟约：激活人数、效果、随层数变化的数值公式
-│   ├── equipment.ts        装备与组合装备
-│   ├── strategies.ts       策略（开局指挥）
-│   ├── builds.ts           流派推荐
-│   ├── leaders.ts          领袖：生命、能力、隐秘核心、关卡地图与对策
-│   ├── rules.ts            调度中心、回合时限、悬赏等规则数值
-│   ├── credits.ts          项目说明与数据来源（「关于」弹窗的内容）
-│   ├── pinyin.ts           名称拼音，由 scripts/gen_pinyin.mjs 生成
+│   ├── types.ts            数据类型与字段说明（含赛季定义与机制配置）
+│   ├── season.ts           当前启用的赛季定义（切换赛季只改这里）
+│   ├── seasons/            各赛季独立数据目录
+│   │   └── s1/             序列Ⅰ「卫戍协议·规程」数据
+│   │       ├── meta.ts             赛季元信息、默认盟约/流派、规则版本号与拼音覆写
+│   │       ├── covenants.ts        盟约：路由 ID、激活人数、效果公式、门槛与规则机制
+│   │       ├── operators.ts        干员：等阶、盟约、特质、精锐特质与改价/减张标记
+│   │       ├── equipment.ts        装备、组合配方与规则机制标记
+│   │       ├── strategies.ts       策略（开局指挥）与局内推荐规则
+│   │       ├── builds.ts           核心与混搭流派推荐
+│   │       ├── leader-movement.ts  领袖战场地形与敌人巡逻路径
+│   │       ├── leaders.ts          领袖：生命、能力、隐秘核心、关卡站位与对策
+│   │       ├── rules.ts            调度中心、回合时限、悬赏、特质分类等规则数值
+│   │       ├── credits.ts          本赛季项目说明与数据来源
+│   │       └── index.ts            导出 S1_SEASON（SeasonDefinition）
+│   ├── credits.ts          从 CURRENT_SEASON.credits 衍生「关于」弹窗内容
+│   ├── pinyin.ts           当前赛季名称拼音，由 scripts/gen_pinyin.mjs 生成
 │   ├── LICENSE.md          数据许可：CC BY-NC-SA 3.0
-│   └── index.ts            统一出口 + 按名称查找等索引
+│   └── index.ts            统一出口 + 规则衍生索引（业务代码只从这里导入）
 │
 ├── src/
 │   ├── boot.ts             页面启动、加载覆盖层与延后加载
@@ -114,16 +121,22 @@ GitHub Actions 会在 PR 和 `main` 更新时执行依赖安装、类型检查�
 
 ## 修改数据
 
-1. 编辑 `data/` 下对应的 `.ts` 文件。字段说明见 `data/types.ts` 与各文件开头的注释。
-2. 新干员 / 装备 / 策略 / 领袖的图片放进 `public/assets/img/` 对应目录，文件名写进数据的 `avatar` / `icon` / `portrait` 字段；领袖头像以 `id` 命名（`leaders/<id>.webp`）。
-3. 新增或改名了干员 / 装备 / 策略 / 盟约 / 流派 / 领袖时，重新生成拼音表：
+全部赛季数据集中在 `data/seasons/<season>/` 下（按 `SeasonDefinition` 组织），引擎与页面代码只从 `data/index.ts` 读取数据，不在组件或算法中硬编码特定赛季实体。
+
+1. **编辑当前赛季数据**：修改 `data/seasons/s1/` 下对应的 `.ts` 文件（字段定义见 `data/types.ts`）。
+   - **实体级元信息与机制配置写在实体自身字段上**：例如 `covenants.ts` 的 `id` / `kind` / `layerBreakpoints` / `cycleReward` / `headcountBreakpoint` / `restrictedModeAbsent` / `mechanics`、`operators.ts` 的 `price` / `eliteCopies`、`equipment.ts` 的 `mechanics`、`strategies.ts` 的 `advisor`、`builds.ts` 的 `MixedBuild.id`，以及 `meta.ts` 的 `defaultCovenant` / `defaultBuild` / `roundLimits` / `tierBasePrices` / `shareOperatorIds`。
+2. **新增或切换赛季**：
+   - 新增赛季时，新建 `data/seasons/<season>/` 目录并按 `SeasonDefinition` 实现完整数据模块（可参考 `data/seasons/s1/` 的文件拆分与 `index.ts` 汇总导出）。
+   - 切换当前启用赛季时，只需修改 `data/season.ts` 中导入的赛季对象并赋值给 `CURRENT_SEASON`。
+3. **补充图片资源**：新干员 / 装备 / 策略 / 领袖的图片放进 `public/assets/img/` 对应目录，文件名写进数据的 `avatar` / `icon` / `portrait` 字段；领袖头像以 `id` 命名（`leaders/<id>.webp`）。
+4. **更新拼音索引**：新增或改名了干员 / 装备 / 策略 / 盟约 / 流派 / 领袖，或切换赛季后，重新生成拼音表：
 
    ```bash
    npm run pinyin
    ```
 
-   多音字读错时，在 `scripts/gen_pinyin.mjs` 的 `OVERRIDES` 里写出正确读法，可以写多种。
-4. 用 `npm run dev` 查看修改，发布时运行 `npm run build`，离线资源清单与版本号随构建自动更新。
+   多音字读错或需要补充常用读法时，在对应赛季 `meta.ts` 的 `pinyinOverrides` 里写出正确读法（空格分隔音节，可写多种）。
+5. **本地预览与构建**：用 `npm run dev` 查看修改，发布时运行 `npm run build`（会先执行类型检查，再生成 `dist/` 与自动更新离线资源清单和版本号）。
 
 特质文本约定：`<进入休整期时>` 这样的尖括号表示触发时机，`【乌萨斯】` 这样的方括号表示盟约名，页面会自动上色；数字会自动加粗。
 
@@ -139,7 +152,7 @@ GitHub Actions 会在 PR 和 `main` 更新时执行依赖安装、类型检查�
 
 ## 数据来源
 
-首次打开页面会弹出「关于」说明，页脚可随时再次打开。内容写在 `data/credits.ts`，新增来源时在那里补一条并把 `ABOUT_VERSION` 加 1。
+首次打开页面会弹出「关于」说明，页脚可随时再次打开。内容写在当前赛季的 `data/seasons/<season>/credits.ts`（由 `data/credits.ts` 统一导出），新增来源时在那里补一条并把 `aboutVersion` 加 1。
 
 **Wiki 与游戏数据**
 

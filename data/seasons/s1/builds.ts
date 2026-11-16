@@ -1,18 +1,18 @@
-import type { CoreBuild, MixedBuild } from './types.ts';
+import type {CoreBuild, MixedBuild} from '../../types.ts';
 
 /**
  * 核心盟约流派，键为盟约名
  *
- * tagline     一句话打法
- * lineup      终盘 8 人
- * carries     核心输出（在阵容中高亮）
- * addons      推荐附加盟约
- * strategies  推荐策略
- * equipment   推荐装备
+ * tagline      一句话打法
+ * lineup       终盘 8 人
+ * carries      核心输出（在阵容中高亮）
+ * addons       推荐附加盟约
+ * strategies   推荐策略
+ * equipment    推荐装备
  * alternatives 同一位置的备选干员，导入规划器时一并保留
- * tips        运营要点，按时间顺序，总长控制在规划器的 150 字内
+ * tips         运营要点，按时间顺序，总长控制在规划器的 150 字内
  */
-export const CORE_BUILDS: Readonly<Record<string, CoreBuild>> = {
+export const S1_CORE_BUILDS: Readonly<Record<string, CoreBuild>> = {
   炎: {
     tagline: '获得即叠层 · 元素爆发',
     lineup: ['夕', '烛煌', '黍', '老鲤', '仇白', '余', '可露希尔', '山'],
@@ -28,7 +28,16 @@ export const CORE_BUILDS: Readonly<Record<string, CoreBuild>> = {
   },
   萨尔贡: {
     tagline: '开技能叠层 · 流沙控场',
-    lineup: ['真言', '鸿雪', '佩佩', '森蚺', '卡涅利安', '异客', '泡泡', '莎草'],
+    lineup: [
+      '真言',
+      '鸿雪',
+      '佩佩',
+      '森蚺',
+      '卡涅利安',
+      '异客',
+      '泡泡',
+      '莎草',
+    ],
     carries: ['真言', '鸿雪'],
     addons: ['迅捷', '精准', '不屈'],
     strategies: ['娜仁图亚', '佩佩'],
@@ -42,12 +51,21 @@ export const CORE_BUILDS: Readonly<Record<string, CoreBuild>> = {
   // 坚守维：NGA 47901793 的涤火杰西卡 / 塞雷娅 / 罗比菈塔 / 白铁主轴。
   维多利亚: {
     tagline: '6 维多利亚 · 3 坚守 · 2 助力',
-    lineup: ['涤火杰西卡', '白铁', '维娜·维多利亚', '水灯心', '凯瑟琳', '哈洛德', '塞雷娅', '罗比菈塔'],
+    lineup: [
+      '涤火杰西卡',
+      '白铁',
+      '维娜·维多利亚',
+      '水灯心',
+      '凯瑟琳',
+      '哈洛德',
+      '塞雷娅',
+      '罗比菈塔',
+    ],
     carries: ['水灯心', '维娜·维多利亚'],
     addons: ['坚守', '助力'],
     strategies: ['哈洛德', '复奏', '杰西卡', '“变形者集群”'],
     equipment: ['维式重锤', '终极维式重锤', '电流维式重锤', '加速维式重锤'],
-    alternatives: { 凯瑟琳: ['酒神'], 哈洛德: ['烛煌'] },
+    alternatives: {凯瑟琳: ['酒神'], 哈洛德: ['烛煌']},
     tips: [
       '前期拿便宜装备给上场干员，3 本找罗比菈塔、水灯心过渡',
       '4 本找涤火杰西卡、白铁；塞雷娅朝向杰西卡，复制休整期叠层',
@@ -56,7 +74,16 @@ export const CORE_BUILDS: Readonly<Record<string, CoreBuild>> = {
   },
   谢拉格: {
     tagline: '寒冷冻结 · 雪山巨人',
-    lineup: ['锏', '圣聆初雪', '凛御银灰', '灵知', '初雪', '耶拉', '极光', '雪猎'],
+    lineup: [
+      '锏',
+      '圣聆初雪',
+      '凛御银灰',
+      '灵知',
+      '初雪',
+      '耶拉',
+      '极光',
+      '雪猎',
+    ],
     carries: ['圣聆初雪', '锏'],
     addons: ['奥术', '灵巧', '协防干员'],
     strategies: ['休露丝', '耶拉'],
@@ -70,12 +97,21 @@ export const CORE_BUILDS: Readonly<Record<string, CoreBuild>> = {
   // 聚合与灵巧搭配参考 BV1k8WL63EeU 及小黑盒 196514413 的实战讨论。
   阿戈尔: {
     tagline: '6 阿戈尔 · 3 聚合 · 2 灵巧',
-    lineup: ['克莱门莎', '浊心斯卡蒂', '乌尔比安', '歌蕾蒂娅', '水月', '归溟幽灵鲨', '华法琳', '夜莺'],
+    lineup: [
+      '克莱门莎',
+      '浊心斯卡蒂',
+      '乌尔比安',
+      '歌蕾蒂娅',
+      '水月',
+      '归溟幽灵鲨',
+      '华法琳',
+      '夜莺',
+    ],
     carries: ['克莱门莎', '乌尔比安', '水月'],
     addons: ['聚合', '灵巧'],
     strategies: ['歌蕾蒂娅', '克莱门莎', 'Pith'],
     equipment: ['阿戈尔重刃', '聚合急救箱', '萨尔贡浓茶'],
-    alternatives: { 乌尔比安: ['斯卡蒂'], 夜莺: ['莎草'] },
+    alternatives: {乌尔比安: ['斯卡蒂'], 夜莺: ['莎草']},
     tips: [
       '前期用幽灵鲨、安哲拉、深巡过渡，莎草与华法琳开聚合',
       '水月到场开灵巧，5 本找歌蕾蒂娅，碰 6 阶找克莱门莎与浊心斯卡蒂',
@@ -84,7 +120,16 @@ export const CORE_BUILDS: Readonly<Record<string, CoreBuild>> = {
   },
   叙拉古: {
     tagline: '刷新叠层 · 双异常真伤',
-    lineup: ['荒芜拉普兰德', '贝洛内', '铃兰', '安洁莉娜', '斥罪', '伺夜', '忍冬', '复奏'],
+    lineup: [
+      '荒芜拉普兰德',
+      '贝洛内',
+      '铃兰',
+      '安洁莉娜',
+      '斥罪',
+      '伺夜',
+      '忍冬',
+      '复奏',
+    ],
     carries: ['荒芜拉普兰德', '贝洛内', '斥罪'],
     addons: ['奇迹', '迅捷', '精准'],
     strategies: ['裁度', '贾维'],
@@ -98,12 +143,21 @@ export const CORE_BUILDS: Readonly<Record<string, CoreBuild>> = {
   // 砾—风丸—瑕光及后期史尔特尔：小红书 6af43dda000000002b02aceb。
   卡西米尔: {
     tagline: '6 卡西米尔 · 3 不屈 · 3 突袭',
-    lineup: ['玛恩纳', '耀骑士临光', '瑕光', '远牙', '焰尾', '砾', '风丸', '史尔特尔'],
+    lineup: [
+      '玛恩纳',
+      '耀骑士临光',
+      '瑕光',
+      '远牙',
+      '焰尾',
+      '砾',
+      '风丸',
+      '史尔特尔',
+    ],
     carries: ['玛恩纳', '耀骑士临光', '史尔特尔'],
     addons: ['不屈', '突袭'],
     strategies: ['焰尾', '森蚺', '大帝'],
     equipment: ['源石溶剂', '不屈弹射器', '卡西米尔竞技旗'],
-    alternatives: { 耀骑士临光: ['锏'], 史尔特尔: ['隐德来希'] },
+    alternatives: {耀骑士临光: ['锏'], 史尔特尔: ['隐德来希']},
     tips: [
       '野鬃过渡；2 本砾，3 本风丸、瑕光，再补突袭干员开盟约',
       '源石溶剂、不屈弹射器给砾，砾放前线；瑕光朝外，避开砾的受疗位置',
@@ -113,12 +167,21 @@ export const CORE_BUILDS: Readonly<Record<string, CoreBuild>> = {
   // BV1CwWW6aEjh：六乌 + 霍尔海雅 + 青枳，避免八乌挤掉叠层位。
   乌萨斯: {
     tagline: '6 乌萨斯 · 3 奥术 · 2 迅捷',
-    lineup: ['塔露拉', '冻河', '维伊', '怒潮凛冬', '乌啾', '折桠', '霍尔海雅', '青枳'],
+    lineup: [
+      '塔露拉',
+      '冻河',
+      '维伊',
+      '怒潮凛冬',
+      '乌啾',
+      '折桠',
+      '霍尔海雅',
+      '青枳',
+    ],
     carries: ['塔露拉', '冻河', '维伊'],
     addons: ['奥术', '迅捷'],
     strategies: ['杰西卡', '复奏', '怒潮凛冬'],
     equipment: ['乌萨斯呼吸器', '迅捷作战粮', '奥术法阵'],
-    alternatives: { 折桠: ['奥尔佳', '赫拉格'], 青枳: ['妮芙'] },
+    alternatives: {折桠: ['奥尔佳', '赫拉格'], 青枳: ['妮芙']},
     tips: [
       '折桠、烈夏、乌啾开 3 乌，陨星与青枳先叠迅捷',
       '4 本找维伊、霍尔海雅，碰 5 阶冻河；维伊放青枳身后一格',
@@ -128,12 +191,21 @@ export const CORE_BUILDS: Readonly<Record<string, CoreBuild>> = {
   // 小红书 6af3f3a8000000002b012298 与 NGA 47901793：低阶六伊 + 精准。
   伊比利亚: {
     tagline: '6 伊比利亚 · 3 精准 · 2 聚合',
-    lineup: ['蓝毒', '旅骨', '海沫', '瑰盐', '流明', '温蒂', '空弦', '霍尔海雅'],
+    lineup: [
+      '蓝毒',
+      '旅骨',
+      '海沫',
+      '瑰盐',
+      '流明',
+      '温蒂',
+      '空弦',
+      '霍尔海雅',
+    ],
     carries: ['蓝毒', '旅骨', '霍尔海雅'],
     addons: ['精准', '聚合'],
     strategies: ['复奏', '杰西卡', '苏苏洛', '“变形者集群”'],
     equipment: ['伊比利亚骨刺刀', '迅捷作战粮', '莱塔尼亚小鼓'],
-    alternatives: { 蓝毒: ['棘刺'], 空弦: ['承曦格雷伊'] },
+    alternatives: {蓝毒: ['棘刺'], 空弦: ['承曦格雷伊']},
     tips: [
       '2 本蓝毒、瑰盐过渡；3 本找旅骨、海沫、空弦，碰 4 阶流明或温蒂',
       '旅骨朝向海沫或温蒂，吃卖价叠层；回转装备给旅骨',
@@ -143,12 +215,21 @@ export const CORE_BUILDS: Readonly<Record<string, CoreBuild>> = {
   // BV1FoWj6kEBs 的八人终盘；BV1SgWV6jEfJ 高赞反馈交叉核对升本时机。
   莱塔尼亚: {
     tagline: '莱塔尼亚 · 3 精准 · 3 奥术 · 2 聚合',
-    lineup: ['艾雅法拉', '黑键', '霍尔海雅', '纯烬艾雅法拉', '薇薇安娜', '空弦', '华法琳', '妮芙'],
+    lineup: [
+      '艾雅法拉',
+      '黑键',
+      '霍尔海雅',
+      '纯烬艾雅法拉',
+      '薇薇安娜',
+      '空弦',
+      '华法琳',
+      '妮芙',
+    ],
     carries: ['艾雅法拉', '霍尔海雅'],
     addons: ['精准', '奥术', '聚合', '远见'],
     strategies: ['复奏', '杰西卡', '大嘴莫布', '车尔尼'],
     equipment: ['莱塔尼亚小鼓', '精准狙击镜', '奥术法阵'],
-    alternatives: { 妮芙: ['夜莺', '逻各斯'] },
+    alternatives: {妮芙: ['夜莺', '逻各斯']},
     tips: [
       '地灵、折光、复奏过渡；3 本找空弦，碰 4 阶霍尔海雅、黑键',
       '4 本碰纯烬艾雅法拉、薇薇安娜，补齐叠层与治疗后再升 5 本',
@@ -158,16 +239,26 @@ export const CORE_BUILDS: Readonly<Record<string, CoreBuild>> = {
 };
 
 /** 小盟约混搭：按已核对的精准 / 奥术 / 聚合主轴补齐八人。 */
-export const MIXED_BUILDS: readonly MixedBuild[] = [
+export const S1_MIXED_BUILDS: readonly MixedBuild[] = [
   {
+    id: 'amiya-multi',
     name: '阿米娅 · 多盟约',
     tagline: '精准主轴 · 灵巧加速 · 聚合续航',
-    lineup: ['霍尔海雅', '空弦', '迷迭香', '逻各斯', '华法琳', '帕拉斯', '夜莺', 'Mon3tr'],
+    lineup: [
+      '霍尔海雅',
+      '空弦',
+      '迷迭香',
+      '逻各斯',
+      '华法琳',
+      '帕拉斯',
+      '夜莺',
+      'Mon3tr',
+    ],
     carries: ['霍尔海雅', '迷迭香', '逻各斯'],
     addons: ['精准', '奥术', '灵巧', '聚合', '助力', '远见', '协防干员'],
     strategies: ['阿米娅', '复奏', '杰西卡'],
     equipment: ['精准狙击镜', '奥术法阵', '聚合急救箱'],
-    alternatives: { 帕拉斯: ['隐德来希'], Mon3tr: ['塞雷娅'] },
+    alternatives: {帕拉斯: ['隐德来希'], Mon3tr: ['塞雷娅']},
     tips: [
       '灰喉、卡达、褐果过渡，2 本补承曦格雷伊、云迹；3 本找空弦',
       '4 本找霍尔海雅、华法琳、夜莺；华法琳朝向 1 技能霍尔海雅',

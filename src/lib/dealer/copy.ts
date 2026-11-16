@@ -1,4 +1,7 @@
+import {COMPANION_EQUIP_NAME} from '../../../data/index.ts';
 import type {DealerGrade} from './types.ts';
+
+const COMPANION_LABEL = COMPANION_EQUIP_NAME || '同构装备';
 
 export const DEAL_LINES = [
   '看你在攒【$C】，发牌员我顺手把别队干员的召集令也写进了这张名单～',
@@ -18,11 +21,11 @@ export const DEAL_LINES = [
 ] as const;
 
 export const TRANSMUTE_DEAL_LINES = [
-  '本轮开启「变形同构体」大乱斗！谁靠装备成功转出【$C】、谁被发牌员挂了假同构？',
-  '发牌员往【$C】队列里塞了满桌变形同构体与混乱装备，小心那些无盟约词条的迷惑装！',
-  '不是挂了「变形同构体」就算【$C】队友！认准装备背后对应的盟约再揪出串场！',
+  `本轮开启「${COMPANION_LABEL}」大乱斗！谁靠装备成功转出【$C】、谁被发牌员挂了假同构？`,
+  `发牌员往【$C】队列里塞了满桌${COMPANION_LABEL}与混乱装备，小心那些无盟约词条的迷惑装！`,
+  `不是挂了「${COMPANION_LABEL}」就算【$C】队友！认准装备背后对应的盟约再揪出串场！`,
   '发牌员偷笑：这次给你发满手带装备的「同构体」候补，能分清真假【$C】算你厉害！',
-  '听说你想用「变形同构体」凑【$C】？发牌员已经悄悄混进几件转不出盟约的道具啦！',
+  `听说你想用「${COMPANION_LABEL}」凑【$C】？发牌员已经悄悄混进几件转不出盟约的道具啦！`,
 ] as const;
 
 export const EQUIP_DEAL_LINES = [
@@ -157,7 +160,7 @@ export const DEALER_QUOTES_BY_GRADE: Readonly<
   ],
   S: [
     '“嘶——博士把盟约和装备表都背下来了吧？错排秒识破！”',
-    '“读心算法当场失灵！连变形同构体都骗不过您！”',
+    `“读心算法当场失灵！连${COMPANION_LABEL}都骗不过您！”`,
     '“再扁护甲真要碎了，下回绝对不敢随便乱塞外援了！”',
   ],
   A: [
