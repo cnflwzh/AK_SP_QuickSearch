@@ -1,25 +1,217 @@
-const INITIAL_FONT_BUDGET_MS = 350;
+// 与 Service Worker 共用内容哈希缓存；不依赖可能与实际文件脱节的 localStorage 标记。
+const FONT_CACHE = 'wsq-font-local-v1';
+const NETWORK_FONT_BUDGET_MS = 350;
+const FAMILIES = [
+  'Noto Sans SC',
+  'ZCOOL QingKe HuangYou',
+  'Saira Condensed',
+] as const;
+type FontFamily = (typeof FAMILIES)[number];
+
+interface FontSource {
+  face: FontFace;
+  url: string;
+}
+
+/** 去掉 CSS 引号及空白差异，匹配 CSS 规则和浏览器 FontFace 描述。 */
+function faceKey(
+  family: string,
+  weight: string,
+  style: string,
+  range: string,
+): string {
+  return [family.replace(/["']/g, ''), weight, style, range]
+    .map((value) => value.replace(/\s/g, '').toLowerCase())
+    .join('|');
+}
+
+function familyOf(face: FontFace): string {
+  return face.family.replace(/["']/g, '');
+}
+
+/** 仅解析本站字体声明；不访问第三方样式表，也不预下载整套中文字库。 */
+function currentSources(): FontSource[] {
+  const urls = new Map<string, string>();
+  for (const sheet of document.styleSheets) {
+    if (!sheet.href || new URL(sheet.href).pathname !== '/assets/css/fonts.css')
+      continue;
+    try {
+      for (const rule of sheet.cssRules) {
+        if (!(rule instanceof CSSFontFaceRule)) continue;
+        const style = rule.style;
+        const source = style
+          .getPropertyValue('src')
+          .match(/url\(["']?([^"')]+)["']?\)/)?.[1];
+        if (!source) continue;
+        const url = new URL(source, sheet.href);
+        if (url.origin !== location.origin) continue;
+        urls.set(
+          faceKey(
+            style.getPropertyValue('font-family'),
+            style.getPropertyValue('font-weight') || 'normal',
+            style.getPropertyValue('font-style') || 'normal',
+            style.getPropertyValue('unicode-range') || 'U+0-10FFFF',
+          ),
+          url.href,
+        );
+      }
+    } catch {
+      /* 受限样式表不会阻止页面使用系统字体。 */
+    }
+  }
+  return [...document.fonts].flatMap((face) => {
+    if (
+      face.status === 'unloaded' ||
+      !FAMILIES.includes(familyOf(face) as FontFamily)
+    )
+      return [];
+    const url = urls.get(
+      faceKey(face.family, face.weight, face.style, face.unicodeRange),
+    );
+    return url ? [{face, url}] : [];
+  });
+}
+
+/** 从已下载的二进制创建独立字体族；只有展示前确认就绪的字体才加入文档。 */
+async function decodeFace(
+  source: FontSource,
+  response: Response,
+): Promise<FontFace> {
+  const original = source.face;
+  const font = new FontFace(
+    `WSQ Ready ${familyOf(original)}`,
+    await response.arrayBuffer(),
+    {
+      weight: original.weight,
+      style: original.style,
+      stretch: original.stretch,
+      unicodeRange: original.unicodeRange,
+    },
+  );
+  return font.load();
+}
 
 /**
- * Settle the mounted page's current font requests before removing its loading overlay.
- * Only faces already needed by the rendered DOM are loaded. A slow font keeps downloading
- * for the next visit, while this document uses a stable system-font fallback after the deadline.
- * Resolves without throwing on failed font downloads; never waits beyond the font budget.
+ * 在加载遮罩下冻结本次页面的字体选择。
+ * 缓存命中的字体等待本地解码，不受网络预算限制；未缓存字体继续在后台下载并保存。
+ * 返回后不再向显示用字体族添加字体，避免迟到的分片使可见文字换字体、改变布局。
+ * 下载、缓存或字体解码失败时回退系统字体，不向页面初始化抛出异常。
  */
 export async function settleInitialFonts(): Promise<void> {
   if (!('fonts' in document)) return;
-
-  // Vue has mounted, but the browser may not have resolved its font usage yet. One layout
-  // here starts exactly those requests while the content is still behind the loading overlay.
   void document.body.offsetHeight;
-  const pendingFaces = [...document.fonts].filter(face => face.status === 'loading');
-  if (!pendingFaces.length) return;
+  const sources = currentSources();
+  let cache: Cache | undefined;
+  try {
+    cache = await caches.open(FONT_CACHE);
+  } catch {
+    /* 隐私模式下仍可使用 HTTP 缓存。 */
+  }
 
+  const cached = new Map<string, Response>();
+  await Promise.all(
+    [...new Set(sources.map((source) => source.url))].map(async (url) => {
+      try {
+        const response = await cache?.match(url, {ignoreVary: true});
+        if (response?.ok) cached.set(url, response);
+      } catch {
+        /* 单个缓存读取失败不影响其他字体。 */
+      }
+    }),
+  );
+
+  // 同一字体文件可能被多个字重引用，只读取/下载一次，避免并行重复请求。
+  const downloads = new Map<string, Promise<Response>>();
+  const responseFor = (source: FontSource): Promise<Response> => {
+    let download = downloads.get(source.url);
+    if (!download) {
+      download = (async () => {
+        const hit = cached.get(source.url);
+        if (hit) return hit;
+        // CSS 已经发起该字体的下载，等它完成后再从 HTTP 缓存补存。
+        await source.face.load();
+        const response = await fetch(source.url, {
+          cache: 'force-cache',
+          priority: 'low',
+        });
+        if (!response.ok) throw new Error('Font download failed');
+        return response;
+      })();
+      downloads.set(source.url, download);
+    }
+    return download.then((response) => response.clone());
+  };
+
+  const ready = new Map<FontFamily, FontFace[]>();
+  const familyLoads = FAMILIES.map(async (family) => {
+    const required = sources.filter(
+      (source) => familyOf(source.face) === family,
+    );
+    if (!required.length) return;
+    const loaded = await Promise.allSettled(
+      required.map(async (source) => {
+        try {
+          const response = await responseFor(source);
+          const font = await decodeFace(source, response.clone());
+          if (!cached.has(source.url)) {
+            try {
+              await cache?.put(source.url, response);
+            } catch {
+              /* 存储不足时保留本次已解码字体。 */
+            }
+          }
+          return font;
+        } catch (error) {
+          // 清除损坏的缓存，以便下次访问能够重新下载。
+          try {
+            await cache?.delete(source.url);
+          } catch {
+            /* 缓存可能已被浏览器清除。 */
+          }
+          throw error;
+        }
+      }),
+    );
+    if (loaded.every((result) => result.status === 'fulfilled')) {
+      ready.set(
+        family,
+        loaded.map(
+          (result) => (result as PromiseFulfilledResult<FontFace>).value,
+        ),
+      );
+    }
+  });
   let timeout: ReturnType<typeof setTimeout> | undefined;
-  const completed = await Promise.race([
-    Promise.allSettled(pendingFaces.map(face => face.load())).then(() => true),
-    new Promise<false>(resolve => { timeout = setTimeout(() => resolve(false), INITIAL_FONT_BUDGET_MS); }),
+  await Promise.race([
+    Promise.all(familyLoads),
+    new Promise<void>((resolve) => {
+      timeout = setTimeout(resolve, NETWORK_FONT_BUDGET_MS);
+    }),
   ]);
   clearTimeout(timeout);
-  if (!completed) document.documentElement.dataset.fonts = 'fallback';
+  // 已缓存的一组不再与下载比赛，等待读取与解码完成，避免反复刷新碰时间窗口。
+  await Promise.all(
+    familyLoads.filter((_, index) => {
+      const required = sources.filter(
+        (source) => familyOf(source.face) === FAMILIES[index],
+      );
+      return (
+        required.length > 0 &&
+        required.every((source) => cached.has(source.url))
+      );
+    }),
+  );
+  for (const faces of ready.values())
+    for (const face of faces) document.fonts.add(face);
+  const stack = (family: FontFamily): string => {
+    const families = ready.has(family) ? [`"WSQ Ready ${family}"`] : [];
+    if (family !== 'Noto Sans SC' && ready.has('Noto Sans SC'))
+      families.push('"WSQ Ready Noto Sans SC"');
+    return [...families, 'system-ui', 'sans-serif'].join(',');
+  };
+  const root = document.documentElement;
+  root.style.setProperty('--fb', stack('Noto Sans SC'));
+  root.style.setProperty('--fd', stack('ZCOOL QingKe HuangYou'));
+  root.style.setProperty('--fn', stack('Saira Condensed'));
+  root.dataset.fonts = 'settled';
 }
