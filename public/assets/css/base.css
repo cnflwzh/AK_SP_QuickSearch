@@ -34,13 +34,6 @@
   color-scheme: light;
 }
 
-/* A font that misses the initial loading budget must not rearrange visible content later. */
-:root[data-fonts="fallback"] {
-  --fd: system-ui,sans-serif;
-  --fn: system-ui,sans-serif;
-  --fb: system-ui,sans-serif;
-}
-
 @media (prefers-color-scheme:dark) {
   :root:not([data-theme="light"]) {
     --bg: #0a1214;
