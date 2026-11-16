@@ -1,36 +1,40 @@
 /** 局内记录的校验、招募资格和阵容投影，不依赖建议评分或页面状态。 */
 import {
-ALL_COVENANTS,
-EQUIPMENT,
-OPERATORS,
-STRATEGIES,
-isCoreCovenant,
-operatorPrice,
-type Operator,
+  ALL_COVENANTS,
+  COVENANTS,
+  DEPLOYMENT_BONUS_EQUIP,
+  EQUIPMENT,
+  OPERATORS,
+  SEASON_META,
+  STRATEGIES,
+  STRATEGY,
+  isCoreCovenant,
+  operatorEliteCopies,
+  operatorPrice,
+  type Operator,
 } from '../../../../data/index.ts';
 import {
-MAX_EQ,
-MAX_LAYERS,
-MAX_OPS,
-usesLayers,
-type PlanOp,
+  MAX_EQ,
+  MAX_LAYERS,
+  usesLayers,
+  type PlanOp,
 } from '../../plans/model.ts';
 import {
-defaultLineupGoal,
-inferPrimaryCovenant,
-isBanned,
-type LineupGoal,
+  defaultLineupGoal,
+  inferPrimaryCovenant,
+  isBanned,
+  type LineupGoal,
 } from '../planning.ts';
-import { sanitizeFrontTargets } from './advisorPosition.ts';
+import {sanitizeFrontTargets} from './advisorPosition.ts';
 import {
-ADVISOR_FORMATS,
-ADVISOR_MODES,
-RESTRICTED_MODE_COVENANTS,
-advisorRoundLimit,
-type AdvisorFormat,
-type AdvisorMode,
+  ADVISOR_FORMATS,
+  ADVISOR_MODES,
+  RESTRICTED_MODE_COVENANTS,
+  advisorRoundLimit,
+  type AdvisorFormat,
+  type AdvisorMode,
 } from './advisorRules.ts';
-import type { AdvisorRun,RecordedOperator } from './advisorTypes.ts';
+import type {AdvisorRun, RecordedOperator} from './advisorTypes.ts';
 export const operatorsByName = new Map(
   OPERATORS.map((operator) => [operator.name, operator]),
 );
@@ -67,15 +71,20 @@ export function newAdvisorRun(): AdvisorRun {
     shop: [],
   };
 }
-/** 当前赛季基础上限8；人事部文档使用后变为9，不修改预设构筑的8人格式。 */
+/** 当前赛季基础上限；扩展装备使用后增加上限，不修改预设构筑的格式。 */
 export function advisorDeploymentLimit(
   run: Pick<AdvisorRun, 'personnelDocumentUsed'>,
 ): number {
-  return run.personnelDocumentUsed ? 9 : MAX_OPS;
+  return (
+    SEASON_META.baseDeploymentLimit +
+    (run.personnelDocumentUsed
+      ? (DEPLOYMENT_BONUS_EQUIP?.mechanics?.deploymentSlotBonus ?? 1)
+      : 0)
+  );
 }
-/** 星极两张晋升，其余干员三张；输入为数据表中的干员名称。 */
+/** 晋升精锐所需同名张数；输入为数据表中的干员名称。 */
 export function eliteCopyCount(name: string): number {
-  return name === '星极' ? 2 : 3;
+  return operatorEliteCopies(name);
 }
 function asUnknownRecord(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -108,13 +117,14 @@ export function sanitizeAdvisorRun(value: unknown): AdvisorRun {
   }
   result.candidateSource =
     source.candidateSource === 'promotion' ? 'promotion' : 'shop';
+  const standardRoundLimit = SEASON_META.roundLimits.standard;
   result.round =
     typeof source.round === 'number' && Number.isFinite(source.round)
-      ? boundedPositiveInteger(source.round, 1, 14)
+      ? boundedPositiveInteger(source.round, 1, standardRoundLimit)
       : null;
   if (
     result.round !== null &&
-    result.round > (advisorRoundLimit(result.format) ?? 14)
+    result.round > (advisorRoundLimit(result.format) ?? standardRoundLimit)
   ) {
     result.round = null;
   }
@@ -305,7 +315,7 @@ export function runLineupGoal(run: AdvisorRun): LineupGoal | null {
   return covenant
     ? {
         ...defaultLineupGoal(covenant),
-        ...(run.mainTarget ? { target: run.mainTarget } : {}),
+        ...(run.mainTarget ? {target: run.mainTarget} : {}),
       }
     : null;
 }
@@ -341,24 +351,38 @@ export function recruitPriceRange(
   max: number;
 } {
   if (run.candidateSource === 'promotion') {
-    return { min: 0, max: 0 };
+    return {min: 0, max: 0};
   }
+  const bans = effectiveBans(run);
   const base = operatorPrice(operator);
   let min = base,
     max = base;
-  if (operator.covenants.includes('远见') && !effectiveBans(run).has('远见')) {
-    const layers = run.layers['远见'];
+  for (const cov of operator.covenants) {
+    if (bans.has(cov)) continue;
+    const priceDiscounts = COVENANTS[cov]?.mechanics?.priceDiscounts;
+    if (!priceDiscounts) continue;
+    const floor = priceDiscounts.minPrice ?? 1;
+    const layers = Object.hasOwn(run.layers, cov) ? run.layers[cov] : undefined;
     if (layers === undefined) {
-      min = Math.max(1, base - 2);
-    } else {
-      min = max = Math.max(
-        1,
-        base - Number(layers >= 80) - Number(layers >= 150),
+      const totalDiscount = priceDiscounts.steps.reduce(
+        (sum, step) => sum + step.discount,
+        0,
       );
+      min = Math.max(floor, min - totalDiscount);
+    } else {
+      const activeDiscount = priceDiscounts.steps.reduce(
+        (sum, step) => sum + (layers >= step.layers ? step.discount : 0),
+        0,
+      );
+      min = Math.max(floor, min - activeDiscount);
+      max = Math.max(floor, max - activeDiscount);
     }
   }
-  if (run.strategy === '休露丝' && operator.covenants.includes('谢拉格')) {
-    min = Math.min(min, 1);
+  const minPriceRule = Object.hasOwn(STRATEGY, run.strategy)
+    ? STRATEGY[run.strategy].advisor?.covenantMinPrice
+    : undefined;
+  if (minPriceRule && operator.covenants.includes(minPriceRule.covenant)) {
+    min = Math.min(min, minPriceRule.minPrice);
   }
-  return { min, max };
+  return {min, max};
 }

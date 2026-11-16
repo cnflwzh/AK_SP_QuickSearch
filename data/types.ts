@@ -8,6 +8,14 @@ export interface Operator {
   readonly avatar: string;
   readonly trait: string;
   readonly elite: string;
+  readonly price?: number;
+  readonly eliteCopies?: number;
+}
+
+export interface EquipmentMechanics {
+  readonly grantsCompanionCovenant?: boolean;
+  readonly deploymentSlotBonus?: number;
+  readonly dealerDecoy?: readonly ('transmute' | 'consumable')[];
 }
 
 export interface Equipment {
@@ -18,9 +26,64 @@ export interface Equipment {
   readonly icon: string;
   readonly effect: string;
   readonly advanced: string | null;
+  readonly mechanics?: EquipmentMechanics;
 }
 
-export type EquipmentCombo = readonly [first: string, second: string, result: string];
+export type EquipmentCombo = readonly [
+  first: string,
+  second: string,
+  result: string,
+];
+
+export type StrategyScoreFormula =
+  | {
+      readonly kind: 'activeCovenantTier';
+      readonly minActive: number;
+      readonly maxActive: number;
+      readonly scorePerTier: number;
+    }
+  | {
+      readonly kind: 'fieldEliteThreshold';
+      readonly minElites: number;
+      readonly score: number;
+    }
+  | {
+      readonly kind: 'fieldEliteQuadratic';
+      readonly factor: number;
+    }
+  | {
+      readonly kind: 'fieldEliteLinear';
+      readonly scorePerElite: number;
+    }
+  | {
+      readonly kind: 'distinctActiveOwnCovenantTiers';
+      readonly scorePerTier: number;
+    };
+
+export interface StrategyCovenantThresholdTier {
+  readonly count: number;
+  readonly gainReason: string;
+  readonly lossReason: string;
+}
+
+export interface StrategyAdvisorRule {
+  readonly scoreFormula?: StrategyScoreFormula;
+  readonly commandTrigger?: 'rest' | 'acquisition';
+  readonly deployedCovenantThresholds?: {
+    readonly covenant: string;
+    readonly ignoreInFastFormat?: boolean;
+    readonly tiers: readonly StrategyCovenantThresholdTier[];
+  };
+  readonly covenantMinPrice?: {
+    readonly covenant: string;
+    readonly minPrice: number;
+  };
+  readonly reserveFundsFloor?: {
+    readonly minFunds: number;
+    readonly penalty: number;
+    readonly lossReason: string;
+  };
+}
 
 export interface Strategy {
   readonly name: string;
@@ -30,6 +93,7 @@ export interface Strategy {
   readonly portrait: string;
   readonly skill: string;
   readonly effect: string;
+  readonly advisor?: StrategyAdvisorRule;
 }
 
 export interface CovenantScaling {
@@ -37,14 +101,70 @@ export interface CovenantScaling {
   readonly unit: string;
   /** 输入盟约层数，返回该条效果的实际数值，不修改数据。 */
   readonly at: (layers: number) => number;
+  readonly condition?: string;
+}
+
+export interface LayerBreakpoint {
+  readonly layers: number;
+  readonly effect: string;
+}
+
+export interface CycleReward {
+  readonly every: number;
+  readonly reward: string;
+}
+
+export interface HeadcountBreakpointInfo {
+  readonly condition: string;
+  readonly effect: string;
+  readonly order?: number;
+}
+
+export type HeadcountBreakpoint = HeadcountBreakpointInfo & {
+  readonly covenant: string;
+};
+
+export interface CovenantPriceDiscountStep {
+  readonly layers: number;
+  readonly discount: number;
+}
+
+export interface CovenantMechanics {
+  readonly countsReserve?: boolean;
+  readonly countMode?: 'members' | 'fieldElites';
+  readonly maxCount?: number;
+  readonly addsCoreCount?: number;
+  readonly bonusNeed?: number;
+  readonly acquisitionMultiplier?: {
+    readonly base: number;
+    readonly bonusLayers?: number;
+    readonly bonus?: number;
+  };
+  readonly endOfRestAllActiveLayers?: {
+    readonly base: number;
+    readonly bonus: number;
+  };
+  readonly priceDiscounts?: {
+    readonly minPrice?: number;
+    readonly steps: readonly CovenantPriceDiscountStep[];
+  };
+  readonly rangePreviewLayers?: number;
 }
 
 export interface Covenant {
+  readonly id: string;
+  readonly kind: 'core' | 'addon';
   readonly color?: string;
   readonly need: number;
   readonly effect: string;
   readonly bonus: string;
   readonly scaling: readonly CovenantScaling[];
+  readonly layerBreakpoints?: readonly LayerBreakpoint[];
+  readonly commonLayerOrder?: number;
+  readonly cycleReward?: CycleReward;
+  readonly headcountBreakpoint?: HeadcountBreakpointInfo;
+  readonly restrictedModeAbsent?: boolean;
+  readonly mechanics?: CovenantMechanics;
 }
 
 /** 核心与混搭流派共用的阵容、推荐和运营说明。 */
@@ -64,13 +184,14 @@ export interface CoreBuild extends BuildDetails {
 }
 
 export interface MixedBuild extends BuildDetails {
+  readonly id: string;
   readonly name: string;
   readonly carries?: readonly string[];
   readonly addons?: readonly string[];
 }
 
 /** 查找结果为补齐盟约名称的核心流派，或自带名称的混搭流派。 */
-export type Build = (CoreBuild & { readonly name: string }) | MixedBuild;
+export type Build = (CoreBuild & {readonly name: string}) | MixedBuild;
 export type BuildField = 'lineup' | 'strategies' | 'equipment';
 
 export interface DispatchLevel {
@@ -121,8 +242,14 @@ export interface Leader {
   /** 敌人 ID，也是 public/assets/img/leaders/ 下的图片文件名 */
   readonly id: string;
   readonly damage: readonly LeaderDamage[];
-  readonly hp: readonly [standard: number, danger: number, desperate: number, ultimate: number];
-  readonly hiddenCore: readonly [danger: number, desperate: number, ultimate: number] | null;
+  readonly hp: readonly [
+    standard: number,
+    danger: number,
+    desperate: number,
+    ultimate: number,
+  ];
+  readonly hiddenCore:
+    readonly [danger: number, desperate: number, ultimate: number] | null;
   readonly abilities: readonly LeaderAbility[];
   /** 隐秘核心回合的变化；没有隐秘核心为空数组 */
   readonly hiddenAbilities: readonly LeaderAbility[];
@@ -156,12 +283,17 @@ export interface OpSlot {
  * tone：red 领袖本体，hc 隐秘核心或部件
  */
 export type ZoneShape =
-  | { readonly kind: 'rect'; readonly at: MapPos; readonly w: number; readonly h: number }
-  | { readonly kind: 'cross'; readonly at: MapPos }
-  | { readonly kind: 'col'; readonly x: number }
-  | { readonly kind: 'line'; readonly path: readonly MapPos[] }
-  | { readonly kind: 'circle'; readonly at: MapPos; readonly radius: number }
-  | { readonly kind: 'tiles'; readonly at: readonly MapPos[] };
+  | {
+      readonly kind: 'rect';
+      readonly at: MapPos;
+      readonly w: number;
+      readonly h: number;
+    }
+  | {readonly kind: 'cross'; readonly at: MapPos}
+  | {readonly kind: 'col'; readonly x: number}
+  | {readonly kind: 'line'; readonly path: readonly MapPos[]}
+  | {readonly kind: 'circle'; readonly at: MapPos; readonly radius: number}
+  | {readonly kind: 'tiles'; readonly at: readonly MapPos[]};
 export interface LayoutZone {
   readonly shape: ZoneShape;
   readonly label: string;
@@ -175,7 +307,7 @@ export interface LayoutZone {
   /** 巡逻领袖发动技能时的演示位置，路线页仍使用真实出生点。 */
   readonly bossAt?: MapPos;
   /** 技能场景中的余音、茧和部件等单位。 */
-  readonly markers?: readonly { readonly name: string; readonly at: MapPos }[];
+  readonly markers?: readonly {readonly name: string; readonly at: MapPos}[];
 }
 
 export interface LeaderLayout {
@@ -217,7 +349,16 @@ export interface LeaderStage {
  * tag  分散 / 阻挡 / 集火 / 法抗 / 对空 / 限时 / 避让 / 续航 / 控制
  * by   依据的技能或单位
  */
-export type CounterTag = '分散' | '阻挡' | '集火' | '法抗' | '对空' | '限时' | '避让' | '续航' | '控制';
+export type CounterTag =
+  | '分散'
+  | '阻挡'
+  | '集火'
+  | '法抗'
+  | '对空'
+  | '限时'
+  | '避让'
+  | '续航'
+  | '控制';
 export interface LeaderCounter {
   readonly tag: CounterTag;
   readonly text: string;
@@ -289,4 +430,81 @@ export interface EnemyMovement {
 export interface MovementBranches {
   readonly left: EnemyMovement;
   readonly right?: EnemyMovement;
+}
+
+export interface LeaderMapConfig extends LeaderBattlefield {
+  readonly spawn: MapPos;
+  readonly exit: MapPos;
+  readonly transfer: MapPos;
+  readonly walk: readonly MapPos[];
+  readonly fly: readonly MapPos[];
+  readonly common: readonly StageEscort[];
+}
+
+export interface SeasonMeta {
+  readonly id: string;
+  readonly title: string;
+  readonly guideSubtitle: string;
+  readonly ruleVersion: string;
+  readonly ruleSource: string;
+  readonly defaultCovenant: string;
+  readonly defaultBuild: string;
+  readonly baseDeploymentLimit: number;
+  readonly defaultEliteCopies: number;
+  readonly tierBasePrices: readonly number[];
+  readonly roundLimits: {
+    readonly standard: number;
+    readonly fast: number;
+  };
+  readonly pinyinOverrides: Readonly<Record<string, readonly string[]>>;
+  readonly shareOperatorIds: readonly number[];
+}
+
+export interface SeasonRules {
+  readonly tierLabels: readonly string[];
+  readonly tiers: readonly number[];
+  readonly dispatchLevels: readonly DispatchLevel[];
+  readonly dispatchModes: readonly string[];
+  readonly dispatchByMode: readonly (readonly DispatchLevel[])[];
+  readonly tierStats: readonly TierStats[];
+  readonly ownOperatorBonus: readonly OwnOperatorBonus[];
+  readonly difficulties: readonly Difficulty[];
+  readonly modes: readonly string[];
+  readonly decisionRounds: Readonly<Record<string, readonly number[]>>;
+  readonly roundTime: readonly number[];
+  readonly credit: readonly number[];
+  readonly soloLevels: readonly SoloLevel[];
+  readonly training: readonly TrainingType[];
+  readonly bounties: readonly Bounty[];
+  readonly operatorTypes: readonly string[];
+  readonly operatorTriggers: readonly (readonly [
+    label: string,
+    tags: readonly string[],
+  ])[];
+}
+
+export interface SeasonCredits {
+  readonly aboutVersion: number;
+  readonly purpose: readonly string[];
+  readonly wikis: readonly WikiSource[];
+  readonly uploaders: readonly UploaderSource[];
+  readonly furtherReading: readonly UploaderSource[];
+}
+
+export interface SeasonDefinition {
+  readonly meta: SeasonMeta;
+  readonly covenants: Readonly<Record<string, Covenant>>;
+  readonly operators: readonly Operator[];
+  readonly equipment: readonly Equipment[];
+  readonly equipmentCombos: readonly EquipmentCombo[];
+  readonly strategies: readonly Strategy[];
+  readonly strategyCategories: readonly string[];
+  readonly coreBuilds: Readonly<Record<string, CoreBuild>>;
+  readonly mixedBuilds: readonly MixedBuild[];
+  readonly leaders: readonly Leader[];
+  readonly leaderBattlefields: readonly LeaderBattlefield[];
+  readonly leaderMovements: Readonly<Record<string, MovementBranches>>;
+  readonly leaderMap: LeaderMapConfig;
+  readonly rules: SeasonRules;
+  readonly credits: SeasonCredits;
 }

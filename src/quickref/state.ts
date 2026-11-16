@@ -1,11 +1,33 @@
-import { computed, inject, reactive, type InjectionKey } from 'vue';
-import { LEADERS } from '../../data/index.ts';
-import { COVENANT_IDS, buildKey, covenantName, type DetailKind } from '../router/entities.ts';
-import { CATEGORY_IDS, DIFFICULTIES, TRIGGER_IDS, TYPE_IDS, idForLabel, queryText, type TabId } from '../router/location.ts';
-import { buildLocation, covenantLocation, currentRoute, leaderDestination, navigate, routeQuery, tabLocation, updateQuery } from '../router/navigation.ts';
+import {computed, inject, reactive, type InjectionKey} from 'vue';
+import {DEFAULT_BUILD_ID, LEADERS, SEASON_META} from '../../data/index.ts';
+import {
+  COVENANT_IDS,
+  buildKey,
+  covenantName,
+  type DetailKind,
+} from '../router/entities.ts';
+import {
+  CATEGORY_IDS,
+  DIFFICULTIES,
+  TRIGGER_IDS,
+  TYPE_IDS,
+  idForLabel,
+  queryText,
+  type TabId,
+} from '../router/location.ts';
+import {
+  buildLocation,
+  covenantLocation,
+  currentRoute,
+  leaderDestination,
+  navigate,
+  routeQuery,
+  tabLocation,
+  updateQuery,
+} from '../router/navigation.ts';
 
-export { TAB_IDS, type TabId } from '../router/location.ts';
-export type { DetailKind, DetailSelection } from '../router/entities.ts';
+export {TAB_IDS, type TabId} from '../router/location.ts';
+export type {DetailKind, DetailSelection} from '../router/entities.ts';
 
 /**
  * Presentation adapter for existing quick-reference controls.
@@ -16,40 +38,65 @@ const text = (key: string) => queryText(routeQuery.value, key);
 function indexControl(key: string, values: readonly string[], fallback = 0) {
   return computed({
     get: () => Math.max(0, values.indexOf(text(key) || values[fallback])),
-    set: (index: number) => { void updateQuery({ [key]: values[index] || null }); },
+    set: (index: number) => {
+      void updateQuery({[key]: values[index] || null});
+    },
   });
 }
 function labelControl(key: string, labels: Readonly<Record<string, string>>) {
   return computed({
     get: () => labels[text(key)] ?? '',
-    set: (label: string) => { void updateQuery({ [key]: idForLabel(labels, label) || null }); },
+    set: (label: string) => {
+      void updateQuery({[key]: idForLabel(labels, label) || null});
+    },
   });
 }
 export const state = reactive({
   tab: computed(() => currentRoute.value.meta.tab ?? 'fx'),
-  covenant: computed(() => covenantName(String(currentRoute.value.params.id ?? '')) || '乌萨斯'),
-  build: computed(() => buildKey(String(currentRoute.value.params.id ?? 'yan'))),
+  covenant: computed(
+    () =>
+      covenantName(String(currentRoute.value.params.id ?? '')) ||
+      SEASON_META.defaultCovenant,
+  ),
+  build: computed(() =>
+    buildKey(String(currentRoute.value.params.id ?? DEFAULT_BUILD_ID)),
+  ),
   opTier: computed({
     get: () => Number(text('tier')) || 0,
-    set: (tier: number) => { void updateQuery({ tier: tier || null }); },
+    set: (tier: number) => {
+      void updateQuery({tier: tier || null});
+    },
   }),
   opCovenant: labelControl('covenant', COVENANT_IDS),
   opTrigger: labelControl('trigger', TRIGGER_IDS),
   opType: labelControl('type', TYPE_IDS),
   opElite: computed({
     get: () => text('elite') === '1',
-    set: (elite: boolean) => { void updateQuery({ elite: elite ? '1' : null }); },
+    set: (elite: boolean) => {
+      void updateQuery({elite: elite ? '1' : null});
+    },
   }),
   eqTier: computed({
-    get: () => text('group') === 'combo' ? 7 : Number(text('tier')) || 0,
-    set: (tier: number) => { void updateQuery({ group: tier === 7 ? 'combo' : null, tier: tier === 7 ? null : tier || null }); },
+    get: () => (text('group') === 'combo' ? 7 : Number(text('tier')) || 0),
+    set: (tier: number) => {
+      void updateQuery({
+        group: tier === 7 ? 'combo' : null,
+        tier: tier === 7 ? null : tier || null,
+      });
+    },
   }),
   stCategory: indexControl('category', CATEGORY_IDS),
   mode: indexControl('difficulty', DIFFICULTIES, 1),
-  leader: computed(() => LEADERS.find(leader => leader.id === currentRoute.value.params.id)?.name ?? ''),
+  leader: computed(
+    () =>
+      LEADERS.find((leader) => leader.id === currentRoute.value.params.id)
+        ?.name ?? '',
+  ),
   leaderTerrain: computed({
     get: () => text('map') || '01',
-    set: (id: string) => { void updateQuery({ map: id }); },
+    set: (id: string) => {
+      void updateQuery({map: id});
+    },
   }),
   leaderMapSide: indexControl('side', ['left', 'all', 'right']),
   leaderMapMode: indexControl('view', ['layout', 'routes']),
@@ -80,9 +127,12 @@ export interface QuickrefActions {
   pickCovenant(name: string): Promise<void>;
   closeDetail(): void;
 }
-export const quickrefActionsKey: InjectionKey<QuickrefActions> = Symbol.for('wsq.quickref-actions');
+export const quickrefActionsKey: InjectionKey<QuickrefActions> = Symbol.for(
+  'wsq.quickref-actions',
+);
 export function useQuickrefActions(): QuickrefActions {
   const actions = inject(quickrefActionsKey);
-  if (!actions) throw new Error('Quickref actions must be used inside QuickrefApp.');
+  if (!actions)
+    throw new Error('Quickref actions must be used inside QuickrefApp.');
   return actions;
 }

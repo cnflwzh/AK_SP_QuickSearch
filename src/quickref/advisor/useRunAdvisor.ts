@@ -1,6 +1,9 @@
-import { computed, readonly } from 'vue';
-import { plans as savedPlans } from '../planStore.ts';
-import { clearMovedFrontTargets, supportsFrontTarget } from '../../lib/recommendation/live/advisorPosition.ts';
+import {computed, readonly} from 'vue';
+import {plans as savedPlans} from '../planStore.ts';
+import {
+  clearMovedFrontTargets,
+  supportsFrontTarget,
+} from '../../lib/recommendation/live/advisorPosition.ts';
 import {
   ADVISOR_MODES,
   ADVISOR_FORMATS,
@@ -10,10 +13,15 @@ import {
   type AdvisorMode,
   type CandidateSource,
 } from '../../lib/recommendation/live/advisorRules.ts';
-import { createAdvisorSession } from './advisorSession.ts';
-import { createAdvisorEquipmentActions } from './advisorEquipmentActions.ts';
-import { ALL_COVENANTS, STRATEGIES, isCoreCovenant } from '../../../data/index.ts';
-import { covenantStats, MAX_LAYERS, usesLayers } from '../../lib/plans/index.ts';
+import {createAdvisorSession} from './advisorSession.ts';
+import {createAdvisorEquipmentActions} from './advisorEquipmentActions.ts';
+import {
+  ALL_COVENANTS,
+  SEASON_META,
+  STRATEGIES,
+  isCoreCovenant,
+} from '../../../data/index.ts';
+import {covenantStats, MAX_LAYERS, usesLayers} from '../../lib/plans/index.ts';
 import {
   advisorDeploymentLimit,
   deployedLineup,
@@ -26,15 +34,23 @@ import {
   reserveLineup,
   runLineupGoal,
 } from '../../lib/recommendation/live/advisorState.ts';
-import { type RecordedOperator } from '../../lib/recommendation/live/advisorTypes.ts';
-import { recommendRecruits, recommendDeployments } from '../../lib/recommendation/index.ts';
+import {type RecordedOperator} from '../../lib/recommendation/live/advisorTypes.ts';
+import {
+  recommendRecruits,
+  recommendDeployments,
+} from '../../lib/recommendation/index.ts';
 const session = createAdvisorSession();
-const { run, change, showNotice, undo } = session;
+const {run, change, showNotice, undo} = session;
 const strategyNames = new Set(STRATEGIES.map((strategy) => strategy.name));
 const deploymentLimit = computed(() => advisorDeploymentLimit(run.value));
 const lineup = computed(() => deployedLineup(run.value));
 const covenants = computed(() =>
-  covenantStats(lineup.value, run.value.layers, reserveLineup(run.value), effectiveBans(run.value)),
+  covenantStats(
+    lineup.value,
+    run.value.layers,
+    reserveLineup(run.value),
+    effectiveBans(run.value),
+  ),
 );
 const goal = computed(() => runLineupGoal(run.value));
 const unavailableNames = computed(() => {
@@ -51,11 +67,20 @@ const rankedRecommendations = computed(() =>
   recommendRecruits(run.value, operatorsByName.size, savedPlans),
 );
 const recommendations = computed(() =>
-  rankedRecommendations.value.slice(0, run.value.shop.length ? MAX_SHOP_CANDIDATES : 5),
+  rankedRecommendations.value.slice(
+    0,
+    run.value.shop.length ? MAX_SHOP_CANDIDATES : 5,
+  ),
 );
-const deploymentRecommendations = computed(() => recommendDeployments(run.value, 3, savedPlans));
-const deployed = computed(() => run.value.operators.filter((operator) => operator.deployed));
-const reserve = computed(() => run.value.operators.filter((operator) => !operator.deployed));
+const deploymentRecommendations = computed(() =>
+  recommendDeployments(run.value, 3, savedPlans),
+);
+const deployed = computed(() =>
+  run.value.operators.filter((operator) => operator.deployed),
+);
+const reserve = computed(() =>
+  run.value.operators.filter((operator) => !operator.deployed),
+);
 /** 局内工具独立单例；动作立即保存，离开页面无需依赖计时器或页面退出事件。 */
 export function useRunAdvisor() {
   const equipmentActions = createAdvisorEquipmentActions(change);
@@ -72,7 +97,9 @@ export function useRunAdvisor() {
       if (!createRecruitmentPool(draft)(name)) {
         return `${name}不在本局招募池，请先调整禁用设置`;
       }
-      const existing = draft.operators.find((operator) => operator.name === name);
+      const existing = draft.operators.find(
+        (operator) => operator.name === name,
+      );
       if (existing?.elite) {
         return `${name}已是精锐，无需再记录同名合成`;
       }
@@ -133,10 +160,14 @@ export function useRunAdvisor() {
       showNotice(error);
       return false;
     }
-    const advice = rankedRecommendations.value.find((item) => item.operator.name === name);
+    const advice = rankedRecommendations.value.find(
+      (item) => item.operator.name === name,
+    );
     return recruit(
       name,
-      advice?.kind === 'reserve' || advice?.kind === 'replace' ? 'reserve' : 'auto',
+      advice?.kind === 'reserve' || advice?.kind === 'replace'
+        ? 'reserve'
+        : 'auto',
       true,
     );
   }
@@ -189,12 +220,18 @@ export function useRunAdvisor() {
   function setFrontTarget(name: string, target: string | null): boolean {
     return change('已更新身前一格记录', (draft) => {
       const field = new Set(
-        draft.operators.filter((item) => item.deployed).map((item) => item.name),
+        draft.operators
+          .filter((item) => item.deployed)
+          .map((item) => item.name),
       );
       if (!field.has(name) || !supportsFrontTarget(name)) {
         return '请为场上的对应休整产层干员记录身前目标';
       }
-      if (target !== null && target !== '' && (target === name || !field.has(target))) {
+      if (
+        target !== null &&
+        target !== '' &&
+        (target === name || !field.has(target))
+      ) {
         return '请选择其他已上场干员，或确认身前无人';
       }
       if (target === null) {
@@ -207,8 +244,13 @@ export function useRunAdvisor() {
   /** 删除持有记录，装备归还仓库，避免误删随身装备。 */
   function removeOperator(name: string): void {
     change(`已移除${name}，携带装备退回仓库`, (draft) => {
-      draft.operators = draft.operators.filter((operator) => operator.name !== name);
-      draft.frontTargets = clearMovedFrontTargets(draft.frontTargets, new Set([name]));
+      draft.operators = draft.operators.filter(
+        (operator) => operator.name !== name,
+      );
+      draft.frontTargets = clearMovedFrontTargets(
+        draft.frontTargets,
+        new Set([name]),
+      );
       draft.equipment.forEach((item) => {
         if (item.holder === name) {
           item.holder = '';
@@ -222,7 +264,10 @@ export function useRunAdvisor() {
     }
     editOperator(name, `已更新${name}张数`, (operator) => {
       if (!operator.elite) {
-        operator.copies = Math.max(1, Math.min(eliteCopyCount(name) - 1, Math.round(copies)));
+        operator.copies = Math.max(
+          1,
+          Math.min(eliteCopyCount(name) - 1, Math.round(copies)),
+        );
       }
     });
   }
@@ -252,7 +297,12 @@ export function useRunAdvisor() {
     });
   }
   function setLevel(level: number): void {
-    if (!Number.isInteger(level) || level < 1 || level > 6 || level === run.value.level) {
+    if (
+      !Number.isInteger(level) ||
+      level < 1 ||
+      level > 6 ||
+      level === run.value.level
+    ) {
       return;
     }
     change(`当前${level}本`, (draft) => {
@@ -265,8 +315,10 @@ export function useRunAdvisor() {
       return true;
     }
     return change('已更新部署上限', (draft) => {
-      const limit = advisorDeploymentLimit({ personnelDocumentUsed: used });
-      if (draft.operators.filter((operator) => operator.deployed).length > limit) {
+      const limit = advisorDeploymentLimit({personnelDocumentUsed: used});
+      if (
+        draft.operators.filter((operator) => operator.deployed).length > limit
+      ) {
         return `请先将场上人数降至${limit}名，再取消文档记录`;
       }
       draft.personnelDocumentUsed = used;
@@ -274,7 +326,10 @@ export function useRunAdvisor() {
   }
   /** 留空表示未知；这些是手动快照，不从购买记录推测回合或自动扣款。 */
   function setFormat(format: AdvisorFormat): void {
-    if (!ADVISOR_FORMATS.some((item) => item.id === format) || format === run.value.format) {
+    if (
+      !ADVISOR_FORMATS.some((item) => item.id === format) ||
+      format === run.value.format
+    ) {
       return;
     }
     change('已更新对局长度；请核对回合与持有记录', (draft) => {
@@ -282,7 +337,11 @@ export function useRunAdvisor() {
       if (format === 'fast') {
         draft.mode = 'restricted';
       }
-      if (draft.round !== null && draft.round > (advisorRoundLimit(format) ?? 14)) {
+      if (
+        draft.round !== null &&
+        draft.round >
+          (advisorRoundLimit(format) ?? SEASON_META.roundLimits.standard)
+      ) {
         draft.round = null;
       }
       draft.commandAvailable = null;
@@ -290,8 +349,12 @@ export function useRunAdvisor() {
     });
   }
   function setRound(round: number | null): void {
-    const limit = advisorRoundLimit(run.value.format) ?? 14;
-    if (round !== null && (!Number.isInteger(round) || round < 1 || round > limit)) {
+    const limit =
+      advisorRoundLimit(run.value.format) ?? SEASON_META.roundLimits.standard;
+    if (
+      round !== null &&
+      (!Number.isInteger(round) || round < 1 || round > limit)
+    ) {
       showNotice(`回合需为1至${limit}的整数，或留空表示未知`);
       return;
     }
@@ -305,7 +368,10 @@ export function useRunAdvisor() {
     });
   }
   function setAcquisitionsThisRound(count: number | null): void {
-    if (count !== null && (!Number.isInteger(count) || count < 0 || count > 999)) {
+    if (
+      count !== null &&
+      (!Number.isInteger(count) || count < 0 || count > 999)
+    ) {
       showNotice('获得人数需为0至999的整数，或留空表示未知');
       return;
     }
@@ -317,7 +383,10 @@ export function useRunAdvisor() {
     });
   }
   function setFunds(funds: number | null): void {
-    if (funds !== null && (!Number.isInteger(funds) || funds < 0 || funds > 999)) {
+    if (
+      funds !== null &&
+      (!Number.isInteger(funds) || funds < 0 || funds > 999)
+    ) {
       showNotice('资金需为0至999的整数，或留空表示未知');
       return;
     }
@@ -332,12 +401,17 @@ export function useRunAdvisor() {
     if (!ALL_COVENANTS.includes(name) || !usesLayers(name)) {
       return;
     }
-    if (layers !== null && (!Number.isInteger(layers) || layers < 0 || layers > MAX_LAYERS)) {
+    if (
+      layers !== null &&
+      (!Number.isInteger(layers) || layers < 0 || layers > MAX_LAYERS)
+    ) {
       showNotice(`层数需为0至${MAX_LAYERS}的整数，或留空表示未知`);
       return;
     }
     if (
-      layers === null ? !Object.hasOwn(run.value.layers, name) : run.value.layers[name] === layers
+      layers === null
+        ? !Object.hasOwn(run.value.layers, name)
+        : run.value.layers[name] === layers
     ) {
       return;
     }
