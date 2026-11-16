@@ -4,7 +4,9 @@ import LiveStatus from '../../lib/ui/LiveStatus.vue';
 import {
   DISPATCH_BY_MODE,
   DISPATCH_MODES,
+  OPERATOR,
   OPERATORS,
+  RESTRICTED_MODE_COVENANTS,
   SHOP_MODE_IDS,
   TIER_LABELS,
   operatorPrice,
@@ -12,8 +14,10 @@ import {
 } from '../../../data/index.ts';
 import {avatarSrc} from '../../lib/ui/assets.ts';
 import {nameScore, normalize} from '../../lib/ui/match.ts';
-import {synthesisTier} from '../../lib/numbers/numberTools.ts';
+import {poolBreakdown, synthesisTier} from '../../lib/numbers/numberTools.ts';
+import {isBanned} from '../../lib/recommendation/index.ts';
 import {cardLocation} from '../../router/navigation.ts';
+import {run, runBans, runOps} from '../planStore.ts';
 import {useQuickrefActions} from '../state.ts';
 import NavigationLink from '../components/NavigationLink.vue';
 import RefreshBudget from './RefreshBudget.vue';
@@ -21,7 +25,8 @@ import {useWishlist} from './useWishlist.ts';
 import {useNumberToolsState, type ShopMode} from './useNumberToolsState.ts';
 
 const actions = useQuickrefActions();
-const {targets, names, maxTargets, saveFailed, add, remove} = useWishlist();
+const {targets, names, maxTargets, saveFailed, add, addMany, remove} =
+  useWishlist();
 const copied = ref(false);
 const copyFallback = ref('');
 const recruitState = useNumberToolsState().recruit;
@@ -39,6 +44,39 @@ const target = computed(() =>
   OPERATORS.find((operator) => operator.name === recruitState.targetName),
 );
 const rewardTier = computed(() => synthesisTier(level.value));
+const restrictedMode = computed(() => shopMode.value !== 'advanced');
+const effectiveBanSet = computed(
+  () =>
+    new Set([
+      ...runBans.value,
+      ...(restrictedMode.value ? RESTRICTED_MODE_COVENANTS : []),
+    ]),
+);
+const isPoolExcluded = (name: string): boolean =>
+  effectiveBanSet.value.size > 0 && isBanned(name, effectiveBanSet.value);
+const pool = computed(() =>
+  poolBreakdown(
+    level.value,
+    recruitState.targetName,
+    runBans.value,
+    restrictedMode.value,
+  ),
+);
+function importRunToWishlist(): void {
+  if (!runOps.value.length) return;
+  const ordered = [
+    ...runOps.value.filter((slot) => slot.core),
+    ...runOps.value.filter((slot) => !slot.core),
+  ]
+    .map((slot) => slot.name)
+    .filter((name) => Object.hasOwn(OPERATOR, name) && !isPoolExcluded(name));
+  addMany(ordered);
+  if (!target.value && ordered[0] && OPERATOR[ordered[0]]) {
+    recruitState.targetName = ordered[0];
+  }
+  copied.value = false;
+  copyFallback.value = '';
+}
 const searchResults = computed(() => {
   const query = normalize(search.value);
   if (!query) return [];
@@ -119,6 +157,42 @@ const searchSummary = computed(() => {
     </div>
     <section class="nc nt-recruit-grid" aria-label="目标干员与刷新预算">
       <section class="nt-operator-search">
+        <div v-if="run && runOps.length" class="nt-run-ops">
+          <div class="nt-heading">
+            <h4 aria-level="3">本局待抓 · {{ run.plan.name }}</h4>
+            <button
+              type="button"
+              class="btn nt-text-button"
+              @click="importRunToWishlist">
+              一键入清单
+            </button>
+          </div>
+          <div class="nt-run-op-list">
+            <button
+              v-for="slot in runOps"
+              :key="slot.name"
+              type="button"
+              :class="[
+                'nt-run-op-chip',
+                {
+                  selected: target?.name === slot.name,
+                  banned: isPoolExcluded(slot.name),
+                },
+              ]"
+              :disabled="!OPERATOR[slot.name]"
+              @click="OPERATOR[slot.name] && selectTarget(OPERATOR[slot.name])">
+              <img
+                :src="avatarSrc(slot.name)"
+                alt=""
+                width="20"
+                height="20"
+                loading="lazy"
+                decoding="async" />
+              <span>{{ slot.core ? '★ ' : '' }}{{ slot.name }}</span>
+              <small v-if="isPoolExcluded(slot.name)">禁</small>
+            </button>
+          </div>
+        </div>
         <header class="nt-heading">
           <h4 aria-level="3">目标干员</h4>
           <span class="nt-muted">名字 / 拼音 / 盟约</span>
@@ -149,7 +223,10 @@ const searchSummary = computed(() => {
               v-for="operator in visibleResults"
               :key="operator.name"
               class="nt-search-result"
-              :class="{selected: target?.name === operator.name}">
+              :class="{
+                selected: target?.name === operator.name,
+                banned: isPoolExcluded(operator.name),
+              }">
               <button
                 type="button"
                 class="nt-select-operator"
@@ -164,6 +241,9 @@ const searchSummary = computed(() => {
                 <span>
                   <b>{{ operator.name }}</b>
                   <small>{{ operator.covenants.join(' · ') }}</small>
+                </span>
+                <span v-if="isPoolExcluded(operator.name)" class="nt-ban-tag">
+                  禁池
                 </span>
                 <span class="nt-tier">{{ TIER_LABELS[operator.tier] }}</span>
               </button>
@@ -224,32 +304,51 @@ const searchSummary = computed(() => {
               {{ names.includes(target.name) ? '已加入' : '+ 待找' }}
             </button>
           </div>
+          <p v-if="pool.targetBanned" class="nt-ban-alert" role="status">
+            ⚠ 当前本局禁池或调度模式已将「{{
+              target.name
+            }}」移出卡池，无法刷出或合出
+          </p>
           <div class="nt-eligibility">
-            <div :class="{available: target.tier <= level}">
+            <div
+              :class="{available: !pool.targetBanned && target.tier <= level}">
               <small>普通刷新</small>
               <b>
                 {{
-                  target.tier <= level
-                    ? '等阶已开放'
-                    : `${target.tier} 级起可刷`
+                  pool.targetBanned
+                    ? '本局已移出卡池'
+                    : target.tier <= level
+                      ? '等阶已开放'
+                      : `${target.tier} 级起可刷`
                 }}
               </b>
               <span>
-                当前 {{ level }} 级 · 最高 {{ TIER_LABELS[level] }} 阶
+                可刷池 {{ pool.shopPoolActive }} 名
+                <template v-if="pool.shopPoolActive < pool.shopPoolTotal">
+                  （原 {{ pool.shopPoolTotal }}）
+                </template>
+                · 同阶 {{ pool.targetTierActive }} 名
               </span>
             </div>
-            <div :class="{available: target.tier === rewardTier}">
+            <div
+              :class="{
+                available: !pool.targetBanned && target.tier === rewardTier,
+              }">
               <small>合成奖励 · {{ TIER_LABELS[rewardTier] }} 阶</small>
               <b>
                 {{
-                  target.tier === rewardTier
-                    ? '三选一中可出现'
-                    : target.tier === 1
-                      ? '合成奖励 II 阶起'
-                      : `${target.tier - 1} 级合成可出此阶`
+                  pool.targetBanned
+                    ? '不会在三选一出现'
+                    : target.tier === rewardTier
+                      ? `三选一约 ${Math.round(pool.rewardHitRate * 100)}%（${pool.rewardTierActive} 选 3）`
+                      : target.tier === 1
+                        ? '合成奖励 II 阶起'
+                        : `${target.tier - 1} 级合成约 ${Math.round(pool.targetSynthesisHitRate * 100)}%（${pool.targetTierActive} 选 3）`
                 }}
               </b>
-              <span>三名相同干员合成精锐</span>
+              <span>
+                三名相同干员合成精锐 · 奖励池 {{ pool.rewardTierActive }} 名
+              </span>
             </div>
           </div>
         </div>

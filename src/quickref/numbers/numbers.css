@@ -100,11 +100,22 @@
 .nt-recruit-grid .nt-budget { padding-left: 12px; border-left: 1px solid var(--line); }
 .nt-search-row > input { flex: 1; min-width: 0; }
 .nt-search-row > button { flex-shrink: 0; }
+.nt-run-ops { display: grid; gap: 6px; margin-bottom: 10px; padding: 8px; border-radius: 7px; border: 1px dashed var(--teal); background: color-mix(in srgb, var(--teal) 6%, var(--surface2)); }
+.nt-run-ops .nt-heading { margin-bottom: 0; }
+.nt-run-op-list { display: flex; flex-wrap: wrap; gap: 5px; }
+.nt-run-op-chip { display: inline-flex; align-items: center; gap: 4px; min-height: 30px; padding: 2px 7px 2px 3px; border: 1px solid var(--line2); border-radius: 6px; background: var(--surface); color: var(--ink); font: inherit; font-size: 12px; }
+.nt-run-op-chip img { border-radius: 4px; background: var(--surface2); }
+.nt-run-op-chip.selected { border-color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+.nt-run-op-chip.banned { opacity: .6; border-color: var(--red); text-decoration: line-through; }
+.nt-run-op-chip small { font-size: 10px; font-weight: 700; color: var(--red); }
 .nt-checkbox { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); padding-bottom: 8px; }
 .nt-checkbox small { margin-left: auto; color: var(--ink3); font-size: 11px; }
 .nt-search-results { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .nt-search-result { min-width: 0; display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: clip; background: var(--surface2); }
 .nt-search-result.selected { border-color: var(--accent); background: var(--accent-soft); }
+.nt-search-result.banned { opacity: .65; border-style: dashed; }
+.nt-ban-tag { font-size: 10.5px; font-weight: 700; color: var(--red); margin-left: auto; margin-right: 4px; white-space: nowrap; }
+.nt-ban-alert { margin: 0 0 8px !important; padding: 6px 8px; border-radius: 6px; border-left: 3px solid var(--red); background: color-mix(in srgb, var(--red) 9%, var(--surface2)); color: var(--red); font-size: 12px; line-height: 1.45; }
 .nt-select-operator { display: flex; flex: 1; align-items: center; gap: 6px; min-width: 0; text-align: left; padding: 4px; border: 0; background: transparent; color: var(--ink); }
 .nt-select-operator img, .nt-target-name img { flex: 0 0 auto; border-radius: 4px; background: var(--surface2); }
 .nt-select-operator > span:not(.nt-tier), .nt-target-name > span { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -355,6 +366,30 @@
 @keyframes dealer-shield { 0% { transform: scale(1.02); } 50% { transform: translateY(-2px); } 100% { transform: none; } }
 @keyframes dealer-pulse { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); } to { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 0%, transparent); } }
 
+/* 抽象文案 · 发疯与摇人圣经 */
+.nt-excuses { display: grid; gap: 10px; min-width: 0; }
+.nt-excuse-actions { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.nt-excuse-submit { min-height: 36px; color: var(--ink); text-decoration: none; white-space: nowrap; }
+.nt-excuse-roll { min-height: 36px; white-space: nowrap; font-weight: 700; }
+.nt-excuse-empty-actions { display: inline-flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 8px; }
+.nt-excuse-empty-actions button { margin-top: 0; }
+.nt-excuse-flash { border-left: 3px solid var(--teal); background: color-mix(in srgb, var(--teal) 7%, var(--surface)); display: grid; gap: 6px; padding: 10px 12px; }
+.nt-excuse-flash .nt-heading { margin-bottom: 0; }
+.nt-excuse-flash b { font-size: 13px; color: var(--teal); }
+.nt-excuse-flash-text { font-size: 13px; line-height: 1.55; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.nt-excuse-controls-card { padding: 8px 12px; }
+.nt-excuse-controls { margin-bottom: 0; }
+.nt-excuse-controls input { flex: 1 1 180px; min-width: 120px; }
+.nt-excuse-controls .seg { margin: 0; }
+.nt-excuse-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.nt-excuse-card { display: grid; gap: 8px; align-content: start; padding: 10px 12px; transition: border-color .15s, background-color .15s; }
+.nt-excuse-card.copied { border-color: var(--teal); background: color-mix(in srgb, var(--teal) 6%, var(--surface)); }
+.nt-excuse-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.nt-excuse-copy { flex: none; min-height: 32px; padding: 3px 10px; font-size: 12px; white-space: nowrap; }
+.nt-excuse-text { font-size: 13px; line-height: 1.65; color: var(--ink2); cursor: pointer; }
+.nt-excuse-text:hover { color: var(--ink); }
+.nt-excuse-more { justify-self: center; min-height: 36px; padding: 6px 18px; }
+
 @container number-tools (max-width: 1100px) {
   .nt-threshold-heading, .nt-threshold-row { grid-template-columns: 68px 86px minmax(0, 1fr); gap: 8px; padding-left: 10px; padding-right: 10px; }
   .nt-search-results { grid-template-columns: 1fr; }
@@ -373,6 +408,7 @@
 }
 @container number-tools (max-width: 640px) {
   .nt-dealer-report { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .nt-excuse-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @container number-tools (max-width: 560px) {
   .nt-dealer-bar:has(select + select) .seg { flex: 1 1 100%; }
@@ -403,6 +439,9 @@
   .nt-bounty-controls select { margin-left: auto; }
   .nt-bounty-heading, .nt-bounty-row { grid-template-columns: minmax(0, 1fr) 40px 76px; gap: 6px; padding-left: 2px; padding-right: 2px; }
 }
+@container number-tools (max-width: 520px) {
+  .nt-excuse-controls input { flex-basis: 100%; }
+}
 /* 折叠屏或 PRTS 半栏：门槛和效果分行，避免多档数字挤压说明。 */
 @container number-tools (max-width: 360px) {
   .nt-threshold-heading { display: none; }
@@ -412,6 +451,11 @@
 }
 /* 安卓横屏小窗：压缩头尾与商店卡片纵向留白，保持控件 >= 34px 并尽量一屏操作。 */
 @media (max-height: 600px) {
+  .nt-run-op-chip, .nt-excuse-roll, .nt-excuse-copy, .nt-excuse-more, .nt-excuse-submit { min-height: 34px; }
+  .nt-excuse-actions { gap: 6px; }
+  .nt-excuses { gap: 6px; }
+  .nt-excuse-grid { gap: 7px; }
+  .nt-excuse-card { padding: 8px 10px; gap: 5px; }
   .numbers-tools > .bar { margin-bottom: 5px; }
   .nt-dealer { gap: 5px; }
   .nt-dealer-bar { gap: 5px; }

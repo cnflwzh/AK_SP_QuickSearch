@@ -2,7 +2,11 @@
 import NavigationLink from './NavigationLink.vue';
 import {cardLocation} from '../../router/navigation.ts';
 import {computed} from 'vue';
-import {EQUIPMENT_RECIPES, type Equipment} from '../../../data/index.ts';
+import {
+  EQUIPMENT_COMBOS,
+  EQUIPMENT_RECIPES,
+  type Equipment,
+} from '../../../data/index.ts';
 import {equipIconSrc} from '../../lib/ui/assets.ts';
 import {fx} from '../format.ts';
 import {
@@ -13,7 +17,13 @@ import {
 import {useQuickrefActions} from '../state.ts';
 import Chip from './Chip.vue';
 const props = defineProps<{item: Equipment}>();
-const recipe = computed(() => EQUIPMENT_RECIPES[props.item.name]);
+const recipe = computed(
+  () =>
+    EQUIPMENT_RECIPES[props.item.name] ??
+    EQUIPMENT_COMBOS.find(
+      (combo) => combo[0] === props.item.name || combo[1] === props.item.name,
+    ),
+);
 const owners = computed(() => runEquipOwners.value.get(props.item.name) ?? []);
 const isRec = computed(() => runEquipRecommended.value.has(props.item.name));
 const craftsInto = computed(
@@ -58,7 +68,7 @@ const actions = useQuickrefActions();
         <b v-if="index" class="eq-recipe-sign" aria-hidden="true">
           {{ index === 1 ? '＋' : '→' }}
         </b>
-        <span :data-eq="name">
+        <span :data-eq="name" :class="{self: name === item.name}">
           <img
             :src="equipIconSrc(name)"
             alt=""

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {computed, onUnmounted, ref, watch} from 'vue';
 import {
+  BANNABLE_COVENANTS,
   CORE_BUILDS,
   COVENANTS,
   DEFAULT_BUILD_ID,
@@ -33,6 +34,7 @@ import {
   editing,
   runKey,
   runBans,
+  isRunBannedOp,
   saveError,
   presetColor,
   selectPreset,
@@ -261,8 +263,27 @@ function restore(): void {
 
 /* ---------- 盟约被 ban：被 ban 盟约的干员不会出现，给出替代 ---------- */
 const banOpen = ref(false);
+const showAllBans = ref(false);
+const banImpact = computed(() => {
+  const map = new Map<string, number>();
+  if (!runBans.value.length) return map;
+  for (const item of presets.value) {
+    const count = item.plan.ops.filter((s) => isRunBannedOp(s.name)).length;
+    if (count > 0) map.set(item.key, count);
+  }
+  return map;
+});
 const myBans = computed(() =>
-  runBans.value.filter((b) => bannable.value.some((s) => s.name === b)),
+  runBans.value.filter(
+    (b) =>
+      bannable.value.some((s) => s.name === b) ||
+      p.value.plan.ops.some((s) => isRunBannedOp(s.name)),
+  ),
+);
+const visibleBanCovenants = computed(() =>
+  showAllBans.value
+    ? BANNABLE_COVENANTS
+    : [...new Set([...bannable.value.map((s) => s.name), ...runBans.value])],
 );
 const forced = ref<Record<string, string>>({});
 watch(
@@ -384,6 +405,12 @@ watch(
       @click="selectBuild(x.key)">
       {{ x.plan.name }}
       <i v-if="x.modified" class="md" title="已修改">✎</i>
+      <i
+        v-if="banImpact.get(x.key)"
+        class="ban-hit"
+        :title="`本局禁池缺 ${banImpact.get(x.key)} 人`">
+        -{{ banImpact.get(x.key) }}
+      </i>
     </button>
     <span class="sp"></span>
     <button
@@ -397,6 +424,12 @@ watch(
       @click="selectBuild(x.key)">
       {{ x.plan.name }}
       <i v-if="x.modified" class="md" title="已修改">✎</i>
+      <i
+        v-if="banImpact.get(x.key)"
+        class="ban-hit"
+        :title="`本局禁池缺 ${banImpact.get(x.key)} 人`">
+        -{{ banImpact.get(x.key) }}
+      </i>
     </button>
     <span class="sp"></span>
     <span class="bk">我的</span>
@@ -410,6 +443,12 @@ watch(
       :aria-pressed="x.key === p.key"
       @click="selectBuild(x.key)">
       {{ x.plan.name }}
+      <i
+        v-if="banImpact.get(x.key)"
+        class="ban-hit"
+        :title="`本局禁池缺 ${banImpact.get(x.key)} 人`">
+        -{{ banImpact.get(x.key) }}
+      </i>
     </button>
     <button type="button" class="add" @click="createBuild">＋ 新建</button>
     <button
@@ -556,14 +595,21 @@ watch(
       <div class="bpick">
         <span class="k">点选被 ban 的</span>
         <button
-          v-for="s in bannable"
-          :key="s.name"
+          v-for="covName in visibleBanCovenants"
+          :key="covName"
           type="button"
-          :class="['bc', {on: runBans.includes(s.name)}]"
-          :aria-pressed="runBans.includes(s.name)"
-          :style="{'--c': color(s.name)}"
-          @click="toggleBan(s.name)">
-          {{ s.name }}
+          :class="['bc', {on: runBans.includes(covName)}]"
+          :aria-pressed="runBans.includes(covName)"
+          :style="{'--c': color(covName)}"
+          @click="toggleBan(covName)">
+          {{ covName }}
+        </button>
+        <button
+          type="button"
+          class="bc-more"
+          :aria-expanded="showAllBans"
+          @click="showAllBans = !showAllBans">
+          {{ showAllBans ? '收起其他盟约' : '其他盟约 ▾' }}
         </button>
       </div>
       <template v-if="ban">

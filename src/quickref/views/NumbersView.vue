@@ -3,6 +3,7 @@ import {computed, defineAsyncComponent, watch} from 'vue';
 import {NUMBER_TOOLS, type NumberTool} from '../../../data/index.ts';
 import {queryText} from '../../router/location.ts';
 import {routeQuery, updateQuery} from '../../router/navigation.ts';
+import RunBanner from '../components/RunBanner.vue';
 import Segmented from '../components/Segmented.vue';
 import LayerTools from '../numbers/LayerTools.vue';
 import ExtraRules from '../numbers/ExtraRules.vue';
@@ -16,6 +17,7 @@ const panels = {
   recruit: defineAsyncComponent(() => import('../numbers/RecruitTools.vue')),
   bounty: defineAsyncComponent(() => import('../numbers/BountyTools.vue')),
   dealer: defineAsyncComponent(() => import('../numbers/DealerGame.vue')),
+  excuse: defineAsyncComponent(() => import('../numbers/ExcuseTools.vue')),
 };
 const visibleTools = computed(() =>
   NUMBER_TOOLS.filter(
@@ -43,6 +45,12 @@ function selectTool(index: number): void {
 </script>
 
 <template>
+  <RunBanner
+    v-if="
+      activeTool !== 'advisor' &&
+      activeTool !== 'dealer' &&
+      activeTool !== 'excuse'
+    " />
   <div class="numbers-tools workbench-controls">
     <!-- 工具标题沿用现有 h4 样式，由 aria-level 表达页面与卡片的标题层级。 -->
     <nav class="bar" aria-label="小工具">
@@ -54,10 +62,15 @@ function selectTool(index: number): void {
     </nav>
     <!-- 仅工具切换产生过渡；临时输入和详情弹窗更新不重建面板。 -->
     <Transition name="number-panel" mode="out-in">
-      <KeepAlive :max="5">
+      <KeepAlive :max="6">
         <component :is="panels[activeTool]" :key="activeTool" />
       </KeepAlive>
     </Transition>
-    <ExtraRules v-if="activeTool !== 'advisor' && activeTool !== 'dealer'" />
+    <ExtraRules
+      v-if="
+        activeTool !== 'advisor' &&
+        activeTool !== 'dealer' &&
+        activeTool !== 'excuse'
+      " />
   </div>
 </template>

@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { nextCycleReward, nextLayerBreakpoint, refreshBudget, synthesisTier } from '../src/lib/numbers/numberTools.ts';
+import {OPERATORS, RESTRICTED_MODE_COVENANTS} from '../data/index.ts';
+import {isBanned} from '../src/lib/recommendation/index.ts';
+import {
+  nextCycleReward,
+  nextLayerBreakpoint,
+  poolBreakdown,
+  refreshBudget,
+  synthesisHitRate,
+  synthesisTier,
+} from '../src/lib/numbers/numberTools.ts';
 
 test('layer thresholds advance at the exact milestone and stop after the last one', () => {
   assert.equal(nextLayerBreakpoint('灵巧', 39).layers, 40);
@@ -22,14 +31,39 @@ test('cycle rewards point to the next payout even when the current layer is an e
 });
 
 test('refresh budgets reserve purchase funds after the actual upgrade cost', () => {
-  assert.deepEqual(refreshBudget(20, 4), { balance: 20, refreshes: 16, upgradeShortfall: 0, reserveShortfall: 0 });
-  assert.deepEqual(refreshBudget(20, 4, 8), { balance: 12, refreshes: 8, upgradeShortfall: 0, reserveShortfall: 0 });
-  assert.deepEqual(refreshBudget(10, 3, 7), { balance: 3, refreshes: 0, upgradeShortfall: 0, reserveShortfall: 0 });
+  assert.deepEqual(refreshBudget(20, 4), {
+    balance: 20,
+    refreshes: 16,
+    upgradeShortfall: 0,
+    reserveShortfall: 0,
+  });
+  assert.deepEqual(refreshBudget(20, 4, 8), {
+    balance: 12,
+    refreshes: 8,
+    upgradeShortfall: 0,
+    reserveShortfall: 0,
+  });
+  assert.deepEqual(refreshBudget(10, 3, 7), {
+    balance: 3,
+    refreshes: 0,
+    upgradeShortfall: 0,
+    reserveShortfall: 0,
+  });
 });
 
 test('insufficient upgrade funds and insufficient purchase reserve remain distinct', () => {
-  assert.deepEqual(refreshBudget(5, 4, 8), { balance: -3, refreshes: 0, upgradeShortfall: 3, reserveShortfall: 0 });
-  assert.deepEqual(refreshBudget(10, 4, 8), { balance: 2, refreshes: 0, upgradeShortfall: 0, reserveShortfall: 2 });
+  assert.deepEqual(refreshBudget(5, 4, 8), {
+    balance: -3,
+    refreshes: 0,
+    upgradeShortfall: 3,
+    reserveShortfall: 0,
+  });
+  assert.deepEqual(refreshBudget(10, 4, 8), {
+    balance: 2,
+    refreshes: 0,
+    upgradeShortfall: 0,
+    reserveShortfall: 2,
+  });
 });
 
 test('synthesis rewards start at tier II and remain capped at tier VI at max level', () => {
@@ -37,4 +71,50 @@ test('synthesis rewards start at tier II and remain capped at tier VI at max lev
   assert.equal(synthesisTier(4), 5);
   assert.equal(synthesisTier(5), 6);
   assert.equal(synthesisTier(6), 6);
+});
+
+test('poolBreakdown reflects active shop pool, banned targets, and synthesis hit rate', () => {
+  const fullPoolOps = OPERATORS.filter((o) => o.stars !== 0);
+  const sampleTarget = fullPoolOps.find(
+    (o) => o.tier === 4 && o.covenants.length > 0,
+  );
+  assert.ok(sampleTarget);
+  const full = poolBreakdown(4, sampleTarget.name, [], false);
+  assert.equal(full.targetBanned, false);
+  assert.equal(
+    full.shopPoolTotal,
+    fullPoolOps.filter((o) => o.tier <= 4).length,
+  );
+  assert.equal(full.shopPoolActive, full.shopPoolTotal);
+  assert.equal(
+    full.rewardTierActive,
+    fullPoolOps.filter((o) => o.tier === 5).length,
+  );
+  assert.equal(
+    full.targetSynthesisHitRate,
+    synthesisHitRate(full.targetTierActive),
+  );
+
+  const cov = sampleTarget.covenants[0];
+  const afterBan = poolBreakdown(4, sampleTarget.name, [cov], false);
+  const expectedActive = fullPoolOps.filter(
+    (o) => o.tier <= 4 && !isBanned(o.name, new Set([cov])),
+  ).length;
+  assert.equal(afterBan.shopPoolActive, expectedActive);
+  if (isBanned(sampleTarget.name, new Set([cov]))) {
+    assert.equal(afterBan.targetBanned, true);
+    assert.equal(afterBan.targetSynthesisHitRate, 0);
+  }
+
+  const restricted = poolBreakdown(3, sampleTarget.name, [], true);
+  assert.equal(
+    restricted.shopPoolActive,
+    fullPoolOps.filter(
+      (o) =>
+        o.tier <= 3 && !isBanned(o.name, new Set(RESTRICTED_MODE_COVENANTS)),
+    ).length,
+  );
+  assert.equal(synthesisHitRate(0), 0);
+  assert.equal(synthesisHitRate(2), 1);
+  assert.equal(synthesisHitRate(6), 0.5);
 });

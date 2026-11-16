@@ -324,6 +324,7 @@ export const NUMBER_TOOLS = [
   {id: 'recruit', label: '找牌升本'},
   {id: 'bounty', label: '悬赏收益'},
   {id: 'dealer', label: '痛扁发牌'},
+  {id: 'excuse', label: '抽象文案'},
 ] as const;
 export type NumberTool = (typeof NUMBER_TOOLS)[number]['id'];
 

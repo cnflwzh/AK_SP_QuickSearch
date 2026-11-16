@@ -8,9 +8,11 @@ import {
   LEADERS,
 } from '../../../data/index.ts';
 import {normalize, nameScore} from '../../lib/ui/match.ts';
+import {matchedOnlyElite} from '../searchRanking.ts';
 import {presets} from '../planStore.ts';
 import {state} from '../state.ts';
 import Chip from '../components/Chip.vue';
+import Segmented from '../components/Segmented.vue';
 import LeaderRow from '../components/LeaderRow.vue';
 import OperatorCard from '../components/OperatorCard.vue';
 import EquipmentCard from '../components/EquipmentCard.vue';
@@ -18,6 +20,7 @@ import StrategyCard from '../components/StrategyCard.vue';
 import LiveStatus from '../../lib/ui/LiveStatus.vue';
 const props = defineProps<{query: string}>();
 const operatorLimit = ref(60);
+const eliteMode = ref<0 | 1 | 2>(0);
 watch(
   () => props.query,
   () => {
@@ -175,15 +178,30 @@ const resultSummary = computed(() => {
     </div>
   </template>
   <template v-if="results.operators.length">
-    <div class="sec" role="heading" aria-level="2" data-key="heading:干员">
+    <div
+      class="sec sr-op-sec"
+      role="heading"
+      aria-level="2"
+      data-key="heading:干员">
       干员
       <span class="n">{{ results.operators.length }}</span>
+      <Segmented
+        class="sr-elite-seg"
+        :labels="['自动', '初始', '精锐']"
+        :active="eliteMode"
+        attr="srel"
+        @change="eliteMode = $event as 0 | 1 | 2" />
     </div>
     <div class="qg" data-key="operators">
       <OperatorCard
         v-for="operator in results.operators.slice(0, operatorLimit)"
         :key="operator.name"
         :operator="operator"
+        :show-elite="
+          eliteMode === 2 ||
+          (eliteMode === 0 && matchedOnlyElite(operator, query))
+        "
+        :elite-matched="eliteMode === 0 && matchedOnlyElite(operator, query)"
         show-wiki-link />
     </div>
     <button

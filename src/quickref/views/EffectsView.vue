@@ -1,15 +1,20 @@
 <script setup lang="ts">
-import {computed} from 'vue';
-import {ALL_COVENANTS, COVENANTS, isCoreCovenant} from '../../../data/index.ts';
+import {computed, ref} from 'vue';
+import {
+  ALL_COVENANTS,
+  COVENANTS,
+  isBannableCovenant,
+  isCoreCovenant,
+} from '../../../data/index.ts';
 import {atLayers} from '../../lib/plans/index.ts';
 import {color, fx, bonusHeadcount, bonusText} from '../format.ts';
 import {useQuickrefActions} from '../state.ts';
-import {run, runStat, runBans} from '../planStore.ts';
+import {clearBans, run, runStat, runBans, toggleBan} from '../planStore.ts';
 import RunBanner from '../components/RunBanner.vue';
 import Segmented from '../components/Segmented.vue';
 /**
  * 盟约效果一览：所有盟约的激活 / 强化效果平铺成卡片，局内扫一眼就能查到。
- * 本局流派里有的盟约标出人数进度；填过层数的按该层数代入数值。
+ * 本局流派里有的盟约标出人数进度；填过层数的按该层数代入数值，并支持就地勾选禁池。
  */
 import {routeQuery, updateQuery} from '../../router/navigation.ts';
 import {queryText} from '../../router/location.ts';
@@ -22,10 +27,16 @@ const filter = computed({
   },
 });
 const labels = ['全部', '核心', '附加'];
+const onlyRunFx = ref(false);
+const banEditMode = ref(false);
+const filterToRunFx = computed(
+  () => onlyRunFx.value && !!run.value && runStat.value.size > 0,
+);
 const list = computed(() =>
   ALL_COVENANTS.filter(
     (name) =>
-      filter.value === 0 || isCoreCovenant(name) === (filter.value === 1),
+      (!filterToRunFx.value || runStat.value.has(name)) &&
+      (filter.value === 0 || isCoreCovenant(name) === (filter.value === 1)),
   ),
 );
 const cards = computed(() =>
@@ -38,6 +49,7 @@ const cards = computed(() =>
       name,
       need: cov.need,
       core: isCoreCovenant(name),
+      bannable: isBannableCovenant(name),
       stat,
       layers,
       banned: runBans.value.includes(name),
@@ -57,12 +69,41 @@ const cards = computed(() =>
 <template>
   <RunBanner />
   <div class="fxv">
-    <div class="fxv-bar">
+    <div class="bar fxv-bar">
       <Segmented
         :labels="labels"
         :active="filter"
         attr="fxf"
         @change="filter = $event" />
+      <button
+        v-if="run && runStat.size"
+        type="button"
+        :class="['run-filter-btn', {on: filterToRunFx}]"
+        :aria-pressed="filterToRunFx"
+        @click="onlyRunFx = !onlyRunFx">
+        只看本局 {{ runStat.size }}
+      </button>
+      <button
+        type="button"
+        :class="['run-ban-btn', {on: banEditMode || runBans.length > 0}]"
+        :aria-pressed="banEditMode"
+        title="勾选本局随机被 ban 的盟约，同步过滤干员图鉴、抓牌概率和流派替补"
+        @click="banEditMode = !banEditMode">
+        {{
+          banEditMode
+            ? '完成禁池选择'
+            : runBans.length
+              ? `本局禁池 ${runBans.length}`
+              : '标记本局禁池'
+        }}
+      </button>
+      <button
+        v-if="runBans.length"
+        type="button"
+        class="filter-clear"
+        @click="clearBans()">
+        清空禁池
+      </button>
     </div>
     <div class="fxg">
       <article
@@ -89,7 +130,18 @@ const cards = computed(() =>
             {{ c.name }}
           </button>
           <span class="need">{{ c.need }} 人</span>
-          <span v-if="c.banned" class="ban">被 ban</span>
+          <button
+            v-if="c.bannable && (banEditMode || c.banned)"
+            type="button"
+            :class="['fxc-ban-toggle', {on: c.banned}]"
+            :aria-pressed="c.banned"
+            :title="
+              c.banned ? `解除 ${c.name} 禁池` : `将 ${c.name} 标为本局禁池`
+            "
+            @click="toggleBan(c.name)">
+            {{ c.banned ? '✕ 已禁' : '标禁' }}
+          </button>
+          <span v-else-if="c.banned" class="ban">被 ban</span>
           <span v-if="c.stat" class="mine" :title="c.stat.members.join('、')">
             本局 {{ c.stat.count }}
             <template v-if="c.layers">· {{ c.layers }} 层</template>
@@ -101,6 +153,7 @@ const cards = computed(() =>
           <span v-html="c.bonus"></span>
         </p>
       </article>
+      <div v-if="!cards.length" class="empty">当前筛选下没有盟约</div>
     </div>
   </div>
 </template>
