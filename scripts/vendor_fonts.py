@@ -1,6 +1,7 @@
 """Vendor the exact Google Fonts WOFF2 subsets used by this site.
 
 Run manually when updating fonts: python scripts/vendor_fonts.py
+Requires scripts/requirements-fonts.txt; also regenerates the interface subset.
 Normal builds use the committed files and require no font service or packages.
 """
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -83,6 +84,8 @@ def main():
     (DEST / 'sources.json').write_text(json.dumps({'stylesheet': CSS_URL, 'files': mapping},
         ensure_ascii=False, indent=2) + '\n', encoding='utf-8', newline='\n')
     print(f'Vendored {len(mapping)} WOFF2 subsets; fonts load on demand from this origin.')
+    from subset_interface_font import main as subset_interface_font
+    subset_interface_font()
 
 
 if __name__ == '__main__':

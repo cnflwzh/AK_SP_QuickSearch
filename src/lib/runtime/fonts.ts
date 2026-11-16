@@ -1,6 +1,6 @@
 // 与 Service Worker 共用内容哈希缓存；不依赖可能与实际文件脱节的 localStorage 标记。
 const FONT_CACHE = 'wsq-font-local-v1';
-const NETWORK_FONT_BUDGET_MS = 350;
+const NETWORK_FONT_BUDGET_MS = 700;
 const FAMILIES = [
   'Noto Sans SC',
   'ZCOOL QingKe HuangYou',
@@ -8,9 +8,14 @@ const FAMILIES = [
 ] as const;
 type FontFamily = (typeof FAMILIES)[number];
 
+// 一个字包覆盖全部已发布界面文字，包括首屏尚未出现的盟约和流派标题。
+// 由 scripts/subset_interface_font.py 从本地原始字库生成，避免预载整套 92 个分片。
+const INTERFACE_FONT_PREFIX = 'zcoolqingkehuangyou-ui-';
+
 interface FontSource {
   face: FontFace;
   url: string;
+  interfaceSubset: boolean;
 }
 
 /** 去掉 CSS 引号及空白差异，匹配 CSS 规则和浏览器 FontFace 描述。 */
@@ -29,7 +34,7 @@ function familyOf(face: FontFace): string {
   return face.family.replace(/["']/g, '');
 }
 
-/** 仅解析本站字体声明；不访问第三方样式表，也不预下载整套中文字库。 */
+/** 收集本站界面优先字包及首屏实际使用的其他分片，不下载未使用的字形。 */
 function currentSources(): FontSource[] {
   const urls = new Map<string, string>();
   for (const sheet of document.styleSheets) {
@@ -60,15 +65,16 @@ function currentSources(): FontSource[] {
     }
   }
   return [...document.fonts].flatMap((face) => {
-    if (
-      face.status === 'unloaded' ||
-      !FAMILIES.includes(familyOf(face) as FontFamily)
-    )
-      return [];
+    if (!FAMILIES.includes(familyOf(face) as FontFamily)) return [];
     const url = urls.get(
       faceKey(face.family, face.weight, face.style, face.unicodeRange),
     );
-    return url ? [{face, url}] : [];
+    if (!url) return [];
+    const interfaceSubset = new URL(url).pathname.startsWith(
+      `/assets/fonts/${INTERFACE_FONT_PREFIX}`,
+    );
+    if (face.status === 'unloaded' && !interfaceSubset) return [];
+    return [{face, url, interfaceSubset}];
   });
 }
 
@@ -128,11 +134,12 @@ export async function settleInitialFonts(): Promise<void> {
       download = (async () => {
         const hit = cached.get(source.url);
         if (hit) return hit;
-        // CSS 已经发起该字体的下载，等它完成后再从 HTTP 缓存补存。
-        await source.face.load();
+        // 首屏分片复用 CSS 请求；界面字包优先于未使用的字体分片，
+        // 不调用原始 face.load()，避免原字体在加载遮罩外发生迟到替换。
+        if (source.face.status !== 'unloaded') await source.face.load();
         const response = await fetch(source.url, {
           cache: 'force-cache',
-          priority: 'low',
+          priority: source.interfaceSubset ? 'high' : 'low',
         });
         if (!response.ok) throw new Error('Font download failed');
         return response;
