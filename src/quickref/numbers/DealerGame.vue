@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import {computed, onBeforeUnmount, onMounted, ref} from 'vue';
+import {
+  computed,
+  onActivated,
+  onBeforeUnmount,
+  onDeactivated,
+  onMounted,
+  ref,
+} from 'vue';
 import {ADDON_COVENANTS, CORE_COVENANTS} from '../../../data/index.ts';
 import {
   avatarSrc,
@@ -64,12 +71,25 @@ const imageStatus = ref<'idle' | 'copied' | 'saved'>('idle');
 const fontReadyTick = ref(0);
 let copyTimer: ReturnType<typeof setTimeout> | undefined;
 let imageTimer: ReturnType<typeof setTimeout> | undefined;
+// KeepAlive 返回及从后台恢复时刷新日期，后台不保留轮询计时器。
+function refreshVisibleDate(): void {
+  if (document.visibilityState === 'visible') game.refreshDate();
+}
+onActivated(() => {
+  game.refreshDate();
+  document.addEventListener('visibilitychange', refreshVisibleDate);
+});
+function releaseDateListener(): void {
+  document.removeEventListener('visibilitychange', refreshVisibleDate);
+}
+onDeactivated(releaseDateListener);
 onMounted(() => {
   void document.fonts?.ready?.then(() => {
     fontReadyTick.value++;
   });
 });
 onBeforeUnmount(() => {
+  releaseDateListener();
   clearTimeout(copyTimer);
   clearTimeout(imageTimer);
 });
@@ -232,7 +252,11 @@ const blindPromptText = computed(() => {
   return `不合【${targetCovenant}】？`;
 });
 
-function inspectCardDetail(index: number, kind: DetailKind, name: string): void {
+function inspectCardDetail(
+  index: number,
+  kind: DetailKind,
+  name: string,
+): void {
   game.recordDetailPeek(index);
   actions.openDetail(kind, name);
 }
@@ -285,7 +309,11 @@ function inspectCardDetail(index: number, kind: DetailKind, name: string): void 
       </select>
       <div class="nt-dealer-bar-actions">
         <button
-          v-if="!session.showReport && state.hintLevel === 'blind' && !isRoundCleared"
+          v-if="
+            !session.showReport &&
+            state.hintLevel === 'blind' &&
+            !isRoundCleared
+          "
           type="button"
           class="btn nt-dealer-hint-btn"
           :class="{used: round.hintRevealed}"
@@ -307,9 +335,7 @@ function inspectCardDetail(index: number, kind: DetailKind, name: string): void 
           type="button"
           class="btn"
           :class="{p: session.showReport}"
-          @click="
-            session.showReport ? game.closeReport() : game.openReport()
-          "
+          @click="session.showReport ? game.closeReport() : game.openReport()"
         >
           {{ session.showReport ? '返回牌局' : '战报/分享' }}
         </button>
@@ -459,7 +485,11 @@ function inspectCardDetail(index: number, kind: DetailKind, name: string): void 
           v-for="(card, index) in round.cards"
           :key="`${round.roundNumber}-${card.cardKind}-${card.title}`"
           class="nt-dealer-card"
-          :class="[card.status, card.cardKind, {cleared: isRoundCleared, equip: card.cardKind === 'equipment'}]"
+          :class="[
+            card.status,
+            card.cardKind,
+            {cleared: isRoundCleared, equip: card.cardKind === 'equipment'},
+          ]"
           :data-t="cardTierData(card)"
         >
           <button
@@ -513,12 +543,17 @@ function inspectCardDetail(index: number, kind: DetailKind, name: string): void 
                   :key="tag.label"
                   class="nt-dealer-cov"
                   :class="{match: tag.match, mismatch: tag.mismatch}"
-                  :style="tag.covenant ? {'--c': color(tag.covenant)} : undefined"
+                  :style="
+                    tag.covenant ? {'--c': color(tag.covenant)} : undefined
+                  "
                 >
                   {{ tag.label }}
                 </span>
               </div>
-              <p class="nt-dealer-trait" :title="card.traitSegments.map((s) => s.text).join('')">
+              <p
+                class="nt-dealer-trait"
+                :title="card.traitSegments.map((s) => s.text).join('')"
+              >
                 <span
                   v-for="(seg, sIdx) in card.traitSegments"
                   :key="sIdx"
@@ -528,7 +563,9 @@ function inspectCardDetail(index: number, kind: DetailKind, name: string): void 
               </p>
             </template>
 
-            <template v-else-if="state.hintLevel === 'clue' || round.hintRevealed">
+            <template
+              v-else-if="state.hintLevel === 'clue' || round.hintRevealed"
+            >
               <span class="nt-dealer-clue">{{ card.triggerHint }}</span>
               <span class="nt-dealer-prompt">{{ card.secondaryClue }}</span>
             </template>
@@ -547,7 +584,9 @@ function inspectCardDetail(index: number, kind: DetailKind, name: string): void 
             class="nt-dealer-info"
             :aria-label="`查看${card.title}详情`"
             :title="
-              card.status === 'unseen' && !isRoundCleared && state.hintLevel === 'blind'
+              card.status === 'unseen' &&
+              !isRoundCleared &&
+              state.hintLevel === 'blind'
                 ? '查看详情（本轮未通关时将计入提示）'
                 : '查看详情'
             "
@@ -561,7 +600,9 @@ function inspectCardDetail(index: number, kind: DetailKind, name: string): void 
             class="nt-dealer-equip-info"
             :aria-label="`查看装备${card.attachedEquip.name}详情`"
             :title="
-              card.status === 'unseen' && !isRoundCleared && state.hintLevel === 'blind'
+              card.status === 'unseen' &&
+              !isRoundCleared &&
+              state.hintLevel === 'blind'
                 ? '查看携带装备详情（将计入场中提示）'
                 : '查看携带装备详情'
             "
@@ -584,9 +625,8 @@ function inspectCardDetail(index: number, kind: DetailKind, name: string): void 
             </template>
           </template>
           <template v-else>
-            点选不符合当前目标的条目，痛扁乱排队的发牌员（误判 {{
-              session.stats.mistakes
-            }} 次 · 无倒计时）。
+            点选不符合当前目标的条目，痛扁乱排队的发牌员（误判
+            {{ session.stats.mistakes }} 次 · 无倒计时）。
           </template>
         </span>
         <div class="nt-dealer-footer-btns">
@@ -618,6 +658,6 @@ function inspectCardDetail(index: number, kind: DetailKind, name: string): void 
       </footer>
     </template>
 
-    <LiveStatus :message="state.announcement"/>
+    <LiveStatus :message="state.announcement" />
   </div>
 </template>
