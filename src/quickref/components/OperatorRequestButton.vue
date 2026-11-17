@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {computed, onBeforeUnmount, ref, watch} from 'vue';
 import {OPERATOR} from '../../../data/index.ts';
+import {settings} from '../../lib/settings/index.ts';
 
 /** names 为实际要找的干员；提供 buildName 时生成整队求牌文本，否则生成单人求牌文本。 */
 const props = defineProps<{
@@ -63,6 +64,7 @@ async function copyRequestText(): Promise<void> {
 
 <template>
   <button
+    v-if="settings.showRequestButtons"
     type="button"
     class="btn operator-request"
     :disabled="!names.length || copying"

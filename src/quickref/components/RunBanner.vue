@@ -2,6 +2,7 @@
 import {computed, ref} from 'vue';
 import {BANNABLE_COVENANTS, isBannableCovenant} from '../../../data/index.ts';
 import {leaderSrc} from '../../lib/ui/assets.ts';
+import {settings} from '../../lib/settings/index.ts';
 import {color} from '../format.ts';
 import {useQuickrefActions} from '../state.ts';
 import CovenantIcon from './CovenantIcon.vue';
@@ -37,7 +38,7 @@ function onEndRun(): void {
 </script>
 <template>
   <div
-    v-if="hasRunContext"
+    v-if="hasRunContext && settings.showRunBanner"
     class="runb"
     :style="{'--c': run ? presetColor(run) : 'var(--accent)'}">
     <span class="k">本局</span>

@@ -19,13 +19,17 @@ import {
 } from '../../data/index.ts';
 import {prefersReducedMotion} from '../lib/ui/dom.ts';
 import {
+  isSmallWindow,
+  settings,
+  visibleContentTabs,
+} from '../lib/settings/index.ts';
+import {
   state,
   setTab,
   setBuild,
   setCovenant,
   setLeader,
   quickrefActionsKey,
-  TAB_IDS,
   type DetailKind,
   type TabId,
 } from './state.ts';
@@ -60,15 +64,21 @@ const TAB_META: Record<TabId, {label: string; count: number | ''}> = {
   st: {label: '策略', count: STRATEGIES.length},
   ld: {label: '领袖', count: LEADERS.length},
   nu: {label: '小工具', count: ''},
+  se: {label: '设置', count: ''},
 };
-const tabs = computed(() =>
-  TAB_IDS.map((id) => ({
+const tabs = computed(() => {
+  const ordered: TabId[] = [...visibleContentTabs()];
+  if (!isSmallWindow.value) ordered.push('se');
+  return ordered.map((id) => ({
     id,
-    ...(id === 'bd'
-      ? {label: '流派', count: presets.value.length}
-      : TAB_META[id]),
-  })),
-);
+    label: TAB_META[id].label,
+    count: settings.showTabCounts
+      ? id === 'bd'
+        ? presets.value.length
+        : TAB_META[id].count
+      : ('' as const),
+  }));
+});
 const renderedQuery = computed(() => queryText(currentRoute.value.query, 'q'));
 const query = ref(renderedQuery.value);
 const composing = ref(false);
@@ -180,11 +190,25 @@ function scheduleTabScroll(): void {
 watch(
   () => state.tab,
   (tab, previous) => {
-    slide.value = TAB_IDS.indexOf(tab) > TAB_IDS.indexOf(previous) ? 'l' : 'r';
+    const order = tabs.value.map((item) => item.id);
+    const nextIndex = order.indexOf(tab);
+    const prevIndex = order.indexOf(previous);
+    slide.value =
+      nextIndex >= 0 && prevIndex >= 0 && nextIndex < prevIndex ? 'r' : 'l';
   },
 );
-watch(() => state.tab, scheduleTabScroll, {flush: 'post'});
+watch(
+  [() => state.tab, tabs, () => settings.showTabCounts],
+  scheduleTabScroll,
+  {flush: 'post'},
+);
 watch(() => wikiPanel.isOpen.value, scheduleTabScroll, {flush: 'post'});
+watch(
+  () => settings.showWikiLinks,
+  (enabled) => {
+    if (!enabled && wikiPanel.isOpen.value) wikiPanel.close();
+  },
+);
 async function reloadPage(): Promise<void> {
   flushSave(true);
   location.assign(
@@ -289,6 +313,7 @@ function swipeBlocked(target: EventTarget | null): boolean {
 function touchStart(event: TouchEvent): void {
   swipeStart = null;
   if (
+    !settings.enableSwipeTabs ||
     event.touches.length !== 1 ||
     renderedQuery.value ||
     detail.value ||
@@ -403,7 +428,7 @@ onUnmounted(() => {
   <div :class="['quickref-layout', {'wiki-open': wikiPanel.isOpen.value}]">
     <div class="quickref-content" :inert="wikiPanel.isOpen.value && !!detail">
       <SkipLink target-id="view" sticky-header="#qbar" />
-      <header class="wrap qhead">
+      <header v-if="settings.showHeader" class="wrap qhead">
         <h1>
           卫戍速查
           <small>{{ SEASON_META.title }}</small>
@@ -456,18 +481,24 @@ onUnmounted(() => {
               class="tabs"
               aria-label="速查栏目"
               @scroll.passive="updateTabOverflow">
-              <RouterLink
-                v-for="tab in tabs"
-                :key="tab.id"
-                :to="tabLocation(tab.id)"
-                :data-tab="tab.id"
-                :class="{on: currentRoute.meta.tab === tab.id}"
-                :aria-current="
-                  currentRoute.meta.tab === tab.id ? 'page' : undefined
+              <TransitionGroup
+                :css="false"
+                :name="
+                  currentRoute.meta.tab === 'se' ? 'top-tab-sort' : undefined
                 ">
-                {{ tab.label }}
-                <i v-if="tab.count">{{ tab.count }}</i>
-              </RouterLink>
+                <RouterLink
+                  v-for="tab in tabs"
+                  :key="tab.id"
+                  :to="tabLocation(tab.id)"
+                  :data-tab="tab.id"
+                  :class="{on: currentRoute.meta.tab === tab.id}"
+                  :aria-current="
+                    currentRoute.meta.tab === tab.id ? 'page' : undefined
+                  ">
+                  {{ tab.label }}
+                  <i v-if="tab.count">{{ tab.count }}</i>
+                </RouterLink>
+              </TransitionGroup>
             </nav>
           </div>
         </div>

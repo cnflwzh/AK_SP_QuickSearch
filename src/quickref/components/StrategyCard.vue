@@ -20,7 +20,7 @@ const isRec = computed(() => runStrategies.value.all.has(props.strategy.name));
   <NavigationLink
     :to="cardLocation('st', strategy.name)"
     :activate="() => actions.openDetail('st', strategy.name)"
-    :class="['oc', {inplan: isRec}]"
+    :class="['oc', 'st-card', {inplan: isRec}]"
     :data-key="`st:${strategy.name}`"
     style="--tc: var(--teal)"
     :data-st="strategy.name">
@@ -34,20 +34,27 @@ const isRec = computed(() => runStrategies.value.all.has(props.strategy.name));
         height="88"
         loading="lazy"
         decoding="async" />
-      <b>{{ strategy.name }}</b>
-      <Chip
-        v-if="isCoreCovenant(strategy.category)"
-        kind="cv"
-        :name="strategy.category"
-        static />
-      <span v-else class="tag">{{ strategy.category }}</span>
-      <span v-if="isPrimary" class="inp core">★ 本局首选</span>
-      <span v-else-if="isRec" class="inp">✓ 本局备选</span>
-    </div>
-    <div class="hp">
-      <span>{{ strategy.hp }}</span>
-      <div class="trk">
-        <div :style="{width: hpWidth(strategy.hp) + '%'}"></div>
+      <div class="st-meta">
+        <div class="st-title-row">
+          <b>{{ strategy.name }}</b>
+          <Chip
+            v-if="isCoreCovenant(strategy.category)"
+            kind="cv"
+            :name="strategy.category"
+            static />
+          <span v-else class="tag">{{ strategy.category }}</span>
+          <span :class="['tag', 'st-unlock', {t: strategy.unlock === '初始'}]">
+            {{ strategy.unlock }}
+          </span>
+          <span v-if="isPrimary" class="inp core">★ 本局首选</span>
+          <span v-else-if="isRec" class="inp">✓ 本局备选</span>
+        </div>
+        <div class="hp" :title="`指挥生命值 ${strategy.hp}`">
+          <span>{{ strategy.hp }}</span>
+          <div class="trk">
+            <div :style="{width: hpWidth(strategy.hp) + '%'}"></div>
+          </div>
+        </div>
       </div>
     </div>
     <div
@@ -55,10 +62,5 @@ const isRec = computed(() => runStrategies.value.all.has(props.strategy.name));
       v-html="
         `<span style='color:var(--ink);font-weight:500'>${esc(strategy.skill)}</span>\u3000${fx(strategy.effect)}`
       "></div>
-    <div>
-      <span :class="['tag', {t: strategy.unlock === '初始'}]">
-        {{ strategy.unlock }}
-      </span>
-    </div>
   </NavigationLink>
 </template>

@@ -1,11 +1,12 @@
 import {computed, inject, reactive, type InjectionKey} from 'vue';
 import {DEFAULT_BUILD_ID, LEADERS, SEASON_META} from '../../data/index.ts';
 import {
-  COVENANT_IDS,
   buildKey,
   covenantName,
+  COVENANT_IDS,
   type DetailKind,
 } from '../router/entities.ts';
+import {settings} from '../lib/settings/index.ts';
 import {
   CATEGORY_IDS,
   DIFFICULTIES,
@@ -71,9 +72,17 @@ export const state = reactive({
   opTrigger: labelControl('trigger', TRIGGER_IDS),
   opType: labelControl('type', TYPE_IDS),
   opElite: computed({
-    get: () => text('elite') === '1',
+    get: () => {
+      const value = text('elite');
+      if (value === '1') return true;
+      if (value === '0') return false;
+      return settings.defaultOperatorElite;
+    },
     set: (elite: boolean) => {
-      void updateQuery({elite: elite ? '1' : null});
+      void updateQuery({
+        elite:
+          elite === settings.defaultOperatorElite ? null : elite ? '1' : '0',
+      });
     },
   }),
   eqTier: computed({

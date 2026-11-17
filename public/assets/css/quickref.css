@@ -1176,6 +1176,63 @@ em.c.on {
   text-align: right;
 }
 
+.oc.op-card {
+  position: relative;
+}
+
+.oc.op-card .h {
+  align-items: flex-start;
+  min-height: 36px;
+}
+
+.op-meta,
+.st-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.op-title-row,
+.st-title-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.oc.op-card.has-wiki .op-meta {
+  padding-right: 60px;
+}
+
+.oc:is(.op-card, .st-card) .h b {
+  flex: 0 1 auto;
+}
+
+.op-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.operator-card-wiki {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  z-index: 1;
+}
+
+.oc.st-card .h {
+  align-items: center;
+}
+
+.st-unlock {
+  font-size: 11px;
+}
+
 em.k {
   font-style: normal;
   color: var(--teal);
@@ -3304,9 +3361,90 @@ mark {
 @media (prefers-reduced-motion: reduce) {
   .pane[data-slide], .tabs a.on::after, .qg > .oc[data-catalog-enter], .pane .tierh { animation: none; }
   .qg > .oc[data-catalog-enter=pending] { opacity: 1; }
+  .top-tab-sort-move { transition: none !important; }
 }
+:root[data-motion="reduce"] .top-tab-sort-move { transition: none !important; }
 
 /* Navigation retains the existing control appearance while exposing real URLs. */
+.top-tab-sort-move { transition: transform 220ms cubic-bezier(0.2, 0, 0, 1); background: color-mix(in srgb,var(--bg) 94%,var(--surface)); border-radius: 6px; }
 .tabs a, a.cv, a.op, a.eq, a.st, a.lwr, a.oc, a.tile { text-decoration: none; }
 .tabs a { font-family: inherit; }
 .route-message { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+
+/* ---------- 小窗隐藏设置页签 + 干员/策略紧凑卡片（单列 / 小窗 / 全局紧凑） ---------- */
+@media (max-height: 600px), ((max-width: 720px) and (max-height: 680px)) {
+  .tabs a[data-tab="se"] { display: none; }
+}
+
+:root[data-density="compact"] .qg {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 248px), 1fr));
+  gap: 5px;
+}
+:root[data-density="compact"] :is(.oc.op-card, .oc.st-card) {
+  padding: 5px 8px;
+  gap: 3px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+:root[data-density="compact"] .oc.op-card .operator-card-main { gap: 3px; }
+:root[data-density="compact"] :is(.oc.op-card, .oc.st-card) .h { align-items: center; gap: 7px; }
+:root[data-density="compact"] :is(.oc.op-card .h img, .oc.st-card .h .sp) { width: 34px; height: 34px; }
+:root[data-density="compact"] .oc.op-card.has-wiki .op-meta { padding-right: 60px; }
+:root[data-density="compact"] :is(.op-meta, .st-meta) { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 3px 5px; }
+:root[data-density="compact"] :is(.op-title-row, .op-tags, .st-title-row) { display: contents; }
+:root[data-density="compact"] :is(.oc.op-card, .oc.st-card) .h b { flex: 0 1 auto; font-size: 13.5px; }
+:root[data-density="compact"] .oc.op-card .cv { font-size: 11px; padding: 0 5px; }
+:root[data-density="compact"] :is(.oc.op-card, .oc.st-card) .tag { font-size: 10.5px; padding: 0 5px; }
+:root[data-density="compact"] .operator-card-wiki { top: 2px; right: 4px; }
+:root[data-density="compact"] .oc.st-card .hp { width: 78px; flex: none; margin-left: auto; gap: 4px; }
+:root[data-density="compact"] .oc.st-card .hp span { font-size: 12.5px; }
+
+@container quickref-view (max-width: 595px) {
+  :root:not([data-density="comfortable"]) .qg {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 248px), 1fr));
+    gap: 5px;
+  }
+  :root:not([data-density="comfortable"]) :is(.oc.op-card, .oc.st-card) {
+    padding: 5px 8px;
+    gap: 3px;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  :root:not([data-density="comfortable"]) .oc.op-card .operator-card-main { gap: 3px; }
+  :root:not([data-density="comfortable"]) :is(.oc.op-card, .oc.st-card) .h { align-items: center; gap: 7px; }
+  :root:not([data-density="comfortable"]) :is(.oc.op-card .h img, .oc.st-card .h .sp) { width: 34px; height: 34px; }
+  :root:not([data-density="comfortable"]) .oc.op-card.has-wiki .op-meta { padding-right: 60px; }
+  :root:not([data-density="comfortable"]) :is(.op-meta, .st-meta) { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 3px 5px; }
+  :root:not([data-density="comfortable"]) :is(.op-title-row, .op-tags, .st-title-row) { display: contents; }
+  :root:not([data-density="comfortable"]) :is(.oc.op-card, .oc.st-card) .h b { flex: 0 1 auto; font-size: 13.5px; }
+  :root:not([data-density="comfortable"]) .oc.op-card .cv { font-size: 11px; padding: 0 5px; }
+  :root:not([data-density="comfortable"]) :is(.oc.op-card, .oc.st-card) .tag { font-size: 10.5px; padding: 0 5px; }
+  :root:not([data-density="comfortable"]) .operator-card-wiki { top: 2px; right: 4px; }
+  :root:not([data-density="comfortable"]) .oc.st-card .hp { width: 78px; flex: none; margin-left: auto; gap: 4px; }
+  :root:not([data-density="comfortable"]) .oc.st-card .hp span { font-size: 12.5px; }
+}
+
+@media (max-height: 600px), ((max-width: 720px) and (max-height: 680px)) {
+  :root:not([data-density="comfortable"]) .qg {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 248px), 1fr));
+    gap: 5px;
+  }
+  :root:not([data-density="comfortable"]) :is(.oc.op-card, .oc.st-card) {
+    padding: 5px 8px;
+    gap: 3px;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  :root:not([data-density="comfortable"]) .oc.op-card .operator-card-main { gap: 3px; }
+  :root:not([data-density="comfortable"]) :is(.oc.op-card, .oc.st-card) .h { align-items: center; gap: 7px; }
+  :root:not([data-density="comfortable"]) :is(.oc.op-card .h img, .oc.st-card .h .sp) { width: 34px; height: 34px; }
+  :root:not([data-density="comfortable"]) .oc.op-card.has-wiki .op-meta { padding-right: 60px; }
+  :root:not([data-density="comfortable"]) :is(.op-meta, .st-meta) { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 3px 5px; }
+  :root:not([data-density="comfortable"]) :is(.op-title-row, .op-tags, .st-title-row) { display: contents; }
+  :root:not([data-density="comfortable"]) :is(.oc.op-card, .oc.st-card) .h b { flex: 0 1 auto; font-size: 13.5px; }
+  :root:not([data-density="comfortable"]) .oc.op-card .cv { font-size: 11px; padding: 0 5px; }
+  :root:not([data-density="comfortable"]) :is(.oc.op-card, .oc.st-card) .tag { font-size: 10.5px; padding: 0 5px; }
+  :root:not([data-density="comfortable"]) .operator-card-wiki { top: 2px; right: 4px; }
+  :root:not([data-density="comfortable"]) .oc.st-card .hp { width: 78px; flex: none; margin-left: auto; gap: 4px; }
+  :root:not([data-density="comfortable"]) .oc.st-card .hp span { font-size: 12.5px; }
+}

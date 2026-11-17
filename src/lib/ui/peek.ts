@@ -319,6 +319,7 @@ function hide() {
  * data-peek="off"：元素本身已展示了相同信息（如叠层条目），不弹卡片；其中的子芯片不受影响。
  */
 function targetOf(e: Event): [HTMLElement, CardContent] | null {
+  if (document.documentElement.dataset.peek === 'off') return null;
   const el =
     e.target instanceof Element ? e.target.closest<HTMLElement>(TARGET) : null;
   if (!el || el.dataset.peek === 'off' || el.closest('.peek')) return null;

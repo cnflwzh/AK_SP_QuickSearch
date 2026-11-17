@@ -11,6 +11,11 @@ import {
   LEADERS,
 } from '../../data/index.ts';
 import {covenantName, detailFromId} from './entities.ts';
+import {
+  settings,
+  visibleContentTabs,
+  type ContentTabId,
+} from '../lib/settings/index.ts';
 import {advisorPreviewEnabled} from '../quickref/experimentalFeatures.ts';
 import {
   PAGE_LABELS,
@@ -100,6 +105,12 @@ const routes: RouteRecordRaw[] = [
     redirect: (to) => ({path: '/tools', query: to.query, hash: to.hash}),
   },
   {
+    path: '/settings',
+    name: 'settings',
+    meta: {tab: 'se'},
+    component: () => import('../quickref/views/SettingsView.vue'),
+  },
+  {
     path: '/:pathMatch(.*)*',
     name: 'not-found',
     component: () => import('../quickref/views/NotFoundView.vue'),
@@ -109,12 +120,20 @@ const routes: RouteRecordRaw[] = [
 /** Only the legacy entry restores a preference; explicit URLs always use deterministic defaults. */
 function entryPath(hash: string): string {
   if (hash.startsWith('#p=')) return '/builds';
+  const visible = visibleContentTabs();
+  const fallback = PAGE_PATHS[visible[0] ?? 'fx'];
+  if (
+    settings.defaultTab !== 'last' &&
+    !settings.hiddenTabs.includes(settings.defaultTab)
+  ) {
+    return PAGE_PATHS[settings.defaultTab];
+  }
   try {
     const stored = localStorage.getItem('wsq.location');
     const saved = stored?.replace(/^\/numbers(?=[?#]|$)/, '/tools');
     if (
       saved &&
-      TAB_IDS.some(
+      visible.some(
         (tab) =>
           saved === PAGE_PATHS[tab] ||
           saved.startsWith(PAGE_PATHS[tab] + '/') ||
@@ -122,12 +141,12 @@ function entryPath(hash: string): string {
       )
     )
       return saved;
-    const oldTab = localStorage.getItem('wsq.tab');
-    if (TAB_IDS.includes(oldTab as TabId)) return PAGE_PATHS[oldTab as TabId];
+    const oldTab = localStorage.getItem('wsq.tab') as ContentTabId | null;
+    if (oldTab && visible.includes(oldTab)) return PAGE_PATHS[oldTab];
   } catch {
     /* A blocked storage API does not prevent navigation. */
   }
-  return '/overview';
+  return fallback;
 }
 
 export const navigationError = shallowRef<{destination: string} | null>(null);
@@ -210,10 +229,12 @@ router.afterEach((to, _from, failure) => {
     query: backgroundQuery,
   }).fullPath;
   tabLocations.value = {...tabLocations.value, [tab]: background};
-  try {
-    localStorage.setItem('wsq.location', background);
-  } catch {
-    /* Optional preference. */
+  if (tab !== 'se') {
+    try {
+      localStorage.setItem('wsq.location', background);
+    } catch {
+      /* Optional preference. */
+    }
   }
 });
 router.onError((_error: unknown, to: RouteLocationNormalized) => {

@@ -1275,3 +1275,22 @@ em.ls {
     cursor: help;
   }
 }
+
+/* 自定义全局显示设置（由 settings store 同步到 <html>） */
+:root[data-font="large"] body {
+  font-size: 16px;
+}
+:root[data-font="large"] :is(.oc, .ef, .sr, .nt-excuse-text) {
+  font-size: 14px;
+}
+:root[data-motion="reduce"] *,
+:root[data-motion="reduce"] *::before,
+:root[data-motion="reduce"] *::after {
+  animation-duration: .001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: .001ms !important;
+  scroll-behavior: auto !important;
+}
+:root[data-hide-footer="1"] body > footer {
+  display: none;
+}
