@@ -56,27 +56,22 @@ const MODULE_TOGGLES = [
   {
     key: 'showHeader',
     title: '顶部标题与教程入口',
-    desc: '关闭后隐藏顶部标题与「图解教程」，搜索栏与栏目直接贴顶',
   },
   {
     key: 'showRunBanner',
     title: '跨页面「本局」提示横幅',
-    desc: '勾选本局流派、禁池或领袖后，在各页面上方同步显示本局进度',
   },
   {
     key: 'showWikiLinks',
     title: 'PRTS Wiki 跳转与分屏阅读',
-    desc: '在干员卡片右上角与详情弹窗中保留 PRTS 维基入口',
   },
   {
     key: 'showRequestButtons',
     title: '联机求牌快捷短语按钮',
-    desc: '在流派与干员详情中保留一键复制队友找牌短语按钮',
   },
   {
     key: 'showFooter',
     title: '页面底部来源与许可栏',
-    desc: '隐藏最底部数据来源与版权栏，减少页面末端占用',
   },
 ] as const;
 
@@ -84,22 +79,18 @@ const HABIT_TOGGLES = [
   {
     key: 'collapsePresetBuilds',
     title: '折叠「流派」页的预设流派',
-    desc: '收起流派页顶部的内置核心与混搭预设（仅折叠不隐藏，可在流派页随时展开），突出「我的」自建流派',
   },
   {
     key: 'defaultOperatorElite',
     title: '干员列表默认展示「精锐」词条',
-    desc: '打开干员页且未手动切换档位时，默认直接查看精锐强化描述',
   },
   {
     key: 'enableHoverPeek',
     title: '悬停 / 长按弹出速览小卡',
-    desc: '鼠标悬停或触屏长按干员、盟约、装备卡片时弹出轻量速览',
   },
   {
     key: 'enableSwipeTabs',
     title: '触屏左右滑动切换栏目',
-    desc: '在内容区横向滑动切换顶部页签（容易误触时可关闭）',
   },
 ] as const;
 
@@ -667,7 +658,6 @@ function handleResetAll(): void {
         <header class="settings-card-head">
           <div>
             <h2 id="set-appearance">外观与排版</h2>
-            <p class="settings-desc">跨设备同步外观，夜间模式会自动记住选择</p>
           </div>
         </header>
 
@@ -675,7 +665,6 @@ function handleResetAll(): void {
           <div class="settings-row">
             <div class="settings-row-info">
               <b>主题模式</b>
-              <small>切换浅色 / 夜间模式或跟随系统</small>
             </div>
             <Segmented
               :labels="THEME_OPTIONS.map((item) => item.label)"
@@ -687,7 +676,6 @@ function handleResetAll(): void {
           <div class="settings-row">
             <div class="settings-row-info">
               <b>卡片排版密度</b>
-              <small>「全局紧凑」可让桌面与窄屏同时展示更多干员/策略卡片</small>
             </div>
             <Segmented
               :labels="DENSITY_OPTIONS.map((item) => item.label)"
@@ -701,7 +689,6 @@ function handleResetAll(): void {
           <div class="settings-row">
             <div class="settings-row-info">
               <b>界面文字大小</b>
-              <small>放大卡片说明与正文，高分屏阅读更省力</small>
             </div>
             <Segmented
               :labels="FONT_OPTIONS.map((item) => item.label)"
@@ -713,7 +700,6 @@ function handleResetAll(): void {
           <label class="settings-toggle-row">
             <span class="settings-row-info">
               <b>减弱动画与滑动过渡</b>
-              <small>关闭切页滑入、微震动和展开动画</small>
             </span>
             <input
               type="checkbox"
@@ -732,7 +718,6 @@ function handleResetAll(): void {
         <header class="settings-card-head">
           <div>
             <h2 id="set-modules">页面展示模块</h2>
-            <p class="settings-desc">自由决定速查页面里要展示和隐藏哪些区域</p>
           </div>
         </header>
 
@@ -743,7 +728,6 @@ function handleResetAll(): void {
             class="settings-toggle-row">
             <span class="settings-row-info">
               <b>{{ item.title }}</b>
-              <small>{{ item.desc }}</small>
             </span>
             <input
               type="checkbox"
@@ -764,9 +748,6 @@ function handleResetAll(): void {
         <header class="settings-card-head">
           <div>
             <h2 id="set-tabs">顶部 Tab 排列与显隐</h2>
-            <p class="settings-desc">
-              上下拖拽或点击箭头调整顺序（自上而下对应顶部从左到右），也可隐藏不需要的栏目；「设置」固定在最右侧且在小窗模式自动隐藏
-            </p>
           </div>
           <button
             type="button"
@@ -895,9 +876,6 @@ function handleResetAll(): void {
         <header class="settings-card-head">
           <div>
             <h2 id="set-habits">速查与小工具习惯</h2>
-            <p class="settings-desc">
-              按使用习惯调整默认展开词条与小工具子页面
-            </p>
           </div>
         </header>
 
@@ -908,7 +886,6 @@ function handleResetAll(): void {
             class="settings-toggle-row">
             <span class="settings-row-info">
               <b>{{ item.title }}</b>
-              <small>{{ item.desc }}</small>
             </span>
             <input
               type="checkbox"
@@ -924,7 +901,7 @@ function handleResetAll(): void {
           <div class="settings-subblock">
             <div class="settings-row-info">
               <b>「小工具」内展示的子栏目</b>
-              <small>隐藏不常用的子工具（至少保留 1 个）</small>
+              <small>至少保留 1 个</small>
             </div>
             <div
               class="settings-tool-pills"
@@ -959,9 +936,6 @@ function handleResetAll(): void {
         <header class="settings-card-head">
           <div>
             <h2 id="set-backup">配置导入导出与重置</h2>
-            <p class="settings-desc">
-              换手机或清缓存前可导出全部自定义设置，在新设备上直接导入恢复
-            </p>
           </div>
         </header>
 
@@ -1000,7 +974,7 @@ function handleResetAll(): void {
 
           <div v-if="exportTextFallback" class="settings-box">
             <p class="settings-box-note">
-              点击全选并复制以下配置文本，再到新设备的「粘贴文本导入」中使用：
+              全选并复制配置文本
             </p>
             <textarea
               class="settings-textarea"
@@ -1132,12 +1106,6 @@ function handleResetAll(): void {
   font-size: 17px;
   font-weight: 700;
   color: var(--ink);
-}
-.settings-desc {
-  margin: 2px 0 0;
-  font-size: 12.5px;
-  color: var(--ink3);
-  line-height: 1.45;
 }
 .settings-rows {
   display: grid;
