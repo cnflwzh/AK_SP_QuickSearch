@@ -72,9 +72,25 @@ export function applySettingsToDom(current: UserSettings = settings): void {
 
 function replaceSettings(next: unknown, persist = true): void {
   const clean = normalizeSettings(next);
+  // 归一化会创建新数组；保留内容未变化的引用，避免切换主题也重建导航和工具列表。
+  for (const key of ['tabOrder', 'hiddenTabs', 'hiddenTools'] as const) {
+    if (
+      clean[key].length === settings[key].length &&
+      clean[key].every((value, index) => value === settings[key][index])
+    ) {
+      Object.assign(clean, {[key]: settings[key]});
+    }
+  }
+  const domChanged =
+    clean.theme !== settings.theme ||
+    clean.cardDensity !== settings.cardDensity ||
+    clean.fontScale !== settings.fontScale ||
+    clean.reducedMotion !== settings.reducedMotion ||
+    clean.enableHoverPeek !== settings.enableHoverPeek ||
+    clean.showFooter !== settings.showFooter;
   Object.assign(settings, clean);
   if (persist) writeStoredSettings(settings);
-  applySettingsToDom(settings);
+  if (domChanged) applySettingsToDom(settings);
 }
 
 export function updateSetting<K extends keyof UserSettings>(
@@ -178,7 +194,7 @@ export function initSettingsDom(): void {
     });
   }
   window.addEventListener('storage', (event) => {
-    if (event.key !== SETTINGS_STORAGE_KEY) return;
+    if (event.key !== null && event.key !== SETTINGS_STORAGE_KEY) return;
     replaceSettings(readStoredSettings(), false);
   });
 }

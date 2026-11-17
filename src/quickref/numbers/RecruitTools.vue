@@ -43,6 +43,7 @@ const levels = computed(() => DISPATCH_BY_MODE[modeIndex.value]);
 const target = computed(() =>
   OPERATORS.find((operator) => operator.name === recruitState.targetName),
 );
+const targetInRandomPool = computed(() => !!target.value?.stars);
 const rewardTier = computed(() => synthesisTier(level.value));
 const restrictedMode = computed(() => shopMode.value !== 'advanced');
 const effectiveBanSet = computed(
@@ -69,7 +70,7 @@ function importRunToWishlist(): void {
     ...runOps.value.filter((slot) => !slot.core),
   ]
     .map((slot) => slot.name)
-    .filter((name) => Object.hasOwn(OPERATOR, name) && !isPoolExcluded(name));
+    .filter((name) => OPERATOR[name]?.stars && !isPoolExcluded(name));
   addMany(ordered);
   if (!target.value && ordered[0] && OPERATOR[ordered[0]]) {
     recruitState.targetName = ordered[0];
@@ -82,7 +83,10 @@ const searchResults = computed(() => {
   if (!query) return [];
   return OPERATORS.filter(
     (operator) =>
-      (!onlyAvailable.value || operator.tier <= level.value) &&
+      (!onlyAvailable.value ||
+        (operator.stars !== 0 &&
+          operator.tier <= level.value &&
+          !isPoolExcluded(operator.name))) &&
       (nameScore(operator.name, query) > 0 ||
         operator.covenants.some((name) => nameScore(name, query) > 0)),
   );
@@ -311,15 +315,22 @@ const searchSummary = computed(() => {
           </p>
           <div class="nt-eligibility">
             <div
-              :class="{available: !pool.targetBanned && target.tier <= level}">
+              :class="{
+                available:
+                  targetInRandomPool &&
+                  !pool.targetBanned &&
+                  target.tier <= level,
+              }">
               <small>普通刷新</small>
               <b>
                 {{
-                  pool.targetBanned
-                    ? '本局已移出卡池'
-                    : target.tier <= level
-                      ? '等阶已开放'
-                      : `${target.tier} 级起可刷`
+                  !targetInRandomPool
+                    ? '不进入普通刷新池'
+                    : pool.targetBanned
+                      ? '本局已移出卡池'
+                      : target.tier <= level
+                        ? '等阶已开放'
+                        : `${target.tier} 级起可刷`
                 }}
               </b>
               <span>
@@ -332,12 +343,15 @@ const searchSummary = computed(() => {
             </div>
             <div
               :class="{
-                available: !pool.targetBanned && target.tier === rewardTier,
+                available:
+                  targetInRandomPool &&
+                  !pool.targetBanned &&
+                  target.tier === rewardTier,
               }">
               <small>合成奖励 · {{ TIER_LABELS[rewardTier] }} 阶</small>
               <b>
                 {{
-                  pool.targetBanned
+                  !targetInRandomPool || pool.targetBanned
                     ? '不会在三选一出现'
                     : target.tier === rewardTier
                       ? `三选一约 ${Math.round(pool.rewardHitRate * 100)}%（${pool.rewardTierActive} 选 3）`

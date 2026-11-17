@@ -33,6 +33,7 @@ import {
   current,
   editing,
   runKey,
+  endRun,
   runBans,
   isRunBannedOp,
   saveError,
@@ -519,7 +520,7 @@ watch(
           type="button"
           :class="['pri', {in: isRun}]"
           :disabled="!p.plan.ops.length"
-          @click="setRun(isRun ? '' : p.key)">
+          @click="isRun ? endRun() : setRun(p.key)">
           {{ isRun ? '✓ 本局 · 结束' : '▶ 本局打这套' }}
         </button>
         <button

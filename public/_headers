@@ -64,5 +64,9 @@
 
 /tools
   Cache-Control: no-cache
+/settings
+  Cache-Control: no-cache
+/settings/*
+  Cache-Control: no-cache
 /tools/*
   Cache-Control: no-cache

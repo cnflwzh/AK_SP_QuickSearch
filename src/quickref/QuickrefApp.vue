@@ -382,7 +382,7 @@ function outsidePicker(event: MouseEvent): void {
   )
     state.pickerOpen = false;
 }
-function onSearchEnter(event: KeyboardEvent): void {
+async function onSearchEnter(event: KeyboardEvent): Promise<void> {
   if (composing.value || event.isComposing || !query.value.trim()) return;
   const hit = topSearchTarget(
     query.value,
@@ -395,6 +395,15 @@ function onSearchEnter(event: KeyboardEvent): void {
   event.preventDefault();
   clearTimeout(searchTimer);
   if (hit.kind === 'op' || hit.kind === 'eq' || hit.kind === 'st') {
+    // Enter 可以早于搜索防抖结束；先保存搜索背景，关闭详情时才能回到结果。
+    const submittedQuery = query.value.trim();
+    const submittedPath = currentRoute.value.path;
+    await updateQuery({q: submittedQuery}, !!renderedQuery.value);
+    if (
+      currentRoute.value.path !== submittedPath ||
+      renderedQuery.value !== submittedQuery
+    )
+      return;
     openDetail(hit.kind, hit.id);
     return;
   }

@@ -8,6 +8,7 @@
 /strategies / 200
 /leaders / 200
 /tools / 200
+/settings / 200
 /numbers / 200
 /index / 200
 # /guide is served automatically from guide.html by Cloudflare's HTML handling.
@@ -19,4 +20,5 @@
 /strategies/* / 200
 /leaders/* / 200
 /tools/* / 200
+/settings/* / 200
 /numbers/* / 200
