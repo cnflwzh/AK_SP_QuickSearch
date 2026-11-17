@@ -26,6 +26,7 @@ import {
   type Decoded,
   type PlanOp,
 } from '../../lib/plans/index.ts';
+import {settings, updateSetting} from '../../lib/settings/index.ts';
 import {useQuickrefActions} from '../state.ts';
 import {
   presetOf,
@@ -123,6 +124,34 @@ const mixedList = computed(() =>
   presets.value.filter((x) => x.builtin && !CORE_BUILDS[x.key]),
 );
 const mine = computed(() => presets.value.filter((x) => !x.builtin));
+const builtinCount = computed(
+  () => coreList.value.length + mixedList.value.length,
+);
+const drawerGroups = computed(() => [
+  {list: coreList.value, offset: 0},
+  {list: mixedList.value, offset: coreList.value.length},
+]);
+const pinnedPresets = computed(() =>
+  settings.collapsePresetBuilds
+    ? presets.value.filter(
+        (x) =>
+          x.builtin && (x.key === current.value.key || x.key === runKey.value),
+      )
+    : [],
+);
+function togglePresetFold(): void {
+  updateSetting('collapsePresetBuilds', !settings.collapsePresetBuilds);
+}
+function pinBeforeLeave(el: Element): void {
+  const target = el as HTMLElement;
+  target.style.left = `${target.offsetLeft}px`;
+  target.style.top = `${target.offsetTop}px`;
+}
+function clearPinStyle(el: Element): void {
+  const target = el as HTMLElement;
+  target.style.left = '';
+  target.style.top = '';
+}
 
 /* ---------- 查看 ---------- */
 const p = computed(() => current.value);
@@ -393,83 +422,129 @@ watch(
 <template>
   <div
     :class="[
-      'bsel',
+      'bsel-wrap',
       {'is-editing': editing && !importOpen && activePanel !== 'backup'},
     ]">
-    <button
-      v-for="x in coreList"
-      :key="x.key"
-      type="button"
-      :class="{on: x.key === p.key, run: x.key === runKey}"
-      :style="{'--c': presetColor(x)}"
-      :data-bd="x.key"
-      :aria-pressed="x.key === p.key"
-      @click="selectBuild(x.key)">
-      <CovenantIcon :name="x.key" />
-      {{ x.plan.name }}
-      <i v-if="x.modified" class="md" title="已修改">✎</i>
-      <i
-        v-if="banImpact.get(x.key)"
-        class="ban-hit"
-        :title="`本局禁池缺 ${banImpact.get(x.key)} 人`">
-        -{{ banImpact.get(x.key) }}
-      </i>
-    </button>
-    <span class="sp"></span>
-    <button
-      v-for="x in mixedList"
-      :key="x.key"
-      type="button"
-      :class="{on: x.key === p.key, run: x.key === runKey}"
-      style="--c: var(--accent)"
-      :data-bd="x.key"
-      :aria-pressed="x.key === p.key"
-      @click="selectBuild(x.key)">
-      {{ x.plan.name }}
-      <i v-if="x.modified" class="md" title="已修改">✎</i>
-      <i
-        v-if="banImpact.get(x.key)"
-        class="ban-hit"
-        :title="`本局禁池缺 ${banImpact.get(x.key)} 人`">
-        -{{ banImpact.get(x.key) }}
-      </i>
-    </button>
-    <span class="sp"></span>
-    <span class="bk">我的</span>
-    <button
-      v-for="x in mine"
-      :key="x.key"
-      type="button"
-      :class="['my', {on: x.key === p.key, run: x.key === runKey}]"
-      style="--c: var(--accent)"
-      :data-bd="x.key"
-      :aria-pressed="x.key === p.key"
-      @click="selectBuild(x.key)">
-      {{ x.plan.name }}
-      <i
-        v-if="banImpact.get(x.key)"
-        class="ban-hit"
-        :title="`本局禁池缺 ${banImpact.get(x.key)} 人`">
-        -{{ banImpact.get(x.key) }}
-      </i>
-    </button>
-    <button type="button" class="add" @click="createBuild">＋ 新建</button>
-    <button
-      type="button"
-      :class="['add', {on: importOpen}]"
-      :aria-expanded="importOpen"
-      :aria-controls="importOpen ? 'build-import' : undefined"
-      @click="togglePanel('import')">
-      导入
-    </button>
-    <button
-      type="button"
-      :class="['add', {on: activePanel === 'backup'}]"
-      :aria-expanded="activePanel === 'backup'"
-      :aria-controls="activePanel === 'backup' ? 'build-backup' : undefined"
-      @click="togglePanel('backup')">
-      备份与恢复
-    </button>
+    <div
+      :class="['bsel-drawer', {collapsed: settings.collapsePresetBuilds}]"
+      :inert="settings.collapsePresetBuilds"
+      :aria-hidden="settings.collapsePresetBuilds ? 'true' : undefined">
+      <div class="bsel-drawer-inner">
+        <div class="bsel bsel-presets">
+          <template v-for="(group, gi) in drawerGroups" :key="gi">
+            <span v-if="gi > 0" class="sp"></span>
+            <button
+              v-for="(x, idx) in group.list"
+              :key="x.key"
+              type="button"
+              :class="{on: x.key === p.key, run: x.key === runKey}"
+              :style="{'--c': presetColor(x), '--i': group.offset + idx}"
+              :data-bd="x.key"
+              :aria-pressed="x.key === p.key"
+              @click="selectBuild(x.key)">
+              <CovenantIcon v-if="CORE_BUILDS[x.key]" :name="x.key" />
+              {{ x.plan.name }}
+              <i v-if="x.modified" class="md" title="已修改">✎</i>
+              <i
+                v-if="banImpact.get(x.key)"
+                class="ban-hit"
+                :title="`本局禁池缺 ${banImpact.get(x.key)} 人`">
+                -{{ banImpact.get(x.key) }}
+              </i>
+            </button>
+          </template>
+        </div>
+      </div>
+    </div>
+    <div class="bsel bsel-bar">
+      <button
+        type="button"
+        :class="['preset-fold', {folded: settings.collapsePresetBuilds}]"
+        :aria-expanded="!settings.collapsePresetBuilds"
+        @click="togglePresetFold">
+        <span>
+          {{ settings.collapsePresetBuilds ? '预设流派' : '收起预设' }}
+        </span>
+        <i>{{ builtinCount }}</i>
+        <svg
+          class="preset-fold-arrow"
+          viewBox="0 0 12 12"
+          width="11"
+          height="11"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true">
+          <path d="M2.5 7.5 6 4l3.5 3.5" />
+        </svg>
+      </button>
+      <TransitionGroup
+        name="bsel-pin"
+        @before-leave="pinBeforeLeave"
+        @leave-cancelled="clearPinStyle">
+        <button
+          v-for="x in pinnedPresets"
+          :key="`pin:${x.key}`"
+          type="button"
+          :class="{on: x.key === p.key, run: x.key === runKey}"
+          :style="{'--c': presetColor(x)}"
+          :data-bd="x.key"
+          :aria-pressed="x.key === p.key"
+          @click="selectBuild(x.key)">
+          <CovenantIcon v-if="CORE_BUILDS[x.key]" :name="x.key" />
+          {{ x.plan.name }}
+          <i v-if="x.modified" class="md" title="已修改">✎</i>
+          <i
+            v-if="banImpact.get(x.key)"
+            class="ban-hit"
+            :title="`本局禁池缺 ${banImpact.get(x.key)} 人`">
+            -{{ banImpact.get(x.key) }}
+          </i>
+        </button>
+        <span key="sp-mine" class="sp"></span>
+        <span key="bk-mine" class="bk">我的</span>
+        <button
+          v-for="x in mine"
+          :key="x.key"
+          type="button"
+          :class="['my', {on: x.key === p.key, run: x.key === runKey}]"
+          style="--c: var(--accent)"
+          :data-bd="x.key"
+          :aria-pressed="x.key === p.key"
+          @click="selectBuild(x.key)">
+          {{ x.plan.name }}
+          <i
+            v-if="banImpact.get(x.key)"
+            class="ban-hit"
+            :title="`本局禁池缺 ${banImpact.get(x.key)} 人`">
+            -{{ banImpact.get(x.key) }}
+          </i>
+        </button>
+        <button key="act-new" type="button" class="add" @click="createBuild">
+          ＋ 新建
+        </button>
+        <button
+          key="act-import"
+          type="button"
+          :class="['add', {on: importOpen}]"
+          :aria-expanded="importOpen"
+          :aria-controls="importOpen ? 'build-import' : undefined"
+          @click="togglePanel('import')">
+          导入
+        </button>
+        <button
+          key="act-backup"
+          type="button"
+          :class="['add', {on: activePanel === 'backup'}]"
+          :aria-expanded="activePanel === 'backup'"
+          :aria-controls="activePanel === 'backup' ? 'build-backup' : undefined"
+          @click="togglePanel('backup')">
+          备份与恢复
+        </button>
+      </TransitionGroup>
+    </div>
   </div>
 
   <p v-if="saveError" class="pl-warn" role="status">
