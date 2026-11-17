@@ -44,6 +44,7 @@ test('normalizeSettings deduplicates tab order, restores missing tabs, and block
     showWikiLinks: false,
     showRequestButtons: false,
     showFooter: false,
+    collapsePresetBuilds: true,
     defaultOperatorElite: true,
     enableHoverPeek: false,
     enableSwipeTabs: false,
@@ -79,6 +80,7 @@ test('normalizeSettings deduplicates tab order, restores missing tabs, and block
   assert.equal(normalized.showWikiLinks, false);
   assert.equal(normalized.showRequestButtons, false);
   assert.equal(normalized.showFooter, false);
+  assert.equal(normalized.collapsePresetBuilds, true);
   assert.equal(normalized.defaultOperatorElite, true);
   assert.equal(normalized.enableHoverPeek, false);
   assert.equal(normalized.enableSwipeTabs, false);
@@ -129,6 +131,7 @@ test('settings backup serializes, validates, and preserves optional plans on rou
     tabOrder: ['op', 'st', 'fx'],
     hiddenTabs: ['ld'],
     showFooter: false,
+    collapsePresetBuilds: true,
     defaultOperatorElite: true,
     hiddenTools: ['dealer'],
   });

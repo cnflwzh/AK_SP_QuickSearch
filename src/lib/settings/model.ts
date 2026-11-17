@@ -41,6 +41,7 @@ export interface UserSettings {
   showWikiLinks: boolean;
   showRequestButtons: boolean;
   showFooter: boolean;
+  collapsePresetBuilds: boolean;
   defaultOperatorElite: boolean;
   enableHoverPeek: boolean;
   enableSwipeTabs: boolean;
@@ -101,6 +102,7 @@ export function createDefaultSettings(): UserSettings {
     showWikiLinks: true,
     showRequestButtons: true,
     showFooter: true,
+    collapsePresetBuilds: false,
     defaultOperatorElite: false,
     enableHoverPeek: true,
     enableSwipeTabs: true,
@@ -184,6 +186,11 @@ export function normalizeSettings(raw: unknown): UserSettings {
       defaults.showRequestButtons,
     ),
     showFooter: readBool(raw, 'showFooter', defaults.showFooter),
+    collapsePresetBuilds: readBool(
+      raw,
+      'collapsePresetBuilds',
+      defaults.collapsePresetBuilds,
+    ),
     defaultOperatorElite: readBool(
       raw,
       'defaultOperatorElite',

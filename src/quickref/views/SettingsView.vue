@@ -82,6 +82,11 @@ const MODULE_TOGGLES = [
 
 const HABIT_TOGGLES = [
   {
+    key: 'collapsePresetBuilds',
+    title: '折叠「流派」页的预设流派',
+    desc: '收起流派页顶部的内置核心与混搭预设（仅折叠不隐藏，可在流派页随时展开），突出「我的」自建流派',
+  },
+  {
     key: 'defaultOperatorElite',
     title: '干员列表默认展示「精锐」词条',
     desc: '打开干员页且未手动切换档位时，默认直接查看精锐强化描述',
@@ -489,6 +494,9 @@ const previewSummary = computed(() => {
   }
   if (target.hiddenTools.length) {
     parts.push(`隐藏 ${target.hiddenTools.length} 个子工具`);
+  }
+  if (target.collapsePresetBuilds) {
+    parts.push('折叠预设流派');
   }
   if (pendingBackup.value.plans?.length) {
     parts.push(`附带 ${pendingBackup.value.plans.length} 套流派`);
