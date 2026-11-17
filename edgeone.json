@@ -82,6 +82,14 @@
     {
       "source": "/tools/*",
       "destination": "/index.html"
+    },
+    {
+      "source": "/settings",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/settings/*",
+      "destination": "/index.html"
     }
   ],
   "headers": [
@@ -352,6 +360,24 @@
     },
     {
       "source": "/tools/*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/settings",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/settings/*",
       "headers": [
         {
           "key": "Cache-Control",

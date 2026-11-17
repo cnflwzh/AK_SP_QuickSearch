@@ -17,6 +17,7 @@ export const TAB_IDS = [
   'st',
   'ld',
   'nu',
+  'se',
 ] as const;
 export type TabId = (typeof TAB_IDS)[number];
 export const PAGE_PATHS: Record<TabId, string> = {
@@ -28,6 +29,7 @@ export const PAGE_PATHS: Record<TabId, string> = {
   st: '/strategies',
   ld: '/leaders',
   nu: '/tools',
+  se: '/settings',
 };
 export const PAGE_LABELS: Record<TabId, string> = {
   fx: '速览',
@@ -38,6 +40,7 @@ export const PAGE_LABELS: Record<TabId, string> = {
   st: '策略',
   ld: '领袖',
   nu: '小工具',
+  se: '设置',
 };
 export const DIFFICULTIES = [
   'standard',
@@ -123,7 +126,7 @@ export function normalizeQuery(
     covenant();
     keep('trigger', Object.keys(TRIGGER_IDS));
     keep('type', Object.keys(TYPE_IDS));
-    keep('elite', ['1']);
+    keep('elite', ['0', '1']);
   }
   if (tab === 'eq') {
     if (read('group') === 'combo') normalized.group = 'combo';

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {operatorWikiUrl} from '../../lib/prts/prts.ts';
+import {settings} from '../../lib/settings/index.ts';
 import {useWikiPanel} from '../wikiPanel.ts';
 
 /** 干员卡片和详情共用的 Wiki 外链，name 为完整干员名称。 */
@@ -24,6 +25,7 @@ function openWiki(event: MouseEvent): void {
 
 <template>
   <a
+    v-if="settings.showWikiLinks"
     :href="operatorWikiUrl(name)"
     class="prts-link"
     target="_blank"
@@ -82,7 +84,7 @@ function openWiki(event: MouseEvent): void {
 @media (pointer: coarse) {
   .prts-link {
     min-width: 44px;
-    min-height: 44px;
+    min-height: 36px;
   }
 }
 </style>

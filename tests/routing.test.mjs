@@ -16,7 +16,12 @@ import {
   detailFromId,
   detailId,
 } from '../src/router/entities.ts';
-import {normalizeQuery} from '../src/router/location.ts';
+import {
+  PAGE_LABELS,
+  PAGE_PATHS,
+  TAB_IDS,
+  normalizeQuery,
+} from '../src/router/location.ts';
 import {decodeFragment} from '../src/lib/runtime/url.ts';
 
 test('public entity IDs are unique and every catalogue entry can be linked independently of ordering', () => {
@@ -180,4 +185,19 @@ test('malformed tutorial anchors do not abort startup', () => {
   assert.equal(decodeFragment('#c4'), 'c4');
   assert.equal(decodeFragment('#%E7%82%8E'), '炎');
   assert.equal(decodeFragment('#%E0%A4'), '');
+});
+
+test('settings route resolves cleanly and operator filters retain explicit baseline override', () => {
+  assert.equal(PAGE_PATHS.se, '/settings');
+  assert.equal(PAGE_LABELS.se, '设置');
+  assert.equal(TAB_IDS.at(-1), 'se');
+  assert.deepEqual(
+    normalizeQuery('se', {
+      q: ' 夜间 ',
+      card: detailId('op', '凛御银灰'),
+      unused: '1',
+    }),
+    {q: '夜间', card: detailId('op', '凛御银灰')},
+  );
+  assert.deepEqual(normalizeQuery('op', {elite: '0'}), {elite: '0'});
 });

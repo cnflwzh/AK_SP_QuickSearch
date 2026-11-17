@@ -5,6 +5,7 @@ import PrtsLink from './PrtsLink.vue';
 import {cardLocation} from '../../router/navigation.ts';
 import {TIER_LABELS, type Operator} from '../../../data/index.ts';
 import {avatarSrc} from '../../lib/ui/assets.ts';
+import {settings} from '../../lib/settings/index.ts';
 import {fx} from '../format.ts';
 import {useQuickrefActions} from '../state.ts';
 import {inRun, isRunBannedOp, runAltTargets, runSlotMap} from '../planStore.ts';
@@ -24,12 +25,17 @@ const altTargets = computed(
   () => runAltTargets.value.get(props.operator.name) ?? [],
 );
 const banned = computed(() => isRunBannedOp(props.operator.name));
+const wikiVisible = computed(
+  () => !!props.showWikiLink && settings.showWikiLinks,
+);
 </script>
 <template>
   <article
     :class="[
       'oc',
+      'op-card',
       {
+        'has-wiki': wikiVisible,
         inplan: inRun.has(operator.name),
         inalt: !inRun.has(operator.name) && altTargets.length > 0,
         'is-banned': banned,
@@ -55,25 +61,29 @@ const banned = computed(() => isRunBannedOp(props.operator.name));
           height="80"
           loading="lazy"
           decoding="async" />
-        <b>{{ operator.name }}</b>
-        <i class="tn">{{ TIER_LABELS[operator.tier] }}</i>
-        <span v-if="banned" class="inp ban">禁池</span>
-        <span v-if="runSlot" class="inp">
-          {{ runSlot.core ? '★ 本局核心' : '✓ 本局' }}
-        </span>
-        <span v-else-if="!banned && altTargets.length" class="inp alt">
-          ⇄ 备选·替{{ altTargets[0] }}
-        </span>
-      </div>
-      <div class="row">
-        <Chip
-          v-for="name in operator.covenants"
-          :key="name"
-          kind="cv"
-          :name="name"
-          static />
-        <span class="tag">{{ operator.type }}</span>
-        <span v-if="eliteMatched" class="tag a">精锐词条</span>
+        <div class="op-meta">
+          <div class="op-title-row">
+            <i class="tn">{{ TIER_LABELS[operator.tier] }}</i>
+            <b>{{ operator.name }}</b>
+            <span v-if="banned" class="inp ban">禁池</span>
+            <span v-if="runSlot" class="inp">
+              {{ runSlot.core ? '★ 本局核心' : '✓ 本局' }}
+            </span>
+            <span v-else-if="!banned && altTargets.length" class="inp alt">
+              ⇄ 备选·替{{ altTargets[0] }}
+            </span>
+          </div>
+          <div class="op-tags">
+            <Chip
+              v-for="name in operator.covenants"
+              :key="name"
+              kind="cv"
+              :name="name"
+              static />
+            <span class="tag">{{ operator.type }}</span>
+            <span v-if="eliteMatched" class="tag a">精锐词条</span>
+          </div>
+        </div>
       </div>
       <div
         class="tx"
@@ -104,9 +114,6 @@ const banned = computed(() => isRunBannedOp(props.operator.name));
   min-width: 0;
   color: inherit;
   text-decoration: none;
-}
-.operator-card-wiki {
-  align-self: flex-end;
 }
 .operator-card-main:focus-visible {
   outline: 2px solid var(--accent);

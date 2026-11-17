@@ -10,6 +10,7 @@ import ExtraRules from '../numbers/ExtraRules.vue';
 import '../numbers/numbers.css';
 import '../workbench.css';
 import {advisorPreviewEnabled} from '../experimentalFeatures.ts';
+import {settings, type CustomizableToolId} from '../../lib/settings/index.ts';
 
 const panels = {
   advisor: defineAsyncComponent(() => import('../advisor/RunAdvisor.vue')),
@@ -19,15 +20,24 @@ const panels = {
   dealer: defineAsyncComponent(() => import('../numbers/DealerGame.vue')),
   excuse: defineAsyncComponent(() => import('../numbers/ExcuseTools.vue')),
 };
-const visibleTools = computed(() =>
-  NUMBER_TOOLS.filter(
-    (tool) => tool.id !== 'advisor' || advisorPreviewEnabled.value,
-  ),
-);
+const visibleTools = computed(() => {
+  const hidden = new Set(settings.hiddenTools);
+  const publicTools = NUMBER_TOOLS.filter(
+    (tool) =>
+      tool.id !== 'advisor' && !hidden.has(tool.id as CustomizableToolId),
+  );
+  const fallback =
+    NUMBER_TOOLS.find((tool) => tool.id === 'layers') ?? NUMBER_TOOLS[1];
+  const availablePublic = publicTools.length ? publicTools : [fallback];
+  return advisorPreviewEnabled.value
+    ? [NUMBER_TOOLS[0], ...availablePublic]
+    : availablePublic;
+});
 const activeTool = computed<NumberTool>(() => {
   const requested = queryText(routeQuery.value, 'tool');
   return (
-    visibleTools.value.find((tool) => tool.id === requested)?.id ?? 'layers'
+    visibleTools.value.find((tool) => tool.id === requested)?.id ??
+    visibleTools.value[0].id
   );
 });
 const toolLabels = computed(() => visibleTools.value.map((tool) => tool.label));
@@ -40,7 +50,10 @@ watch(advisorPreviewEnabled, (enabled) => {
 });
 function selectTool(index: number): void {
   const id = visibleTools.value[index]?.id;
-  if (id) void updateQuery({tool: id === 'layers' ? null : id});
+  if (id)
+    void updateQuery({
+      tool: id === visibleTools.value[0]?.id && id === 'layers' ? null : id,
+    });
 }
 </script>
 
