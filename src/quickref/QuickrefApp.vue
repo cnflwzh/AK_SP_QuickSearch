@@ -41,7 +41,6 @@ import {
   updateQuery,
 } from '../router/navigation.ts';
 import {topSearchTarget} from './searchRanking.ts';
-import {whileVisible} from '../lib/ui/visibility.ts';
 import {current as selectedPreset, flushSave, presets} from './planStore.ts';
 import {lazyView} from '../lib/ui/lazyView.ts';
 import DetailSheet from './components/DetailSheet.vue';
@@ -73,16 +72,17 @@ const tabs = computed(() =>
 const renderedQuery = computed(() => queryText(currentRoute.value.query, 'q'));
 const query = ref(renderedQuery.value);
 const composing = ref(false);
-const guideAnimation = ref<SVGSVGElement>();
-let stopGuideAnimation: (() => void) | undefined;
 const searching = computed(() => !!query.value.trim());
 const searchInput = ref<HTMLInputElement | null>(null);
 const searchBar = ref<HTMLDivElement | null>(null);
 const view = ref<HTMLElement | null>(null);
-const tabBar = ref<HTMLDivElement | null>(null);
+const tabBar = ref<HTMLElement | null>(null);
+const tabsMoreLeft = ref(false);
+const tabsMoreRight = ref(false);
 /** 点 Tab 和左右滑动共用：按目标 Tab 的方向滑入新页面。 */
 const slide = ref<'' | 'l' | 'r'>('');
 let tabScrollFrame = 0;
+let tabResizeObserver: ResizeObserver | undefined;
 const detail = computed(
   () => detailFromId(queryText(currentRoute.value.query, 'card')) ?? null,
 );
@@ -138,6 +138,16 @@ async function show(tab: TabId): Promise<void> {
   clearTimeout(searchTimer);
   await setTab(tab);
 }
+function updateTabOverflow(): void {
+  const bar = tabBar.value;
+  if (!bar || bar.scrollWidth <= bar.clientWidth + 2) {
+    tabsMoreLeft.value = false;
+    tabsMoreRight.value = false;
+    return;
+  }
+  tabsMoreLeft.value = bar.scrollLeft > 2;
+  tabsMoreRight.value = bar.scrollLeft + bar.clientWidth < bar.scrollWidth - 2;
+}
 /** Wait for the new view to paint before measuring; a nextTick read forces its entire layout. */
 function scheduleTabScroll(): void {
   cancelAnimationFrame(tabScrollFrame);
@@ -145,22 +155,23 @@ function scheduleTabScroll(): void {
     tabScrollFrame = requestAnimationFrame(() => {
       tabScrollFrame = 0;
       const bar = tabBar.value;
-      if (!bar || bar.scrollWidth <= bar.clientWidth) return;
+      if (!bar) return;
+      updateTabOverflow();
+      if (bar.scrollWidth <= bar.clientWidth) return;
       const active = bar.querySelector<HTMLElement>('a.on');
       if (!active) return;
       const bounds = bar.getBoundingClientRect(),
         activeBounds = active.getBoundingClientRect();
-      if (
-        activeBounds.left >= bounds.left &&
-        activeBounds.right <= bounds.right
-      )
-        return;
+      const rawTarget =
+        bar.scrollLeft +
+        activeBounds.left -
+        bounds.left -
+        (bar.clientWidth - activeBounds.width) / 2;
+      const maxLeft = Math.max(0, bar.scrollWidth - bar.clientWidth);
+      const targetLeft = Math.max(0, Math.min(maxLeft, rawTarget));
+      if (Math.abs(bar.scrollLeft - targetLeft) <= 1) return;
       bar.scrollTo({
-        left:
-          bar.scrollLeft +
-          activeBounds.left -
-          bounds.left -
-          (bar.clientWidth - activeBounds.width) / 2,
+        left: targetLeft,
         behavior: scrollBehavior(),
       });
     });
@@ -173,6 +184,7 @@ watch(
   },
 );
 watch(() => state.tab, scheduleTabScroll, {flush: 'post'});
+watch(() => wikiPanel.isOpen.value, scheduleTabScroll, {flush: 'post'});
 async function reloadPage(): Promise<void> {
   flushSave(true);
   location.assign(
@@ -345,23 +357,6 @@ function outsidePicker(event: MouseEvent): void {
   )
     state.pickerOpen = false;
 }
-const GUIDE_COLLAPSED_KEY = 'wsq.guideCollapsed';
-function readGuideCollapsed(): boolean {
-  try {
-    return localStorage.getItem(GUIDE_COLLAPSED_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-const guideCollapsed = ref(readGuideCollapsed());
-function toggleGuideCollapsed(): void {
-  guideCollapsed.value = !guideCollapsed.value;
-  try {
-    localStorage.setItem(GUIDE_COLLAPSED_KEY, guideCollapsed.value ? '1' : '0');
-  } catch {
-    /* 隐私模式下允许仅会话内收起 */
-  }
-}
 function onSearchEnter(event: KeyboardEvent): void {
   if (composing.value || event.isComposing || !query.value.trim()) return;
   const hit = topSearchTarget(
@@ -383,29 +378,23 @@ function onSearchEnter(event: KeyboardEvent): void {
   else if (hit.kind === 'bd') void openBuild(hit.id);
   else void openLeader(hit.id);
 }
-watch(guideAnimation, (svg, _previous, onCleanup) => {
-  stopGuideAnimation?.();
-  stopGuideAnimation = undefined;
-  if (!svg) return;
-  svg.pauseAnimations();
-  stopGuideAnimation = whileVisible(svg, () => {
-    svg.unpauseAnimations();
-    return () => svg.pauseAnimations();
-  });
-  onCleanup(() => {
-    stopGuideAnimation?.();
-    stopGuideAnimation = undefined;
-  });
-});
 onMounted(() => {
   scheduleTabScroll();
+  if (tabBar.value && typeof ResizeObserver !== 'undefined') {
+    tabResizeObserver = new ResizeObserver(() => {
+      updateTabOverflow();
+      scheduleTabScroll();
+    });
+    tabResizeObserver.observe(tabBar.value);
+  }
   document.addEventListener('keydown', keydown);
   document.addEventListener('click', outsidePicker);
 });
 onUnmounted(() => {
   cancelAnimationFrame(tabScrollFrame);
   clearTimeout(searchTimer);
-  stopGuideAnimation?.();
+  tabResizeObserver?.disconnect();
+  tabResizeObserver = undefined;
   document.removeEventListener('keydown', keydown);
   document.removeEventListener('click', outsidePicker);
 });
@@ -414,75 +403,12 @@ onUnmounted(() => {
   <div :class="['quickref-layout', {'wiki-open': wikiPanel.isOpen.value}]">
     <div class="quickref-content" :inert="wikiPanel.isOpen.value && !!detail">
       <SkipLink target-id="view" sticky-header="#qbar" />
-      <header :class="['wrap qhead', {collapsed: guideCollapsed}]">
-        <div class="qhead-main">
-          <h1>
-            卫戍速查
-            <small>{{ SEASON_META.title }}</small>
-          </h1>
-          <button
-            v-if="!guideCollapsed"
-            type="button"
-            class="guide-fold"
-            title="收起教程大卡片，留出更多首屏列表空间"
-            aria-label="收起教程卡片"
-            aria-expanded="true"
-            @click="toggleGuideCollapsed">
-            收起
-          </button>
-        </div>
-        <a v-if="!guideCollapsed" class="guide" href="/guide.html">
-          <svg ref="guideAnimation" viewBox="0 0 72 72" aria-hidden="true">
-            <circle class="ring" cx="36" cy="36" r="26" />
-            <circle class="nd" cx="36" cy="10" r="6" />
-            <circle class="nd" cx="58.5" cy="49" r="6" />
-            <circle class="nd" cx="13.5" cy="49" r="6" />
-            <circle class="mv" r="4">
-              <animateMotion
-                id="gmv"
-                dur="5s"
-                repeatCount="indefinite"
-                path="M36,10 A26,26 0 1 1 35.9,10" />
-            </circle>
-          </svg>
-          <div>
-            <div class="k">GUIDE</div>
-            <b>图解教程</b>
-            <div class="qsteps">
-              <span>
-                <i>01</i>
-                入门
-              </span>
-              <span>
-                <i>02</i>
-                招募升本
-              </span>
-              <span>
-                <i>03</i>
-                刷怪
-              </span>
-              <span>
-                <i>04</i>
-                盟约
-              </span>
-              <span>
-                <i>05</i>
-                流派
-              </span>
-            </div>
-          </div>
-          <span class="go">▸</span>
-        </a>
-        <div v-else class="qhead-compact">
-          <a class="guide-mini" href="/guide.html">图解教程 ▸</a>
-          <button
-            type="button"
-            class="guide-fold"
-            aria-expanded="false"
-            @click="toggleGuideCollapsed">
-            展开
-          </button>
-        </div>
+      <header class="wrap qhead">
+        <h1>
+          卫戍速查
+          <small>{{ SEASON_META.title }}</small>
+        </h1>
+        <a class="guide-mini" href="/guide.html">图解教程 ▸</a>
       </header>
       <div id="qbar" ref="searchBar" :class="['qbar', {searching}]">
         <div class="wrap">
@@ -519,20 +445,31 @@ onUnmounted(() => {
               ✕
             </button>
           </label>
-          <nav id="tabs" ref="tabBar" class="tabs" aria-label="速查栏目">
-            <RouterLink
-              v-for="tab in tabs"
-              :key="tab.id"
-              :to="tabLocation(tab.id)"
-              :data-tab="tab.id"
-              :class="{on: currentRoute.meta.tab === tab.id}"
-              :aria-current="
-                currentRoute.meta.tab === tab.id ? 'page' : undefined
-              ">
-              {{ tab.label }}
-              <i v-if="tab.count">{{ tab.count }}</i>
-            </RouterLink>
-          </nav>
+          <div
+            :class="[
+              'tabs-wrap',
+              {'more-l': tabsMoreLeft, 'more-r': tabsMoreRight},
+            ]">
+            <nav
+              id="tabs"
+              ref="tabBar"
+              class="tabs"
+              aria-label="速查栏目"
+              @scroll.passive="updateTabOverflow">
+              <RouterLink
+                v-for="tab in tabs"
+                :key="tab.id"
+                :to="tabLocation(tab.id)"
+                :data-tab="tab.id"
+                :class="{on: currentRoute.meta.tab === tab.id}"
+                :aria-current="
+                  currentRoute.meta.tab === tab.id ? 'page' : undefined
+                ">
+                {{ tab.label }}
+                <i v-if="tab.count">{{ tab.count }}</i>
+              </RouterLink>
+            </nav>
+          </div>
         </div>
       </div>
       <main
@@ -590,11 +527,7 @@ onUnmounted(() => {
 }
 .wiki-open .qhead {
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  padding-top: max(16px, env(safe-area-inset-top));
-  padding-bottom: 12px;
-}
-.wiki-open .qhead.collapsed {
+  gap: 10px;
   padding-top: max(8px, env(safe-area-inset-top));
   padding-bottom: 8px;
 }
@@ -602,40 +535,16 @@ onUnmounted(() => {
   font-size: 34px;
   white-space: nowrap;
 }
-.wiki-open .qhead h1 small,
-.wiki-open .guide svg,
-.wiki-open .guide .k,
-.wiki-open .guide .qsteps,
-.wiki-open .qhead .guide-fold {
+.wiki-open .qhead h1 small {
   display: none;
-}
-.wiki-open .guide {
-  width: auto;
-  grid-template-columns: 1fr auto;
-  padding: 8px 12px;
-}
-.wiki-open .guide b {
-  font-size: 16px;
 }
 /* 折叠屏展开后，半屏宽度仍接近手机；页头和导航也按该列宽度收紧。 */
 @container quickref-column (max-width: 520px) {
   .wiki-open .qhead {
     gap: 8px;
-    padding-top: max(8px, env(safe-area-inset-top));
-    padding-bottom: 8px;
   }
   .wiki-open .qhead h1 {
     font-size: 28px;
-  }
-  .wiki-open .guide {
-    gap: 6px;
-    padding: 6px 8px;
-  }
-  .wiki-open .guide b {
-    font-size: 14px;
-  }
-  .wiki-open .guide .go {
-    font-size: 16px;
   }
   .wiki-open .qbar .wrap {
     padding-top: 6px;

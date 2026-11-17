@@ -1,8 +1,20 @@
 /**
  * 教程页的小组件。与速查页不同，这里的芯片只是展示用的 <span>，不可点击。
  */
-import { OPERATOR, EQUIP, STRATEGY, TIER_LABELS, covenantColor } from '../../data/index';
-import { avatarSrc, equipIconSrc, portraitSrc, img } from '../lib/ui/assets';
+import {
+  OPERATOR,
+  EQUIP,
+  STRATEGY,
+  TIER_LABELS,
+  covenantColor,
+} from '../../data/index';
+import {
+  avatarSrc,
+  covenantIconHtml,
+  equipIconSrc,
+  portraitSrc,
+  img,
+} from '../lib/ui/assets';
 
 /** 盟约色；附加盟约统一用强调色 */
 export const color = (name: string) => covenantColor(name, 'var(--accent)');
@@ -29,9 +41,11 @@ export function eq(name: string, label = name) {
 
 export const portrait = (name: string) => img(portraitSrc(name), '', 88);
 
-export const st = (name: string) => `<span class="st" data-key="st:${name}" data-st="${name}">${portrait(name)}<b>${STRATEGY[name]?.hp ?? ''}</b>${name}</span>`;
+export const st = (name: string) =>
+  `<span class="st" data-key="st:${name}" data-st="${name}">${portrait(name)}<b>${STRATEGY[name]?.hp ?? ''}</b>${name}</span>`;
 
-export const cv = (name: string) => `<span class="cv" data-key="cv:${name}" style="--c:${color(name)}">${name}</span>`;
+export const cv = (name: string) =>
+  `<span class="cv" data-key="cv:${name}" data-cv="${name}" style="--c:${color(name)}">${covenantIconHtml(name)}${name}</span>`;
 
 /** 小号等阶块，用于表格 */
 export const tierBadge = (tier: number) =>

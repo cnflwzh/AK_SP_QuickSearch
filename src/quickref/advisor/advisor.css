@@ -156,9 +156,9 @@
 .ra-pool-group { border: 0; padding: 0; margin: 0; min-width: 0; }
 .ra-pool-group legend { padding: 0 0 6px; color: var(--ink3); font-size: 12px; }
 .ra-pool-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.ra-pool-chips button { min-height: 36px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink2); background: var(--surface2); font: inherit; font-size: 12px; transition: border-color .15s, background-color .15s; }
+.ra-pool-chips button { display: inline-flex; align-items: center; gap: 5px; min-height: 36px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink2); background: var(--surface2); font: inherit; font-size: 12px; transition: border-color .15s, background-color .15s; }
 .ra-pool-chips button:hover { border-color: var(--c, var(--accent)); }
-.ra-pool-chips button.banned { border-color: var(--c, var(--accent)); color: var(--c, var(--accent)); background: color-mix(in srgb, var(--c, var(--accent)) 10%, var(--surface)); text-decoration: line-through; }
+.ra-pool-chips button.banned { border-color: var(--c, var(--accent)); color: var(--c, var(--accent)); background: color-mix(in srgb, var(--c, var(--accent)) 10%, var(--surface)); text-decoration: line-through; --cv-ink: currentColor; }
 
 /* ---------- 编辑面板 ---------- */
 .ra-inspector { display: grid; gap: 12px; padding: 2px 0; }

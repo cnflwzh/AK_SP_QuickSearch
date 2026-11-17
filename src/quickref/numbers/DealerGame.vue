@@ -7,7 +7,11 @@ import {
   onMounted,
   ref,
 } from 'vue';
-import {ADDON_COVENANTS, CORE_COVENANTS} from '../../../data/index.ts';
+import {
+  ADDON_COVENANTS,
+  CORE_COVENANTS,
+  COVENANTS,
+} from '../../../data/index.ts';
 import {
   avatarSrc,
   enemyIconSrc,
@@ -27,6 +31,7 @@ import {
 import LiveStatus from '../../lib/ui/LiveStatus.vue';
 import {router} from '../../router/index.ts';
 import type {DetailKind} from '../../router/entities.ts';
+import CovenantIcon from '../components/CovenantIcon.vue';
 import Segmented from '../components/Segmented.vue';
 import {color} from '../format.ts';
 import {useQuickrefActions} from '../state.ts';
@@ -420,6 +425,9 @@ function inspectCardDetail(
             <span
               class="nt-dealer-target-badge"
               :style="{'--c': stageAccentColor}">
+              <CovenantIcon
+                v-if="COVENANTS[round.targetCovenant]"
+                :name="round.targetCovenant" />
               {{ round.targetLabel }}
             </span>
             <span class="tag" :class="isRoundCleared ? 't' : 'r'">
@@ -564,6 +572,7 @@ function inspectCardDetail(
                   :style="
                     tag.covenant ? {'--c': color(tag.covenant)} : undefined
                   ">
+                  <CovenantIcon v-if="tag.covenant" :name="tag.covenant" />
                   {{ tag.label }}
                 </span>
               </div>

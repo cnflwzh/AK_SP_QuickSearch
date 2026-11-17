@@ -50,6 +50,7 @@ import {
 } from '../planStore.ts';
 import {color, fx, bonusHeadcount, bonusText} from '../format.ts';
 import Chip from '../components/Chip.vue';
+import CovenantIcon from '../components/CovenantIcon.vue';
 import OperatorTile from '../components/OperatorTile.vue';
 import PlanSummary from '../components/PlanSummary.vue';
 import PlanSharePanel from '../components/PlanSharePanel.vue';
@@ -403,6 +404,7 @@ watch(
       :data-bd="x.key"
       :aria-pressed="x.key === p.key"
       @click="selectBuild(x.key)">
+      <CovenantIcon :name="x.key" />
       {{ x.plan.name }}
       <i v-if="x.modified" class="md" title="已修改">✎</i>
       <i
@@ -508,6 +510,7 @@ watch(
 
   <div v-else class="panel" :style="{'--c': accent}">
     <div class="ph">
+      <CovenantIcon v-if="COVENANTS[p.key]" :name="p.key" emblem />
       <h2>{{ p.plan.name }}</h2>
       <span v-if="base?.tagline" class="tag a">{{ base.tagline }}</span>
       <span v-if="p.modified" class="tag">已修改</span>
@@ -579,6 +582,7 @@ watch(
         :data-cv="s.name"
         data-peek="off"
         @click="actions.openCovenant(s.name)">
+        <CovenantIcon :name="s.name" />
         {{ s.name }}
         <small>{{ s.count }}/{{ s.need }}</small>
       </button>
@@ -602,6 +606,7 @@ watch(
           :aria-pressed="runBans.includes(covName)"
           :style="{'--c': color(covName)}"
           @click="toggleBan(covName)">
+          <CovenantIcon :name="covName" />
           {{ covName }}
         </button>
         <button
@@ -634,6 +639,7 @@ watch(
           </button>
           <span class="g">
             <i v-for="c in pk.gains" :key="c" :style="{'--c': color(c)}">
+              <CovenantIcon :name="c" />
               {{ c }}
             </i>
           </span>
@@ -670,6 +676,7 @@ watch(
             :key="s.name"
             :class="['c', 'on', {max: s.bonusActive}]"
             :style="{'--c': color(s.name)}">
+            <CovenantIcon :name="s.name" />
             {{ s.name }}
             <small>{{ s.count }}/{{ s.need }}</small>
           </span>
@@ -678,6 +685,7 @@ watch(
             :key="l"
             class="c lost"
             :style="{'--c': color(l)}">
+            <CovenantIcon :name="l" />
             {{ l }}
             <small>失效</small>
           </span>
@@ -905,6 +913,7 @@ watch(
               data-peek="off"
               :title="`查看${c.name}盟约页`"
               @click="actions.openCovenant(c.name)">
+              <CovenantIcon :name="c.name" />
               {{ c.name }}
             </button>
             <span class="need">{{ c.need }} 人</span>

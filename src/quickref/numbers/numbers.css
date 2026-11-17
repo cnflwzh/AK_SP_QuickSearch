@@ -30,19 +30,21 @@
 .nt-headcount-list .nt-heading { flex-wrap: wrap; }
 .numbers-tools .nt-headcount-list > p { margin-bottom: 8px; }
 .numbers-tools .nt-threshold-list { padding: 0; overflow: clip; }
-.nt-threshold-heading, .nt-threshold-row { display: grid; grid-template-columns: 80px 95px minmax(0, 1fr); align-items: center; gap: 12px; padding: 8px 14px; }
+.nt-threshold-heading, .nt-threshold-row { display: grid; grid-template-columns: 96px 95px minmax(0, 1fr); align-items: center; gap: 12px; padding: 8px 14px; }
 .nt-threshold-heading { background: var(--surface2); color: var(--ink3); font-size: 12px; }
 .nt-threshold-row { width: 100%; min-height: 54px; text-align: left; border: 0; border-top: 1px solid var(--line); border-left: 3px solid transparent; border-radius: 0; color: var(--ink); background: transparent; transition: background-color .15s, border-color .15s; }
 .nt-threshold-row:hover { background: var(--surface2); }
 .nt-threshold-row.selected { border-left-color: var(--c); background: var(--accent-soft); }
 .nt-covenant-name { display: flex; flex-direction: column; gap: 1px; }
-.nt-covenant-name b { color: var(--c); font-size: 14px; }
+.nt-covenant-name b { display: inline-flex; align-items: center; gap: 5px; --cv-ic-size: 15px; color: var(--c); font-size: 14px; }
 .nt-covenant-name small { color: var(--ink3); font-size: 11px; }
 .nt-threshold-number { color: var(--accent); font: 600 23px var(--fn); white-space: nowrap; }
 .nt-threshold-effect { display: flex; align-items: center; justify-content: space-between; gap: 8px; line-height: 1.55; font-size: 13px; }
 .nt-threshold-effect i, .nt-reference-row i { font-style: normal; color: var(--ink3); }
 .numbers-tools .nt-calculator { min-width: 0; margin: 0; align-content: start; animation: number-reveal .18s ease-out; }
 .nt-calculator .nt-heading { margin: 0; }
+.nt-calc-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.nt-calc-title .cv-emblem { --cv-emblem-size: 30px; padding: 4px; border-radius: 6px; }
 .nt-calculator h4 { font-family: inherit; font-size: 16px; font-weight: 700; color: var(--c); }
 .nt-layer-input { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .nt-layer-input .layer-value { white-space: nowrap; }
@@ -80,7 +82,7 @@
 .nt-reference-row:hover { color: var(--ink); }
 .nt-reference-row.selected { color: var(--ink); background: var(--accent-soft); }
 .nt-reference-row.selected > i { color: var(--accent); }
-.nt-reference-row > b { min-width: 58px; color: var(--teal); }
+.nt-reference-row > b { min-width: 74px; display: inline-flex; align-items: center; gap: 5px; --cv-ic-size: 15px; color: var(--teal); }
 .nt-reference-row > i { margin-left: auto; }
 .nt-fold summary { cursor: pointer; font-size: 14px; font-weight: 500; color: var(--ink2); }
 .nt-fold summary small { margin-left: 8px; font-size: 12px; font-weight: 400; color: var(--ink3); }
@@ -198,7 +200,8 @@
 .nt-dealer-hinted-tag { background: color-mix(in srgb, var(--accent) 16%, var(--surface2)); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); }
 .nt-dealer-target-badge {
   --c: var(--teal);
-  display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 5px;
+  display: inline-flex; align-items: center; gap: 5px; --cv-ic-size: 15px;
+  padding: 2px 9px; border-radius: 5px;
   font-size: 14px; font-weight: 700; color: var(--c);
   background: color-mix(in srgb, var(--c) 14%, var(--surface2));
   border: 1px solid color-mix(in srgb, var(--c) 45%, var(--line));
@@ -290,12 +293,13 @@
 .nt-dealer-equip-chip span { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
 .nt-dealer-covs { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; }
 .nt-dealer-cov {
-  --c: var(--teal); font-size: 10.5px; line-height: 1.35; padding: 1px 5px; border-radius: 3px;
+  --c: var(--teal); display: inline-flex; align-items: center; gap: 3px; --cv-ic-size: 11px;
+  font-size: 10.5px; line-height: 1.35; padding: 1px 5px; border-radius: 3px;
   border: 1px solid color-mix(in srgb, var(--c) 40%, var(--line));
   background: color-mix(in srgb, var(--c) 10%, var(--surface2)); color: var(--ink2); white-space: nowrap;
 }
-.nt-dealer-cov.match { background: var(--c); color: #fff; border-color: var(--c); font-weight: 700; }
-.nt-dealer-cov.mismatch { background: color-mix(in srgb, var(--red) 11%, var(--surface2)); border-color: color-mix(in srgb, var(--red) 45%, var(--line)); color: var(--red); font-weight: 600; }
+.nt-dealer-cov.match { background: var(--c); color: #fff; border-color: var(--c); font-weight: 700; --cv-ink: currentColor; }
+.nt-dealer-cov.mismatch { background: color-mix(in srgb, var(--red) 11%, var(--surface2)); border-color: color-mix(in srgb, var(--red) 45%, var(--line)); color: var(--red); font-weight: 600; --cv-ink: currentColor; }
 .nt-dealer-trait {
   font-size: 11px; line-height: 1.45; color: var(--ink2); text-align: left; width: 100%;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
@@ -379,8 +383,12 @@
 .nt-excuse-flash-text { font-size: 13px; line-height: 1.55; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .nt-excuse-controls-card { padding: 8px 12px; }
 .nt-excuse-controls { margin-bottom: 0; }
-.nt-excuse-controls input { flex: 1 1 180px; min-width: 120px; }
-.nt-excuse-controls .seg { margin: 0; }
+.nt-excuse-search { position: relative; flex: 1 1 180px; min-width: 120px; display: flex; align-items: center; }
+.numbers-tools .nt-excuse-search input[type=search] { width: 100%; padding-right: 36px; }
+.nt-excuse-search input[type=search]::-webkit-search-cancel-button { display: none; }
+.nt-excuse-clear { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; padding: 0; border: 0; border-radius: 5px; background: var(--surface); color: var(--ink2); display: grid; place-items: center; font-size: 13px; line-height: 1; }
+.nt-excuse-clear:hover { color: var(--accent); background: var(--accent-soft); }
+.nt-excuse-controls .seg { flex: none; margin: 0; }
 .nt-excuse-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .nt-excuse-card { display: grid; gap: 8px; align-content: start; padding: 10px 12px; transition: border-color .15s, background-color .15s; }
 .nt-excuse-card.copied { border-color: var(--teal); background: color-mix(in srgb, var(--teal) 6%, var(--surface)); }
@@ -391,7 +399,7 @@
 .nt-excuse-more { justify-self: center; min-height: 36px; padding: 6px 18px; }
 
 @container number-tools (max-width: 1100px) {
-  .nt-threshold-heading, .nt-threshold-row { grid-template-columns: 68px 86px minmax(0, 1fr); gap: 8px; padding-left: 10px; padding-right: 10px; }
+  .nt-threshold-heading, .nt-threshold-row { grid-template-columns: 82px 86px minmax(0, 1fr); gap: 8px; padding-left: 10px; padding-right: 10px; }
   .nt-search-results { grid-template-columns: 1fr; }
   .nt-rounds { grid-template-columns: repeat(7, minmax(0, 1fr)); }
 }
@@ -424,7 +432,7 @@
   .nt-dealer-footer-btns { justify-content: flex-end; }
 }
 @container number-tools (max-width: 540px) {
-  .nt-threshold-heading, .nt-threshold-row { grid-template-columns: 56px 68px minmax(0, 1fr); gap: 7px; padding-left: 10px; padding-right: 10px; }
+  .nt-threshold-heading, .nt-threshold-row { grid-template-columns: 72px 68px minmax(0, 1fr); gap: 7px; padding-left: 10px; padding-right: 10px; }
   .nt-threshold-number { font-size: 21px; white-space: normal; overflow-wrap: anywhere; line-height: 1.2; }
   .nt-threshold-effect { font-size: 12px; gap: 3px; }
   .nt-toolbar select { max-width: 70%; }
@@ -440,7 +448,8 @@
   .nt-bounty-heading, .nt-bounty-row { grid-template-columns: minmax(0, 1fr) 40px 76px; gap: 6px; padding-left: 2px; padding-right: 2px; }
 }
 @container number-tools (max-width: 520px) {
-  .nt-excuse-controls input { flex-basis: 100%; }
+  .nt-excuse-search { flex-basis: 100%; }
+  .nt-excuse-controls .seg { max-width: 100%; overflow-x: auto; }
 }
 /* 折叠屏或 PRTS 半栏：门槛和效果分行，避免多档数字挤压说明。 */
 @container number-tools (max-width: 360px) {
@@ -448,6 +457,10 @@
   .nt-threshold-row { grid-template-columns: minmax(0, 1fr) auto; }
   .nt-threshold-effect { grid-column: 1 / -1; }
   .nt-threshold-number { white-space: normal; text-align: right; }
+}
+@media (pointer: coarse), (max-height: 600px) {
+  .numbers-tools .nt-excuse-search input[type=search] { padding-right: 40px; }
+  .nt-excuse-clear { right: 2px; width: 34px; height: 34px; }
 }
 /* 安卓横屏小窗：压缩头尾与商店卡片纵向留白，保持控件 >= 34px 并尽量一屏操作。 */
 @media (max-height: 600px) {

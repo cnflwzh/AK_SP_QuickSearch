@@ -8,7 +8,12 @@ import {
   TIER_LABELS,
   covenantColor,
 } from '../../../data/index.ts';
-import {avatarSrc, equipIconSrc, portraitSrc} from '../ui/assets.ts';
+import {
+  avatarSrc,
+  covenantIconSrc,
+  equipIconSrc,
+  portraitSrc,
+} from '../ui/assets.ts';
 import {covenantStats} from './covenants.ts';
 import {planCost} from './costs.ts';
 import type {Plan} from './model.ts';
@@ -134,16 +139,20 @@ export async function planImage(
     return cache.get(src)!;
   };
   // 所有导出素材同时加载，同一个头像只请求一次。
-  const [images, eqImages, altImages, strategyImage] = await Promise.all([
-    Promise.all(plan.ops.map((o) => asset(avatarSrc(o.name)))),
-    Promise.all(
-      plan.ops.map((o) => Promise.all(o.eq.map((e) => asset(equipIconSrc(e))))),
-    ),
-    Promise.all(
-      plan.ops.map((o) => Promise.all(o.alt.map((a) => asset(avatarSrc(a))))),
-    ),
-    st ? asset(portraitSrc(st.name)) : Promise.resolve(null),
-  ]);
+  const [images, eqImages, altImages, covImages, strategyImage] =
+    await Promise.all([
+      Promise.all(plan.ops.map((o) => asset(avatarSrc(o.name)))),
+      Promise.all(
+        plan.ops.map((o) =>
+          Promise.all(o.eq.map((e) => asset(equipIconSrc(e)))),
+        ),
+      ),
+      Promise.all(
+        plan.ops.map((o) => Promise.all(o.alt.map((a) => asset(avatarSrc(a))))),
+      ),
+      Promise.all(stats.map((s) => asset(covenantIconSrc(s.name)))),
+      st ? asset(portraitSrc(st.name)) : Promise.resolve(null),
+    ]);
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
@@ -376,12 +385,19 @@ export async function planImage(
   ctx.moveTo(PAD, y - 12);
   ctx.lineTo(W - PAD, y - 12);
   ctx.stroke();
-  for (const s of stats) {
+  stats.forEach((s, i) => {
     const c = covenantColor(s.name, TEAL);
+    const covIcon = covImages[i];
     ctx.globalAlpha = s.active ? 1 : 0.45;
+    if (covIcon) {
+      ctx.fillStyle = c;
+      round(ctx, PAD, y - 2, 18, 18, 4);
+      ctx.fill();
+      ctx.drawImage(covIcon, PAD + 2, y, 14, 14);
+    }
     ctx.fillStyle = c;
     ctx.font = `700 14px ${FONT}`;
-    ctx.fillText(s.name, PAD, y + 12);
+    ctx.fillText(s.name, covIcon ? PAD + 23 : PAD, y + 12);
     const cells = cellsOf(s);
     for (let k = 0; k < cells; k++) {
       const x = PAD + 96 + k * 26;
@@ -399,7 +415,7 @@ export async function planImage(
     ctx.fillText(tag, PAD + 96 + cells * 26 + 8, y + 12);
     ctx.globalAlpha = 1;
     y += 26;
-  }
+  });
   if (!stats.length) {
     ctx.fillStyle = INK3;
     ctx.fillText('—', PAD, y + 12);

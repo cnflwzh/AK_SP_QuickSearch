@@ -1274,6 +1274,16 @@ nav.top a.on {
   margin-bottom: 4px;
 }
 
+.covc .t .covc-nm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.covc .t .cv-ic {
+  --cv-ic-size: 17px;
+}
+
 .pips {
   display: inline-flex;
   gap: 3px;

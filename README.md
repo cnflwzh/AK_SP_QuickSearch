@@ -73,7 +73,7 @@
 │   └── assets/
 │       ├── css/           共用、速查、教程与字体样式
 │       ├── fonts/         本地字体与许可
-│       ├── img/           avatars/ 干员头像 · equipment/ 装备图标 · strategies/ 策略头像 · leaders/ 领袖头像
+│       ├── img/           covenants/ 盟约图标 · avatars/ 干员头像 · equipment/ 装备图标 · strategies/ 策略头像 · leaders/ 领袖头像
 │       └── icons/         PWA 图标
 │
 ├── scripts/
@@ -128,7 +128,7 @@ GitHub Actions 会在 PR 和 `main` 更新时执行依赖安装、类型检查�
 2. **新增或切换赛季**：
    - 新增赛季时，新建 `data/seasons/<season>/` 目录并按 `SeasonDefinition` 实现完整数据模块（可参考 `data/seasons/s1/` 的文件拆分与 `index.ts` 汇总导出）。
    - 切换当前启用赛季时，只需修改 `data/season.ts` 中导入的赛季对象并赋值给 `CURRENT_SEASON`。
-3. **补充图片资源**：新干员 / 装备 / 策略 / 领袖的图片放进 `public/assets/img/` 对应目录，文件名写进数据的 `avatar` / `icon` / `portrait` 字段；领袖头像以 `id` 命名（`leaders/<id>.webp`）。
+3. **补充图片资源**：新干员 / 装备 / 策略 / 领袖 / 盟约的图片放进 `public/assets/img/` 对应目录，文件名写进数据的 `avatar` / `icon` / `portrait` 字段；领袖头像与盟约图标默认以 `id` 命名（`leaders/<id>.webp`、`covenants/<id>.webp`，盟约可通过可选 `icon` 字段覆写）。
 4. **更新拼音索引**：新增或改名了干员 / 装备 / 策略 / 盟约 / 流派 / 领袖，或切换赛季后，重新生成拼音表：
 
    ```bash
@@ -167,6 +167,7 @@ GitHub Actions 会在 PR 和 `main` 更新时执行依赖安装、类型检查�
 | PRTS | [卫戍协议/帮助](https://prts.wiki/w/%E5%8D%AB%E6%88%8D%E5%8D%8F%E8%AE%AE/%E5%B8%AE%E5%8A%A9) | 资金、调度中心、合成精锐、领袖与悬赏等基础机制 |
 | PRTS | [卫戍协议：盟约](https://prts.wiki/w/%E5%8D%AB%E6%88%8D%E5%8D%8F%E8%AE%AE%EF%BC%9A%E7%9B%9F%E7%BA%A6) | 盟约机制与上一期数值对照 |
 | [可露希尔 Wiki](https://closure.wiki/zh-cn/stronghold-protocol/3) | 卫戍协议：规程 | 规程等级、盟约池、模拟强度与认证效率，干员头像与装备图标 |
+| [森空岛](https://www.skland.com/) | 卫戍协议·规程工具资源 | 全部 26 个盟约的游戏内图标 |
 | [BWIKI](https://wiki.biligame.com/arknights/%E7%9B%9F%E7%BA%A6) | 卫戍协议·规程、盟约 | 经济与流程数值核对 |
 | [Arknights Wiki (wiki.gg)](https://arknights.wiki.gg/wiki/Stronghold_Protocol) | Stronghold Protocol | 调度中心等级与干员等阶数值核对 |
 

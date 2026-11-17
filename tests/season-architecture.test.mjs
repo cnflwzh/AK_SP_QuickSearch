@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {readdirSync, readFileSync} from 'node:fs';
+import {readdirSync, readFileSync, statSync} from 'node:fs';
 import {dirname, relative, resolve} from 'node:path';
 import test from 'node:test';
 import {fileURLToPath} from 'node:url';
@@ -43,6 +43,7 @@ import {
   recruitPriceRange,
 } from '../src/lib/recommendation/live/advisorState.ts';
 import {explainStrategyTransition} from '../src/lib/recommendation/live/advisorStrategy.ts';
+import {covenantIconHtml, covenantIconSrc} from '../src/lib/ui/assets.ts';
 import {buildKey, covenantName} from '../src/router/entities.ts';
 
 const ROOT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -631,4 +632,21 @@ test('generic mechanics helpers obey data contracts rather than hardcoded names'
     ),
     {min: 0, max: 0},
   );
+});
+
+test('all covenants resolve to valid local icon assets', () => {
+  assert.equal(ALL_COVENANTS.length, 26);
+  for (const name of ALL_COVENANTS) {
+    const src = covenantIconSrc(name);
+    assert.ok(src.startsWith('/assets/img/covenants/'), `${name} src=${src}`);
+    assert.ok(src.endsWith('.webp'), `${name} src=${src}`);
+    const filePath = resolve(ROOT_DIR, 'public', src.slice(1));
+    assert.ok(
+      statSync(filePath).size > 100,
+      `missing or empty icon for ${name}: ${filePath}`,
+    );
+    assert.ok(covenantIconHtml(name).includes(src));
+  }
+  assert.equal(covenantIconSrc('不存在的盟约'), '');
+  assert.equal(covenantIconHtml('不存在的盟约'), '');
 });

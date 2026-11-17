@@ -12,6 +12,7 @@ import {
 } from '../../../data/index.ts';
 import {color} from '../format.ts';
 import {run, runStats} from '../planStore.ts';
+import CovenantIcon from '../components/CovenantIcon.vue';
 import LayerCalculator from './LayerCalculator.vue';
 import {useNumberToolsState, type LayerSection} from './useNumberToolsState.ts';
 
@@ -140,7 +141,10 @@ async function select(
           aria-controls="numbers-layer-calculator"
           @click="select(name)">
           <span class="nt-covenant-name">
-            <b>{{ name }}</b>
+            <b>
+              <CovenantIcon :name="name" />
+              {{ name }}
+            </b>
             <small>{{ COVENANTS[name].need }} 名</small>
           </span>
           <span class="nt-threshold-number">
@@ -168,7 +172,10 @@ async function select(
           :aria-pressed="isSelected(name, 'cycle')"
           aria-controls="numbers-layer-calculator"
           @click="select(name, 'cycle')">
-          <b :style="{color: color(name)}">{{ name }}</b>
+          <b :style="{color: color(name)}">
+            <CovenantIcon :name="name" />
+            {{ name }}
+          </b>
           <span class="tag">每 {{ cycle.every }} 层</span>
           <span>{{ cycle.reward }}</span>
           <i>›</i>
@@ -190,7 +197,10 @@ async function select(
           :aria-pressed="isSelected(item.covenant, 'headcount')"
           aria-controls="numbers-layer-calculator"
           @click="select(item.covenant, 'headcount')">
-          <b>{{ item.covenant }}</b>
+          <b :style="{color: color(item.covenant)}">
+            <CovenantIcon :name="item.covenant" />
+            {{ item.covenant }}
+          </b>
           <span class="tag">{{ item.condition }}</span>
           <span>{{ item.effect }}</span>
           <i>›</i>

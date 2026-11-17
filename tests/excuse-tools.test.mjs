@@ -95,6 +95,8 @@ test('copypasta catalog has authentic category items, unique ids, and clean copy
   assert.ok(vueSource.includes(':href="EXCUSE_SUBMIT_URL"'));
   assert.ok(vueSource.includes('target="_blank"'));
   assert.ok(vueSource.includes('rel="noopener noreferrer"'));
+  assert.ok(!vueSource.includes('v-if="search || category !== \'all\'"'));
+  assert.ok(vueSource.includes('class="nt-excuse-clear"'));
 });
 
 test('pickRandomExcuse skips the previous item and handles edge cases', () => {

@@ -1,7 +1,7 @@
 import type {SeasonCredits} from '../../types.ts';
 
 export const S1_CREDITS: SeasonCredits = {
-  aboutVersion: 6,
+  aboutVersion: 7,
   purpose: [
     '玩家自制的《明日方舟》卫戍协议·规程攻略工具。',
     '速查页把干员、盟约、装备、策略、领袖、流派整理成对局中横屏小窗也能快速翻的卡片；图解教程从入门讲到流派。',
@@ -49,6 +49,12 @@ export const S1_CREDITS: SeasonCredits = {
       page: '',
       url: 'https://closure.wiki/',
       used: '规程等级、盟约池、模拟强度与认证效率，干员头像与装备图标',
+    },
+    {
+      name: '森空岛',
+      page: '',
+      url: 'https://www.skland.com/',
+      used: '卫戍协议·规程全 26 个盟约的游戏内图标资源',
     },
     {
       name: 'BWIKI',

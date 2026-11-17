@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type {CovenantStat} from '../../lib/plans/index.ts';
 import {color} from '../format.ts';
+import CovenantIcon from './CovenantIcon.vue';
 /**
  * 盟约进度条：每格一名干员，竖线标出激活 / 强化门槛。
  * 实心 = 本身有该盟约；描边 = 装备赋予；斜纹 = 调和 +1。
@@ -67,9 +68,13 @@ function status(s: CovenantStat): {text: string; cls: string} {
         :data-cv="s.name"
         :aria-pressed="selected === s.name"
         @click="emit('select', s.name)">
+        <CovenantIcon :name="s.name" />
         {{ s.name }}
       </button>
-      <b v-else class="n" :data-cv="s.name">{{ s.name }}</b>
+      <b v-else class="n" :data-cv="s.name">
+        <CovenantIcon :name="s.name" />
+        {{ s.name }}
+      </b>
       <span class="pips">
         <template v-for="k in cells(s)" :key="k">
           <i :class="kind(s, k - 1)"></i>

@@ -4,6 +4,7 @@ import {BANNABLE_COVENANTS, isBannableCovenant} from '../../../data/index.ts';
 import {leaderSrc} from '../../lib/ui/assets.ts';
 import {color} from '../format.ts';
 import {useQuickrefActions} from '../state.ts';
+import CovenantIcon from './CovenantIcon.vue';
 import {
   clearBans,
   current,
@@ -56,7 +57,7 @@ function onEndRun(): void {
       @click="actions.openBuild(current.key)">
       未选流派 ▸
     </button>
-    <span class="cvs">
+    <span v-if="covs.length" class="cvs">
       <button
         v-for="s in covs"
         :key="s.name"
@@ -74,6 +75,7 @@ function onEndRun(): void {
         :data-cv="s.name"
         data-peek="off"
         @click="actions.openCovenant(s.name)">
+        <CovenantIcon :name="s.name" />
         {{ s.name }}
         <small>{{ s.count }}/{{ s.need }}</small>
       </button>
@@ -125,6 +127,7 @@ function onEndRun(): void {
         :aria-pressed="runBans.includes(name)"
         :style="{'--c': color(name)}"
         @click="toggleBan(name)">
+        <CovenantIcon :name="name" />
         {{ name }}
       </button>
       <button
