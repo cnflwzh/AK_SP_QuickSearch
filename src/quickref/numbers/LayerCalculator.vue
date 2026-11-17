@@ -15,6 +15,7 @@ import {round1} from '../../lib/ui/dom.ts';
 import {covenantId} from '../../router/entities.ts';
 import {covenantLocation} from '../../router/navigation.ts';
 import {color, fx} from '../format.ts';
+import CovenantIcon from '../components/CovenantIcon.vue';
 import NumberInput from './NumberInput.vue';
 
 const props = defineProps<{name: string}>();
@@ -63,9 +64,12 @@ function setLayers(value: number | null): void {
     :style="{'--c': color(name)}"
     :aria-label="`${name}层数计算`">
     <header class="nt-heading">
-      <div>
-        <h4 aria-level="3">{{ name }}</h4>
-        <span class="nt-muted">{{ countCondition }}</span>
+      <div class="nt-calc-title">
+        <CovenantIcon :name="name" emblem />
+        <div>
+          <h4 aria-level="3">{{ name }}</h4>
+          <span class="nt-muted">{{ countCondition }}</span>
+        </div>
       </div>
     </header>
 

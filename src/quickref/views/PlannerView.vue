@@ -48,6 +48,7 @@ import {
 import {useQuickrefActions} from '../state.ts';
 import {color, fx} from '../format.ts';
 import Segmented from '../components/Segmented.vue';
+import CovenantIcon from '../components/CovenantIcon.vue';
 import PlanCovenants from '../components/PlanCovenants.vue';
 import PlanSummary from '../components/PlanSummary.vue';
 import PlanSharePanel from '../components/PlanSharePanel.vue';
@@ -717,6 +718,7 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
                   :class="{on: poolCovenant === cov}"
                   :style="{'--c': color(cov)}"
                   @click="startWithCovenant(cov)">
+                  <CovenantIcon :name="cov" />
                   {{ cov }}
                 </button>
               </div>
@@ -1202,6 +1204,7 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
                     :key="g.covenant"
                     :class="g.kind === 'weaken' ? 'off' : g.kind"
                     :style="{'--c': color(g.covenant)}">
+                    <CovenantIcon :name="g.covenant" />
                     {{ g.covenant }} {{ GAIN[g.kind] }}
                   </i>
                 </span>
@@ -1224,7 +1227,10 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
               v-for="s in active"
               :key="s.name"
               :style="{'--c': color(s.name)}">
-              <b class="n">{{ s.name }}</b>
+              <b class="n">
+                <CovenantIcon :name="s.name" />
+                {{ s.name }}
+              </b>
               <div>
                 <label v-if="usesLayers(s.name)" class="pl-layer">
                   <input

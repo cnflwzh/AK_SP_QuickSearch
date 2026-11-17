@@ -139,23 +139,26 @@ function rollAndCopy(): void {
 
     <section class="nc nt-excuse-controls-card">
       <div class="bar nt-excuse-controls">
-        <input
-          v-model="search"
-          type="search"
-          placeholder="搜关键词：情头 / 谈恋爱 / 寿命 / 救世主 / 网卡 / 发牌员…"
-          aria-label="搜索抽象文案" />
+        <div class="nt-excuse-search">
+          <input
+            v-model="search"
+            type="search"
+            placeholder="搜关键词：情头 / 谈恋爱 / 寿命 / 救世主 / 网卡 / 发牌员…"
+            aria-label="搜索抽象文案" />
+          <button
+            v-if="search"
+            type="button"
+            class="nt-excuse-clear"
+            aria-label="清空搜索"
+            @click="search = ''">
+            ✕
+          </button>
+        </div>
         <Segmented
           :labels="categoryLabels"
           :active="categoryIndex"
           attr="excuse-cat"
           @change="selectCategory" />
-        <button
-          v-if="search || category !== 'all'"
-          type="button"
-          class="btn nt-text-button"
-          @click="resetFilter">
-          重置
-        </button>
       </div>
     </section>
 

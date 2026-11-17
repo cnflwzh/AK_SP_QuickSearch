@@ -26,6 +26,7 @@ import {
 } from '../planStore.ts';
 import RunBanner from '../components/RunBanner.vue';
 import Chip from '../components/Chip.vue';
+import CovenantIcon from '../components/CovenantIcon.vue';
 import OperatorTile from '../components/OperatorTile.vue';
 const actions = useQuickrefActions();
 const name = computed(() => state.covenant);
@@ -134,6 +135,7 @@ const bonusLabel = computed(() => {
         data-cvtg
         :style="{'--c': color(name)}"
         @click="state.pickerOpen = !state.pickerOpen">
+        <CovenantIcon :name="name" emblem />
         <b>{{ name }}</b>
         <span :class="['tag', core ? 'a' : 't']">
           {{ core ? '核心' : '附加' }}
@@ -160,7 +162,10 @@ const bonusLabel = computed(() => {
           :data-pick="item"
           :aria-pressed="item === name"
           @click="actions.pickCovenant(item)">
-          {{ item }}
+          <span class="cvb-l">
+            <CovenantIcon :name="item" />
+            {{ item }}
+          </span>
           <span v-if="runStat.get(item)" class="cvb-cnt">
             <b>{{ runStat.get(item)!.count }}/{{ COVENANTS[item].need }}</b>
           </span>
@@ -185,7 +190,10 @@ const bonusLabel = computed(() => {
           :data-pick="item"
           :aria-pressed="item === name"
           @click="actions.pickCovenant(item)">
-          {{ item }}
+          <span class="cvb-l">
+            <CovenantIcon :name="item" />
+            {{ item }}
+          </span>
           <span v-if="runStat.get(item)" class="cvb-cnt">
             <b>{{ runStat.get(item)!.count }}/{{ COVENANTS[item].need }}</b>
           </span>
@@ -195,6 +203,7 @@ const bonusLabel = computed(() => {
     </div>
     <div class="cvd" :data-covenant="name" :style="{'--c': color(name)}">
       <div class="cvh" data-key="header">
+        <CovenantIcon :name="name" emblem />
         <h2>{{ name }}</h2>
         <span :class="['tag', core ? 'a' : 't']">
           {{ core ? '核心' : '附加' }}
@@ -403,13 +412,12 @@ const bonusLabel = computed(() => {
                   <i class="tn">{{ TIER_LABELS[operator.tier] }}</i>
                   <b>{{ operator.name }}</b>
                   <span
-                    v-for="other in operator.covenants.filter(
-                      (c) => c !== name,
-                    )"
-                    :key="other"
+                    v-for="cov in operator.covenants"
+                    :key="cov"
                     class="x"
-                    :style="{'--c': color(other)}">
-                    {{ other }}
+                    :style="{'--c': color(cov)}">
+                    <CovenantIcon :name="cov" />
+                    {{ cov }}
                   </span>
                   <template v-if="run">
                     <span

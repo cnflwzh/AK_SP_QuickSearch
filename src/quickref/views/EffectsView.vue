@@ -12,6 +12,7 @@ import {useQuickrefActions} from '../state.ts';
 import {clearBans, run, runStat, runBans, toggleBan} from '../planStore.ts';
 import RunBanner from '../components/RunBanner.vue';
 import Segmented from '../components/Segmented.vue';
+import CovenantIcon from '../components/CovenantIcon.vue';
 /**
  * 盟约效果一览：所有盟约的激活 / 强化效果平铺成卡片，局内扫一眼就能查到。
  * 本局流派里有的盟约标出人数进度；填过层数的按该层数代入数值，并支持就地勾选禁池。
@@ -127,6 +128,7 @@ const cards = computed(() =>
             data-peek="off"
             :title="`查看${c.name}盟约页`"
             @click="actions.openCovenant(c.name)">
+            <CovenantIcon :name="c.name" />
             {{ c.name }}
           </button>
           <span class="need">{{ c.need }} 人</span>

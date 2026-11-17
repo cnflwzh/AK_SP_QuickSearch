@@ -38,6 +38,7 @@ import {
   toggleOpInQuickBuild,
 } from '../planStore.ts';
 import Chip from './Chip.vue';
+import CovenantIcon from './CovenantIcon.vue';
 import PrtsLink from './PrtsLink.vue';
 import OperatorRequestButton from './OperatorRequestButton.vue';
 const props = defineProps<{
@@ -501,6 +502,7 @@ onBeforeUnmount(() => dialog.value?.close());
             data-peek="off"
             :title="`查看${name}盟约页`"
             @click="actions.openCovenant(name)">
+            <CovenantIcon :name="name" />
             <b>{{ name }}</b>
             <span>
               {{ isCoreCovenant(name) ? '核心' : '附加' }} ·

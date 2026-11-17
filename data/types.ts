@@ -152,6 +152,7 @@ export interface CovenantMechanics {
 
 export interface Covenant {
   readonly id: string;
+  readonly icon?: string;
   readonly kind: 'core' | 'addon';
   readonly color?: string;
   readonly need: number;

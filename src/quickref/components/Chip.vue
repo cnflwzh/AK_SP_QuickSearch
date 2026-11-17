@@ -5,6 +5,7 @@ import {
   EQUIP,
   STRATEGY,
   CORE_BUILDS,
+  COVENANTS,
   TIER_LABELS,
 } from '../../../data/index.ts';
 import {avatarSrc, equipIconSrc, portraitSrc} from '../../lib/ui/assets.ts';
@@ -16,6 +17,7 @@ import {
   covenantLocation,
   cardLocation,
 } from '../../router/navigation.ts';
+import CovenantIcon from './CovenantIcon.vue';
 import NavigationLink from './NavigationLink.vue';
 const props = withDefaults(
   defineProps<{
@@ -68,7 +70,12 @@ function activate(): void {
 }
 </script>
 <template>
-  <span v-if="props.static" class="cv" :style="{'--c': accent}">
+  <span
+    v-if="props.static"
+    class="cv"
+    :data-cv="COVENANTS[name] ? name : undefined"
+    :style="{'--c': accent}">
+    <CovenantIcon :name="name" />
     {{ displayLabel }}
   </span>
   <NavigationLink
@@ -80,6 +87,7 @@ function activate(): void {
     :style="{'--c': accent}"
     :data-cv="kind === 'cv' ? name : undefined"
     :data-build="kind === 'build' ? name : undefined">
+    <CovenantIcon :name="name" />
     {{ displayLabel }}{{ kind === 'build' ? ' ▸' : '' }}
   </NavigationLink>
   <NavigationLink

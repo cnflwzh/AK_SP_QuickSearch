@@ -20,6 +20,7 @@ import {
   strategyUsesAdvisorCommand,
 } from '../../../data/index.ts';
 import {MAX_LAYERS, usesLayers} from '../../lib/plans/index.ts';
+import CovenantIcon from '../components/CovenantIcon.vue';
 import {useRunAdvisor} from './useRunAdvisor.ts';
 
 defineEmits<{excludeOperator: []}>();
@@ -264,6 +265,7 @@ const deploymentBonusName = DEPLOYMENT_BONUS_EQUIP?.name ?? '扩展文档';
           :class="{banned: run.bannedCovenants.includes(name)}"
           :style="{'--c': covenantColor(name, 'var(--teal)')}"
           @click="advisor.toggleBannedCovenant(name)">
+          <CovenantIcon :name="name" />
           {{ name }}
           <span v-if="run.bannedCovenants.includes(name)">×</span>
         </button>
