@@ -2686,7 +2686,7 @@ mark {
 }
 
 /* ===== 阵容规划 ===== */
-.pl { display: grid; gap: 12px; }
+.pl { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .pl button { font: inherit; color: inherit; cursor: pointer; }
 .pl button:disabled { cursor: default; }
 .pl-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -2936,7 +2936,7 @@ mark {
 }
 
 /* 手机规划：总览与层数分开查看，选择器移动到同一个底部面板。 */
-.pl-compact :is(.pl-grid, .pl-main) { display: flex; flex-direction: column; gap: 12px; }
+.pl-compact :is(.pl-grid, .pl-main) { display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
 .pl-compact .pl-main > section { width: 100%; }
 .pl-compact .pl-slots { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .pl-compact .pl-acts .sep { display: none; }
