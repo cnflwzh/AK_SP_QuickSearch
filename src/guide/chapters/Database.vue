@@ -26,7 +26,12 @@ const operators = computed(() => {
       (!tier.value || o.tier === tier.value) &&
       (!covenant.value || o.covenants.includes(covenant.value)) &&
       (!type.value || o.type === type.value) &&
-      (!search || (o.name + o.covenants.join('/') + o.trait).includes(search)),
+      (!search ||
+        (
+          o.name +
+          o.covenants.join('/') +
+          (elite.value ? o.elite : o.trait)
+        ).includes(search)),
   );
 });
 const traitHtml = (text: string) =>
@@ -80,6 +85,7 @@ const equipmentColumns = TIERS.map((tier) => ({
     <div
       v-for="operator in operators"
       :key="operator.name"
+      v-memo="[elite]"
       class="dbc"
       :data-key="operator.name"
       :data-t="operator.tier">
@@ -106,7 +112,7 @@ const equipmentColumns = TIERS.map((tier) => ({
     <span>6.2</span>
     装备
   </h3>
-  <div class="eqcols" id="eqcols">
+  <div v-once class="eqcols" id="eqcols">
     <div v-for="column in equipmentColumns" :key="column.tier" class="col">
       <div :data-t="column.tier">{{ TIER_LABELS[column.tier] }}</div>
       <div

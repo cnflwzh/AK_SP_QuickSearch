@@ -87,10 +87,13 @@ const pickerSummary = computed(() =>
 const hasRunData = computed(
   () =>
     run.value.personnelDocumentUsed ||
+    run.value.format !== 'unknown' ||
     run.value.mode !== 'unknown' ||
     run.value.candidateSource !== 'shop' ||
     run.value.round !== null ||
     run.value.funds !== null ||
+    run.value.acquisitionsThisRound !== null ||
+    run.value.commandAvailable !== null ||
     Object.keys(run.value.layers).length > 0 ||
     run.value.level !== 1 ||
     !!run.value.strategy ||

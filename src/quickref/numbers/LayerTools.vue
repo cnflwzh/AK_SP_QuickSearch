@@ -16,7 +16,6 @@ import CovenantIcon from '../components/CovenantIcon.vue';
 import LayerCalculator from './LayerCalculator.vue';
 import {useNumberToolsState, type LayerSection} from './useNumberToolsState.ts';
 
-let lastAutoRunKey = '';
 const root = ref<HTMLElement>();
 const layerState = useNumberToolsState().layers;
 const {covenant: selected, section: selectedSection} = toRefs(layerState);
@@ -24,10 +23,10 @@ watch(
   () => run.value?.key ?? '',
   (key) => {
     if (!key) {
-      lastAutoRunKey = '';
+      layerState.lastAutoRunKey = '';
       return;
     }
-    if (key === lastAutoRunKey) return;
+    if (key === layerState.lastAutoRunKey) return;
     const stats = runStats.value;
     const hasLayerScale = (name: string) =>
       COVENANTS[name]?.scaling.length > 0 ||
@@ -38,7 +37,7 @@ watch(
       stats.find((s) => s.active && hasLayerScale(s.name)) ??
       stats.find((s) => hasLayerScale(s.name));
     if (!picked) return;
-    lastAutoRunKey = key;
+    layerState.lastAutoRunKey = key;
     selected.value = picked.name;
     selectedSection.value = LAYER_BREAKPOINTS[picked.name]
       ? 'threshold'

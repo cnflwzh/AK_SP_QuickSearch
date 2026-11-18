@@ -36,8 +36,9 @@ import {
   runKey,
   endRun,
   runBans,
+  runBanSet,
   isRunBannedOp,
-  saveError,
+  saveErrorMessage,
   presetColor,
   selectPreset,
   newPreset,
@@ -293,7 +294,8 @@ function restore(): void {
 }
 
 /* ---------- 盟约被 ban：被 ban 盟约的干员不会出现，给出替代 ---------- */
-const banOpen = ref(false);
+// 初次查看受禁池影响的阵容时自动展开，之后尊重用户在这套流派中的收起选择。
+const manualBanOpen = ref<boolean | null>(null);
 const showAllBans = ref(false);
 const banImpact = computed(() => {
   const map = new Map<string, number>();
@@ -304,13 +306,12 @@ const banImpact = computed(() => {
   }
   return map;
 });
-const myBans = computed(() =>
-  runBans.value.filter(
-    (b) =>
-      bannable.value.some((s) => s.name === b) ||
-      p.value.plan.ops.some((s) => isRunBannedOp(s.name)),
-  ),
+const hasRelevantBan = computed(
+  () =>
+    runBanSet.value.size > 0 &&
+    bannable.value.some((s) => runBanSet.value.has(s.name)),
 );
+const banOpen = computed(() => manualBanOpen.value ?? hasRelevantBan.value);
 const visibleBanCovenants = computed(() =>
   showAllBans.value
     ? BANNABLE_COVENANTS
@@ -318,13 +319,14 @@ const visibleBanCovenants = computed(() =>
 );
 const forced = ref<Record<string, string>>({});
 watch(
-  () => [p.value.key, runBans.value.join()],
-  () => {
+  [() => p.value.key, () => runBans.value.join()],
+  ([key], [previousKey]) => {
     forced.value = {};
+    if (key !== previousKey) manualBanOpen.value = null;
   },
 );
 const ban = computed(() =>
-  myBans.value.length
+  hasRelevantBan.value
     ? banReplace(
         p.value.plan.ops,
         runBans.value,
@@ -335,7 +337,12 @@ const ban = computed(() =>
 );
 const banAfter = computed(() =>
   ban.value
-    ? covenantStats(ban.value.ops, p.value.plan.layers).filter((s) => s.active)
+    ? covenantStats(
+        ban.value.ops,
+        p.value.plan.layers,
+        [],
+        runBanSet.value,
+      ).filter((s) => s.active)
     : [],
 );
 function pickAlt(replaces: string, name: string): void {
@@ -547,9 +554,7 @@ watch(
     </div>
   </div>
 
-  <p v-if="saveError" class="pl-warn" role="status">
-    本地保存失败，请先复制分享码保留流派。
-  </p>
+  <p v-if="saveErrorMessage" class="pl-warn" role="status">{{ saveErrorMessage }}</p>
 
   <PlanBackupPanel v-if="activePanel === 'backup'" id="build-backup" />
 
@@ -644,8 +649,8 @@ watch(
       id="build-share"
       :plan="p.plan" />
 
-    <div v-if="needs.length" class="bneed">
-      <span class="k">需要盟约</span>
+    <div v-if="slotEntries.length" class="bneed">
+      <span v-if="needs.length" class="k">需要盟约</span>
       <button
         v-for="s in needs"
         :key="s.name"
@@ -664,14 +669,14 @@ watch(
       </button>
       <button
         type="button"
-        :class="['bbtn', {on: banOpen || myBans.length}]"
-        :aria-expanded="banOpen || !!myBans.length"
-        @click="banOpen = !banOpen">
+        :class="['bbtn', {on: banOpen}]"
+        :aria-expanded="banOpen"
+        @click="manualBanOpen = !banOpen">
         有盟约被 ban？
       </button>
     </div>
 
-    <div v-if="banOpen || myBans.length" class="bban">
+    <div v-if="slotEntries.length && banOpen" class="bban">
       <div class="bpick">
         <span class="k">点选被 ban 的</span>
         <button

@@ -62,9 +62,13 @@ function clean(value: unknown): Plan | null {
     ...(base ? { base } : {}),
   };
 }
-export function loadPlans(): Plan[] {
+/** 读取当前原始存档，用于判断另一个标签页是否已保存。 */
+export const readPlanSnapshot = (): string | null => read(KEY);
+
+/** 解析给定存档或当前本地存档，跳过损坏的记录。 */
+export function loadPlans(snapshot = readPlanSnapshot()): Plan[] {
   try {
-    const list: unknown = JSON.parse(read(KEY) ?? '[]');
+    const list: unknown = JSON.parse(snapshot ?? '[]');
     if (!Array.isArray(list)) return [];
     const ids = new Set<string>(),
       bases = new Set<string>();
@@ -83,9 +87,12 @@ export function loadPlans(): Plan[] {
     return [];
   }
 }
-/** 写入全部方案，返回是否成功；存储被禁用或空间不足时返回 false。 */
+/** 写入已经序列化的方案快照，返回是否成功；存储被禁用或空间不足时返回 false。 */
+export const savePlanSnapshot = (snapshot: string): boolean =>
+  write(KEY, snapshot);
+/** 序列化并写入全部方案，返回是否成功。 */
 export const savePlans = (plans: readonly Plan[]): boolean =>
-  write(KEY, JSON.stringify(plans));
+  savePlanSnapshot(JSON.stringify(plans));
 export const loadCurrent = (): string => read(CURRENT) ?? '';
 export const saveCurrent = (id: string): void => {
   write(CURRENT, id);

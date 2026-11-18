@@ -114,13 +114,10 @@ function applyTemplatePreset(key: string): void {
   touch();
 }
 function onSelectPlanCovenant(cov: string): void {
-  poolCovenant.value = poolCovenant.value === cov ? '' : cov;
-  if (compact.value && poolCovenant.value) {
-    picking.value = '';
-    replacing.value = false;
-    editing.value = -1;
-    mobilePanel.value = 'operators';
-  }
+  const selected = poolCovenant.value === cov ? '' : cov;
+  poolCovenant.value = selected;
+  // 筛选值随路由异步更新，本次点击直接使用玩家刚选的盟约。
+  if (compact.value && selected) void openOperators();
 }
 watch(editingId, () => {
   closeMobilePanel();
@@ -1174,8 +1171,7 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
 
         <!-- 补位 -->
         <section
-          v-if="recs.length"
-          v-show="!compact || mobileSection === 'lineup'"
+          v-if="(!compact || mobileSection === 'lineup') && recs.length"
           class="pl-card pl-rec">
           <h4>
             补谁

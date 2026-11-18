@@ -3,6 +3,7 @@ import Markup from '../components/Markup.ts';
 import Segmented from '../components/Segmented.vue';
 import {op, eq} from '../chips.ts';
 import {computed, ref} from 'vue';
+import {round1} from '../../lib/ui/dom.ts';
 import {
   OPERATORS,
   COVENANTS,
@@ -13,7 +14,7 @@ import {
 } from '../../../data/index.ts';
 import {
   covenantContent,
-  calculator,
+  covenantCurve,
   strategies,
   POSITIONS,
 } from './covenantsView.ts';
@@ -53,7 +54,24 @@ const covenant = ref(
 );
 const layers = ref(60),
   strategyCategory = ref(0);
-const calculation = computed(() => calculator(covenant.value, layers.value));
+const selectedCovenant = computed(() => COVENANTS[covenant.value]);
+// 拖动滑块仅移动游标与填充边界；切换盟约才需要重新采样整条曲线。
+const curve = computed(() => covenantCurve(covenant.value));
+const marker = computed(() => curve.value.points[layers.value]);
+const values = computed(() =>
+  selectedCovenant.value.scaling.map(({label, unit, at}) => ({
+    label,
+    unit,
+    value: round1(at(layers.value)),
+  })),
+);
+const curveDescription = computed(() => {
+  const {main, start, end} = curve.value;
+  const result = values.value
+    .map(({label, unit, value}) => `${label} ${value}${unit}`)
+    .join('，');
+  return `横轴为 0 至 300 层，纵轴为${main.label}，单位${main.unit || '无'}。当前 ${layers.value} 层：${result}。${main.label}在 0 层为 ${round1(start)}${main.unit}，300 层为 ${round1(end)}${main.unit}。`;
+});
 const strategyContent = computed(() => strategies(strategyCategory.value));
 </script>
 <template>
@@ -249,31 +267,71 @@ const strategyContent = computed(() => strategies(strategyCategory.value));
           min="0"
           max="300"
           v-model.number="layers" />
-        <Markup
-          as="div"
-          class="vals mt"
-          id="cvVals"
-          :html="calculation.cvVals" />
+        <div class="vals mt" id="cvVals">
+          <div v-for="entry in values" :key="entry.label">
+            <span>{{ entry.label }}</span>
+            <b>
+              {{ entry.value }}
+              <small style="font-size: 14px; color: var(--ink2)">
+                {{ entry.unit }}
+              </small>
+            </b>
+          </div>
+        </div>
         <p
           id="cvBase"
           style="font-size: 13px; color: var(--ink2); margin: 12px 0 0">
-          {{ calculation.cvBase }}
+          {{ selectedCovenant.effect }}
         </p>
         <p
           id="cvBig"
           style="font-size: 13px; color: var(--ink); margin: 6px 0 0">
-          {{ calculation.cvBig }}
+          {{ selectedCovenant.bonus }}
         </p>
       </div>
-      <Markup
-        as="svg"
+      <svg
         class="svgbox"
         id="cvChart"
         viewBox="0 0 440 260"
         role="img"
         :aria-label="`${covenant}层数与效果曲线`"
-        aria-describedby="covenant-chart-description cvBase cvBig"
-        :html="calculation.cvChart" />
+        aria-describedby="covenant-chart-description cvBase cvBig">
+        <desc id="covenant-chart-description">{{ curveDescription }}</desc>
+        <defs>
+          <clipPath id="covenant-area-clip">
+            <rect x="46" y="0" :width="marker.x - 46" height="228" />
+          </clipPath>
+        </defs>
+        <g v-for="tick in curve.yTicks" :key="tick.y">
+          <line class="gl" x1="46" x2="428" :y1="tick.y" :y2="tick.y" />
+          <text class="axl" x="40" :y="tick.y + 4" text-anchor="end">
+            {{ tick.label }}
+          </text>
+        </g>
+        <text
+          v-for="tick in curve.xTicks"
+          :key="tick.label"
+          class="axl"
+          :x="tick.x"
+          y="246"
+          text-anchor="middle">
+          {{ tick.label }}
+        </text>
+        <path class="ar" :d="curve.area" clip-path="url(#covenant-area-clip)" />
+        <path class="ln" :d="curve.path" />
+        <line
+          :x1="marker.x"
+          :x2="marker.x"
+          y1="228"
+          :y2="marker.y"
+          stroke="var(--accent)"
+          stroke-dasharray="3 3" />
+        <circle class="dot" :cx="marker.x" :cy="marker.y" r="6" />
+        <text class="axl" x="46" y="12" style="fill: var(--ink2)">
+          {{ curve.main.label }}（{{ curve.main.unit }}）
+        </text>
+        <text class="axl" x="428" y="222" text-anchor="end">层数</text>
+      </svg>
     </div>
   </div>
 

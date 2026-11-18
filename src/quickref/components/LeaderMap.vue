@@ -13,6 +13,7 @@ import {
 } from '../../../data/index.ts';
 import {groundRoute, movementTimeline} from '../../lib/leaders/leader-map.ts';
 import {whileVisible} from '../../lib/ui/visibility.ts';
+import {settings} from '../../lib/settings/index.ts';
 
 /** 地形与路线按场地更新；技能切换只更新覆盖层。SVG 自行播放，动画帧不触发 Vue 寻路或重绘。 */
 const props = defineProps<{
@@ -35,10 +36,11 @@ const path = (points: readonly MapPos[]): string =>
   points.map((p, i) => `${i ? 'L' : 'M'}${center(p).join(',')}`).join(' ');
 const plan = computed(() => !!props.layout);
 // Keep the SMIL nodes mounted when offscreen; pausing preserves their playback position.
-const reducedMotion = ref(
-  matchMedia('(prefers-reduced-motion: reduce)').matches,
+const motion = matchMedia('(prefers-reduced-motion: reduce)');
+const reducedMotion = ref(motion.matches);
+const animate = computed(
+  () => !reducedMotion.value && !settings.reducedMotion && !plan.value,
 );
-const animate = computed(() => !reducedMotion.value && !plan.value);
 let visible = false;
 let stopVisibility: (() => void) | undefined;
 const side = computed(() => (plan.value ? 'left' : props.side));
@@ -210,7 +212,6 @@ function restart(): void {
   svg.value?.setCurrentTime(0);
   playback();
 }
-const motion = matchMedia('(prefers-reduced-motion: reduce)');
 const updateMotion = () => {
   reducedMotion.value = motion.matches;
 };

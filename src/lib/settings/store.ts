@@ -16,7 +16,6 @@ export const SMALL_WINDOW_MEDIA_QUERY =
   '(max-height: 600px), ((max-width: 720px) and (max-height: 680px))';
 
 function readStoredSettings(): UserSettings {
-  if (typeof localStorage === 'undefined') return createDefaultSettings();
   try {
     const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
     if (!raw) return createDefaultSettings();
@@ -29,7 +28,6 @@ function readStoredSettings(): UserSettings {
 export const settings = reactive<UserSettings>(readStoredSettings());
 
 function writeStoredSettings(current: UserSettings): void {
-  if (typeof localStorage === 'undefined') return;
   try {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(current));
   } catch {

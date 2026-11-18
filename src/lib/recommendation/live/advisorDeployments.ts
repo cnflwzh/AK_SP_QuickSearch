@@ -30,14 +30,16 @@ export function recommendDeployments(
   }
   const lineup = deployedLineup(run),
     reserve = reserveLineup(run);
+  if (!reserve.length) return [];
   const preference = createRunPreference(run, savedPlans, lineup, reserve);
   return evaluateDeployments(run, limit, preference);
 }
-/** 买牌内部沿用购前已锚定的路线；不让假设新持有的候选反过来创建偏好。 */
+/** 买牌沿用购前已锚定的路线。指定 candidateName 时仅搜索该干员的上场选择，整备区仍全员参与计分。 */
 export function evaluateDeployments(
   run: AdvisorRun,
   limit: number,
   preference: AdvisorPreferenceEvaluator,
+  candidateName?: string,
 ): DeploymentAdvice[] {
   const lineup = deployedLineup(run),
     reserve = reserveLineup(run);
@@ -48,7 +50,10 @@ export function evaluateDeployments(
     bannedCovenants: effectiveBans(run),
   });
   const oldValue = teamValue(lineup, reserve, context);
-  return reserve
+  const candidates = candidateName === undefined
+    ? reserve
+    : reserve.filter((slot) => slot.name === candidateName);
+  return candidates
     .flatMap((candidate) => {
       // 有空位也可能需要换人（如独行只能保留一人），不能只搜索补位。
       // 补位先列出，收益相同时保留现有成员，避免无意义挪动。
