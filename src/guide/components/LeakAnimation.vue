@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {onBeforeUnmount, onMounted, ref} from 'vue';
 import {whileVisible} from '../../lib/ui/visibility';
+import {prefersReducedMotion} from '../../lib/ui/dom';
 
 interface Enemy {
   x: number;
@@ -70,7 +71,7 @@ onMounted(() => {
       lostLabel.textContent = String(sim.lost);
   }
   newRound();
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  if (prefersReducedMotion()) {
     sim.enemies.forEach((enemy, i) => {
       enemy.dot.setAttribute('cx', String(60 + i * 40));
       if (enemy.willDie) enemy.dot.setAttribute('class', 'en k');
@@ -111,6 +112,9 @@ onMounted(() => {
     frameId = requestAnimationFrame(frame);
   }
   dispose = whileVisible(root, () => {
+    for (const enemy of sim.enemies) {
+      if (enemy.state === 'alive') enemy.dot.setAttribute('class', 'en');
+    }
     last = performance.now();
     frameId = requestAnimationFrame(frame);
     return () => {

@@ -50,7 +50,8 @@ function commit(event: Event): void {
         : (props.value ?? (props.nullable ? null : 0));
   draft.value = value === null ? '' : String(value);
   input.value = draft.value;
-  emit('change', value);
+  // 聚焦后直接离开不算手动改价，否则会把目标干员的自动预留价锁定。
+  if (value !== props.value) emit('change', value);
 }
 </script>
 

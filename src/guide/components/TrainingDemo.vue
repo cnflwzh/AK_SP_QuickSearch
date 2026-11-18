@@ -8,9 +8,11 @@ const chosen = ref<number[]>([]),
 const waves = ref<{name: string; color: string}[]>([]);
 const colors = ['var(--teal)', 'var(--t4)', 'var(--t5)'];
 function shuffle() {
-  chosen.value = Array.from({length: 9}, (_, i) => i)
-    .sort(() => Math.random() - 0.5)
-    .slice(0, 3);
+  const candidates = TRAINING.map((_, index) => index);
+  chosen.value = Array.from({length: 3}, () => {
+    const index = Math.floor(Math.random() * candidates.length);
+    return candidates.splice(index, 1)[0];
+  });
   leader.value = LEADERS[Math.floor(Math.random() * LEADERS.length)].name;
   waves.value = Array.from({length: 13}, () => {
     const index = Math.floor(Math.random() * 3);

@@ -265,9 +265,19 @@ export const strategyUsesAdvisorCommand = (name: string): boolean =>
   Object.hasOwn(STRATEGY, name) &&
   Boolean(STRATEGY[name].advisor?.commandTrigger);
 
-/** 属于某盟约的全部干员（保持数据表顺序） */
+// 同一赛季的名单固定；列表、速览和发牌出题可以共用索引。
+const covenantRosters = new Map<string, Operator[]>();
+for (const operator of OPERATORS) {
+  for (const covenant of new Set(operator.covenants)) {
+    const roster = covenantRosters.get(covenant);
+    if (roster) roster.push(operator);
+    else covenantRosters.set(covenant, [operator]);
+  }
+}
+
+/** 按盟约名返回数据表顺序的干员列表；调用方可以独立排序。 */
 export const rosterOf = (covenant: string): Operator[] =>
-  OPERATORS.filter((o) => o.covenants.includes(covenant));
+  covenantRosters.get(covenant)?.slice() ?? [];
 
 /**
  * 统计给定阵容中盟约的不同干员人数，重复名称只计一次。

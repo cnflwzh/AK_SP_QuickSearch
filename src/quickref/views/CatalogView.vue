@@ -145,7 +145,7 @@ function clearEquipFilters(): void {
 }
 const equipment = computed(() =>
   EQUIPMENT.filter((e) => {
-    if (selectedMaterial.value) return recipeItemSet.value.has(e.name);
+    if (selectedMaterial.value && !recipeItemSet.value.has(e.name)) return false;
     if (
       filterToRunEq.value &&
       !runEquipRecommended.value.has(e.name) &&

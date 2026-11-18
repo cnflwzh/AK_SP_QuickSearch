@@ -962,7 +962,7 @@ function buildBountyRound(options: {
   };
 }
 
-export function buildDealerRound(options: {
+interface DealerRoundOptions {
   roundNumber: number;
   kind?: DealerRoundKind;
   targetCovenant?: string;
@@ -976,7 +976,9 @@ export function buildDealerRound(options: {
   introSeed?: number;
   usedNames?: Set<string>;
   preferredImpostors?: number;
-}): DealerRound {
+}
+
+function drawDealerRound(options: DealerRoundOptions): DealerRound {
   const {roundNumber, rng, usedNames, preferredImpostors} = options;
   const kind = options.kind ?? 'covenant';
   const shuffleRng = options.orderRng ?? rng;
@@ -1082,6 +1084,36 @@ export function buildDealerRound(options: {
   });
 }
 
+/** 旧每日存档用种子重建牌面。整套题抽完再替换召唤物，保留题序、牌位和命中判定。 */
+function replaceNonShopTierCards(
+  round: DealerRound,
+  usedNames: Set<string>,
+): void {
+  const theme = round.tierCheckTheme;
+  if (!theme) return;
+  for (const [index, card] of round.cards.entries()) {
+    if (card.operator?.stars !== 0) continue;
+    const replacement = OPERATORS.find(
+      (op) => op.stars > 0 && op.tier === card.tier && !usedNames.has(op.name),
+    );
+    if (replacement) {
+      round.cards[index] = createTierOperatorCard(replacement, theme);
+      usedNames.add(replacement.name);
+    }
+  }
+}
+
+/** 按题型和随机源生成一轮；传入 usedNames 时同步登记已使用的干员。 */
+export function buildDealerRound(options: DealerRoundOptions): DealerRound {
+  const round = drawDealerRound(options);
+  if (round.tierCheckTheme) {
+    const usedNames =
+      options.usedNames ?? new Set(round.cards.map((card) => card.title));
+    replaceNonShopTierCards(round, usedNames);
+  }
+  return round;
+}
+
 /** Generates deterministic daily challenges rotating across all 7 question types. */
 export function buildDailyRounds(
   dateKey: string,
@@ -1141,8 +1173,8 @@ export function buildDailyRounds(
       : {kind: 'bounty', bountyTheme},
   ];
 
-  return blueprint.map((slot, index) =>
-    buildDealerRound({
+  const rounds = blueprint.map((slot, index) =>
+    drawDealerRound({
       roundNumber: index + 1,
       kind: slot.kind,
       targetCovenant: slot.covenant,
@@ -1158,4 +1190,6 @@ export function buildDailyRounds(
       preferredImpostors: impostorCounts[index],
     }),
   );
+  for (const round of rounds) replaceNonShopTierCards(round, usedNames);
+  return rounds;
 }

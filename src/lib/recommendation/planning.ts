@@ -572,18 +572,17 @@ export function banReplace(
       },
     ];
   });
-  const finalStats = covenantStats(result, layers);
+  const finalStats = covenantStats(result, layers, [], banned);
   const picks = removed.flatMap((slot) => {
     const name = assignments.get(slot.name);
     if (!name) return [];
     const without = result.filter((op) => op.name !== name);
     const withoutStats = new Map(
-      covenantStats(without, layers).map((stat) => [stat.name, stat]),
+      covenantStats(without, layers, [], banned).map((stat) => [stat.name, stat]),
     );
     const gains = finalStats
       .filter(
         (stat) =>
-          !banned.has(stat.name) &&
           !stat.broken &&
           ((stat.active && !withoutStats.get(stat.name)?.active) ||
             (stat.bonusActive && !withoutStats.get(stat.name)?.bonusActive)),

@@ -382,9 +382,8 @@ function ensureCurrentDate(): boolean {
   const today = localDateKey();
   if (state.dateKey === today) return false;
   state.dateKey = today;
-  state.daily = createDailySession(today);
-  recordVisibleAssistance();
-  saveDailySession(today, state.daily);
+  state.daily = loadDailySession(today);
+  if (state.mode === 'daily') recordVisibleAssistance();
   state.announcement = '已更新今日同题';
   return true;
 }
@@ -426,16 +425,9 @@ function recordVisibleAssistance(): void {
   if (state.hintLevel === 'blind') return;
   const session = activeSession();
   const current = session.rounds[session.roundIndex];
-  if (roundCleared(current) || current.usedHint) return;
-  if (
-    !session.playedBlind &&
-    session.history.length === 0 &&
-    current.cards.every((card) => card.status === 'unseen')
-  ) {
-    session.startedAssist = true;
-  } else {
-    session.playedBlind = true;
-  }
+  if (session.showReport || roundCleared(current) || current.usedHint) return;
+  // 是否实际盲猜由操作牌面的动作记录，连续在提示模式换轮仍属于全程提示。
+  if (!session.playedBlind) session.startedAssist = true;
   markRoundHint(session, current, true);
 }
 
@@ -497,7 +489,7 @@ export function useDealerGame() {
   const rank = computed(() => evaluateDealerRank(session.value.stats));
   const usedAssistOnly = computed(() => {
     const s = session.value;
-    return !s.playedBlind && (s.startedAssist || state.hintLevel !== 'blind');
+    return !s.playedBlind && s.startedAssist;
   });
   const dealerMood = computed(() => {
     const s = session.value;
@@ -558,8 +550,8 @@ export function useDealerGame() {
           {name: card.title},
         );
         state.announcement = `识破串场条目「${card.title}」，痛扁发牌员一拳`;
+        if (state.mode === 'daily') saveDailySession(state.dateKey, s);
       }
-      if (state.mode === 'daily') saveDailySession(state.dateKey, s);
       return;
     }
 
@@ -691,10 +683,10 @@ export function useDealerGame() {
     );
     s.rounds = [fresh];
     s.roundIndex = 0;
+    s.showReport = false;
     recordVisibleAssistance();
     s.lastEvent = 'deal';
     s.dealerLine = fresh.introLine;
-    s.showReport = false;
   }
 
   function setHintLevel(level: HintLevel): void {
@@ -709,7 +701,9 @@ export function useDealerGame() {
   }
 
   function closeReport(): void {
+    ensureCurrentDate();
     session.value.showReport = false;
+    recordVisibleAssistance();
   }
 
   function replayDaily(): void {

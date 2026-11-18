@@ -309,6 +309,10 @@ export function formatPlanShareText(plan: Shared, link?: string): string {
     noteLines.forEach((line, index) => lines.push(`${index + 1}. ${line}`));
   }
 
+  if (link) {
+    lines.push(`导入链接：${link}`);
+    return lines.join('\n');
+  }
   const code = encodePlan({
     name: plan.name.slice(0, 16),
     ops,

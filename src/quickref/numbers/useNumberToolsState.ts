@@ -13,6 +13,8 @@ interface NumberToolsState {
     covenant: string;
     section: LayerSection;
     count: number;
+    /** 已经从哪个本局方案带入过层数，离开小工具后保留玩家的手动选择。 */
+    lastAutoRunKey: string;
   };
   recruit: {
     targetName: string;
@@ -41,6 +43,7 @@ const state = reactive<NumberToolsState>({
     covenant: COMMON_LAYER_COVENANTS[0],
     section: 'threshold',
     count: 60,
+    lastAutoRunKey: '',
   },
   recruit: {
     targetName: '',

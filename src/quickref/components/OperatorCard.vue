@@ -28,6 +28,11 @@ const banned = computed(() => isRunBannedOp(props.operator.name));
 const wikiVisible = computed(
   () => !!props.showWikiLink && settings.showWikiLinks,
 );
+const wikiSelected = computed(
+  () =>
+    !!wikiPanel?.isOpen.value &&
+    wikiPanel.operatorName.value === props.operator.name,
+);
 </script>
 <template>
   <article
@@ -39,9 +44,7 @@ const wikiVisible = computed(
         inplan: inRun.has(operator.name),
         inalt: !inRun.has(operator.name) && altTargets.length > 0,
         'is-banned': banned,
-        'wiki-selected':
-          wikiPanel?.isOpen.value &&
-          wikiPanel.operatorName.value === operator.name,
+        'wiki-selected': wikiSelected,
       },
     ]"
     :data-key="`op:${operator.name}`"

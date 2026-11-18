@@ -595,13 +595,15 @@ function drawFooter(
   ctx.textAlign = 'left';
 }
 
-/** Renders a 2x high-DPI light-themed battle-report PNG data URL via Canvas 2D. */
-export function renderDealerPosterDataUrl(model: DealerPosterModel): string {
+/** 根据战报模型绘制 2 倍分辨率 PNG，异步编码。浏览器无法生成图片时返回 null。 */
+export async function renderDealerPoster(
+  model: DealerPosterModel,
+): Promise<Blob | null> {
   const canvas = document.createElement('canvas');
   canvas.width = POSTER_W * POSTER_DPR;
   canvas.height = POSTER_H * POSTER_DPR;
   const ctx = canvas.getContext('2d');
-  if (!ctx) return '';
+  if (!ctx) return null;
 
   ctx.save();
   ctx.scale(POSTER_DPR, POSTER_DPR);
@@ -612,48 +614,20 @@ export function renderDealerPosterDataUrl(model: DealerPosterModel): string {
   drawFooter(ctx, model);
   ctx.restore();
 
-  return canvas.toDataURL('image/png');
+  return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
 }
 
-function pngDataUrlToBlob(dataUrl: string): Blob {
-  const comma = dataUrl.indexOf(',');
-  const base64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return new Blob([bytes], {type: 'image/png'});
-}
-
-/** Copies the rendered PNG poster to the system clipboard when supported. */
+/** 将现成的 PNG 写入剪贴板，返回复制结果供界面选择下载回退。 */
 export async function copyPosterToClipboard(
-  dataUrl: string,
+  blob: Blob,
 ): Promise<'copied' | 'unsupported'> {
-  if (
-    !dataUrl ||
-    typeof ClipboardItem === 'undefined' ||
-    !navigator.clipboard?.write
-  ) {
+  if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) {
     return 'unsupported';
   }
   try {
-    const blob = pngDataUrlToBlob(dataUrl);
     await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
     return 'copied';
   } catch {
     return 'unsupported';
   }
-}
-
-/** Triggers a direct PNG file download as fallback or explicit save action. */
-export function downloadPosterPng(dataUrl: string, fileName: string): void {
-  if (!dataUrl) return;
-  const link = document.createElement('a');
-  link.href = dataUrl;
-  link.download = fileName;
-  link.rel = 'noopener';
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
 }

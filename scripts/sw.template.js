@@ -3,7 +3,8 @@
  * sw.js 由 scripts/build-sw.mjs 根据本模板生成，请修改模板而不是 sw.js。
  *
  * 缓存策略
- *   页面 / 脚本 / 样式 / 数据：联网优先，离线时回落到缓存
+ *   页面 / 固定地址的样式与数据：联网优先，离线时回落到缓存
+ *   Vite 内容哈希脚本与样式：缓存优先，可复用上一版的同名资源
  *   图片：缓存优先
  *   本地字体：按需下载，缓存优先；文件名包含内容哈希
  */
@@ -78,7 +79,7 @@ self.addEventListener('message', event => {
         if (url.origin !== location.origin) return false;
         return !!navigationShell(url) || ALLOWED.has(url.href)
           || ALLOWED.has(new URL(alternatePath(url.pathname), url).href)
-          || /\/assets\/fonts\/[a-z]+-[a-f0-9]{16}\.woff2$/.test(url.pathname);
+          || /^\/assets\/fonts\/[a-z]+(?:-ui)?-[a-f0-9]{16}\.woff2$/.test(url.pathname);
       } catch { return false; }
     });
     let next = 0;
@@ -109,12 +110,16 @@ self.addEventListener('activate', event => {
   })());
 });
 
-async function cacheFirst(request, cacheName = IMAGE_CACHE) {
-  const cache = await caches.open(cacheName);
-  const hit = await cache.match(request, { ignoreVary: true });
+async function cacheFirst(event, name, searchPrevious = false) {
+  const request = event.request;
+  // 存储不可用或已满时，仍向页面交付在线响应。
+  const cache = await caches.open(name).catch(() => undefined);
+  const options = { ignoreVary: true };
+  const hit = await cache?.match(request, options).catch(() => undefined);
   if (hit) return hit;
-  const response = await fetch(request);
-  if (response.ok) await cache.put(request, response.clone());
+  const previous = searchPrevious && await caches.match(request, options).catch(() => undefined);
+  const response = previous || await fetch(request);
+  if (cache && response.ok) event.waitUntil(cache.put(request, response.clone()).catch(() => {}));
   return response;
 }
 
@@ -122,8 +127,8 @@ function networkFirst(event) {
   const request = event.request;
   return fetch(request).then(async res => {
     if (res.ok && res.type === 'basic') {
-      const copy = await stripRedirect(res.clone());
-      event.waitUntil(caches.open(CORE_CACHE).then(cache => storeResponse(cache, new URL(request.url), copy)));
+      const copy = res.clone();
+      event.waitUntil(caches.open(CORE_CACHE).then(cache => storeResponse(cache, new URL(request.url), copy)).catch(() => {}));
     }
     // Hashed chunks removed by a deployment may still exist in the previous visited cache.
     if (!res.ok && request.destination === 'script') return await fromCache(request) || res;
@@ -140,9 +145,11 @@ self.addEventListener('fetch', event => {
   if (url.origin !== location.origin) {
     // 其他第三方请求不处理
   } else if (url.pathname.includes('/assets/fonts/')) {
-    event.respondWith(cacheFirst(request, FONT_CACHE));
+    event.respondWith(cacheFirst(event, FONT_CACHE));
   } else if (url.pathname.includes('/assets/img/') || url.pathname.includes('/assets/icons/')) {
-    event.respondWith(cacheFirst(request));
+    event.respondWith(cacheFirst(event, IMAGE_CACHE));
+  } else if (/^\/assets\/[^/]+-[\w-]{8}\.(?:js|css)$/.test(url.pathname)) {
+    event.respondWith(cacheFirst(event, CORE_CACHE, true));
   } else {
     event.respondWith(networkFirst(event));
   }

@@ -45,7 +45,7 @@ import {
   updateQuery,
 } from '../router/navigation.ts';
 import {topSearchTarget} from './searchRanking.ts';
-import {current as selectedPreset, flushSave, presets} from './planStore.ts';
+import {flushSave, presetOf, presets} from './planStore.ts';
 import {lazyView} from '../lib/ui/lazyView.ts';
 import DetailSheet from './components/DetailSheet.vue';
 import PrtsPanel from './components/PrtsPanel.vue';
@@ -80,6 +80,8 @@ const tabs = computed(() => {
   }));
 });
 const renderedQuery = computed(() => queryText(currentRoute.value.query, 'q'));
+// 从搜索链接进入时延后挂载背景页。已经展示过的页面保留筛选、草稿和本局状态。
+const mountBackground = ref(!renderedQuery.value);
 const query = ref(renderedQuery.value);
 const composing = ref(false);
 const searching = computed(() => !!query.value.trim());
@@ -104,10 +106,12 @@ const topOf = (element: Element): number =>
   window.scrollY -
   (searchBar.value?.offsetHeight ?? 0);
 watch(
-  () => currentRoute.value.fullPath,
-  () => {
+  currentRoute,
+  (route, previous) => {
     clearTimeout(searchTimer);
     query.value = renderedQuery.value;
+    if (!renderedQuery.value || route.path !== previous.path)
+      mountBackground.value = !renderedQuery.value;
   },
 );
 watchEffect(() => {
@@ -119,7 +123,7 @@ watchEffect(() => {
       : tab === 'ld'
         ? state.leader
         : tab === 'bd'
-          ? selectedPreset.value.plan.name
+          ? presetOf(state.build)?.plan.name
           : '');
   document.title = [entity, tab ? PAGE_LABELS[tab] : '页面未找到', '卫戍速查']
     .filter(Boolean)
@@ -206,7 +210,7 @@ watch(() => wikiPanel.isOpen.value, scheduleTabScroll, {flush: 'post'});
 watch(
   () => settings.showWikiLinks,
   (enabled) => {
-    if (!enabled && wikiPanel.isOpen.value) wikiPanel.close();
+    if (!enabled && wikiPanel.operatorName.value) wikiPanel.close();
   },
 );
 async function reloadPage(): Promise<void> {
@@ -389,6 +393,7 @@ async function onSearchEnter(event: KeyboardEvent): Promise<void> {
     presets.value.map((preset) => ({
       key: preset.key,
       name: preset.plan.name,
+      plan: preset.plan,
     })),
   );
   if (!hit) return;
@@ -535,7 +540,7 @@ onUnmounted(() => {
           :data-key="renderedQuery ? 'search' : state.tab"
           :data-slide="slide || undefined">
           <SearchView v-if="renderedQuery" :query="renderedQuery" />
-          <div v-show="!renderedQuery">
+          <div v-if="mountBackground" v-show="!renderedQuery">
             <RouterView v-slot="{Component}">
               <component :is="Component" />
             </RouterView>

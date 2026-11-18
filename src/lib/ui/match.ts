@@ -11,25 +11,40 @@ const SEPARATORS = /[\s·・'"“”]/g;
 
 export const normalize = (text: unknown) => String(text).toLowerCase().replace(SEPARATORS, '');
 
-/** 名称 → [[音节, …], …]（每种读法一组），首次用到时缓存 */
-const syllableCache = new Map<string, string[][]>();
-function readingsOf(name: string): string[][] {
-  if (!syllableCache.has(name)) {
-    const value = PINYIN[name];
-    const list = value ? (typeof value === 'string' ? [value] : value) : [];
-    syllableCache.set(name, list.map(r => r.split(' ')));
-  }
-  return syllableCache.get(name)!;
+interface Reading {
+  full: string;
+  initials: string;
+  /** 每个音节在全拼中的起点。 */
+  offsets: number[];
+}
+
+// 只缓存赛季拼音表中的名称。用户可自由命名流派，名称也可能与 Object 原型属性同名。
+const readingCache = new Map<string, Reading[]>();
+function readingsOf(name: string): readonly Reading[] {
+  const cached = readingCache.get(name);
+  if (cached) return cached;
+  if (!Object.hasOwn(PINYIN, name)) return [];
+  const value = PINYIN[name];
+  const readings = (typeof value === 'string' ? [value] : value).map(reading => {
+    const syllables = reading.split(' ');
+    let offset = 0;
+    const offsets = syllables.map(syllable => {
+      const start = offset;
+      offset += syllable.length;
+      return start;
+    });
+    return {full: syllables.join(''), initials: syllables.map(s => s[0]).join(''), offsets};
+  });
+  readingCache.set(name, readings);
+  return readings;
 }
 
 function pinyinScore(name: string, q: string): number {
   let best = 0;
-  for (const syllables of readingsOf(name)) {
-    const full = syllables.join('');
-    const initials = syllables.map(s => s[0]).join('');
+  for (const {full, initials, offsets} of readingsOf(name)) {
     if (full === q || initials === q) return 3;
-    for (let i = 0; i < syllables.length; i++) {
-      const hit = syllables.slice(i).join('').startsWith(q) || initials.slice(i).startsWith(q);
+    for (let i = 0; i < offsets.length; i++) {
+      const hit = full.startsWith(q, offsets[i]) || initials.startsWith(q, i);
       if (hit) {
         best = Math.max(best, i === 0 ? 2 : 1.5);
         break;

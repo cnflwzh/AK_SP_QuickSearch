@@ -16,10 +16,20 @@ const painted = () =>
 try {
   if (import.meta.env.DEV && 'serviceWorker' in navigator) {
     // An earlier production preview may have registered a worker on this localhost port.
-    const registrations = await navigator.serviceWorker.getRegistrations();
-    await Promise.all(
-      registrations.map((registration) => registration.unregister()),
-    );
+    try {
+      const registration = await navigator.serviceWorker.getRegistration();
+      const siteWorker = new URL('/sw.js', location.origin).href;
+      if (
+        registration &&
+        [registration.installing, registration.waiting, registration.active].some(
+          (worker) => worker?.scriptURL === siteWorker,
+        )
+      ) {
+        await registration.unregister();
+      }
+    } catch {
+      /* 开发环境禁用 Service Worker 时，仍可直接加载 Vite 模块。 */
+    }
   }
   if (document.body.dataset.page === 'guide') {
     const {mountGuide} = await import('./guide/main.ts');
@@ -29,10 +39,13 @@ try {
     const unmount = await mountQuickref();
     import.meta.hot?.dispose(unmount);
   }
-  const {initPeek} = await import('./lib/ui/peek.ts');
+  // 首屏 DOM 就绪后即可选择字体，速览模块的下载与此过程互不依赖。
+  const [{initPeek}] = await Promise.all([
+    import('./lib/ui/peek.ts'),
+    settleInitialFonts(),
+  ]);
   const disposePeek = initPeek();
   import.meta.hot?.dispose(disposePeek);
-  await settleInitialFonts();
   clearTimeout(slow);
   document.body.classList.remove('is-loading');
   document.body.removeAttribute('aria-busy');

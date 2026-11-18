@@ -376,8 +376,10 @@ export function purchaseMilestoneAdjustment(
   context: ValueContext,
   sourceLabel = '获得时',
 ): TraitValue {
+  // 获得时不加层则不会改变休整产层目标，两次整队推演的门槛差恒为零。
+  if (!acquisition.acquisitionGains?.length) return {score: 0, reasons: []};
   const current = restProduction(field, reserve, context);
-  const gains = sumLayerGains(acquisition.acquisitionGains ?? []);
+  const gains = sumLayerGains(acquisition.acquisitionGains);
   // 获得先于休整结束。最高层目标可能改变，必须重算整队，而不只看获层盟约。
   const layers = layersAfterAcquisition(context.layers, gains);
   const projected = restProduction(field, reserve, {...context, layers});

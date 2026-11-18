@@ -105,6 +105,7 @@ function searchOperators(event: Event): void {
 }
 function changeLevel(nextLevel: number): void {
   // 当前升级价属于当前等级，升/降级后需要重新填写，不沿用上一等级价格。
+  if (nextLevel === level.value) return;
   level.value = nextLevel;
   budget.upgrade = null;
 }

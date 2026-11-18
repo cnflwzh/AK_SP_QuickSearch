@@ -1,5 +1,5 @@
 /** 单张招募的动作搜索；只选择持有、补位、替换或整备，不处理价格和展示排序。 */
-import {OPERATORS, type Operator} from '../../../../data/index.ts';
+import {type Operator} from '../../../../data/index.ts';
 import {type CovenantStat} from '../../plans/covenants.ts';
 import {type PlanOp} from '../../plans/model.ts';
 import {
@@ -7,10 +7,7 @@ import {
   type LineupEvaluation,
   type LineupGoal,
 } from '../planning.ts';
-import {
-  evaluateDeployments,
-  recommendDeployments,
-} from './advisorDeployments.ts';
+import {evaluateDeployments} from './advisorDeployments.ts';
 import {explainLineupChange} from './advisorEvaluation.ts';
 import type {AdvisorPreferenceEvaluator} from './advisorPreferences.ts';
 import {
@@ -161,7 +158,12 @@ function evaluateOwnedRecruit(
       slot.name === operator.name ? {...slot, elite: promotes} : slot,
     );
     if (promotes) {
-      applyPromotionDeploymentValue(run, operator.name, advice);
+      applyPromotionDeploymentValue(
+        run,
+        operator.name,
+        advice,
+        search.preference,
+      );
     }
   }
   return {advice, field, reserve: remainingReserve, stats: resultingStats};
@@ -221,6 +223,9 @@ function evaluateRecruitWithSpace(
     advice.kind = 'deploy';
     advice.label = '补上场';
   }
+  if (!lineup.length) {
+    return {advice, field, reserve: remainingReserve, stats: resultingStats};
+  }
   // 买牌与免费调阵共享搜索结果：空位不能掩盖保持独行、补齐核心的换人方案。
   const purchasedRun: AdvisorRun = {
     ...run,
@@ -229,12 +234,13 @@ function evaluateRecruitWithSpace(
       {name: operator.name, copies: 1, elite: false, deployed: false},
     ],
   };
-  const swap = evaluateDeployments(
+  const [swap] = evaluateDeployments(
     purchasedRun,
-    OPERATORS.length,
+    1,
     preference,
-  ).find((plan) => plan.name === operator.name && plan.replace);
-  if (swap) {
+    operator.name,
+  );
+  if (swap?.replace) {
     const next = lineup.map((slot) =>
       slot.name === swap.replace ? candidate : slot,
     );
@@ -339,10 +345,7 @@ function evaluateRecruitAtCapacity(
     remainingReserve = purchasedReserve;
     advice.breakdown.lineup = bench.improves ? bench.score : 0;
     advice.breakdown.collection = bench.improves ? 0 : -20;
-    advice.breakdown.production = evaluateProductionDelta(
-      lineup,
-      purchasedReserve,
-    );
+    advice.breakdown.production = benchProduction;
     advice.score =
       advice.breakdown.lineup +
       advice.breakdown.collection +
@@ -363,19 +366,16 @@ function applyPromotionDeploymentValue(
   run: AdvisorRun,
   name: string,
   advice: RecruitAdvice,
+  preference: AdvisorPreferenceEvaluator,
 ): void {
-  const currentPlan = recommendDeployments(run, OPERATORS.length).find(
-    (plan) => plan.name === name,
-  );
+  const [currentPlan] = evaluateDeployments(run, 1, preference, name);
   const promotedRun: AdvisorRun = {
     ...run,
     operators: run.operators.map((operator) =>
       operator.name === name ? {...operator, elite: true, copies: 1} : operator,
     ),
   };
-  const promotedPlan = recommendDeployments(promotedRun, OPERATORS.length).find(
-    (plan) => plan.name === name,
-  );
+  const [promotedPlan] = evaluateDeployments(promotedRun, 1, preference, name);
   if (!promotedPlan || promotedPlan.score <= (currentPlan?.score ?? 0)) {
     return;
   }
