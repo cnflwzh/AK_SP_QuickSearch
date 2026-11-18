@@ -1,4 +1,4 @@
-import { computed, readonly, ref } from 'vue';
+import { computed, readonly, ref, shallowRef } from 'vue';
 import { newAdvisorRun, sanitizeAdvisorRun } from '../../lib/recommendation/live/advisorState.ts';
 import { type AdvisorRun } from '../../lib/recommendation/live/advisorTypes.ts';
 const STORAGE_KEY = 'wsq.tools.advisor.v1';
@@ -29,8 +29,9 @@ function cloneRun(run: AdvisorRun): AdvisorRun {
 }
 /** 会话只负责持久化和原子编辑；推荐计算与游戏动作由调用方负责。 */
 export function createAdvisorSession() {
-  const run = ref<AdvisorRun>(loadRun());
-  const undoSnapshot = ref<AdvisorRun | null>(null);
+  // 每次编辑都替换整份局面；推荐器只需订阅快照切换，无需追踪评估途中每次读取干员或装备。
+  const run = shallowRef<AdvisorRun>(loadRun());
+  const undoSnapshot = shallowRef<AdvisorRun | null>(null);
   const notice = ref('');
   const saveFailed = ref(false);
   let noticeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -58,7 +59,7 @@ export function createAdvisorSession() {
       showNotice(error);
       return false;
     }
-    undoSnapshot.value = cloneRun(run.value);
+    undoSnapshot.value = run.value;
     run.value = draft;
     showNotice(message);
     saveRun();

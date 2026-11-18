@@ -79,14 +79,14 @@ function currentSources(): FontSource[] {
 }
 
 /** 从已下载的二进制创建独立字体族；只有展示前确认就绪的字体才加入文档。 */
-async function decodeFace(
+function decodeFace(
   source: FontSource,
-  response: Response,
+  bytes: ArrayBuffer,
 ): Promise<FontFace> {
   const original = source.face;
   const font = new FontFace(
     `WSQ Ready ${familyOf(original)}`,
-    await response.arrayBuffer(),
+    bytes,
     {
       weight: original.weight,
       style: original.style,
@@ -127,13 +127,14 @@ export async function settleInitialFonts(): Promise<void> {
   );
 
   // 同一字体文件可能被多个字重引用，只读取/下载一次，避免并行重复请求。
-  const downloads = new Map<string, Promise<Response>>();
-  const responseFor = (source: FontSource): Promise<Response> => {
+  const downloads = new Map<string, Promise<ArrayBuffer>>();
+  const scheduledWrites = new Set<string>();
+  const bytesFor = (source: FontSource): Promise<ArrayBuffer> => {
     let download = downloads.get(source.url);
     if (!download) {
       download = (async () => {
         const hit = cached.get(source.url);
-        if (hit) return hit;
+        if (hit) return hit.arrayBuffer();
         // 首屏分片复用 CSS 请求；界面字包优先于未使用的字体分片，
         // 不调用原始 face.load()，避免原字体在加载遮罩外发生迟到替换。
         if (source.face.status !== 'unloaded') await source.face.load();
@@ -142,11 +143,11 @@ export async function settleInitialFonts(): Promise<void> {
           priority: source.interfaceSubset ? 'high' : 'low',
         });
         if (!response.ok) throw new Error('Font download failed');
-        return response;
+        return response.arrayBuffer();
       })();
       downloads.set(source.url, download);
     }
-    return download.then((response) => response.clone());
+    return download;
   };
 
   const ready = new Map<FontFamily, FontFace[]>();
@@ -158,20 +159,25 @@ export async function settleInitialFonts(): Promise<void> {
     const loaded = await Promise.allSettled(
       required.map(async (source) => {
         try {
-          const response = await responseFor(source);
-          const font = await decodeFace(source, response.clone());
-          if (!cached.has(source.url)) {
-            try {
-              await cache?.put(source.url, response);
-            } catch {
-              /* 存储不足时保留本次已解码字体。 */
-            }
+          const bytes = await bytesFor(source);
+          const font = await decodeFace(source, bytes);
+          // 相同文件的多个字重只需保存一次。写盘耗时不占用首屏的字体显示预算。
+          if (
+            cache &&
+            !cached.has(source.url) &&
+            !scheduledWrites.has(source.url)
+          ) {
+            scheduledWrites.add(source.url);
+            const response = new Response(bytes, {
+              headers: {'Content-Type': 'font/woff2'},
+            });
+            void cache.put(source.url, response).catch(() => {});
           }
           return font;
         } catch (error) {
           // 清除损坏的缓存，以便下次访问能够重新下载。
           try {
-            await cache?.delete(source.url);
+            if (cached.has(source.url)) await cache?.delete(source.url);
           } catch {
             /* 缓存可能已被浏览器清除。 */
           }

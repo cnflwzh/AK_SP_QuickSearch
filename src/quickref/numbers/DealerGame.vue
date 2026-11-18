@@ -6,6 +6,8 @@ import {
   onDeactivated,
   onMounted,
   ref,
+  shallowRef,
+  watchPostEffect,
 } from 'vue';
 import {
   ADDON_COVENANTS,
@@ -29,6 +31,7 @@ import {
   type HintLevel,
 } from '../../lib/dealer/index.ts';
 import LiveStatus from '../../lib/ui/LiveStatus.vue';
+import {downloadBlob} from '../../lib/ui/download.ts';
 import {router} from '../../router/index.ts';
 import type {DetailKind} from '../../router/entities.ts';
 import CovenantIcon from '../components/CovenantIcon.vue';
@@ -37,8 +40,7 @@ import {color} from '../format.ts';
 import {useQuickrefActions} from '../state.ts';
 import {
   copyPosterToClipboard,
-  downloadPosterPng,
-  renderDealerPosterDataUrl,
+  renderDealerPoster,
 } from './dealerPoster.ts';
 import {useDealerGame} from './useDealerGame.ts';
 
@@ -74,6 +76,7 @@ const copied = ref(false);
 const copyFallback = ref('');
 const imageStatus = ref<'idle' | 'copied' | 'saved'>('idle');
 const fontReadyTick = ref(0);
+const active = ref(true);
 let copyTimer: ReturnType<typeof setTimeout> | undefined;
 let imageTimer: ReturnType<typeof setTimeout> | undefined;
 // KeepAlive 返回及从后台恢复时刷新日期，后台不保留轮询计时器。
@@ -81,17 +84,23 @@ function refreshVisibleDate(): void {
   if (document.visibilityState === 'visible') game.refreshDate();
 }
 onActivated(() => {
+  active.value = true;
   game.refreshDate();
   document.addEventListener('visibilitychange', refreshVisibleDate);
 });
 function releaseDateListener(): void {
   document.removeEventListener('visibilitychange', refreshVisibleDate);
 }
-onDeactivated(releaseDateListener);
+onDeactivated(() => {
+  active.value = false;
+  releaseDateListener();
+});
 onMounted(() => {
-  void document.fonts?.ready?.then(() => {
-    fontReadyTick.value++;
-  });
+  if (document.fonts?.status === 'loading') {
+    void document.fonts.ready.then(() => {
+      fontReadyTick.value++;
+    });
+  }
 });
 onBeforeUnmount(() => {
   releaseDateListener();
@@ -153,23 +162,47 @@ const posterModel = computed(() =>
   }),
 );
 
-const posterDataUrl = computed(() => {
+const poster = shallowRef<{
+  blob: Blob;
+  url: string;
+  fileName: string;
+} | null>(null);
+const posterFailed = ref(false);
+watchPostEffect(async (onCleanup) => {
+  posterFailed.value = false;
+  if (!active.value || !session.value.showReport) return;
   void fontReadyTick.value;
-  if (!session.value.showReport) return '';
-  return renderDealerPosterDataUrl(posterModel.value);
+  const model = posterModel.value;
+  let cancelled = false;
+  let url: string | undefined;
+  // 离开、切换模式或字体就绪时丢弃过期的编码结果，并释放预览图。
+  onCleanup(() => {
+    cancelled = true;
+    if (url) URL.revokeObjectURL(url);
+    poster.value = null;
+  });
+  try {
+    const blob = await renderDealerPoster(model);
+    if (cancelled) return;
+    if (blob) {
+      url = URL.createObjectURL(blob);
+      poster.value = {blob, url, fileName: model.fileName};
+    } else {
+      posterFailed.value = true;
+    }
+  } catch {
+    if (!cancelled) posterFailed.value = true;
+  }
 });
 
 async function copyShareImage(): Promise<void> {
   clearTimeout(imageTimer);
-  const dataUrl = posterDataUrl.value;
-  if (!dataUrl) return;
-  const result = await copyPosterToClipboard(dataUrl);
-  if (result === 'copied') {
-    imageStatus.value = 'copied';
-  } else {
-    downloadPosterPng(dataUrl, posterModel.value.fileName);
-    imageStatus.value = 'saved';
-  }
+  const image = poster.value;
+  if (!image) return;
+  const result = await copyPosterToClipboard(image.blob);
+  if (result !== 'copied') downloadBlob(image.blob, image.fileName);
+  if (poster.value !== image) return;
+  imageStatus.value = result === 'copied' ? 'copied' : 'saved';
   imageTimer = setTimeout(() => {
     imageStatus.value = 'idle';
   }, 2600);
@@ -177,9 +210,9 @@ async function copyShareImage(): Promise<void> {
 
 function saveShareImage(): void {
   clearTimeout(imageTimer);
-  const dataUrl = posterDataUrl.value;
-  if (!dataUrl) return;
-  downloadPosterPng(dataUrl, posterModel.value.fileName);
+  const image = poster.value;
+  if (!image) return;
+  downloadBlob(image.blob, image.fileName);
   imageStatus.value = 'saved';
   imageTimer = setTimeout(() => {
     imageStatus.value = 'idle';
@@ -351,12 +384,19 @@ function inspectCardDetail(
       aria-label="痛扁发牌战报">
       <div class="nt-dealer-poster-wrap">
         <img
-          v-if="posterDataUrl"
+          v-if="poster"
           class="nt-dealer-poster-img"
-          :src="posterDataUrl"
+          :src="poster.url"
           :alt="`${rank.title} 战报图片`"
           width="760"
           height="520" />
+        <p v-else role="status">
+          {{
+            posterFailed
+              ? '战报图片生成失败，可复制文字战报。'
+              : '正在生成战报图片…'
+          }}
+        </p>
       </div>
 
       <div class="nt-dealer-report-side">
@@ -364,6 +404,7 @@ function inspectCardDetail(
           <button
             type="button"
             class="btn p nt-dealer-poster-primary"
+            :disabled="!poster"
             @click="copyShareImage">
             {{
               imageStatus === 'copied'
@@ -373,7 +414,11 @@ function inspectCardDetail(
                   : '复制战报图片'
             }}
           </button>
-          <button type="button" class="btn" @click="saveShareImage">
+          <button
+            type="button"
+            class="btn"
+            :disabled="!poster"
+            @click="saveShareImage">
             保存图片
           </button>
           <button type="button" class="btn" @click="copyShareText">

@@ -68,8 +68,10 @@ async function copyImage(): Promise<void> {
   imageError.value = '';
   const snapshot: Plan = JSON.parse(JSON.stringify(props.plan));
   try {
-    const blob = await buildImageBlob(snapshot);
-    await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
+    // 绘图会异步加载头像；在点击事件内发起写入，避免生成图片期间用户激活失效。
+    await navigator.clipboard.write([
+      new ClipboardItem({'image/png': buildImageBlob(snapshot)}),
+    ]);
     markCopied('img');
   } catch {
     imageError.value = '复制图片失败，可点「保存图片」后发送。';

@@ -17,11 +17,13 @@ export function registerServiceWorker() {
       await navigator.serviceWorker.register('/sw.js');
       const registration = await navigator.serviceWorker.ready;
       // performance 只包含已经结束的请求；首次安装前的资源同样可供离线使用。
-      const urls = [location.origin + location.pathname,
-        ...performance.getEntriesByType('resource').map(entry => entry.name)]
-        .filter(value => new URL(value).origin === location.origin)
-        .map(value => { const url = new URL(value); url.search = ''; url.hash = ''; return url.href; });
-      const save = () => registration.active?.postMessage({ type: 'CACHE_VISITED', urls });
+      const save = () => {
+        const urls = [location.origin + location.pathname,
+          ...performance.getEntriesByType('resource').map(entry => entry.name)]
+          .filter(value => new URL(value).origin === location.origin)
+          .map(value => { const url = new URL(value); url.search = ''; url.hash = ''; return url.href; });
+        registration.active?.postMessage({ type: 'CACHE_VISITED', urls });
+      };
       save();
       // Font downloads can finish after the worker's initial resource snapshot. Requests
       // started before controller activation still need a backfill, including new glyphs
@@ -31,14 +33,14 @@ export function registerServiceWorker() {
           .map(entry => entry.name)
           .filter(value => {
             const url = new URL(value);
-            return url.origin === location.origin && /^\/assets\/fonts\/[a-z]+-[a-f0-9]{16}\.woff2$/.test(url.pathname);
+            return url.origin === location.origin && /^\/assets\/fonts\/[a-z]+(?:-ui)?-[a-f0-9]{16}\.woff2$/.test(url.pathname);
           });
         if (fontUrls.length) registration.active?.postMessage({ type: 'CACHE_VISITED', urls: fontUrls });
       };
       document.fonts.addEventListener('loadingdone', saveFonts);
       void document.fonts.ready.then(saveFonts);
       // 更新期间 ready 可能先返回旧 Worker；新版本接管后再补存一次。
-      navigator.serviceWorker.addEventListener('controllerchange', () => { save(); saveFonts(); }, { once: true });
+      navigator.serviceWorker.addEventListener('controllerchange', save, { once: true });
     } catch { /* 受限浏览器中照常使用在线页面。 */ }
   };
   if (document.readyState === 'complete') register();

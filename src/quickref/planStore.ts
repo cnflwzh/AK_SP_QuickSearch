@@ -6,7 +6,7 @@
  * - “本局”：玩家开局前选一套要打的流派；盟约 / 效果 / 干员各页据此高亮。
  * - 本局被 ban 的盟约由玩家自己勾，只用于给出替代方案。
  */
-import {computed, reactive, ref, watch} from 'vue';
+import {computed, reactive, ref, toRaw, watch} from 'vue';
 import {
   BUILD_NAMES,
   CORE_BUILDS,
@@ -30,19 +30,20 @@ import {
   newId,
   newSlot,
   samePlan,
-  savePlans,
   type CovenantStat,
   type Plan,
 } from '../lib/plans/index.ts';
+import {readPlanSnapshot, savePlanSnapshot} from '../lib/plans/storage.ts';
 import {isBanned} from '../lib/recommendation/index.ts';
 import {mergePlanBackup, type PlanBackupMerge} from '../lib/plans/backup.ts';
 // The route adapter selects a preset; this store does not depend on the browser router.
 const selectedPresetKey = ref(BUILD_NAMES[0]);
+let storedSnapshot = readPlanSnapshot();
 
 /** 用户的方案：自建流派和内置流派的修改版 */
 // 旧版规划页会自动建一个空的“我的阵容”，没动过的就不带进流派列表
 export const plans = reactive<Plan[]>(
-  loadPlans().filter(
+  loadPlans(storedSnapshot).filter(
     (p) =>
       p.ops.length ||
       p.note ||
@@ -54,16 +55,36 @@ export const plans = reactive<Plan[]>(
 );
 
 /* ---------- 存档：连续修改合并写入，离页时立即落盘 ---------- */
-export const saveError = ref(false);
+export const saveErrorMessage = ref('');
+export const saveError = computed(() => !!saveErrorMessage.value);
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let dirty = false;
+let lastSavedSnapshot = JSON.stringify(toRaw(plans));
+function persistPlans(records: readonly Plan[]): boolean {
+  const snapshot = JSON.stringify(toRaw(records));
+  saveErrorMessage.value = '';
+  // 闲置标签页也会触发 pagehide，只有本页发生编辑才可写回整份存档。
+  if (snapshot === lastSavedSnapshot) return true;
+  const latest = readPlanSnapshot();
+  if (latest !== snapshot) {
+    if (latest !== storedSnapshot) {
+      saveErrorMessage.value = '其他标签页已更新流派。本页草稿尚未保存，请先导出流派备份，再刷新并导入。';
+      return false;
+    }
+    if (!savePlanSnapshot(snapshot)) {
+      saveErrorMessage.value = '本地保存失败，请先复制分享码保留流派，再检查浏览器的存储空间和权限。';
+      return false;
+    }
+  }
+  storedSnapshot = snapshot;
+  lastSavedSnapshot = snapshot;
+  return true;
+}
 export function flushSave(force = false): void {
   clearTimeout(saveTimer);
   saveTimer = undefined;
   if (!dirty && !force) return;
-  const saved = savePlans(plans);
-  saveError.value = !saved;
-  dirty = !saved;
+  dirty = !persistPlans(plans);
 }
 function scheduleSave(): void {
   dirty = true;
@@ -138,11 +159,8 @@ export function addPlan(next: Plan): string {
 export function restorePlanBackup(incoming: readonly Plan[]): PlanBackupMerge {
   const result = mergePlanBackup(plans, incoming);
   if (!result.additions.length) return result;
-  if (!savePlans([...plans, ...result.additions])) {
-    saveError.value = true;
-    throw new Error('本地保存失败，请检查浏览器的存储空间和权限后重试。');
-  }
-  saveError.value = false;
+  if (!persistPlans([...plans, ...result.additions]))
+    throw new Error(saveErrorMessage.value);
   plans.push(...result.additions);
   return result;
 }

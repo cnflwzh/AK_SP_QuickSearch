@@ -210,15 +210,20 @@ router.beforeEach((to) => {
   if (queryText(to.query, 'card') && !detailFromId(queryText(to.query, 'card')))
     routeNotice.value = '未找到这张卡片。';
   const query = normalizeQuery(tab, to.query, id, to.name === 'build-edit');
-  if (tab === 'nu' && query.tool === 'advisor' && !advisorPreviewEnabled.value)
-    delete query.tool;
+  if (tab === 'nu') {
+    // 预览开关会把助手排在首位，此时显式选择层数工具必须能往返导航。
+    if (advisorPreviewEnabled.value && queryText(to.query, 'tool') === 'layers')
+      query.tool = 'layers';
+    else if (!advisorPreviewEnabled.value && query.tool === 'advisor')
+      delete query.tool;
+  }
   // Preserve the caller's push/replace intent while canonicalizing default/empty controls.
   if (!sameQuery(query, to.query)) return {path: to.path, query, hash: to.hash};
 });
 
 /** Most-recent locations are per-session navigation conveniences, never overrides for external links. */
 export const tabLocations = shallowRef<Partial<Record<TabId, string>>>({});
-router.afterEach((to, _from, failure) => {
+router.afterEach((to, from, failure) => {
   if (failure) return;
   navigationError.value = null;
   const tab = to.meta.tab;
@@ -228,7 +233,9 @@ router.afterEach((to, _from, failure) => {
     path: to.path,
     query: backgroundQuery,
   }).fullPath;
-  tabLocations.value = {...tabLocations.value, [tab]: background};
+  if (tabLocations.value[tab] !== background)
+    tabLocations.value = {...tabLocations.value, [tab]: background};
+  else if (from.meta.tab === tab) return;
   if (tab !== 'se') {
     try {
       localStorage.setItem('wsq.location', background);

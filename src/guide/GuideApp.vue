@@ -17,7 +17,6 @@ import {
   TIERS,
 } from '../../data/index.ts';
 import {whileVisible} from '../lib/ui/visibility.ts';
-import Markup from './components/Markup.ts';
 import {decodeFragment} from '../lib/runtime/url.ts';
 import {placeholders} from './placeholders.ts';
 import SkipLink from '../lib/ui/SkipLink.vue';
@@ -307,7 +306,8 @@ onBeforeUnmount(() => {
         重新加载本章
       </button>
       <component v-if="components[id]" :is="components[id]" />
-      <Markup v-else :html="placeholders[id]" />
+      <!-- 占位内容是随包发布的静态 HTML；章节加载后整块替换。 -->
+      <div v-else style="display: contents" v-html="placeholders[id]"></div>
     </section>
   </main>
 </template>

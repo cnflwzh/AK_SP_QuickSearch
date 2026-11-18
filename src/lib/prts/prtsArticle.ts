@@ -19,8 +19,8 @@ const CACHE_LIMIT = 6;
 const READER_SKIN = 'vector';
 const articleCache = new Map<string, { article: PrtsArticle; savedAt: number }>();
 
-/** 从指定的 PRTS 官方站点读取 JSON；网络、HTTP 或 JSON 解码失败时抛出错误。 */
-async function requestArticle(origin: string, name: string, signal: AbortSignal): Promise<ParseResponse> {
+/** 从指定的 PRTS 官方站点读取正文；网络、HTTP 或解析接口未返回正文时抛出错误。 */
+async function requestArticle(origin: string, name: string, signal: AbortSignal): Promise<PrtsArticle> {
   signal.throwIfAborted();
   const endpoint = new URL('/api.php', origin);
   endpoint.search = new URLSearchParams({
@@ -29,7 +29,10 @@ async function requestArticle(origin: string, name: string, signal: AbortSignal)
   }).toString();
   const response = await fetch(endpoint, { credentials: 'omit', signal });
   if (!response.ok) throw new Error(`PRTS returned HTTP ${response.status}`);
-  return await response.json() as ParseResponse;
+  const result = await response.json() as ParseResponse;
+  const html = result.parse?.text?.['*'];
+  if (typeof html !== 'string' || !html.trim()) throw new Error(result.error?.info || 'PRTS returned an empty article');
+  return { name, url: operatorWikiUrl(result.parse?.title || name), html, revision: result.parse?.revid ?? 0 };
 }
 
 /**
@@ -51,19 +54,16 @@ export async function fetchPrtsArticle(name: string, signal: AbortSignal): Promi
   signal.addEventListener('abort', cancel, { once: true });
   const timeout = setTimeout(() => request.abort(new DOMException('PRTS request timed out', 'TimeoutError')), 20_000);
   try {
-    let result: ParseResponse;
+    let article: PrtsArticle;
     try {
-      result = await requestArticle('https://prts.wiki', name, request.signal);
+      article = await requestArticle('https://prts.wiki', name, request.signal);
     } catch {
       // 部分手机请求收到的主站响应缺少 CORS 头，官方移动接口仍可读取。
       // 按实际请求失败回退，不依赖 UA；关闭侧栏或超时后不再启动备用请求。
       request.signal.throwIfAborted();
-      result = await requestArticle('https://m.prts.wiki', name, request.signal);
+      article = await requestArticle('https://m.prts.wiki', name, request.signal);
     }
-    const html = result.parse?.text?.['*'];
-    if (typeof html !== 'string' || !html.trim()) throw new Error(result.error?.info || 'PRTS returned an empty article');
-    signal.throwIfAborted();
-    const article = { name, url: operatorWikiUrl(result.parse?.title || name), html, revision: result.parse?.revid ?? 0 };
+    request.signal.throwIfAborted();
     articleCache.delete(name);
     articleCache.set(name, { article, savedAt: Date.now() });
     while (articleCache.size > CACHE_LIMIT) articleCache.delete(articleCache.keys().next().value!);

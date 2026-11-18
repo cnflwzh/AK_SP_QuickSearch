@@ -8,7 +8,7 @@ import {
   LEADERS,
 } from '../../../data/index.ts';
 import {normalize, nameScore} from '../../lib/ui/match.ts';
-import {matchedOnlyElite} from '../searchRanking.ts';
+import {buildSearchDescription, matchedOnlyElite} from '../searchRanking.ts';
 import {presets} from '../planStore.ts';
 import {state} from '../state.ts';
 import Chip from '../components/Chip.vue';
@@ -93,12 +93,7 @@ const results = computed(() => {
       mutableDescription: true,
       matchesRelatedName: (preset) =>
         preset.key !== preset.plan.name && nameScore(preset.key, q) > 0,
-      descriptionOf: (preset) =>
-        preset.plan.note +
-        '|' +
-        preset.plan.strategy +
-        '|' +
-        preset.plan.ops.flatMap((o) => [o.name, ...o.alt, ...o.eq]).join('/'),
+      descriptionOf: (preset) => buildSearchDescription(preset.plan),
     }).map((preset) => preset.key),
     operators: rankBy(OPERATORS, q, (operator) => operator.name, {
       matchesRelatedName: (operator) =>
@@ -130,6 +125,13 @@ const results = computed(() => {
     }),
   };
 });
+const visibleOperators = computed(() =>
+  results.value.operators.slice(0, operatorLimit.value).map((operator) => ({
+    operator,
+    eliteMatched:
+      eliteMode.value === 0 && matchedOnlyElite(operator, normalizedQuery.value),
+  })),
+);
 const empty = computed(
   () =>
     !!normalizedQuery.value &&
@@ -200,14 +202,11 @@ const resultSummary = computed(() => {
     </div>
     <div class="qg" data-key="operators">
       <OperatorCard
-        v-for="operator in results.operators.slice(0, operatorLimit)"
+        v-for="{operator, eliteMatched} in visibleOperators"
         :key="operator.name"
         :operator="operator"
-        :show-elite="
-          eliteMode === 2 ||
-          (eliteMode === 0 && matchedOnlyElite(operator, query))
-        "
-        :elite-matched="eliteMode === 0 && matchedOnlyElite(operator, query)"
+        :show-elite="eliteMode === 2 || eliteMatched"
+        :elite-matched="eliteMatched"
         show-wiki-link />
     </div>
     <button

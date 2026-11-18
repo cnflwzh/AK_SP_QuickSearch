@@ -8,6 +8,16 @@ import {
   type Operator,
 } from '../../data/index.ts';
 import {nameScore, normalize} from '../lib/ui/match.ts';
+import type {Plan} from '../lib/plans/model.ts';
+
+/** 列表匹配和回车直达共用的流派正文，包括说明、策略、主力、备选和装备名称。 */
+export function buildSearchDescription(plan: Plan): string {
+  return [
+    plan.note,
+    plan.strategy,
+    plan.ops.flatMap((slot) => [slot.name, ...slot.alt, ...slot.eq]).join('/'),
+  ].join('|');
+}
 
 /** 查询仅命中干员精锐特质（名称、盟约和初始特质未命中）时返回 true。 */
 export function matchedOnlyElite(
@@ -47,7 +57,7 @@ export type SearchQuickTarget = {
  */
 export function topSearchTarget(
   rawQuery: string,
-  buildItems: readonly {key: string; name: string}[] = [],
+  buildItems: readonly {key: string; name: string; plan?: Plan}[] = [],
 ): SearchQuickTarget | null {
   const q = normalize(rawQuery);
   if (!q) return null;
@@ -107,6 +117,10 @@ export function topSearchTarget(
   for (const st of STRATEGIES) {
     const hay = normalize(st.skill + '|' + st.effect + st.category);
     if (hay.includes(q)) return {kind: 'st', id: st.name};
+  }
+  for (const build of buildItems) {
+    if (build.plan && normalize(buildSearchDescription(build.plan)).includes(q))
+      return {kind: 'bd', id: build.key};
   }
   for (const ld of LEADERS) {
     const hay = normalize(

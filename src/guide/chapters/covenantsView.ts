@@ -7,7 +7,7 @@ import {
   isCoreCovenant,
   rosterOf,
 } from '../../../data/index';
-import {html, range, round1} from '../../lib/ui/dom';
+import {html, range} from '../../lib/ui/dom';
 import {covenantIconHtml} from '../../lib/ui/assets';
 import {cv, portrait, color} from '../chips';
 
@@ -99,60 +99,34 @@ export const POSITIONS: [string, [number, number][]][] = [
   ],
 ];
 
-/** Calculate all displayed values and the main SVG curve for a covenant and layer count. */
-export function calculator(name: string, L: number) {
-  const out: Record<string, string> = {};
-  const c = COVENANTS[name];
-  out.cvLv = String(L);
-  out.cvVals = c.scaling
-    .map(
-      (s) =>
-        `<div><span>${s.label}</span><b>${round1(s.at(L))}<small style="font-size:14px;color:var(--ink2)">${s.unit}</small></b></div>`,
-    )
-    .join('');
-  out.cvBase = c.effect;
-  out.cvBig = c.bonus;
-
-  // 曲线：x = 层数 0–300，y = 主数值
-  const main = c.scaling[0];
-  const f = main.at;
-  const W = 440,
-    x0 = 46,
-    y0 = 228;
-  const xs = (x: number) => x0 + (x / 300) * (W - x0 - 12);
-  const values = range(301).map(f);
+/** 给定具有层数公式的盟约，返回 0–300 层的固定曲线、刻度和游标坐标。 */
+export function covenantCurve(name: string) {
+  const main = COVENANTS[name].scaling[0];
+  const xs = (layer: number) => 46 + (layer / 300) * (428 - 46);
+  const values = range(301).map((layer) => main.at(layer));
   const top = Math.max(...values) * 1.1 || 1;
   const bottom = Math.min(0, ...values);
-  const ys = (v: number) => y0 - ((v - bottom) / (top - bottom)) * (y0 - 18);
-
-  let s = '';
-  for (let k = 0; k <= 4; k++) {
-    const v = bottom + ((top - bottom) * k) / 4;
-    const y = ys(v);
-    s += `<line class="gl" x1="${x0}" x2="${W - 12}" y1="${y}" y2="${y}"/><text class="axl" x="${x0 - 6}" y="${y + 4}" text-anchor="end">${Math.round(v)}</text>`;
-  }
-  [0, 50, 100, 150, 200, 250, 300].forEach((x) => {
-    s += `<text class="axl" x="${xs(x)}" y="${y0 + 18}" text-anchor="middle">${x}</text>`;
-  });
-  const points = values.map(
-    (v, x) => `${xs(x).toFixed(1)},${ys(v).toFixed(1)}`,
-  );
-  s +=
-    `<path class="ar" d="M${xs(0)},${y0} L${points.slice(0, L + 1).join(' L')} L${xs(L)},${y0}Z"/>` +
-    `<path class="ln" d="M${points.join(' L')}"/>` +
-    `<line x1="${xs(L)}" x2="${xs(L)}" y1="${y0}" y2="${ys(f(L))}" stroke="var(--accent)" stroke-dasharray="3 3"/>` +
-    `<circle class="dot" cx="${xs(L)}" cy="${ys(f(L))}" r="6"/>` +
-    `<text class="axl" x="${x0}" y="12" style="fill:var(--ink2)">${main.label}（${main.unit}）</text>` +
-    `<text class="axl" x="${W - 12}" y="${y0 - 6}" text-anchor="end">层数</text>`;
-  const description =
-    `横轴为 0 至 300 层，纵轴为${main.label}，单位${main.unit || '无'}。当前 ${L} 层：` +
-    c.scaling
-      .map((value) => `${value.label} ${round1(value.at(L))}${value.unit}`)
-      .join('，') +
-    `。${main.label}在 0 层为 ${round1(f(0))}${main.unit}，300 层为 ${round1(f(300))}${main.unit}。`;
-  out.cvChart =
-    `<desc id="covenant-chart-description">${description}</desc>` + s;
-  return out;
+  const ys = (value: number) =>
+    228 - ((value - bottom) / (top - bottom)) * (228 - 18);
+  const points = values.map((value, layer) => ({x: xs(layer), y: ys(value)}));
+  const path =
+    'M' + points.map(({x, y}) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' L');
+  return {
+    main,
+    points,
+    path,
+    area: path + ' L428,228 L46,228 Z',
+    xTicks: [0, 50, 100, 150, 200, 250, 300].map((label) => ({
+      label,
+      x: xs(label),
+    })),
+    yTicks: range(5).map((index) => {
+      const value = bottom + ((top - bottom) * index) / 4;
+      return {label: Math.round(value), y: ys(value)};
+    }),
+    start: values[0],
+    end: values[300],
+  };
 }
 /** Format the selected strategy category and result count. */
 export function strategies(i: number) {

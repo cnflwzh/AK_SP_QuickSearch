@@ -601,7 +601,6 @@ function confirmImportBackup(): void {
   clearNotices();
   try {
     const incomingPlans = pendingBackup.value.plans;
-    applySettings(pendingBackup.value.settings);
     const messages = ['已导入并应用页面设置'];
     if (importPlansFromBackup.value && incomingPlans?.length) {
       const merged = restorePlanBackup(incomingPlans);
@@ -610,6 +609,8 @@ function confirmImportBackup(): void {
       if (merged.conflicts)
         messages.push(`冲突保留副本 ${merged.conflicts} 套`);
     }
+    // 流派落盘可能因空间或权限失败，先完成它，避免报错后界面设置已部分应用。
+    applySettings(pendingBackup.value.settings);
     statusMessage.value = messages.join('，') + '。';
     pendingBackup.value = null;
     pendingSourceName.value = '';

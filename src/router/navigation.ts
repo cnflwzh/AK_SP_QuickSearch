@@ -1,12 +1,20 @@
 import { computed } from 'vue';
-import type { LocationQueryRaw, RouteLocationRaw } from 'vue-router';
-import { LEADER } from '../../data/index.ts';
+import type { LocationQuery, LocationQueryRaw, RouteLocationRaw } from 'vue-router';
+import { DEFAULT_BUILD_ID, DEFAULT_COVENANT_ID, LEADER } from '../../data/index.ts';
 import { router, tabLocations } from './index.ts';
-import { PAGE_PATHS, queryText, type TabId } from './location.ts';
+import { PAGE_PATHS, queryText, sameQuery, type TabId } from './location.ts';
 import { buildId, covenantId, detailId, type DetailKind } from './entities.ts';
 
 export const currentRoute = router.currentRoute;
 export const routeQuery = computed(() => currentRoute.value.query);
+
+// 详情卡互相切换不会改变列表里任何卡片链接，保留背景引用以免整份图鉴重绘。
+const cardBackground = computed<{path: string; query: LocationQuery; hash: string}>((previous) => {
+  const {path, hash, query: {card: _card, ...query}} = currentRoute.value;
+  if (previous && previous.path === path && previous.hash === hash && sameQuery(previous.query, query))
+    return previous;
+  return {path, query, hash};
+});
 
 /** Navigation errors are displayed by the app shell, including offline/expired lazy chunks. */
 export async function navigate(to: RouteLocationRaw, replace = false): Promise<void> {
@@ -16,11 +24,16 @@ export async function navigate(to: RouteLocationRaw, replace = false): Promise<v
 /** Change a group of controls atomically; null removes a parameter. Continuous inputs use replace. */
 export function updateQuery(changes: LocationQueryRaw, replace = false): Promise<void> {
   const route = currentRoute.value;
-  return navigate({ path: route.path, query: { ...route.query, ...changes }, hash: route.hash }, replace);
+  const query: LocationQueryRaw = { ...route.query };
+  for (const [key, value] of Object.entries(changes)) {
+    if (value == null) delete query[key];
+    else query[key] = value;
+  }
+  return navigate({ path: route.path, query, hash: route.hash }, replace);
 }
 
 export function tabLocation(tab: TabId): string {
-  return tabLocations.value[tab] ?? (tab === 'bd' ? '/builds/yan' : tab === 'cv' ? '/covenants/ursus' : PAGE_PATHS[tab]);
+  return tabLocations.value[tab] ?? (tab === 'bd' ? `/builds/${DEFAULT_BUILD_ID}` : tab === 'cv' ? `/covenants/${DEFAULT_COVENANT_ID}` : PAGE_PATHS[tab]);
 }
 export function buildLocation(key: string, edit = false): string {
   return `/builds/${encodeURIComponent(buildId(key))}${edit ? '/edit' : ''}`;
@@ -39,7 +52,7 @@ export function leaderDestination(name: string) {
   return { path: leaderLocation(name), query };
 }
 export function cardLocation(kind: DetailKind, name: string) {
-  const route = currentRoute.value;
+  const route = cardBackground.value;
   return { path: route.path, query: { ...route.query, card: detailId(kind, name) }, hash: route.hash };
 }
 
