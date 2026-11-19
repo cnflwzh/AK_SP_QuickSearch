@@ -11,7 +11,11 @@ import {color, fx, bonusHeadcount, bonusText} from '../format.ts';
 import {useQuickrefActions} from '../state.ts';
 import {clearBans, run, runStat, runBans, toggleBan} from '../planStore.ts';
 import RunBanner from '../components/RunBanner.vue';
-import Segmented from '../components/Segmented.vue';
+import SubTabs, {
+  type SubTabDirection,
+  type SubTabItem,
+} from '../components/SubTabs.vue';
+import EmptyState from '../components/EmptyState.vue';
 import CovenantIcon from '../components/CovenantIcon.vue';
 /**
  * 盟约效果一览：所有盟约的激活 / 强化效果平铺成卡片，局内扫一眼就能查到。
@@ -27,17 +31,29 @@ const filter = computed({
     void updateQuery({group: groups[index] || null});
   },
 });
-const labels = ['全部', '核心', '附加'];
+const panelDir = ref<SubTabDirection>('');
 const onlyRunFx = ref(false);
 const banEditMode = ref(false);
 const filterToRunFx = computed(
   () => onlyRunFx.value && !!run.value && runStat.value.size > 0,
 );
+const scopedCovenants = computed(() =>
+  filterToRunFx.value
+    ? ALL_COVENANTS.filter((name) => runStat.value.has(name))
+    : ALL_COVENANTS,
+);
+const groupTabs = computed<readonly SubTabItem<number>[]>(() => {
+  const all = scopedCovenants.value;
+  const coreCount = all.filter((name) => isCoreCovenant(name)).length;
+  return [
+    {id: 0, label: '全部', count: all.length},
+    {id: 1, label: '核心', count: coreCount},
+    {id: 2, label: '附加', count: all.length - coreCount},
+  ];
+});
 const list = computed(() =>
-  ALL_COVENANTS.filter(
-    (name) =>
-      (!filterToRunFx.value || runStat.value.has(name)) &&
-      (filter.value === 0 || isCoreCovenant(name) === (filter.value === 1)),
+  scopedCovenants.value.filter(
+    (name) => filter.value === 0 || isCoreCovenant(name) === (filter.value === 1),
   ),
 );
 const cards = computed(() =>
@@ -71,11 +87,14 @@ const cards = computed(() =>
   <RunBanner />
   <div class="fxv">
     <div class="bar fxv-bar">
-      <Segmented
-        :labels="labels"
-        :active="filter"
+      <SubTabs
+        v-model="filter"
+        :items="groupTabs"
+        :level="2"
+        inline
+        aria-label="盟约分类"
         attr="fxf"
-        @change="filter = $event" />
+        @change="(_, dir) => (panelDir = dir)" />
       <button
         v-if="run && runStat.size"
         type="button"
@@ -106,7 +125,10 @@ const cards = computed(() =>
         清空禁池
       </button>
     </div>
-    <div class="fxg">
+    <div
+      :key="filter"
+      :class="['fxg', {'subtab-panel': !!panelDir}]"
+      :data-dir="panelDir || undefined">
       <article
         v-for="c in cards"
         :key="c.name"
@@ -155,7 +177,7 @@ const cards = computed(() =>
           <span v-html="c.bonus"></span>
         </p>
       </article>
-      <div v-if="!cards.length" class="empty">当前筛选下没有盟约</div>
+      <EmptyState v-if="!cards.length" message="当前筛选下没有盟约" />
     </div>
   </div>
 </template>

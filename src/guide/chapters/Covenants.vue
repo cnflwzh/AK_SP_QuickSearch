@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import Markup from '../components/Markup.ts';
 import Segmented from '../components/Segmented.vue';
+import SelectInput, {
+  type SelectOption,
+} from '../../quickref/components/SelectInput.vue';
 import {op, eq} from '../chips.ts';
 import {computed, ref} from 'vue';
 import {round1} from '../../lib/ui/dom.ts';
@@ -47,6 +50,8 @@ const positionCells = computed(() => {
 const scalableCovenants = Object.keys(COVENANTS).filter(
   (name) => COVENANTS[name].scaling.length,
 );
+const scalableCovenantOptions: readonly SelectOption<string>[] =
+  scalableCovenants.map((name) => ({value: name, label: name}));
 const covenant = ref(
   scalableCovenants.includes(SEASON_META.defaultCovenant)
     ? SEASON_META.defaultCovenant
@@ -251,11 +256,11 @@ const strategyContent = computed(() => strategies(strategyCategory.value));
       <div>
         <div class="row" style="margin-bottom: 10px">
           <label for="cvSel" class="lab" style="margin: 0">盟约</label>
-          <select id="cvSel" v-model="covenant">
-            <option v-for="name in scalableCovenants" :key="name">
-              {{ name }}
-            </option>
-          </select>
+          <SelectInput
+            id="cvSel"
+            v-model="covenant"
+            :options="scalableCovenantOptions"
+            aria-label="选择盟约" />
         </div>
         <div class="row" style="justify-content: space-between">
           <label for="cvL" class="lab" style="margin: 0">层数</label>

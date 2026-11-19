@@ -8,6 +8,7 @@ import {
 } from '../../lib/plans/backup.ts';
 import {downloadBlob} from '../../lib/ui/download.ts';
 import {plans, restorePlanBackup} from '../planStore.ts';
+import StatusNotice from './StatusNotice.vue';
 
 const fileInput = ref<HTMLInputElement>();
 const backup = shallowRef<PlanBackup | null>(null);
@@ -136,8 +137,8 @@ function restoreBackup(): void {
         </button>
       </div>
     </div>
-    <p v-if="error" class="pl-warn" role="alert">{{ error }}</p>
-    <p v-if="message" class="backup-message" role="status">{{ message }}</p>
+    <StatusNotice v-if="error" tone="danger" :message="error" />
+    <StatusNotice v-if="message" tone="success" :message="message" />
   </section>
 </template>
 

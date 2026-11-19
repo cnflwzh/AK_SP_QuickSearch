@@ -1,165 +1,106 @@
 # 卫戍速查
 
-《明日方舟》卫戍协议·规程（序列Ⅰ）的局内速查与图解教程。使用 Vue 3 + TypeScript + Vite，构建为静态网页，可安装为 PWA 离线使用。
+《明日方舟》**卫戍协议·规程（序列Ⅰ）** 一站式局内速查工具与图解教程。打开网页即用，支持安装为离线应用（PWA），无论电脑分屏、手机竖屏还是游戏内**安卓横屏悬浮小窗**都能顺手查牌。
 
+> **立即使用：** [主站 · 速查页](https://sp.enjoyacg.com/) ｜ [图解教程](https://sp.enjoyacg.com/guide.html) ｜ [大陆镜像入口](https://ak.cnflwzh.top/)
 
-- **速查**（`index.html`）：速览、流派、盟约、干员、装备、策略、领袖、小工具与设置标签页，支持全局搜索、详情与悬停 / 长按速览；领袖页从列表点进详情：各难度生命与所需秒伤、对策、站位图（地图、领袖巡逻、敌人路线）、随行敌人与技能；小工具页提供数值计算器等工具；设置页支持展示项自定义、标签排列、主题切换与配置导入导出
-- **图解教程**（`guide.html`）：入门、招募与升本、刷怪、盟约进阶、流派、图鉴六章，含调度中心模拟器、站位示意、回合图表等交互
-- **离线使用**：页面、图片和字体按访问缓存，已加载的内容可离线查看
+---
 
-在线使用：[速查](https://sp.enjoyacg.com/) · [图解教程](https://sp.enjoyacg.com/guide.html) · [大陆入口](https://ak.cnflwzh.top/)
+## 核心亮点
 
-## 目录结构
+- **极速检索，想到就能搜到**
+  - 支持**干员 / 装备 / 策略 / 盟约 / 流派 / 领袖 / 实战职能**全局搜索，兼容汉字、全拼与拼音首字母（如输 `fy` / `fanyin` 直查反隐干员与装备）。
+  - 电脑端按 `/` 键随时聚焦搜索框，`Enter` 直开首条结果，`Esc` 一键清空；输入框聚焦时还会自动展开**最近查看**快捷条。
+- **零打断的悬停 / 长按速览**
+  - 页面内几乎所有干员、装备、策略、盟约与领袖名片都支持**鼠标悬停**或**触屏长按 0.45 秒**弹出速览小卡，无需跳转打断当前思路。
+- **围绕「本局」全站联动**
+  - 在「流派」页点一下 **「▶ 本局打这套」**，在「速览」页勾选本局随机被 ban 的盟约、在「领袖」页标出本局 Boss 后：干员图鉴、装备、策略、盟约、抓牌概率计算器和流派替补推荐都会**同步高亮或过滤禁池**。
+- **固定 / 自选 / 替补三源干员与个人练度盒（Box）**
+  - 「干员」页完整收录**固定池干员、自选干员与替补原型对照表**；点击任意干员可在弹窗查看初始 / 精锐特质、实战职能、推荐流派与同盟约同阶干员，还可一键开启 **PRTS Wiki 分屏阅读**。
+  - 「小工具 → 干员练度」区分 **自持有练度（精二 60 / 精二 / 精一 / 未练精 0）** 与 **未持有（已借用 6★ / 可借用 6★ / 系统预设）**，支持 **MAA 导出 JSON**、**一图流 Excel 练度表** 与纯名单批量导入，并在流派页实时显示你的自持激活覆盖率。
+- **流派规划器与一键分享**
+  - 内置主流核心与混搭流派，支持原地编辑 8 人阵容、过渡备选、装备分配、开局策略与叠层数；编辑完成后可一键生成**攻略文案、带二维码的一图流长图、短链接与分享码**，发群即可直接查看或导入。
+- **领袖全难度情报与交互地图**
+  - 一眼对比标准 / 险峻 / 绝境 / 危机四档血量与 120 秒均伤，附带隐秘核心情报、核心对策（点击对策标签可直接展开对策干员与装备），并提供**部署站位 / 敌人路线**交互参考图，还能一键复制要点发给队友。
+- **专为联机与开荒准备的小工具全家桶**
+  - **层数门槛**：各盟约关键层数阈值、循环奖励与交互式层数计算器
+  - **找牌升本**：不同模式与调度中心等级的出牌概率、刷牌预算与待找清单（一键复制求牌给队友）
+  - **悬赏收益 / 认证效率**：悬赏敌人赏金速查；联合 / 个人规程 / 极速模式认证点与里程碑规划
+  - **痛扁发牌**：每日同题挑战、自由专项拷打、自动错题本与可分享战报海报，边玩边记图鉴
+  - **抽象文案**：联机开黑/发疯/摇人圣经，支持搜索与随机抽取一键复制
+- **新手友好的交互式图解教程**
+  - 独立[图解教程页](https://sp.enjoyacg.com/guide.html)涵盖入门、招募与升本、刷怪、盟约进阶、流派与图鉴六章，内置**调度中心模拟器、特训演示、联防与漏怪动画**，新手看一遍就能上手。
+- **为手游玩家打磨的小窗与离线体验**
+  - 深度适配**安卓横屏小窗 / 悬浮窗**（640×400、860×380、625×670）与竖屏手机，窄屏与矮窗下自动收紧栏位不遮挡内容；支持深色 / 浅色 / 跟随系统、卡片紧凑模式、大字号、减弱动效与自定义顶部栏目顺序。
+  - 支持 **PWA 安装与离线缓存**：访问过的页面、图标和字体会自动缓存，断网或弱网也能秒开。
 
-```text
-├── index.html              速查页入口
-├── guide.html              教程页入口
-├── vite.config.ts          双页面构建、页脚版本号与 Service Worker 生成
-├── tsconfig.json           TypeScript 配置
-├── package.json            开发、构建与数据生成命令
-├── .node-version           Node.js 版本
-├── edgeone.json            EdgeOne 构建、路由与缓存配置
-├── wrangler.jsonc          Cloudflare Workers 静态资源部署配置
-├── LICENSE                 代码许可：GNU AGPL-3.0
-│
-├── data/                   游戏数据
-│   ├── types.ts            数据类型与字段说明（含赛季定义与机制配置）
-│   ├── season.ts           当前启用的赛季定义（切换赛季只改这里）
-│   ├── seasons/            各赛季独立数据目录
-│   │   └── s1/             序列Ⅰ「卫戍协议·规程」数据
-│   │       ├── meta.ts             赛季元信息、默认盟约/流派、规则版本号与拼音覆写
-│   │       ├── covenants.ts        盟约：路由 ID、激活人数、效果公式、门槛与规则机制
-│   │       ├── operators.ts        干员：等阶、盟约、特质、精锐特质与改价/减张标记
-│   │       ├── equipment.ts        装备、组合配方与规则机制标记
-│   │       ├── strategies.ts       策略（开局指挥）与局内推荐规则
-│   │       ├── builds.ts           核心与混搭流派推荐
-│   │       ├── leader-movement.ts  领袖战场地形与敌人巡逻路径
-│   │       ├── leaders.ts          领袖：生命、能力、隐秘核心、关卡站位与对策
-│   │       ├── rules.ts            调度中心、回合时限、悬赏、特质分类等规则数值
-│   │       ├── credits.ts          本赛季项目说明与数据来源
-│   │       └── index.ts            导出 S1_SEASON（SeasonDefinition）
-│   ├── credits.ts          从 CURRENT_SEASON.credits 衍生「关于」弹窗内容
-│   ├── pinyin.ts           当前赛季名称拼音，由 scripts/gen_pinyin.mjs 生成
-│   ├── LICENSE.md          数据许可：CC BY-NC-SA 3.0
-│   └── index.ts            统一出口 + 规则衍生索引（业务代码只从这里导入）
-│
-├── src/
-│   ├── boot.ts             页面启动、加载覆盖层与延后加载
-│   ├── lib/                按领域分模块：
-│   │   ├── dealer/         「痛扁发牌」题库、出题引擎、文案与战报模型
-│   │   ├── leaders/        领袖展示与地图轨迹寻路
-│   │   ├── numbers/        层数门槛与刷新预算等数值工具
-│   │   ├── plans/          流派方案模型、费用、盟约统计、备份与分享编码
-│   │   ├── prts/           PRTS 维基外链与正文解析
-│   │   ├── recommendation/ 静态规划评估与局内实时推荐算法
-│   │   ├── runtime/        字体等待、延后缓存、PWA、统计与 URL 解析
-│   │   ├── settings/       界面自定义设置、主题切换与配置导入导出
-│   │   └── ui/             图片路径、拼音匹配、速览卡片、「关于」与无障碍组件
-│   ├── quickref/
-│   │   ├── main.ts         速查页入口
-│   │   ├── QuickrefApp.vue 搜索、标签切换与页面导航
-│   │   ├── state.ts        界面状态，部分选择记在 localStorage
-│   │   ├── format.ts       特质文本、盟约效果等展示格式
-│   │   ├── components/     卡片、芯片、头像方块与详情弹窗
-│   │   └── views/          盟约、图鉴筛选、流派、数值与搜索结果
-│   └── guide/
-│       ├── main.ts         教程页入口
-│       ├── GuideApp.vue    章节导航与按需加载
-│       ├── chapters/       六章内容、图表与交互
-│       └── components/     调度中心模拟器、训练示意、联防与漏怪动画
-│
-├── public/
-│   ├── manifest.webmanifest  PWA 清单
-│   ├── _headers              Cloudflare 静态资源缓存头
-│   └── assets/
-│       ├── css/           共用、速查、教程与字体样式
-│       ├── fonts/         本地字体与许可
-│       ├── img/           covenants/ 盟约图标 · avatars/ 干员头像 · equipment/ 装备图标 · strategies/ 策略头像 · leaders/ 领袖头像
-│       └── icons/         PWA 图标
-│
-├── scripts/
-│   ├── build-sw.mjs        根据构建产物生成离线资源清单与缓存版本号
-│   ├── sw.template.js      Service Worker 模板
-│   ├── gen_pinyin.mjs      生成 data/pinyin.ts
-│   ├── vendor_fonts.py     下载字体分片并生成本地字体样式
-│   └── build.py            Python 构建入口，调用 npm run build
-│
-└── .github/workflows/ci.yml  安装锁定依赖、类型检查与生产构建
-```
+---
 
-## 本地运行
+## 快速上手指南
 
-使用 Node.js 24：
+### 1. 局前准备（1 分钟配好自己的 Box）
+
+1. 进入顶部 **「小工具 → 干员练度」**，点 **「导入练度」**（首次进入会自动弹出分步导入指南，也可随时点击「导入指南」查看）：
+   - **电脑模拟器玩家**：用 MAA「小工具 → 干员识别」导出 JSON，上传文件或粘贴即可。
+   - **手机 / 森空岛玩家**：在一图流导入森空岛练度后导出 Excel（`.xlsx`），直接选文件导入。
+   - **手动勾选**：点击 **「✎ 编辑练度」** 开启标注模式，选择练度或「已借用」画笔点选干员（平时默认为只读浏览模式，不会误触改数据）。
+2. 在 **「设置」** 中按习惯调整主题、卡片密度、字号，并可拖拽排序或隐藏不常用的顶部栏目与小工具；所有设置、自建流派和练度均可一键导出备份迁移到其他设备。
+
+### 2. 对局中高效查牌
+
+- **定流派**：打开 **「流派」** 选择本局准备走的体系，点 **「▶ 本局打这套」**。顶部会出现「本局」快捷横幅，流派内可切换 **「终盘阵容 / 按等阶抓牌」** 看各阶段抓牌优先级。
+- **标禁池**：若本局有盟约被随机 ban，点 **「速览 → 标记本局禁池」** 勾选被禁盟约，流派页会自动给出禁池替补建议，干员页也可一键排除禁池干员。
+- **查装备合成**：在 **「装备」** 页点击 **「散件合成」**，点选已有散件即可反查全部可合成的进阶装备。
+- **打领袖前看对策**：进入 **「领袖」** 选好当前难度并点进对应 Boss，点 **「▶ 设为本局」**；遇到带标签的对策词条（如反隐、对空、元素奶等）直接点标签即可展开对应职能干员与装备列表。
+- **联机快捷求牌**：干员详情页与流派页均提供 **「求求 / 求核心 / 求整队」** 按钮，一键复制带等阶标注的求牌话术发给队友。
+
+### 3. 安装为离线应用（推荐手机 / 平板使用）
+
+- **Android（Chrome / Edge）**：打开站点后点浏览器菜单 → **「添加到主屏幕」** 或 **「安装应用」**，即可像原生 App 一样以独立窗口运行（配合系统悬浮小窗体验最佳）。
+- **iOS（Safari）**：点底部分享按钮 → **「添加到主屏幕」**。
+- **桌面端（Chrome / Edge）**：点击地址栏右侧的安装图标，独立窗口运行更适合放在模拟器旁分屏。
+
+### 4. 效率快捷键与小技巧
+
+| 操作 | 效果 |
+|---|---|
+| `/`（桌面端） | 任意页面快速聚焦顶部搜索框 |
+| `Enter`（搜索框内） | 直接打开匹配度最高的干员 / 装备 / 策略 / 盟约 / 流派 / 领袖 |
+| `Esc` | 搜索框内一键清空并收起；详情弹窗内关闭弹窗 |
+| 鼠标悬停 / 触屏长按 0.45 秒 | 弹出干员、装备、策略、盟约或领袖速览小卡 |
+| 触屏左右滑动（可在设置关闭） | 快速切换顶部一级栏目 |
+| 干员卡片 / 详情页点 `PRTS` | 桌面宽屏自动开启右侧分屏阅读，小屏直接跳转 PRTS Wiki |
+
+---
+
+## 开发者与贡献
+
+如果你想本地运行、二次开发、补充新赛季数据或参与贡献，请查看专门的开发者文档：
+
+- **开发文档总览与快速开始**：[docs/README.md](docs/README.md)
+- **系统架构、状态与构建说明**：[docs/architecture.md](docs/architecture.md)
+- **公共 UI 组件、响应式与动效规范**：[docs/ui-components.md](docs/ui-components.md)
+- **赛季数据维护与拼音生成指南**：[docs/data-guide.md](docs/data-guide.md)
+- **AI 助手与协作者开发约定**：[AGENTS.md](AGENTS.md)
+
+快速本地启动（需 Node.js 24）：
 
 ```bash
 npm ci
 npm run dev
 ```
 
-然后打开 <http://127.0.0.1:5173>。修改页面或数据后，开发服务会自动更新页面。
+---
 
-预览构建后的站点：
+## 数据来源与致谢
 
-```bash
-npm run build
-npm run preview
-```
-
-然后打开 <http://127.0.0.1:4173>，速查页与教程页都从 `dist/` 提供。
-
-## 构建与部署
-
-`npm run build` 先执行 TypeScript 类型检查，再生成 `dist/`。构建时会写入 Git 提交 SHA 的前 7 位作为页脚版本号，并生成 `sw.js` 的资源清单与缓存版本号。
-
-- **EdgeOne**：配置在 `edgeone.json`，安装命令为 `npm ci`，构建命令为 `npm run build`，输出目录为 `dist`，Node.js 为 `24.18.0`
-- **Cloudflare Workers**：配置在 `wrangler.jsonc`，静态资源目录为 `dist`，版本预览地址设为关闭。完成构建后运行：
-
-  ```bash
-  npx wrangler@4.160.0 deploy
-  ```
-
-GitHub Actions 会在 PR 和 `main` 更新时执行依赖安装、类型检查与构建。
-
-## 修改数据
-
-全部赛季数据集中在 `data/seasons/<season>/` 下（按 `SeasonDefinition` 组织），引擎与页面代码只从 `data/index.ts` 读取数据，不在组件或算法中硬编码特定赛季实体。
-
-1. **编辑当前赛季数据**：修改 `data/seasons/s1/` 下对应的 `.ts` 文件（字段定义见 `data/types.ts`）。
-   - **实体级元信息与机制配置写在实体自身字段上**：例如 `covenants.ts` 的 `id` / `kind` / `layerBreakpoints` / `cycleReward` / `headcountBreakpoint` / `restrictedModeAbsent` / `mechanics`、`operators.ts` 的 `price` / `eliteCopies`、`equipment.ts` 的 `mechanics`、`strategies.ts` 的 `advisor`、`builds.ts` 的 `MixedBuild.id`，以及 `meta.ts` 的 `defaultCovenant` / `defaultBuild` / `roundLimits` / `tierBasePrices` / `shareOperatorIds`。
-2. **新增或切换赛季**：
-   - 新增赛季时，新建 `data/seasons/<season>/` 目录并按 `SeasonDefinition` 实现完整数据模块（可参考 `data/seasons/s1/` 的文件拆分与 `index.ts` 汇总导出）。
-   - 切换当前启用赛季时，只需修改 `data/season.ts` 中导入的赛季对象并赋值给 `CURRENT_SEASON`。
-3. **补充图片资源**：新干员 / 装备 / 策略 / 领袖 / 盟约的图片放进 `public/assets/img/` 对应目录，文件名写进数据的 `avatar` / `icon` / `portrait` 字段；领袖头像与盟约图标默认以 `id` 命名（`leaders/<id>.webp`、`covenants/<id>.webp`，盟约可通过可选 `icon` 字段覆写）。
-4. **更新拼音索引**：新增或改名了干员 / 装备 / 策略 / 盟约 / 流派 / 领袖，或切换赛季后，重新生成拼音表：
-
-   ```bash
-   npm run pinyin
-   ```
-
-   多音字读错或需要补充常用读法时，在对应赛季 `meta.ts` 的 `pinyinOverrides` 里写出正确读法（空格分隔音节，可写多种）。
-5. **本地预览与构建**：用 `npm run dev` 查看修改，发布时运行 `npm run build`（会先执行类型检查，再生成 `dist/` 与自动更新离线资源清单和版本号）。
-
-特质文本约定：`<进入休整期时>` 这样的尖括号表示触发时机，`【乌萨斯】` 这样的方括号表示盟约名，页面会自动上色；数字会自动加粗。
-
-## 代码约定
-
-- 页面使用 Vue 单文件组件和 `<script setup lang="ts">`，游戏数据与页面状态使用 TypeScript 类型
-- 速查页的状态集中在 `src/quickref/state.ts`，组件通过共享动作打开详情、切换盟约与流派；筛选和数值变化由 Vue 局部更新，列表使用稳定的 `key`
-- 教程页各章在接近视口时按需加载，交互写在 `.vue` 组件中，图表与排版辅助函数放在同目录的 `*View.ts`；格式化图文通过 `Markup` 转为 Vue 节点
-- 两页共用 `src/lib/ui/peek.ts` 的速览：带 `data-op` / `data-eq` / `data-st` / `data-cv` 的元素、盟约 `.cv` 标签与效果文本里的 `【盟约】`，鼠标悬停或触屏长按 0.45 秒时显示卡片。已展示完整信息的元素用 `data-peek="off"` 控制，子芯片各自响应
-- 干员详情由 `DetailSheet.vue` 展示，宽屏时右侧并入盟约效果栏；当前查看的干员名记在弹窗的 `data-viewing` 上
-- 搜索支持汉字、全拼与首字母，拼音从字的边界开始匹配（`src/lib/ui/match.ts`）；`/` 聚焦搜索框，在搜索框中按 `Esc` 清空搜索
-- 图片随当前视图按需加载，字体在首屏可操作后加载；离线资源按访问缓存，Service Worker 由构建产物生成
-
-## 数据来源
-
-首次打开页面会弹出「关于」说明，页脚可随时再次打开。内容写在当前赛季的 `data/seasons/<season>/credits.ts`（由 `data/credits.ts` 统一导出），新增来源时在那里补一条并把 `aboutVersion` 加 1。
+首次打开页面会弹出「关于」说明，页脚可随时再次查看。感谢以下社区项目、Wiki 与攻略作者的整理与分享：
 
 **Wiki 与游戏数据**
 
 | 来源 | 页面 | 取用内容 |
 |---|---|---|
-| [ArknightsGameData](https://github.com/Kengxxiao/ArknightsGameData) | [规程 V3_1 游戏数据](https://github.com/Kengxxiao/ArknightsGameData/blob/master/zh_CN/gamedata/excel/activity_table.json) | 招募价格、练度、各模式升级费用与栏位、回合配置、基础认证、领袖名单与隐秘核心形态；关卡文件核对作战时限 |
+| [ArknightsGameData](https://github.com/Kengxxiao/ArknightsGameData) | [规程 V3_1 游戏数据](https://github.com/Kengxxiao/ArknightsGameData/blob/master/zh_CN/gamedata/excel/activity_table.json) | 招募价格、练度、各模式升级费用与栏位、回合配置、基础认证、可借用 6★ 与系统预设/替补名单、领袖名单与隐秘核心形态；关卡文件核对作战时限 |
 | ArknightsGameData | [enemy_handbook_table](https://github.com/Kengxxiao/ArknightsGameData/blob/master/zh_CN/gamedata/excel/enemy_handbook_table.json) | 领袖、隐秘核心与随行敌人的能力描述 |
 | ArknightsGameData | [act3autochess 关卡文件](https://github.com/Kengxxiao/ArknightsGameData/tree/master/zh_CN/gamedata/levels/activities/act3autochess) | 领袖与隐秘核心回合的地图、领袖位置与巡逻路线、随行敌人 |
 | PRTS | [敌人一览](https://prts.wiki/w/%E6%95%8C%E4%BA%BA%E4%B8%80%E8%A7%88) | 领袖头像 |
@@ -184,9 +125,11 @@ GitHub Actions 会在 PR 和 `main` 更新时执行依赖安装、类型检查�
 
 延伸阅读：小鬼卡比 [核心盟约叠层方式一览](https://www.bilibili.com/video/BV1qUWJ6yEVE/)；[柏喙攻略组](https://space.bilibili.com/512280695)（UID 512280695）[刷牌or升本？抓到 key 牌的概率](https://www.bilibili.com/video/BV1uCdfBWE6y/)。
 
-## 许可
+---
 
-- **代码**：[GNU AGPL-3.0](LICENSE)。修改后部署为公开网站时，需要向访问者提供修改后的源码
+## 开源许可
+
+- **代码**：[GNU AGPL-3.0](LICENSE)。修改后部署为公开网站时，需向访问者提供修改后的源码
 - **数据**（`data/` 目录）：整理自 PRTS 等 Wiki，按 [CC BY-NC-SA 3.0](data/LICENSE.md) 发布
 - **游戏图片、名称与文本**：© 上海鹰角网络科技有限公司
 - **视频攻略**：版权归各 UP 主

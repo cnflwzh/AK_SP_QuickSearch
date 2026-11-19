@@ -8,7 +8,7 @@
 :is(.run-advisor, .ra-overlay) small { font-size: 11px; }
 :is(.run-advisor, .ra-overlay) button { cursor: pointer; }
 :is(.run-advisor, .ra-overlay) button:disabled { opacity: .45; cursor: not-allowed; }
-:is(.run-advisor, .ra-overlay) select { max-width: 100%; min-height: 34px; font-size: 12px; }
+:is(.run-advisor, .ra-overlay) .q-select { max-width: 100%; }
 :is(.run-advisor, .ra-overlay) .btn { font-size: 12px; min-height: 32px; padding: 5px 10px; white-space: nowrap; }
 .ra-text-button { border: 0; padding: 4px 2px; min-height: 30px; color: var(--teal); background: transparent; font: inherit; font-size: 12px; white-space: nowrap; }
 .ra-text-button:not(:disabled):hover { text-decoration: underline; }
@@ -20,9 +20,9 @@
 
 /* ---------- 工具栏：一行控件 + 状态与撤销 ---------- */
 .ra-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
-.ra-level select { width: 78px; color: var(--accent); font-weight: 700; }
-.workbench-controls .ra-toolbar select:not([multiple]), .ra-toolbar .btn { min-height: 36px; padding-block: 3px; font-size: 13px; }
-.ra-toolbar .btn { padding-inline: 12px; border-radius: 6px; }
+.ra-level .q-select { width: 80px; }
+.ra-level .q-select-trigger { color: var(--accent); font-weight: 700; }
+.ra-toolbar .btn { min-height: 36px; padding-block: 3px; font-size: 13px; padding-inline: 12px; border-radius: 6px; }
 .ra-strategy-control { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; }
 .ra-strategy-button { min-width: 112px; max-width: 220px; font-family: inherit; }
 .ra-strategy-button img { flex: 0 0 24px; width: 24px; height: 24px; border-radius: 4px; }
@@ -81,11 +81,7 @@
 .ra-slot-gear img { width: 14px; height: 14px; }
 
 /* ---------- 整备区与装备仓库 ---------- */
-.ra-storage-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.ra-storage-tabs { display: flex; align-items: center; gap: 14px; }
-.ra-storage-tabs > button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--ink3); padding: 8px 0 6px; font: 500 13px var(--fb); }
-.ra-storage-tabs > button.active { border-bottom-color: var(--accent); color: var(--ink); }
-.ra-storage-tabs b { margin-left: 3px; font: 500 14px var(--fn); }
+.ra-storage-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .ra-storage-strip { display: flex; align-items: center; gap: 6px; min-height: 80px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: var(--line2) transparent; padding-top: 6px; padding-bottom: 2px; }
 .ra-slot.compact { flex: 0 0 74px; width: 74px; height: 72px; padding: 5px; }
 .ra-slot.compact .ra-slot-portrait { width: 36px; height: 36px; }
@@ -152,7 +148,8 @@
 .ra-pool-settings > p { margin: 0; font-size: 12px; line-height: 1.7; }
 .ra-pool-direction { display: flex; flex-wrap: wrap; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface2); }
 .ra-pool-direction label { display: grid; gap: 6px; flex: 1 1 180px; min-width: 0; font-size: 12px; }
-.ra-pool-direction input, .ra-pool-direction select { width: 100%; min-width: 0; background-color: var(--surface); }
+.ra-pool-direction input, .ra-pool-direction .q-select { width: 100%; min-width: 0; }
+.ra-pool-direction input { background-color: var(--surface); }
 .ra-pool-group { border: 0; padding: 0; margin: 0; min-width: 0; }
 .ra-pool-group legend { padding: 0 0 6px; color: var(--ink3); font-size: 12px; }
 .ra-pool-chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -172,10 +169,9 @@
 .ra-inspector-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
 .ra-ownership-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px; background: var(--surface2); border: 1px solid var(--line); border-radius: 6px; }
 .ra-ownership-controls > label:not(.ra-check) { flex: 1; min-width: 100px; max-width: 150px; }
-.ra-ownership-controls select { width: 100%; }
+.ra-ownership-controls .q-select { width: 100%; }
 .ra-ownership-controls .ra-check { flex: 0 0 auto; min-width: auto; padding-inline: 4px; }
-.ra-ownership-controls > .btn { margin-left: auto; white-space: nowrap; }
-.workbench-controls .ra-ownership-controls select:not([multiple]), .ra-ownership-controls > .btn { min-height: 34px; }
+.ra-ownership-controls > .btn { margin-left: auto; white-space: nowrap; min-height: 34px; }
 .ra-inspector-section { display: grid; gap: 7px; }
 .ra-inspector-section h4 small { color: var(--ink3); }
 .ra-check { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; font-size: 12px; cursor: pointer; }
@@ -187,10 +183,11 @@
 .ra-equipped-slot small { display: block; color: var(--accent); font-size: 10px; }
 .ra-equipped-slot .ra-icon-button { flex-basis: 24px; width: 24px; font-size: 16px; }
 .ra-add-equipment { width: 100%; height: 100%; border: 0; background: transparent; color: var(--teal); font-size: 12px; }
-.ra-warehouse-select select { width: 100%; }
+.ra-warehouse-select .q-select { width: 100%; }
 .ra-deployment-actions { border-top: 1px dashed var(--line); padding-top: 10px; }
 .ra-trait-preview { padding: 10px; border-radius: 5px; background: var(--surface2); font-size: 12px; line-height: 1.8; }
 .ra-holder-select { display: grid; gap: 6px; font-size: 12px; color: var(--ink2); }
+.ra-holder-select .q-select { width: 100%; }
 .ra-inspector-notice { min-height: 16px; color: var(--teal); font-size: 11px; line-height: 1.5; }
 
 /* ---------- 弹层 ---------- */
@@ -214,8 +211,8 @@ html:has(dialog.ra-overlay[open]) { overflow: hidden; }
 .ra-picker-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; flex-shrink: 0; }
 .ra-search { flex: 1; min-width: 0; }
 .ra-search input { width: 100%; min-height: 38px; font-size: 14px; }
-.ra-picker-controls select { width: 116px; }
-.ra-picker-covenant select { width: 136px; }
+.ra-picker-controls .q-select { width: 116px; }
+.ra-picker-covenant .q-select { width: 136px; }
 .ra-picker-status { display: flex; align-items: center; gap: 8px; flex-shrink: 0; min-height: 24px; font-size: 11px; color: var(--ink3); }
 .ra-picker-status .ra-text-button { min-height: 20px; padding: 0; font-size: 11px; }
 .ra-picker-notice { margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--teal); font-weight: 600; }
@@ -259,7 +256,7 @@ html:has(dialog.ra-overlay[open]) { overflow: hidden; }
 }
 @container run-advisor (max-width: 520px) {
   .ra-toolbar { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); gap: 6px; padding: 8px; }
-  .ra-level select { width: 70px; padding-left: 9px; padding-right: 24px; background-position: right 8px center; }
+  .ra-level .q-select { width: 72px; }
   .ra-strategy-control, .ra-strategy-button, .ra-pool-button { min-width: 0; max-width: none; }
   .ra-strategy-button { flex: 1; padding-inline: 9px; gap: 6px; }
   .ra-pool-button { padding-inline: 9px; gap: 6px; }
@@ -286,19 +283,19 @@ html:has(dialog.ra-overlay[open]) { overflow: hidden; }
   .ra-overlay.wide .ra-overlay-body { height: min(78dvh, calc(var(--ra-viewport-height, 100dvh) - 70px)); }
   .ra-picker-grid { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 5px; }
   .ra-picker-status { flex-wrap: wrap; gap: 2px 8px; }
-  .workbench-controls .ra-toolbar select:not([multiple]), .ra-toolbar .btn { min-height: 38px; }
+  .ra-toolbar .btn { min-height: 38px; }
   .ra-pool-chips button { min-height: 42px; }
   .ra-picker-controls { flex-wrap: nowrap; }
   .ra-search { flex: 1 1 140px; }
   .ra-picker-controls > label:not(.ra-search) { flex: 0 1 auto; min-width: 0; }
-  .ra-picker-controls select { width: 100%; max-width: 132px; }
+  .ra-picker-controls .q-select { width: 100%; max-width: 132px; }
 }
 /* 竖屏手机才把搜索框单独放一行；横屏小窗、分屏等较宽但很矮的窗口保持一行，把高度留给候选列表。 */
 @media (max-width: 520px) {
   .ra-picker-controls:has(.ra-picker-covenant) { flex-wrap: wrap; }
   .ra-picker-controls:has(.ra-picker-covenant) .ra-search { flex-basis: 100%; }
   .ra-picker-controls:has(.ra-picker-covenant) > label:not(.ra-search) { flex: 1; }
-  .ra-picker-controls:has(.ra-picker-covenant) select { max-width: none; }
+  .ra-picker-controls:has(.ra-picker-covenant) .q-select { max-width: none; }
 }
 /* 矮窗口（安卓横屏小窗、横屏手机）：压缩弹层页眉、控件和卡片，尽量多显示候选。 */
 @media (max-height: 600px) {
@@ -334,6 +331,6 @@ html:has(dialog.ra-overlay[open]) { overflow: hidden; }
 .ra-deploy-button { min-height: 36px; margin-top: 6px; }
 
 .ra-candidate-source { display: flex; align-items: center; gap: 8px; flex-shrink: 0; padding: 4px 0; color: var(--ink3); font-size: 12px; }
-.ra-candidate-source select { min-width: 0; flex: 1; min-height: 36px; }
+.ra-candidate-source .q-select { min-width: 0; flex: 1; }
 
 .ra-deployments .ra-recommendation { grid-template-columns: minmax(0, 1fr); }

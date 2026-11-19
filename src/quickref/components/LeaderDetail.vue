@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import {computed, onBeforeUnmount, ref} from 'vue';
+import {computed, shallowRef} from 'vue';
 import {
   LEADER_MAP,
   LEADER_BATTLEFIELDS,
   MODES,
   ROUND_TIME,
-  rolesForCounterTag,
-  type CounterTag,
+  type LeaderCounter,
   type Leader,
 } from '../../../data/index.ts';
 import {leaderSrc} from '../../lib/ui/assets.ts';
@@ -23,8 +22,23 @@ import {queryText} from '../../router/location.ts';
 import {runLeaderKey, setRunLeader} from '../planStore.ts';
 import {state, setLeader} from '../state.ts';
 import Segmented from './Segmented.vue';
+import SelectInput, {type SelectOption} from './SelectInput.vue';
+import SubTabs, {type SubTabItem} from './SubTabs.vue';
+import CopyButton from './CopyButton.vue';
 import LeaderMap from './LeaderMap.vue';
 import CounterLookupPanel from './CounterLookupPanel.vue';
+
+const TERRAIN_OPTIONS: readonly SelectOption<string>[] =
+  LEADER_BATTLEFIELDS.map((option) => ({value: option.id, label: option.name}));
+
+const MAP_MODE_TABS: readonly SubTabItem<number>[] = [
+  {id: 0, label: '部署站位'},
+  {id: 1, label: '敌人路线'},
+];
+const STAGE_VIEW_TABS: readonly SubTabItem<number>[] = [
+  {id: 0, label: '领袖'},
+  {id: 1, label: '隐秘核心'},
+];
 /**
  * 领袖详情：技能、对策、站位图与随行敌人、生命值。
  * 生命条按该领袖自身（含隐秘核心）的最大值缩放；秒伤 = 生命 ÷ 领袖回合时限。
@@ -118,23 +132,16 @@ const counters = computed(() => props.leader.counters.filter((c) => !c.hidden));
 const hiddenCounters = computed(() =>
   props.leader.counters.filter((c) => c.hidden),
 );
-const activeCounterTag = ref<CounterTag | ''>('');
-const activeCounterRoles = computed(() =>
-  activeCounterTag.value ? rolesForCounterTag(activeCounterTag.value) : [],
-);
-function toggleCounterLookup(tag: CounterTag): void {
-  if (!rolesForCounterTag(tag).length) return;
-  activeCounterTag.value = activeCounterTag.value === tag ? '' : tag;
+const activeCounter = shallowRef<LeaderCounter | null>(null);
+function toggleCounterLookup(counter: LeaderCounter): void {
+  activeCounter.value = activeCounter.value === counter ? null : counter;
 }
 const portrait = computed(() => leaderSrc(props.leader.name));
 const isRunLeader = computed(() => runLeaderKey.value === props.leader.name);
-const briefCopied = ref(false);
-let briefTimer: ReturnType<typeof setTimeout> | undefined;
-onBeforeUnmount(() => clearTimeout(briefTimer));
 function toggleRunLeader(): void {
   setRunLeader(isRunLeader.value ? '' : props.leader.name);
 }
-async function copyLeaderBrief(): Promise<void> {
+function leaderBriefText(): string {
   const hiddenPart = now.value.hidden
     ? ` · 隐秘核心 ${wan(now.value.hidden)}`
     : '';
@@ -142,17 +149,7 @@ async function copyLeaderBrief(): Promise<void> {
     .slice(0, 3)
     .map((c) => `[${c.tag}] ${c.text.replace(/<[^>]+>/g, '')}`)
     .join('；');
-  const text = `${props.leader.name}（${now.value.label} ${wan(now.value.hp)} · 均伤 ${dps(now.value.hp)}/秒${hiddenPart}）${summary ? `\n要点：${summary}` : ''}`;
-  clearTimeout(briefTimer);
-  try {
-    await navigator.clipboard.writeText(text);
-    briefCopied.value = true;
-    briefTimer = setTimeout(() => {
-      briefCopied.value = false;
-    }, 1500);
-  } catch {
-    window.prompt('复制发给好友的领袖要点', text);
-  }
+  return `${props.leader.name}（${now.value.label} ${wan(now.value.hp)} · 均伤 ${dps(now.value.hp)}/秒${hiddenPart}）${summary ? `\n要点：${summary}` : ''}`;
 }
 </script>
 <template>
@@ -192,13 +189,13 @@ async function copyLeaderBrief(): Promise<void> {
             @click="toggleRunLeader">
             {{ isRunLeader ? '✓ 本局领袖' : '▶ 设为本局' }}
           </button>
-          <button
-            type="button"
-            class="lw-act-btn"
-            title="复制血量与前三条核心对策，方便发给没开语音的好友"
-            @click="copyLeaderBrief">
-            {{ briefCopied ? '已复制' : '复制要点' }}
-          </button>
+          <CopyButton
+            :text="leaderBriefText"
+            label="复制要点"
+            copied-label="已复制"
+            variant="compact"
+            prompt-title="复制发给好友的领袖要点"
+            title="复制血量与前三条核心对策，方便发给没开语音的好友" />
         </div>
       </div>
       <div class="lwd-now">
@@ -244,17 +241,17 @@ async function copyLeaderBrief(): Promise<void> {
       <ul class="lwc">
         <li v-for="(c, i) in counters" :key="i" :style="{'--i': i}">
           <button
-            v-if="rolesForCounterTag(c.tag).length"
+            v-if="c.roles?.length"
             type="button"
             :class="[
               'ctg',
               'ctg-btn',
               counterClass(c.tag),
-              {on: activeCounterTag === c.tag},
+              {on: activeCounter === c},
             ]"
-            :aria-expanded="activeCounterTag === c.tag"
-            :title="`点此查看可应对「${c.tag}」的干员与装备`"
-            @click="toggleCounterLookup(c.tag)">
+            :aria-expanded="activeCounter === c"
+            :title="`查看「${c.by}」的对策干员与装备`"
+            @click="toggleCounterLookup(c)">
             {{ c.tag }} ▾
           </button>
           <i v-else :class="['ctg', counterClass(c.tag)]">{{ c.tag }}</i>
@@ -270,17 +267,17 @@ async function copyLeaderBrief(): Promise<void> {
             :key="i"
             :style="{'--i': i + counters.length}">
             <button
-              v-if="rolesForCounterTag(c.tag).length"
+              v-if="c.roles?.length"
               type="button"
               :class="[
                 'ctg',
                 'ctg-btn',
                 counterClass(c.tag),
-                {on: activeCounterTag === c.tag},
+                {on: activeCounter === c},
               ]"
-              :aria-expanded="activeCounterTag === c.tag"
-              :title="`点此查看可应对「${c.tag}」的干员与装备`"
-              @click="toggleCounterLookup(c.tag)">
+              :aria-expanded="activeCounter === c"
+              :title="`查看「${c.by}」的对策干员与装备`"
+              @click="toggleCounterLookup(c)">
               {{ c.tag }} ▾
             </button>
             <i v-else :class="['ctg', counterClass(c.tag)]">{{ c.tag }}</i>
@@ -290,27 +287,33 @@ async function copyLeaderBrief(): Promise<void> {
         </ul>
       </template>
       <CounterLookupPanel
-        v-if="activeCounterTag && activeCounterRoles.length"
-        :title="`对策：${activeCounterTag}`"
-        :roles="activeCounterRoles"
-        @close="activeCounterTag = ''" />
+        v-if="activeCounter?.roles?.length"
+        :key="activeCounter.text"
+        :title="`对策：${activeCounter.tag}`"
+        :subtitle="activeCounter.by"
+        :roles="activeCounter.roles"
+        @close="activeCounter = null" />
     </section>
 
     <section class="lws mp">
       <h4>
         站位图
         <span class="lwsw">
-          <Segmented
-            :labels="['部署站位', '敌人路线']"
-            :active="mapMode"
-            attr="lwm"
-            @change="mapMode = $event" />
-          <Segmented
+          <SubTabs
+            v-model="mapMode"
+            :items="MAP_MODE_TABS"
+            :level="3"
+            inline
+            aria-label="站位图视图"
+            attr="lwm" />
+          <SubTabs
             v-if="leader.hiddenStage"
-            :labels="['领袖', '隐秘核心']"
-            :active="view"
-            attr="lwv"
-            @change="view = $event" />
+            v-model="view"
+            :items="STAGE_VIEW_TABS"
+            :level="3"
+            inline
+            aria-label="领袖阶段"
+            attr="lwv" />
         </span>
       </h4>
       <p class="leader-section-note">
@@ -332,17 +335,12 @@ async function copyLeaderBrief(): Promise<void> {
         </button>
       </div>
       <div v-if="mapMode" class="map-controls">
-        <select
+        <SelectInput
           v-model="state.leaderTerrain"
+          :options="TERRAIN_OPTIONS"
+          compact
           class="map-picker"
-          aria-label="选择实际场地">
-          <option
-            v-for="option in LEADER_BATTLEFIELDS"
-            :key="option.id"
-            :value="option.id">
-            {{ option.name }}
-          </option>
-        </select>
+          aria-label="选择实际场地" />
         <Segmented
           :labels="['左侧', '全场', '右侧']"
           :active="state.leaderMapSide"

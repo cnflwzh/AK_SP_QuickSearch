@@ -10,6 +10,7 @@ import {
   watchEffect,
 } from 'vue';
 import {
+  ADDITIONAL_OPERATORS,
   ALL_COVENANTS,
   OPERATORS,
   EQUIPMENT,
@@ -72,7 +73,7 @@ const TAB_META: Record<TabId, {label: string; count: number | ''}> = {
   // 速览：全部盟约效果平铺；盟约详情：单个盟约的成员、叠层、装备策略
   fx: {label: '速览', count: ''},
   cv: {label: '盟约详情', count: ALL_COVENANTS.length},
-  op: {label: '干员', count: OPERATORS.length},
+  op: {label: '干员', count: OPERATORS.length + ADDITIONAL_OPERATORS.length},
   bd: {label: '流派', count: ''},
   eq: {label: '装备', count: EQUIPMENT.length},
   st: {label: '策略', count: STRATEGIES.length},
@@ -116,6 +117,16 @@ function recentThumb(item: RecentItem): string {
   if (item.kind === 'st') return portraitSrc(item.name);
   if (item.kind === 'ld') return leaderSrc(item.name);
   return '';
+}
+function onSearchFocusOut(event: FocusEvent): void {
+  const nextFocus = event.relatedTarget;
+  if (!(nextFocus instanceof Element && nextFocus.closest('#sbox, #recent-tray'))) {
+    searchFocused.value = false;
+  }
+}
+function clearSearchHistory(): void {
+  searchInput.value?.focus();
+  clearRecent();
 }
 function openRecent(item: RecentItem): void {
   searchFocused.value = false;
@@ -429,6 +440,13 @@ function keydown(event: KeyboardEvent): void {
     searchInput.value?.select();
   } else if (
     event.key === 'Escape' &&
+    target instanceof Element &&
+    target.closest('#recent-tray')
+  ) {
+    searchInput.value?.focus();
+    searchFocused.value = false;
+  } else if (
+    event.key === 'Escape' &&
     document.activeElement === searchInput.value
   ) {
     if (query.value) {
@@ -519,7 +537,11 @@ onUnmounted(() => {
         </h1>
         <a class="guide-mini" href="/guide.html">图解教程 ▸</a>
       </header>
-      <div id="qbar" ref="searchBar" :class="['qbar', {searching}]">
+      <div
+        id="qbar"
+        ref="searchBar"
+        :class="['qbar', {searching}]"
+        @focusout="onSearchFocusOut">
         <div class="wrap">
           <label id="sbox" :class="['search', {has: searching}]">
             <svg
@@ -540,8 +562,8 @@ onUnmounted(() => {
               placeholder="干员 / 装备 / 策略 / 盟约 / 特质，支持拼音（Enter 直开首项）"
               autocomplete="off"
               aria-label="搜索"
+              :aria-controls="showRecentTray ? 'recent-tray' : undefined"
               @focus="searchFocused = true"
-              @blur="searchFocused = false"
               @input="search"
               @keydown.enter="onSearchEnter"
               @compositionstart="composing = true"
@@ -556,6 +578,44 @@ onUnmounted(() => {
               ✕
             </button>
           </label>
+          <div
+            v-if="showRecentTray"
+            id="recent-tray"
+            class="recent-tray"
+            data-noswipe
+            role="region"
+            aria-label="最近查看"
+            @mousedown.prevent>
+            <div class="wrap recent-tray-inner">
+              <span class="recent-label">最近</span>
+              <div class="recent-list">
+                <button
+                  v-for="item in recentItems"
+                  :key="`${item.kind}:${item.name}`"
+                  type="button"
+                  class="recent-chip"
+                  :title="`${RECENT_KIND_LABEL[item.kind]} · ${item.name}`"
+                  @click="openRecent(item)">
+                  <CovenantIcon v-if="item.kind === 'cv'" :name="item.name" />
+                  <img
+                    v-else-if="recentThumb(item)"
+                    :src="recentThumb(item)"
+                    alt=""
+                    width="20"
+                    height="20"
+                    decoding="async" />
+                  <span>{{ item.name }}</span>
+                </button>
+              </div>
+              <button
+                type="button"
+                class="recent-clear"
+                aria-label="清空最近查看"
+                @click="clearSearchHistory">
+                清空
+              </button>
+            </div>
+          </div>
           <div
             :class="[
               'tabs-wrap',
@@ -586,43 +646,6 @@ onUnmounted(() => {
                 </RouterLink>
               </TransitionGroup>
             </nav>
-          </div>
-        </div>
-        <div
-          v-if="showRecentTray"
-          class="recent-tray"
-          data-noswipe
-          role="region"
-          aria-label="最近查看"
-          @mousedown.prevent>
-          <div class="wrap recent-tray-inner">
-            <span class="recent-label">最近</span>
-            <div class="recent-list">
-              <button
-                v-for="item in recentItems"
-                :key="`${item.kind}:${item.name}`"
-                type="button"
-                class="recent-chip"
-                :title="`${RECENT_KIND_LABEL[item.kind]} · ${item.name}`"
-                @click="openRecent(item)">
-                <CovenantIcon v-if="item.kind === 'cv'" :name="item.name" />
-                <img
-                  v-else-if="recentThumb(item)"
-                  :src="recentThumb(item)"
-                  alt=""
-                  width="20"
-                  height="20"
-                  decoding="async" />
-                <span>{{ item.name }}</span>
-              </button>
-            </div>
-            <button
-              type="button"
-              class="recent-clear"
-              aria-label="清空最近查看"
-              @click="clearRecent">
-              清空
-            </button>
           </div>
         </div>
       </div>

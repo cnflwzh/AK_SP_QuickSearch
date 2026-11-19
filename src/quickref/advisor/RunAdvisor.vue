@@ -33,8 +33,21 @@ import AdvisorPicker from './AdvisorPicker.vue';
 import AdvisorRecommendations from './AdvisorRecommendations.vue';
 import AdvisorDeployments from './AdvisorDeployments.vue';
 import AdvisorPoolSettings from './AdvisorPoolSettings.vue';
+import SubTabs, {
+  type SubTabDirection,
+  type SubTabItem,
+} from '../components/SubTabs.vue';
+import SelectInput, {type SelectOption} from '../components/SelectInput.vue';
 import type {AdvisorSelection} from './types.ts';
 import './advisor.css';
+
+const LEVEL_OPTIONS: readonly SelectOption<number>[] = [1, 2, 3, 4, 5, 6].map(
+  (level) => ({value: level, label: `${level} 本`}),
+);
+const CANDIDATE_SOURCE_OPTIONS: readonly SelectOption<CandidateSource>[] = [
+  {value: 'shop', label: '商店 / 特殊刷新'},
+  {value: 'promotion', label: '晋升奖励 · 免费三选一'},
+];
 
 /**
  * 局内抓取：上场阵容、本轮商店（即抓取建议）、整备区三块。
@@ -58,6 +71,13 @@ const {
 } = advisor;
 const sidePanel = ref<HTMLElement>();
 const storageView = ref<'reserve' | 'equipment'>('reserve');
+const storageDir = ref<SubTabDirection>('');
+const storageTabs = computed<readonly SubTabItem<'reserve' | 'equipment'>[]>(
+  () => [
+    {id: 'reserve', label: '整备区', count: reserve.value.length},
+    {id: 'equipment', label: '装备', count: run.value.equipment.length},
+  ],
+);
 const selection = ref<AdvisorSelection | null>(null);
 const inspectorOpen = ref(false);
 const poolSettingsOpen = ref(false);
@@ -363,15 +383,12 @@ function startNewRun(): void {
     <header class="ra-toolbar">
       <label class="ra-level">
         <span class="sr-only">当前本数</span>
-        <select
-          :value="run.level"
-          @change="
-            advisor.setLevel(Number(($event.target as HTMLSelectElement).value))
-          ">
-          <option v-for="level in 6" :key="level" :value="level">
-            {{ level }} 本
-          </option>
-        </select>
+        <SelectInput
+          :model-value="run.level"
+          :options="LEVEL_OPTIONS"
+          compact
+          aria-label="当前本数"
+          @update:model-value="advisor.setLevel($event)" />
       </label>
       <div class="ra-strategy-control">
         <button
@@ -548,16 +565,11 @@ function startNewRun(): void {
         </div>
         <label class="ra-candidate-source">
           候选来源
-          <select
-            :value="run.candidateSource"
-            @change="
-              advisor.setCandidateSource(
-                ($event.target as HTMLSelectElement).value as CandidateSource,
-              )
-            ">
-            <option value="shop">商店 / 特殊刷新</option>
-            <option value="promotion">晋升奖励 · 免费三选一</option>
-          </select>
+          <SelectInput
+            :model-value="run.candidateSource"
+            :options="CANDIDATE_SOURCE_OPTIONS"
+            aria-label="候选来源"
+            @update:model-value="advisor.setCandidateSource($event)" />
         </label>
         <p class="ra-direction-note">{{ directionNote }}</p>
         <div class="ra-side-body">
@@ -603,24 +615,14 @@ function startNewRun(): void {
 
       <section class="ra-panel ra-storage-panel" aria-label="整备区和装备">
         <div class="ra-storage-heading">
-          <div class="ra-storage-tabs" role="group" aria-label="整备区和装备">
-            <button
-              type="button"
-              :class="{active: storageView === 'reserve'}"
-              :aria-pressed="storageView === 'reserve'"
-              @click="storageView = 'reserve'">
-              整备区
-              <b>{{ reserve.length }}</b>
-            </button>
-            <button
-              type="button"
-              :class="{active: storageView === 'equipment'}"
-              :aria-pressed="storageView === 'equipment'"
-              @click="storageView = 'equipment'">
-              装备
-              <b>{{ run.equipment.length }}</b>
-            </button>
-          </div>
+          <SubTabs
+            v-model="storageView"
+            :items="storageTabs"
+            :level="3"
+            inline
+            aria-label="整备区和装备"
+            attr="advisor-storage"
+            @change="(_, dir) => (storageDir = dir)" />
           <button
             type="button"
             class="ra-text-button"
@@ -631,7 +633,9 @@ function startNewRun(): void {
         </div>
         <div
           v-if="storageView === 'reserve'"
-          class="ra-storage-strip"
+          key="reserve"
+          :class="['ra-storage-strip', {'subtab-panel': !!storageDir}]"
+          :data-dir="storageDir || undefined"
           aria-label="整备区">
           <AdvisorSlot
             v-for="operator in reserve"
@@ -658,7 +662,12 @@ function startNewRun(): void {
             </template>
           </span>
         </div>
-        <div v-else class="ra-storage-strip" aria-label="装备仓库">
+        <div
+          v-else
+          key="equipment"
+          :class="['ra-storage-strip', {'subtab-panel': !!storageDir}]"
+          :data-dir="storageDir || undefined"
+          aria-label="装备仓库">
           <button
             v-for="item in run.equipment"
             :key="item.id"

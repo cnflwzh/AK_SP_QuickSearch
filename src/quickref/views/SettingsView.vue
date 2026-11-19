@@ -33,19 +33,21 @@ import {
   type ThemePreference,
 } from '../../lib/settings/index.ts';
 import {
-  BOX_OPERATORS,
-  applyBoxBatch,
+  OWNABLE_OPERATORS,
+  prepareBoxImport,
   boxSeasonActivatedCount,
   boxSeasonBorrowedCount,
   boxSeasonCount,
   boxSeasonMaxedCount,
   exportOperatorBox,
-  hasAnyBox,
 } from '../../lib/box/index.ts';
 import {PAGE_LABELS, PAGE_PATHS} from '../../router/location.ts';
 import {navigate} from '../../router/navigation.ts';
 import {plans, restorePlanBackup} from '../planStore.ts';
 import Segmented from '../components/Segmented.vue';
+import SelectInput, {type SelectOption} from '../components/SelectInput.vue';
+import ConfirmButton from '../components/ConfirmButton.vue';
+import StatusNotice from '../components/StatusNotice.vue';
 import '../workbench.css';
 
 const THEME_OPTIONS: readonly {id: ThemePreference; label: string}[] = [
@@ -138,6 +140,15 @@ const fontIndex = computed(() =>
   ),
 );
 const visibleTabList = computed(() => visibleContentTabs());
+const defaultTabOptions = computed<
+  readonly SelectOption<'last' | ContentTabId>[]
+>(() => [
+  {value: 'last', label: '上次浏览的页面（默认）'},
+  ...visibleTabList.value.map((tabId) => ({
+    value: tabId,
+    label: PAGE_LABELS[tabId],
+  })),
+]);
 const isDefaultTabOrder = computed(
   () =>
     settings.hiddenTabs.length === 0 &&
@@ -469,7 +480,8 @@ function openBoxTool(): void {
   }
   void navigate({path: PAGE_PATHS.nu, query: {tool: 'box'}});
 }
-const includeBoxInExport = ref(hasAnyBox.value);
+// 空 Box 会由序列化器省略，恢复备份后也能立即携带新练度导出。
+const includeBoxInExport = ref(true);
 const importPlansFromBackup = ref(true);
 const importBoxFromBackup = ref(true);
 const showPasteBox = ref(false);
@@ -480,7 +492,6 @@ const pendingBackup = shallowRef<SettingsBackup | null>(null);
 const pendingSourceName = ref('');
 const errorMessage = ref('');
 const statusMessage = ref('');
-const confirmResetOpen = ref(false);
 let readRequest = 0;
 
 onBeforeUnmount(() => {
@@ -653,6 +664,8 @@ function confirmImportBackup(): void {
   clearNotices();
   try {
     const incomingPlans = pendingBackup.value.plans;
+    const incomingBox = importBoxFromBackup.value ? pendingBackup.value.box : undefined;
+    const commitBox = incomingBox ? prepareBoxImport(incomingBox) : undefined;
     const messages = ['已导入并应用页面设置'];
     if (importPlansFromBackup.value && incomingPlans?.length) {
       const merged = restorePlanBackup(incomingPlans);
@@ -661,13 +674,8 @@ function confirmImportBackup(): void {
       if (merged.conflicts)
         messages.push(`冲突保留副本 ${merged.conflicts} 套`);
     }
-    const incomingBox = pendingBackup.value.box;
-    if (
-      importBoxFromBackup.value &&
-      incomingBox &&
-      Object.keys(incomingBox).length
-    ) {
-      applyBoxBatch(incomingBox, 'merge');
+    if (commitBox && incomingBox) {
+      commitBox();
       messages.push(
         `合并 ${Object.keys(incomingBox).length} 名干员练度`,
       );
@@ -709,7 +717,6 @@ function handleToggleTab(id: ContentTabId): void {
 function handleResetAll(): void {
   clearNotices();
   resetAllSettings();
-  confirmResetOpen.value = false;
   statusMessage.value =
     '已恢复全部默认设置（自建流派与本局记录保留不受影响）。';
 }
@@ -793,24 +800,11 @@ function handleResetAll(): void {
             <span class="settings-row-info">
               <b>打开网站默认进入</b>
             </span>
-            <select
+            <SelectInput
               aria-label="打开网站默认进入"
-              :value="settings.defaultTab"
-              @change="
-                updateSetting(
-                  'defaultTab',
-                  ($event.target as HTMLSelectElement).value as
-                    'last' | ContentTabId,
-                )
-              ">
-              <option value="last">上次浏览的页面（默认）</option>
-              <option
-                v-for="tabId in visibleTabList"
-                :key="tabId"
-                :value="tabId">
-                {{ PAGE_LABELS[tabId] }}
-              </option>
-            </select>
+              :model-value="settings.defaultTab"
+              :options="defaultTabOptions"
+              @update:model-value="updateSetting('defaultTab', $event)" />
           </label>
 
           <label
@@ -910,7 +904,7 @@ function handleResetAll(): void {
             <div class="settings-row-info">
               <b>干员练度与自持加成</b>
               <small>
-                自持 {{ boxSeasonCount }}/{{ BOX_OPERATORS.length }} 名 · 已激活
+                自持 {{ boxSeasonCount }}/{{ OWNABLE_OPERATORS.length }} 名 · 已激活
                 {{ boxSeasonActivatedCount }} 名 · 满加成
                 {{ boxSeasonMaxedCount }} 名<template
                   v-if="boxSeasonBorrowedCount">
@@ -1133,7 +1127,7 @@ function handleResetAll(): void {
                 <input v-model="importBoxFromBackup" type="checkbox" />
                 <span>
                   同时合并附带的
-                  {{ Object.keys(pendingBackup.box).length }} 名干员练度 Box
+                  {{ Object.keys(pendingBackup.box).length }} 名干员练度 Box（同一干员保留较高自持练度）
                 </span>
               </label>
               <div class="settings-btn-group">
@@ -1149,12 +1143,14 @@ function handleResetAll(): void {
               </div>
             </div>
 
-            <p v-if="errorMessage" class="settings-alert" role="alert">
-              {{ errorMessage }}
-            </p>
-            <p v-if="statusMessage" class="settings-status" role="status">
-              {{ statusMessage }}
-            </p>
+            <StatusNotice
+              v-if="errorMessage"
+              tone="danger"
+              :message="errorMessage" />
+            <StatusNotice
+              v-if="statusMessage"
+              tone="success"
+              :message="statusMessage" />
           </div>
 
           <div class="settings-reset-card">
@@ -1164,28 +1160,10 @@ function handleResetAll(): void {
                 仅重置主题、排版密度、开关与栏目顺序，不会删除你的自建流派、干员练度和本局记录。
               </small>
             </div>
-            <template v-if="!confirmResetOpen">
-              <button
-                type="button"
-                class="btn settings-danger-btn"
-                @click="confirmResetOpen = true">
-                恢复全部默认设置
-              </button>
-            </template>
-            <div v-else class="settings-btn-group">
-              <button
-                type="button"
-                class="btn settings-danger-solid"
-                @click="handleResetAll">
-                确认恢复默认
-              </button>
-              <button
-                type="button"
-                class="btn"
-                @click="confirmResetOpen = false">
-                取消
-              </button>
-            </div>
+            <ConfirmButton
+              label="恢复全部默认设置"
+              confirm-label="确认恢复默认"
+              @confirm="handleResetAll" />
           </div>
         </div>
       </section>
@@ -1278,8 +1256,8 @@ function handleResetAll(): void {
   padding-top: 0;
   border-top: 0;
 }
-.settings-select-line select {
-  min-width: 170px;
+.settings-select-line :deep(.q-select) {
+  min-width: 176px;
 }
 .settings-row-info {
   display: grid;
@@ -1728,10 +1706,10 @@ function handleResetAll(): void {
     transition: none !important;
   }
 }
-:global(:root[data-motion='reduce']) .tab-sort-move,
-:global(:root[data-motion='reduce']) .settings-tab-item.dropping,
-:global(:root[data-motion='reduce']) .settings-switch,
-:global(:root[data-motion='reduce']) .settings-switch::after {
+:global(:root[data-motion='reduce'] .tab-sort-move),
+:global(:root[data-motion='reduce'] .settings-tab-item.dropping),
+:global(:root[data-motion='reduce'] .settings-switch),
+:global(:root[data-motion='reduce'] .settings-switch::after) {
   transition: none !important;
 }
 </style>

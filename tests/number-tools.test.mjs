@@ -183,3 +183,103 @@ test('credit calculator matches round scaling, leader bonus, and comparison rows
   });
   assert.ok(soloRows.some((row) => row.id === 'solo:7' && row.active));
 });
+
+test('zero cleared rounds, quick finals and half points use the selected mode', () => {
+  assert.deepEqual(roundCredit(0, 100), {
+    perRun: 0,
+    roundPart: 0,
+    leaderBonus: 0,
+  });
+  assert.equal(roundCredit(4, 115).perRun, 58);
+  assert.equal(roundCredit(14, 115, true).perRun, 403);
+  assert.deepEqual(roundCredit(9, 100, true, 'quick'), {
+    perRun: 200,
+    roundPart: 150,
+    leaderBonus: 50,
+  });
+  assert.equal(roundCredit(8, 100, true, 'quick').leaderBonus, 0);
+  const quick = {
+    mode: 'quick',
+    efficiency: 100,
+    roundsCleared: 9,
+    defeatedLeader: true,
+    targetCredit: 6250,
+  };
+  const rows = compareSoloLevels({...quick, activeLevel: 1});
+  assert.equal(rows.find((row) => row.active).perRun, 200);
+  assert.equal(rows.find((row) => row.id === 'solo:1').perRun, 350);
+  assert.equal(calculateCreditPlan(quick).maxCombatSeconds, 615);
+});
+
+test('battle earnings stop at the sequence cap and objectives have a separate budget', () => {
+  const full = {
+    efficiency: 100,
+    roundsCleared: 14,
+    defeatedLeader: true,
+    targetKind: 'total',
+    targetCredit: 8750,
+  };
+  const last = calculateCreditPlan({...full, battleEarned: 6200});
+  assert.equal(last.perRun, 50);
+  assert.equal(last.runsNeeded, 1);
+  assert.equal(last.objectiveNeeded, 2500);
+  const capped = calculateCreditPlan({
+    ...full,
+    battleEarned: 6250,
+    objectiveEarned: 500,
+  });
+  assert.equal(capped.perRun, 0);
+  assert.equal(capped.runsNeeded, 0);
+  assert.equal(capped.objectiveNeeded, 2000);
+  assert.equal(
+    calculateCreditPlan({...full, targetCredit: 9000}).unreachableCredit,
+    250,
+  );
+  assert.equal(
+    calculateCreditPlan({...full, targetKind: 'battle', targetCredit: 7000})
+      .unreachableCredit,
+    750,
+  );
+  const comparison = compareJointDifficulties({
+    ...full,
+    battleEarned: 6250,
+    activeIndex: 0,
+  });
+  assert.ok(
+    comparison.every((row) => row.perRun === 0 && row.runsNeeded === 0),
+  );
+});
+
+test('limited shop rewards use spending progress and allow an available balance to pay for the rest', () => {
+  const target = {
+    efficiency: 100,
+    roundsCleared: 14,
+    defeatedLeader: true,
+    targetKind: 'spend',
+    targetCredit: 3000,
+    battleEarned: 3000,
+  };
+  const unspent = calculateCreditPlan({...target, balance: 3000});
+  assert.equal(unspent.progress, 0);
+  assert.equal(unspent.remainingCredit, 3000);
+  assert.equal(unspent.runsNeeded, 0);
+  const claimed = calculateCreditPlan({
+    ...target,
+    limitedSpend: 3000,
+    balance: 0,
+  });
+  assert.equal(claimed.remainingCredit, 0);
+  const partiallySpent = calculateCreditPlan({
+    ...target,
+    limitedSpend: 1000,
+    balance: 500,
+  });
+  assert.equal(partiallySpent.battleNeeded, 1500);
+  assert.equal(partiallySpent.runsNeeded, 5);
+  const overStock = calculateCreditPlan({
+    ...target,
+    targetCredit: 8750,
+    balance: 8750,
+  });
+  assert.equal(overStock.unreachableCredit, 500);
+});

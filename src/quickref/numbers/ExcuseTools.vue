@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import {computed, onBeforeUnmount, ref, watch} from 'vue';
+import {computed, ref, watch} from 'vue';
 import LiveStatus from '../../lib/ui/LiveStatus.vue';
 import {normalize} from '../../lib/ui/match.ts';
-import Segmented from '../components/Segmented.vue';
+import SubTabs, {type SubTabDirection} from '../components/SubTabs.vue';
+import SearchInput from '../components/SearchInput.vue';
+import EmptyState from '../components/EmptyState.vue';
+import {useClipboardCopy} from '../components/useClipboardCopy.ts';
 import {
   EXCUSE_CATEGORIES,
   EXCUSE_SUBMIT_URL,
@@ -15,25 +18,18 @@ import {
 const PAGE_SIZE = 24;
 
 const category = ref<ExcuseCategory>('all');
+const catDir = ref<SubTabDirection>('');
 const search = ref('');
 const visibleLimit = ref(PAGE_SIZE);
 
-const copiedId = ref('');
+const {copiedKey: copiedId, copyText} = useClipboardCopy(1500);
 const lastRolledId = ref('');
 const lastCopiedText = ref('');
 const copyFallback = ref('');
 const liveMessage = ref('');
-let copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
 const categoryMap = new Map(
   EXCUSE_CATEGORIES.map((item) => [item.id, item.label]),
-);
-const categoryLabels = EXCUSE_CATEGORIES.map((item) => item.label);
-const categoryIndex = computed(() =>
-  Math.max(
-    0,
-    EXCUSE_CATEGORIES.findIndex((item) => item.id === category.value),
-  ),
 );
 
 const filteredExcuses = computed(() => {
@@ -56,31 +52,18 @@ watch([category, search], () => {
   visibleLimit.value = PAGE_SIZE;
 });
 
-onBeforeUnmount(() => clearTimeout(copiedTimer));
-
-function selectCategory(index: number): void {
-  const next = EXCUSE_CATEGORIES[index];
-  if (next) category.value = next.id;
-}
-
 function resetFilter(): void {
   search.value = '';
   category.value = 'all';
 }
 
 async function writeClipboard(id: string, text: string): Promise<void> {
-  clearTimeout(copiedTimer);
   lastCopiedText.value = text;
   copyFallback.value = '';
-  try {
-    await navigator.clipboard.writeText(text);
-    copiedId.value = id;
+  const outcome = await copyText(text, id);
+  if (outcome === 'copied') {
     liveMessage.value = '已复制文案';
-    copiedTimer = setTimeout(() => {
-      copiedId.value = '';
-    }, 1500);
-  } catch {
-    copiedId.value = '';
+  } else {
     copyFallback.value = text;
     liveMessage.value = '浏览器未授予剪贴板权限，请手动复制文案';
   }
@@ -120,7 +103,7 @@ function rollAndCopy(): void {
       </div>
     </div>
 
-    <section v-if="lastCopiedText" class="nc nt-excuse-flash">
+    <section v-if="lastCopiedText" class="nc nt-excuse-flash panel-reveal">
       <div class="nt-heading">
         <b>{{ copyFallback ? '已选中文本 · 手动复制' : '✓ 已复制到剪贴板' }}</b>
         <button type="button" class="btn nt-text-button" @click="rollAndCopy">
@@ -139,31 +122,27 @@ function rollAndCopy(): void {
 
     <section class="nc nt-excuse-controls-card">
       <div class="bar nt-excuse-controls">
-        <div class="nt-excuse-search">
-          <input
-            v-model="search"
-            type="search"
-            placeholder="搜关键词：情头 / 谈恋爱 / 寿命 / 救世主 / 网卡 / 发牌员…"
-            aria-label="搜索抽象文案" />
-          <button
-            v-if="search"
-            type="button"
-            class="nt-excuse-clear"
-            aria-label="清空搜索"
-            @click="search = ''">
-            ✕
-          </button>
-        </div>
-        <Segmented
-          :labels="categoryLabels"
-          :active="categoryIndex"
+        <SearchInput
+          v-model="search"
+          class="nt-excuse-search"
+          placeholder="搜关键词：情头 / 谈恋爱 / 寿命 / 救世主 / 网卡 / 发牌员…"
+          aria-label="搜索抽象文案" />
+        <SubTabs
+          v-model="category"
+          :items="EXCUSE_CATEGORIES"
+          :level="3"
+          inline
+          aria-label="文案分类"
           attr="excuse-cat"
-          @change="selectCategory" />
+          @change="(_, dir) => (catDir = dir)" />
       </div>
     </section>
 
     <template v-if="filteredExcuses.length">
-      <div class="nt-excuse-grid">
+      <div
+        :key="category"
+        :class="['nt-excuse-grid', {'subtab-panel': !!catDir}]"
+        :data-dir="catDir || undefined">
         <article
           v-for="item in visibleExcuses"
           :key="item.id"
@@ -193,19 +172,20 @@ function rollAndCopy(): void {
         显示更多（{{ visibleLimit }} / {{ filteredExcuses.length }}）
       </button>
     </template>
-    <section v-else class="nc nt-no-results">
-      <p>没有匹配的文案</p>
-      <div class="nt-excuse-empty-actions">
-        <button type="button" class="btn" @click="resetFilter">显示全部</button>
-        <a
-          class="btn nt-excuse-submit"
-          :href="EXCUSE_SUBMIT_URL"
-          target="_blank"
-          rel="noopener noreferrer">
-          投稿文案 ↗
-        </a>
-      </div>
-    </section>
+    <EmptyState
+      v-else
+      card
+      message="没有匹配的文案"
+      action-label="显示全部"
+      @action="resetFilter">
+      <a
+        class="btn nt-excuse-submit"
+        :href="EXCUSE_SUBMIT_URL"
+        target="_blank"
+        rel="noopener noreferrer">
+        投稿文案 ↗
+      </a>
+    </EmptyState>
 
     <LiveStatus :message="liveMessage" />
   </div>

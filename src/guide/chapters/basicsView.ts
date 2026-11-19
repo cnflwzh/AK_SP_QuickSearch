@@ -7,10 +7,11 @@ import {
   ROUND_TIME,
   CREDIT,
   LEADER_CREDIT_BONUS,
-  CREDIT_MILESTONES,
+  CREDIT_CAPS,
 } from '../../../data/index';
 import { html } from '../../lib/ui/dom';
 import { cv } from '../chips';
+import {roundCredit} from '../../lib/numbers/creditTools';
 
 function difficulty(out: Record<string, string>) {
   const bars = DIFFICULTIES.map(d => {
@@ -145,9 +146,7 @@ export function roundTimeline(i: number) {
 /** Return the scaled credit chart and leader bonus caption for a difficulty index. */
 export function creditChart(i: number) {
   const out: Record<string, string> = {};
-  const multipliers = DIFFICULTIES.slice(1).map(d => d.efficiency / 100);
-
-    const m = multipliers[i];
+  const efficiency = DIFFICULTIES[i + 1].efficiency;
     const W = 600, x0 = 38, bw = (W - x0 - 10) / 15, BASE_Y = 190;
     const max = (CREDIT[CREDIT.length - 1] + LEADER_CREDIT_BONUS) * 1.5;
     const h = (v: number) => v / max * 170;
@@ -158,8 +157,8 @@ export function creditChart(i: number) {
       s += `<line class="gl" x1="${x0}" x2="${W}" y1="${y}" y2="${y}"/><text class="axl" x="${x0 - 6}" y="${y + 4}" text-anchor="end">${v}</text>`;
     });
 
-    CREDIT.forEach((c, k) => {
-      const v = Math.round(c * m);
+    CREDIT.forEach((_, k) => {
+      const v = roundCredit(k + 1, efficiency).roundPart;
       const x = x0 + k * bw + 3;
       const cx = x + (bw - 6) / 2;
       s += `<rect x="${x}" y="${BASE_Y - h(v)}" width="${bw - 6}" height="${h(v)}" rx="2" fill="color-mix(in srgb,var(--teal) 75%,transparent)" style="transform-origin:${x}px 190px;animation:growY .6s ${k * .03}s both"/>`
@@ -168,8 +167,7 @@ export function creditChart(i: number) {
     });
 
     // 击败领袖：最终通过回合的基础认证 + 击败领袖奖励
-    const bonus = Math.round(LEADER_CREDIT_BONUS * m);
-    const base = Math.round(CREDIT[CREDIT.length - 1] * m);
+    const {leaderBonus: bonus, roundPart: base} = roundCredit(CREDIT.length, efficiency, true);
     const x = x0 + 14 * bw + 3;
     const h1 = base / max * 170, h2 = bonus / max * 170;
     s += `<rect x="${x}" y="${BASE_Y - h1}" width="${bw - 6}" height="${h1}" rx="2" fill="color-mix(in srgb,var(--teal) 75%,transparent)"/>`
@@ -178,32 +176,20 @@ export function creditChart(i: number) {
       + `<text class="axl" x="${x + (bw - 6) / 2}" y="206" text-anchor="middle" style="fill:var(--red)">领袖</text>`;
     s += `<text class="axl" x="${x0}" y="219">通过回合数</text>`;
 
-    out.crchart = `<desc id="credit-chart-description">${MODES[i]}难度。${CREDIT.map((credit, index) => `通过 ${index + 1} 回合：${Math.round(credit * m)} 认证`).join('；')}；击败领袖：${base + bonus} 认证。</desc>` + s;
-    out.crsum = '×' + Math.round(m * 100) + '% · 击败领袖额外 +' + bonus;
+    out.crchart = `<desc id="credit-chart-description">${MODES[i]}难度。${CREDIT.map((_, index) => `通过 ${index + 1} 回合：${roundCredit(index + 1, efficiency).roundPart} 认证`).join('；')}；击败领袖：${base + bonus} 认证。</desc>` + s;
+    out.crsum = '×' + efficiency + '% · 击败领袖额外 +' + bonus;
   return out;
 }
 function seasonShopBar(out: Record<string, string>) {
-  const max =
-    CREDIT_MILESTONES[CREDIT_MILESTONES.length - 1]?.value ?? 8750;
-  const battleCap =
-    CREDIT_MILESTONES.find((m) => m.title.includes('上限'))?.value ??
-    Math.min(6250, max);
-  const x0 = 20, W = 580;
-  const sx = (v: number) => x0 + v / max * (W - x0);
-  let s = `<rect x="${x0}" y="64" width="${W - x0}" height="14" rx="7" fill="var(--surface2)" stroke="var(--line)"/>`
-    + `<rect x="${x0}" y="64" width="${sx(battleCap) - x0}" height="14" rx="7" fill="var(--teal)" style="transform-origin:${x0}px 0;animation:grow 1.2s both"/>`
-    + `<rect x="${sx(battleCap)}" y="64" width="${sx(max) - sx(battleCap)}" height="14" rx="0" fill="var(--accent)" opacity=".85"/>`;
-
-  CREDIT_MILESTONES.forEach(({value: v, title, reward = ''}, i) => {
-    const x = sx(v);
-    const above = i < 2;
-    const anchor = v > max * 0.9 ? 'end' : 'middle';
-    const tx = Math.min(x, W - 4);
-    s += `<line x1="${x}" x2="${x}" y1="${i % 2 ? 56 : 86}" y2="${i % 2 ? 92 : 58}" stroke="var(--ink2)"/>`
-      + `<text class="axl" x="${tx}" y="${above ? 40 : 116}" text-anchor="${anchor}" style="fill:var(--ink);font-size:13px">${v}</text>`
-      + `<text class="axl" x="${tx}" y="${above ? 22 : 132}" text-anchor="${anchor}">${title}${reward ? ' · ' + reward : ''}</text>`;
-  });
-  out.shopbar = `<desc id="season-shop-description">${CREDIT_MILESTONES.map(({value, title, reward}) => `${value} 认证：${title}${reward ? '，' + reward : ''}`).join('；')}</desc>` + s;
+  const {battle, objectives} = CREDIT_CAPS;
+  const total = battle + objectives;
+  const x = 20, width = 560, battleWidth = width * battle / total;
+  out.shopbar = `<desc id="season-shop-description">作战最多获得 ${battle} 点，关键目标另可获得 ${objectives} 点，共 ${total} 点。</desc>
+    <rect x="${x}" y="64" width="${battleWidth}" height="14" fill="var(--teal)"/>
+    <rect x="${x + battleWidth}" y="64" width="${width - battleWidth}" height="14" fill="var(--accent)"/>
+    <text class="axl" x="${x + battleWidth / 2}" y="52" text-anchor="middle">作战 ${battle}</text>
+    <text class="axl" x="${x + (battleWidth + width) / 2}" y="52" text-anchor="middle">关键目标 ${objectives}</text>
+    <text class="axl" x="${x + width}" y="102" text-anchor="end">合计 ${total}</text>`;
 }
 
 

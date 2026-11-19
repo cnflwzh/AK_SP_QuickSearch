@@ -21,6 +21,9 @@ export type CombatRole =
   | '阻挡'
   | '群攻'
   | '真伤'
+  | '元素输出'
+  | '破抗'
+  | '沉默'
   | '快活';
 
 export interface CombatRoleMeta {
@@ -28,7 +31,6 @@ export interface CombatRoleMeta {
   readonly label: CombatRole;
   readonly desc: string;
   readonly trainingTypes?: readonly string[];
-  readonly counterTags?: readonly CounterTag[];
 }
 
 export interface Operator {
@@ -43,7 +45,20 @@ export interface Operator {
   readonly price?: number;
   readonly eliteCopies?: number;
   readonly sellMechanics?: OperatorSellMechanics;
+  /** 按赛季默认形态、技能及满精锐列出的职能。 */
   readonly roles?: readonly CombatRole[];
+  readonly eliteOnlyRoles?: readonly CombatRole[];
+  /** 任一指定状态有来源时，才能稳定触发该干员的元素输出。 */
+  readonly elementalPrerequisites?: readonly ElementalCondition[];
+  /** 部署人数不足时不会触发的团队能力，如余的第二天赋。 */
+  readonly minimumFieldRoles?: {
+    readonly count: number;
+    readonly roles: readonly CombatRole[];
+  };
+  readonly inflictsElements?: readonly ElementalCondition[];
+  /** 为装备判定记录本体的近战部署位及能否产生攻击/伤害事件。 */
+  readonly melee?: boolean;
+  readonly combatAction?: '攻击' | '可造成法伤' | '间接伤害' | '无伤害';
   /** 未持有时能否通过助战借用同名干员补位（仅限非特许六星，对应官方 chessType === 'NORMAL'）。 */
   readonly borrowable?: boolean;
   /** 未持有且未借用助战时，系统默认替补出战的原型/预备干员名（对应官方 backupCharId）。 */
@@ -55,6 +70,10 @@ export interface EquipmentMechanics {
   readonly deploymentSlotBonus?: number;
 }
 
+export type ElementalCondition = '凋亡' | '灼燃' | '神经' | '侵蚀' | '麻痹';
+export type EquipmentRoleTrigger =
+  '攻击' | '伤害' | '法伤' | '地面' | '地面攻击';
+
 export interface Equipment {
   readonly name: string;
   readonly tier: number;
@@ -65,6 +84,10 @@ export interface Equipment {
   readonly advanced: string | null;
   readonly mechanics?: EquipmentMechanics;
   readonly roles?: readonly CombatRole[];
+  /** 该装备要提供上述职能，携带者必须能触发的事件或部署条件。 */
+  readonly roleTrigger?: EquipmentRoleTrigger;
+  readonly grantsArtsOnDamage?: boolean;
+  readonly inflictsElements?: readonly ElementalCondition[];
 }
 
 export type EquipmentCombo = readonly [
@@ -204,6 +227,11 @@ export interface Covenant {
   readonly headcountBreakpoint?: HeadcountBreakpointInfo;
   readonly restrictedModeAbsent?: boolean;
   readonly mechanics?: CovenantMechanics;
+  /** 对应基础激活和人数/层数强化两个档位的实战职能。 */
+  readonly roles?: readonly CombatRole[];
+  readonly bonusRoles?: readonly CombatRole[];
+  readonly bonusElements?: readonly ElementalCondition[];
+  readonly memberArtsDamage?: boolean;
 }
 
 /** 核心与混搭流派共用的阵容、推荐和运营说明。 */
@@ -267,7 +295,10 @@ export interface SoloLevel {
   readonly note: string;
 }
 
+export type CreditTargetKind = 'battle' | 'total' | 'spend';
+
 export interface CreditMilestone {
+  readonly kind: CreditTargetKind;
   readonly value: number;
   readonly title: string;
   readonly reward?: string;
@@ -406,6 +437,8 @@ export type CounterTag =
   | '控制';
 export interface LeaderCounter {
   readonly tag: CounterTag;
+  /** 这条机制实际需要的职能。走位、转火等仅需操作的提示省略此项。 */
+  readonly roles?: readonly CombatRole[];
   readonly text: string;
   readonly by: string;
   readonly hidden?: boolean;
@@ -526,6 +559,15 @@ export interface SeasonRules {
   readonly roundTime: readonly number[];
   readonly credit: readonly number[];
   readonly leaderCreditBonus: number;
+  readonly creditCaps: {
+    readonly battle: number;
+    readonly objectives: number;
+    readonly limitedSpend: number;
+  };
+  readonly quickCreditMode: {
+    readonly rounds: number;
+    readonly efficiency: number;
+  };
   readonly creditMilestones: readonly CreditMilestone[];
   readonly soloLevels: readonly SoloLevel[];
   readonly training: readonly TrainingType[];
@@ -546,7 +588,18 @@ export interface SeasonCredits {
   readonly furtherReading: readonly UploaderSource[];
 }
 
+/** 固定棋子之外的参战身份。covenants 仅用于主动自选，替补时读取原棋子。 */
+export interface AdditionalOperator {
+  readonly name: string;
+  readonly avatar: string;
+  /** operator 为可持有六星，system 为可自选原型，reserve 仅用于替补。 */
+  readonly source: 'operator' | 'system' | 'reserve';
+  readonly covenants: readonly string[];
+}
+
 export interface SeasonDefinition {
+  readonly additionalOperators?: readonly AdditionalOperator[];
+  readonly selectionLimits?: readonly {tier: number; slots: number; perRun: number}[];
   readonly meta: SeasonMeta;
   readonly covenants: Readonly<Record<string, Covenant>>;
   readonly operators: readonly Operator[];

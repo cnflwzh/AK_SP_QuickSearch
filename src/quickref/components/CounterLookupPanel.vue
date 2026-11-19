@@ -1,19 +1,14 @@
 <script setup lang="ts">
-import {computed} from 'vue';
+import {computed, ref} from 'vue';
 import {
   TIER_LABELS,
   equipmentWithRoles,
+  operatorRolesAtElite,
   operatorsWithRoles,
   type CombatRole,
 } from '../../../data/index.ts';
 import {avatarSrc, equipIconSrc} from '../../lib/ui/assets.ts';
-import {
-  inRun,
-  isRunBannedOp,
-  run,
-  runBans,
-  runStat,
-} from '../planStore.ts';
+import {inRun, isRunBannedOp, run, runBans, runStat} from '../planStore.ts';
 import {useQuickrefActions} from '../state.ts';
 
 const props = defineProps<{
@@ -32,9 +27,7 @@ const bannedHiddenCount = computed(() =>
     ? allOps.value.filter((op) => isRunBannedOp(op.name)).length
     : 0,
 );
-const activeRunCovenants = computed(
-  () => new Set([...runStat.value.keys()]),
-);
+const activeRunCovenants = computed(() => new Set([...runStat.value.keys()]));
 
 const rankedOps = computed(() => {
   const available = allOps.value.filter((op) => !isRunBannedOp(op.name));
@@ -48,12 +41,22 @@ const rankedOps = computed(() => {
         op,
         inCurrentRun,
         fitsRunCov,
+        requiresElite: !operatorRolesAtElite(op, false).some((role) =>
+          props.roles.includes(role),
+        ),
         rank: inCurrentRun ? 2 : fitsRunCov ? 1 : 0,
       };
     })
     .sort((a, b) => b.rank - a.rank || a.op.tier - b.op.tier);
 });
 
+const initialOperatorCount = 24;
+const expanded = ref(false);
+const visibleOperators = computed(() =>
+  expanded.value
+    ? rankedOps.value
+    : rankedOps.value.slice(0, initialOperatorCount),
+);
 const matchedEquipment = computed(() => equipmentWithRoles(props.roles));
 </script>
 
@@ -87,10 +90,18 @@ const matchedEquipment = computed(() => equipmentWithRoles(props.roles));
       </span>
       <div class="cl-chips">
         <button
-          v-for="{op, inCurrentRun, fitsRunCov} in rankedOps.slice(0, 24)"
+          v-for="{
+            op,
+            inCurrentRun,
+            fitsRunCov,
+            requiresElite,
+          } in visibleOperators"
           :key="op.name"
           type="button"
-          :class="['cl-chip', {inrun: inCurrentRun, cov: !inCurrentRun && fitsRunCov}]"
+          :class="[
+            'cl-chip',
+            {inrun: inCurrentRun, cov: !inCurrentRun && fitsRunCov},
+          ]"
           :data-t="op.tier"
           :data-op="op.name"
           @click="actions.openDetail('op', op.name)">
@@ -103,15 +114,23 @@ const matchedEquipment = computed(() => equipmentWithRoles(props.roles));
             decoding="async" />
           <i class="tn">{{ TIER_LABELS[op.tier] }}</i>
           <span>{{ op.name }}</span>
+          <small v-if="requiresElite">需精锐</small>
           <em v-if="inCurrentRun">本局</em>
           <em v-else-if="fitsRunCov">同盟</em>
         </button>
       </div>
-      <small v-if="rankedOps.length > 24" class="cl-more">
-        另有 {{ rankedOps.length - 24 }} 名，可在干员页按「{{
-          roles[0]
-        }}」查看全部
-      </small>
+      <button
+        v-if="rankedOps.length > initialOperatorCount"
+        type="button"
+        class="cl-more"
+        :aria-expanded="expanded"
+        @click="expanded = !expanded">
+        {{
+          expanded
+            ? '收起名单'
+            : `查看其余 ${rankedOps.length - initialOperatorCount} 名干员`
+        }}
+      </button>
     </div>
 
     <div v-if="matchedEquipment.length" class="cl-group">
@@ -179,6 +198,7 @@ const matchedEquipment = computed(() => equipmentWithRoles(props.roles));
   font-size: 11.5px;
   color: var(--red);
 }
+.cl-more,
 .cl-close {
   min-height: 34px;
   padding: 2px 10px;
@@ -190,6 +210,7 @@ const matchedEquipment = computed(() => equipmentWithRoles(props.roles));
   font-size: 12px;
   cursor: pointer;
 }
+.cl-more:hover,
 .cl-close:hover {
   border-color: var(--accent);
   color: var(--accent);
@@ -256,7 +277,6 @@ const matchedEquipment = computed(() => equipmentWithRoles(props.roles));
   color: #fff;
 }
 .cl-more {
-  font-size: 11.5px;
-  color: var(--ink3);
+  justify-self: start;
 }
 </style>

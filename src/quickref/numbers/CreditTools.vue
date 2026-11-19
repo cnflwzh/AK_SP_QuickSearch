@@ -1,129 +1,119 @@
 <script setup lang="ts">
 import {computed} from 'vue';
 import {
-  CREDIT,
+  CREDIT_CAPS,
   CREDIT_MILESTONES,
   DIFFICULTIES,
-  LEADER_CREDIT_BONUS,
   MODES,
+  QUICK_CREDIT_MODE,
   SOLO_LEVELS,
 } from '../../../data/index.ts';
+import type {CreditMilestone, CreditTargetKind} from '../../../data/types.ts';
 import {
   calculateCreditPlan,
   compareJointDifficulties,
   compareSoloLevels,
+  creditRoundLimit,
+  type CreditMode,
 } from '../../lib/numbers/numberTools.ts';
 import Segmented from '../components/Segmented.vue';
+import SelectInput, {type SelectOption} from '../components/SelectInput.vue';
+import SubTabs, {type SubTabItem} from '../components/SubTabs.vue';
 import NumberInput from './NumberInput.vue';
 import {useNumberToolsState} from './useNumberToolsState.ts';
 
 const creditState = useNumberToolsState().credit;
-const MAX_ROUNDS = CREDIT.length;
 const jointDifficulties = DIFFICULTIES.filter((d) => d.efficiency > 0);
-
-const ROUND_PRESETS = [
-  {label: 'R8', rounds: 8, leader: false},
-  {label: 'R10', rounds: 10, leader: false},
-  {label: 'R12', rounds: 12, leader: false},
-  {label: '通过 R14', rounds: MAX_ROUNDS, leader: false},
-  {label: '击败领袖', rounds: MAX_ROUNDS, leader: true},
-] as const;
-
-const currentEfficiency = computed(() => {
-  if (creditState.mode === 'joint') {
-    return jointDifficulties[creditState.jointDifficulty]?.efficiency ?? 100;
-  }
-  return SOLO_LEVELS[creditState.soloLevel - 1]?.efficiency ?? 100;
+const MODE_TABS: readonly SubTabItem<CreditMode>[] = [
+  {id: 'joint', label: '联合模拟'},
+  {id: 'solo', label: '个人规程'},
+  {id: 'quick', label: '极速模拟'},
+];
+const selectedMode = computed<CreditMode>({
+  get: () => creditState.mode,
+  set: (mode) => setMode(mode),
 });
-
-const currentModeMeta = computed(() => {
-  if (creditState.mode === 'joint') {
-    const item = jointDifficulties[creditState.jointDifficulty];
-    return item
-      ? `${item.name} · 效率 ${item.efficiency}%${item.strength !== null ? ` · 强度 +${item.strength}` : ''}`
-      : '';
-  }
-  const item = SOLO_LEVELS[creditState.soloLevel - 1];
-  return item
-    ? `个人规程 ${item.level} · 效率 ${item.efficiency}% · 强度 +${item.strength}${item.note ? ` · ${item.note}` : ''}`
-    : '';
-});
-
-const plan = computed(() =>
-  calculateCreditPlan({
-    efficiency: currentEfficiency.value,
-    roundsCleared: creditState.roundsCleared,
-    defeatedLeader: creditState.defeatedLeader,
-    currentCredit: creditState.currentCredit,
-    targetCredit: creditState.targetCredit,
+const targetKinds: Record<CreditTargetKind, string> = {
+  battle: '作战累计获取',
+  total: '作战与关键目标累计获取',
+  spend: '限时兑换累计消费',
+};
+const soloLevelOptions: readonly SelectOption<number>[] = SOLO_LEVELS.map(
+  (item) => ({
+    value: item.level,
+    label: `规程 ${item.level} · ${item.efficiency}%（强度 +${item.strength}${
+      item.note ? ' · ' + item.note : ''
+    }）`,
   }),
 );
+const targetKindOptions: readonly SelectOption<CreditTargetKind>[] = (
+  Object.entries(targetKinds) as [CreditTargetKind, string][]
+).map(([value, label]) => ({value, label}));
+const finalRound = computed(() => creditRoundLimit(creditState.mode));
+const presets = computed(() => [
+  ...[8, 10, 12]
+    .filter((n) => n < finalRound.value)
+    .map((rounds) => ({label: `R${rounds}`, rounds, leader: false})),
+  {label: `通过 R${finalRound.value}`, rounds: finalRound.value, leader: false},
+  {label: '击败领袖', rounds: finalRound.value, leader: true},
+]);
 
-const progressPct = computed(() => {
-  if (creditState.targetCredit <= 0) return 100;
-  return Math.max(
-    0,
-    Math.min(
-      100,
-      Math.round((creditState.currentCredit / creditState.targetCredit) * 100),
-    ),
-  );
+const difficulty = computed(() => {
+  if (creditState.mode === 'quick')
+    return {efficiency: QUICK_CREDIT_MODE.efficiency, strength: null};
+  if (creditState.mode === 'joint')
+    return jointDifficulties[creditState.jointDifficulty];
+  return SOLO_LEVELS[creditState.soloLevel - 1];
 });
-
+const plan = computed(() =>
+  calculateCreditPlan({
+    ...creditState,
+    efficiency: difficulty.value.efficiency,
+  }),
+);
+const pct = computed(() =>
+  creditState.targetCredit > 0
+    ? Math.min(
+        100,
+        Math.floor((100 * plan.value.progress) / creditState.targetCredit),
+      )
+    : 100,
+);
 const comparisonRows = computed(() =>
   creditState.mode === 'joint'
     ? compareJointDifficulties({
-        roundsCleared: creditState.roundsCleared,
-        defeatedLeader: creditState.defeatedLeader,
-        currentCredit: creditState.currentCredit,
-        targetCredit: creditState.targetCredit,
+        ...creditState,
         activeIndex: creditState.jointDifficulty,
       })
-    : compareSoloLevels({
-        roundsCleared: creditState.roundsCleared,
-        defeatedLeader: creditState.defeatedLeader,
-        currentCredit: creditState.currentCredit,
-        targetCredit: creditState.targetCredit,
-        activeLevel: creditState.soloLevel,
-      }),
+    : compareSoloLevels({...creditState, activeLevel: creditState.soloLevel}),
 );
-
 const combatTimeLabel = computed(() => {
   const mins = Math.floor(plan.value.maxCombatSeconds / 60);
   const secs = plan.value.maxCombatSeconds % 60;
   return secs ? `${mins} 分 ${secs} 秒` : `${mins} 分钟`;
 });
-
-function setMode(index: number): void {
-  creditState.mode = index === 0 ? 'joint' : 'solo';
-}
-
-function applyRoundPreset(rounds: number, leader: boolean): void {
-  creditState.roundsCleared = rounds;
-  creditState.defeatedLeader = leader;
-}
-
-function onRoundInput(event: Event): void {
-  const value = Number((event.target as HTMLInputElement).value);
-  creditState.roundsCleared = Math.max(1, Math.min(MAX_ROUNDS, value));
-  if (creditState.roundsCleared < MAX_ROUNDS) {
+function setMode(mode: CreditMode): void {
+  const wasFinal = creditState.roundsCleared === finalRound.value;
+  creditState.mode = mode;
+  creditState.roundsCleared = wasFinal
+    ? finalRound.value
+    : Math.min(creditState.roundsCleared, finalRound.value);
+  if (creditState.roundsCleared < finalRound.value)
     creditState.defeatedLeader = false;
-  }
 }
-
+function setProgress(rounds: number, leader: boolean): void {
+  creditState.roundsCleared = rounds;
+  creditState.defeatedLeader = rounds === finalRound.value && leader;
+}
 function selectComparisonRow(id: string): void {
   const [mode, raw] = id.split(':');
-  const num = Number(raw);
-  if (!Number.isFinite(num)) return;
-  if (mode === 'joint') creditState.jointDifficulty = num;
-  else if (mode === 'solo') creditState.soloLevel = num;
+  if (mode === 'joint') creditState.jointDifficulty = Number(raw);
+  if (mode === 'solo') creditState.soloLevel = Number(raw);
+  if (mode === 'joint' || mode === 'solo' || mode === 'quick') setMode(mode);
 }
-
-function isPresetActive(rounds: number, leader: boolean): boolean {
-  return (
-    creditState.roundsCleared === rounds &&
-    (rounds < MAX_ROUNDS || creditState.defeatedLeader === leader)
-  );
+function selectTarget(target: CreditMilestone): void {
+  creditState.targetKind = target.kind;
+  creditState.targetCredit = target.value;
 }
 </script>
 
@@ -131,21 +121,25 @@ function isPresetActive(rounds: number, leader: boolean): boolean {
   <div class="nt-credit">
     <div class="bar nt-toolbar">
       <h4 class="nt-section-title" aria-level="2">认证效率</h4>
-      <Segmented
-        :labels="['联合模拟', '个人规程']"
-        :active="creditState.mode === 'joint' ? 0 : 1"
-        attr="credit-mode"
-        @change="setMode" />
+      <SubTabs
+        v-model="selectedMode"
+        :items="MODE_TABS"
+        :level="3"
+        inline
+        aria-label="模拟模式"
+        attr="credit-mode" />
     </div>
-
     <section class="nc nt-credit-grid" aria-label="认证收益计算">
       <div class="nt-credit-inputs">
         <div class="nt-credit-field">
           <div class="nt-heading">
-            <h4 aria-level="3">
-              {{ creditState.mode === 'joint' ? '模拟难度' : '规程等级' }}
-            </h4>
-            <span class="nt-muted">{{ currentModeMeta }}</span>
+            <h4 aria-level="3">模拟设置</h4>
+            <span class="nt-muted">
+              效率 {{ difficulty.efficiency }}%
+              <template v-if="difficulty.strength !== null">
+                · 强度 +{{ difficulty.strength }}
+              </template>
+            </span>
           </div>
           <Segmented
             v-if="creditState.mode === 'joint'"
@@ -154,79 +148,88 @@ function isPresetActive(rounds: number, leader: boolean): boolean {
             :active="creditState.jointDifficulty"
             attr="credit-diff"
             @change="creditState.jointDifficulty = $event" />
-          <select
-            v-else
-            :value="creditState.soloLevel"
+          <SelectInput
+            v-if="creditState.mode === 'solo'"
+            v-model="creditState.soloLevel"
+            :options="soloLevelOptions"
             class="panel-reveal"
-            aria-label="个人规程等级"
-            @change="
-              creditState.soloLevel = Number(
-                ($event.target as HTMLSelectElement).value,
-              )
-            ">
-            <option
-              v-for="item in SOLO_LEVELS"
-              :key="item.level"
-              :value="item.level">
-              规程 {{ item.level }} · {{ item.efficiency }}%（强度 +{{
-                item.strength
-              }}{{ item.note ? ` · ${item.note}` : '' }}）
-            </option>
-          </select>
+            aria-label="个人规程等级" />
         </div>
-
         <div class="nt-credit-field">
           <div class="nt-heading">
             <h4 aria-level="3">
-              平均通关进度
-              <small>
-                第 {{ creditState.roundsCleared }} 回合{{
-                  plan.defeatedLeader ? ' · 击败领袖' : ''
-                }}
-              </small>
+              预计通过回合
+              <small>{{ creditState.roundsCleared }} / {{ finalRound }}</small>
             </h4>
             <label
-              v-if="creditState.roundsCleared >= MAX_ROUNDS"
+              v-if="creditState.roundsCleared === finalRound"
               class="nt-credit-check">
               <input v-model="creditState.defeatedLeader" type="checkbox" />
-              <span>击败领袖（基础 +{{ LEADER_CREDIT_BONUS }}）</span>
+              <span>击败最终领袖</span>
             </label>
           </div>
-          <div class="nt-credit-presets" role="group" aria-label="通关进度快捷项">
+          <div
+            class="nt-credit-presets"
+            role="group"
+            aria-label="通过回合快捷项">
             <button
-              v-for="preset in ROUND_PRESETS"
+              v-for="preset in presets"
               :key="preset.label"
               type="button"
-              :class="[
-                'btn',
-                {p: isPresetActive(preset.rounds, preset.leader)},
-              ]"
-              :aria-pressed="isPresetActive(preset.rounds, preset.leader)"
-              @click="applyRoundPreset(preset.rounds, preset.leader)">
+              class="btn"
+              :class="{
+                p:
+                  creditState.roundsCleared === preset.rounds &&
+                  creditState.defeatedLeader === preset.leader,
+              }"
+              :aria-pressed="
+                creditState.roundsCleared === preset.rounds &&
+                creditState.defeatedLeader === preset.leader
+              "
+              @click="setProgress(preset.rounds, preset.leader)">
               {{ preset.label }}
             </button>
           </div>
           <div class="nt-credit-slider">
-            <span>R1</span>
+            <span>R0</span>
             <input
               type="range"
-              :min="1"
-              :max="MAX_ROUNDS"
+              min="0"
+              :max="finalRound"
               :value="creditState.roundsCleared"
-              aria-label="平均通过回合数"
-              @input="onRoundInput" />
-            <span>R{{ MAX_ROUNDS }}</span>
+              aria-label="预计通过回合数"
+              @input="
+                setProgress(
+                  Number(($event.target as HTMLInputElement).value),
+                  creditState.defeatedLeader,
+                )
+              " />
+            <span>R{{ finalRound }}</span>
           </div>
         </div>
-
         <div class="nt-credit-numbers">
           <label>
-            当前认证点数
+            作战累计已获（上限 {{ CREDIT_CAPS.battle }}）
             <NumberInput
-              :value="creditState.currentCredit"
-              label="当前认证点数"
-              :max="99999"
-              @change="creditState.currentCredit = $event ?? 0" />
+              :value="creditState.battleEarned"
+              label="作战累计已获"
+              :max="CREDIT_CAPS.battle"
+              @change="creditState.battleEarned = $event ?? 0" />
+          </label>
+          <label>
+            关键目标累计已获（上限 {{ CREDIT_CAPS.objectives }}）
+            <NumberInput
+              :value="creditState.objectiveEarned"
+              label="关键目标累计已获"
+              :max="CREDIT_CAPS.objectives"
+              @change="creditState.objectiveEarned = $event ?? 0" />
+          </label>
+          <label>
+            目标类型
+            <SelectInput
+              v-model="creditState.targetKind"
+              :options="targetKindOptions"
+              aria-label="目标类型" />
           </label>
           <label>
             目标认证点数
@@ -236,17 +239,42 @@ function isPresetActive(rounds: number, leader: boolean): boolean {
               :max="99999"
               @change="creditState.targetCredit = $event ?? 0" />
           </label>
+          <template v-if="creditState.targetKind === 'spend'">
+            <label class="panel-reveal">
+              限时兑换累计已消费
+              <NumberInput
+                :value="creditState.limitedSpend"
+                label="限时兑换累计已消费"
+                :max="99999"
+                @change="creditState.limitedSpend = $event ?? 0" />
+            </label>
+            <label class="panel-reveal">
+              当前可用认证余额
+              <NumberInput
+                :value="creditState.balance"
+                label="当前可用认证余额"
+                :max="99999"
+                @change="creditState.balance = $event ?? 0" />
+            </label>
+          </template>
         </div>
-
-        <div class="nt-credit-milestones" role="group" aria-label="常见目标节点">
+        <div
+          class="nt-credit-milestones"
+          role="group"
+          aria-label="常见目标节点">
           <span class="nt-muted">快捷目标</span>
           <button
             v-for="m in CREDIT_MILESTONES"
             :key="m.value"
             type="button"
-            :class="['btn', {p: creditState.targetCredit === m.value}]"
-            :title="m.reward ? `${m.title}：${m.reward}` : m.title"
-            @click="creditState.targetCredit = m.value">
+            class="btn"
+            :class="{
+              p:
+                creditState.targetKind === m.kind &&
+                creditState.targetCredit === m.value,
+            }"
+            :title="m.reward ?? m.title"
+            @click="selectTarget(m)">
             {{ m.value }}
             <small>{{ m.title }}</small>
           </button>
@@ -256,67 +284,77 @@ function isPresetActive(rounds: number, leader: boolean): boolean {
       <div class="nt-credit-summary" aria-live="polite">
         <div class="nt-credit-kpis">
           <div class="nt-budget-result">
-            <h4>单局预计认证</h4>
+            <h4>下一局预计作战认证</h4>
             <strong>
               +{{ plan.perRun }}
               <small>点</small>
             </strong>
             <span>
-              基础 {{ plan.baseRoundCredit
-              }}<template v-if="plan.baseLeaderBonus">
+              （{{ plan.baseRoundCredit }}
+              <template v-if="plan.baseLeaderBonus">
                 + {{ plan.baseLeaderBonus }}
               </template>
-              × {{ plan.efficiency }}%
+              ）× {{ plan.efficiency }}%
+            </span>
+            <span v-if="plan.perRun < plan.uncappedPerRun">
+              已按本序列剩余作战额度截断
             </span>
           </div>
           <div class="nt-budget-result promoted">
-            <h4>距离目标还需</h4>
-            <strong v-if="plan.remainingCredit === 0">已达成</strong>
-            <strong v-else>
-              {{ plan.runsNeeded }}
-              <small>局</small>
+            <h4>距离所选目标</h4>
+            <strong v-if="!plan.remainingCredit">已达成</strong>
+            <strong v-else-if="plan.unreachableCredit">超出可获额度</strong>
+            <strong v-else-if="!Number.isFinite(plan.runsNeeded)">
+              本进度无收益
             </strong>
-            <span>
-              <template v-if="plan.remainingCredit === 0">
-                超出
-                {{
-                  Math.max(0, creditState.currentCredit - creditState.targetCredit)
-                }}
-                点
-              </template>
-              <template v-else>
-                尚差 {{ plan.remainingCredit }} 认证点数
-              </template>
+            <strong v-else-if="plan.runsNeeded">
+              {{ plan.runsNeeded }}
+              <small>局作战</small>
+            </strong>
+            <strong v-else-if="plan.objectiveNeeded">需完成关键目标</strong>
+            <strong v-else>余额已足</strong>
+            <span v-if="plan.battleNeeded">
+              按优先刷作战计算，需作战收入 {{ plan.battleNeeded }} 点。
+            </span>
+            <span v-if="plan.objectiveNeeded">
+              另需关键目标收入 {{ plan.objectiveNeeded }} 点。
+            </span>
+            <span v-if="plan.unreachableCredit">
+              用尽本期可获或可消费额度后仍差 {{ plan.unreachableCredit }} 点。
+            </span>
+            <span
+              v-if="creditState.targetKind === 'spend' && plan.remainingCredit">
+              还需在限时兑换消费 {{ plan.remainingCredit }} 点。
             </span>
           </div>
         </div>
-
         <div class="nt-credit-progress">
           <div class="nt-credit-progress-head">
-            <span>当前进度</span>
-            <b>{{ progressPct }}%</b>
+            <span>
+              {{ targetKinds[creditState.targetKind] }} · {{ plan.progress }} /
+              {{ creditState.targetCredit }}
+            </span>
+            <b>{{ pct }}%</b>
           </div>
           <div class="nt-credit-bar" aria-hidden="true">
-            <i :style="{transform: `scaleX(${progressPct / 100})`}"></i>
+            <i :style="{transform: `scaleX(${pct / 100})`}"></i>
           </div>
           <p class="nt-muted">
-            前 {{ plan.roundsCleared }} 回合作战时限累计
-            {{ combatTimeLabel }}（不含休整与联防时间）。
+            前 {{ plan.roundsCleared }} 回合的基础作战时限共
+            {{ combatTimeLabel }}，未计休整、联防及领袖超时。
           </p>
         </div>
       </div>
     </section>
 
-    <section class="nc nt-credit-compare" aria-label="各档位认证效率横向对比">
+    <section class="nc nt-credit-compare" aria-label="各档位认证效率对比">
       <header class="nt-heading">
         <h4 aria-level="3">
-          {{ creditState.mode === 'joint' ? '联合难度横向对比' : '个人规程关键档位对比' }}
+          {{
+            creditState.mode === 'joint' ? '联合难度对比' : '个人模拟档位对比'
+          }}
         </h4>
-        <span class="nt-muted">
-          按通过第 {{ plan.roundsCleared }} 回合{{
-            plan.defeatedLeader ? '并击败领袖' : ''
-          }}计算 · 点击行切换
-        </span>
+        <span class="nt-muted">按相同通关进度估算 · 局数仅含作战部分</span>
       </header>
       <div class="nt-table-scroll">
         <table class="nt-credit-table">
@@ -324,8 +362,9 @@ function isPresetActive(rounds: number, leader: boolean): boolean {
             <tr>
               <th scope="col">档位</th>
               <th scope="col">效率</th>
-              <th scope="col">单局收益</th>
-              <th scope="col">还需局数</th>
+              <th scope="col">通过回合</th>
+              <th scope="col">下局可获</th>
+              <th scope="col">所需作战</th>
               <th scope="col">说明</th>
             </tr>
           </thead>
@@ -342,16 +381,25 @@ function isPresetActive(rounds: number, leader: boolean): boolean {
                   :aria-pressed="row.active"
                   @click.stop="selectComparisonRow(row.id)">
                   <b>{{ row.label }}</b>
-                  <small v-if="row.strength !== null">+{{ row.strength }}</small>
+                  <small v-if="row.strength !== null">
+                    +{{ row.strength }}
+                  </small>
                 </button>
               </td>
               <td class="num">{{ row.efficiency }}%</td>
+              <td class="num">{{ row.roundsCleared }}</td>
               <td class="num strong">
                 +{{ row.perRun }}
-                <small v-if="row.leaderBonus">（含领袖 +{{ row.leaderBonus }}）</small>
+                <small v-if="row.leaderBonus">
+                  （含领袖 +{{ row.leaderBonus }}）
+                </small>
               </td>
               <td class="num">
-                {{ row.runsNeeded === 0 ? '已达成' : `${row.runsNeeded} 局` }}
+                {{
+                  Number.isFinite(row.runsNeeded)
+                    ? row.runsNeeded + ' 局'
+                    : '本进度无收益'
+                }}
               </td>
               <td class="note">{{ row.note || '—' }}</td>
             </tr>

@@ -3,6 +3,7 @@ import {
   buildByName,
   CORE_COVENANTS,
   COVENANTS,
+  DISPATCH_LEVELS,
   OPERATORS,
   operatorEliteCopies,
   operatorPrice,
@@ -23,17 +24,17 @@ import {
   type RecruitAdvice,
 } from '../recommendation/live/runAdvisor.ts';
 import {pickLine, SCENARIO_DEAL_LINES} from './copy.ts';
-import {
-  DEALER_SHOP_SIZE,
-  type CardRevealTag,
-  type DealerCard,
-  type DealerRound,
-  type DealerScenarioArchetype,
-  type DealerScenarioContext,
-  type DealerScenarioCovenantHint,
-  type DealerScenarioUnit,
+import type {
+  CardRevealTag,
+  DealerCard,
+  DealerRound,
+  DealerScenarioArchetype,
+  DealerScenarioContext,
+  DealerScenarioCovenantHint,
+  DealerScenarioUnit,
 } from './types.ts';
 import {
+  createSeededRandom,
   extractTriggerHint,
   shuffleWith,
   splitTraitSegments,
@@ -65,9 +66,7 @@ const ELIGIBLE_CORE_COVENANTS: readonly string[] = CORE_COVENANTS.filter(
 );
 
 const RESERVE_FLOOR_STRATEGIES = STRATEGIES.filter(
-  (st) =>
-    st.advisor?.reserveFundsFloor &&
-    st.advisor.reserveFundsFloor.minFunds >= 4,
+  (st) => st.advisor?.reserveFundsFloor,
 );
 
 const GENERAL_PASSIVE_STRATEGIES = STRATEGIES.filter(
@@ -91,6 +90,11 @@ function pickOne<T>(items: readonly T[], rng: () => number): T | undefined {
   return items[Math.floor(rng() * items.length)];
 }
 
+/** 实战局面使用规程 5 以上的完整干员池，按该模式的调度中心等级取干员栏数。 */
+function shopSizeAtLevel(level: number): number {
+  return DISPATCH_LEVELS.find((row) => row.level === level)?.operatorSlots ?? 0;
+}
+
 function pickDistinct<T extends {readonly name: string}>(
   pool: readonly T[],
   count: number,
@@ -101,16 +105,12 @@ function pickDistinct<T extends {readonly name: string}>(
   return shuffleWith(candidates, rng).slice(0, count);
 }
 
-function pickStrategyForCovenant(
-  covenant: string,
-  rng: () => number,
-): string {
+function pickStrategyForCovenant(covenant: string, rng: () => number): string {
   const build = buildByName(covenant);
   const preferred = (build?.strategies ?? [])
     .map((name) => STRATEGIES.find((st) => st.name === name))
-    .filter(
-      (st): st is (typeof STRATEGIES)[number] =>
-        Boolean(st && !st.advisor?.reserveFundsFloor),
+    .filter((st): st is (typeof STRATEGIES)[number] =>
+      Boolean(st && !st.advisor?.reserveFundsFloor),
     );
   const chosen =
     pickOne(preferred, rng) ??
@@ -142,6 +142,7 @@ function createBaseRun(params: {
 
 interface ScenarioDraft {
   readonly archetype: DealerScenarioArchetype;
+  readonly expectedPick: string;
   readonly run: AdvisorRun;
   readonly goalCovenant: string;
   readonly goalTarget: 3 | 6;
@@ -159,6 +160,8 @@ function draftCovenantStep(
   const useSix = maxGoal === 6 && rng() < 0.45;
   const goalTarget = useSix ? 6 : 3;
   const level = useSix ? (rng() < 0.5 ? 5 : 6) : rng() < 0.5 ? 3 : 4;
+  const shopSize = shopSizeAtLevel(level);
+  if (shopSize < 2) return null;
   const round = useSix ? level + 2 : level + 1;
 
   const corePool = SHOP_OPERATORS.filter(
@@ -193,13 +196,8 @@ function draftCovenantStep(
       op.tier <= level &&
       !excludedShop.has(op.name),
   );
-  const decoys = pickDistinct(
-    decoyPool,
-    DEALER_SHOP_SIZE - 1,
-    rng,
-    excludedShop,
-  );
-  if (decoys.length < DEALER_SHOP_SIZE - 1) return null;
+  const decoys = pickDistinct(decoyPool, shopSize - 1, rng, excludedShop);
+  if (decoys.length < shopSize - 1) return null;
 
   const funds = Math.max(6, operatorPrice(winner) + 2);
   const strategy = pickStrategyForCovenant(covenant, rng);
@@ -221,6 +219,7 @@ function draftCovenantStep(
 
   return {
     archetype: 'covenant_step',
+    expectedPick: winner.name,
     run,
     goalCovenant: covenant,
     goalTarget,
@@ -234,6 +233,8 @@ function draftElitePromote(
   rng: () => number,
 ): ScenarioDraft | null {
   const level = pickOne([4, 5, 6] as const, rng) ?? 5;
+  const shopSize = shopSizeAtLevel(level);
+  if (shopSize < 2) return null;
   const round = level + 2;
   const corePool = SHOP_OPERATORS.filter(
     (op) => op.covenants.includes(covenant) && op.tier <= level,
@@ -262,20 +263,14 @@ function draftElitePromote(
   );
   for (const op of filler) ownedNames.add(op.name);
 
-  // Shop: target (completes elite) + 4 decoys (1 non-promoting 1-copy owned or unowned off-covenant).
   const decoyPool = SHOP_OPERATORS.filter(
     (op) =>
       !op.covenants.includes(covenant) &&
       op.tier <= level &&
       !ownedNames.has(op.name),
   );
-  const decoys = pickDistinct(
-    decoyPool,
-    DEALER_SHOP_SIZE - 1,
-    rng,
-    ownedNames,
-  );
-  if (decoys.length < DEALER_SHOP_SIZE - 1) return null;
+  const decoys = pickDistinct(decoyPool, shopSize - 1, rng, ownedNames);
+  if (decoys.length < shopSize - 1) return null;
 
   const funds = Math.max(6, operatorPrice(target) + 2);
   const strategy = pickStrategyForCovenant(covenant, rng);
@@ -297,11 +292,12 @@ function draftElitePromote(
 
   return {
     archetype: 'elite_promote',
+    expectedPick: target.name,
     run,
     goalCovenant: covenant,
     goalTarget: 6,
-    summary: `留意场上标注「×${Math.max(1, needCopies - 1)}」的听牌干员！从 5 张商店候选中挑出当前最赚的抓牌。`,
-    bonus: '在战力与节奏期，合成精锐除自身大幅强化外还会赠送高一阶免费三选一奖励',
+    summary: `从 ${shopSize} 张商店候选中，找出能让场上听牌干员立即晋升的最优抓牌。`,
+    bonus: '合成精锐还会赠送调度中心高一阶（最高六阶）的免费三选一奖励',
   };
 }
 
@@ -309,33 +305,30 @@ function draftBudgetSynergy(
   covenant: string,
   rng: () => number,
 ): ScenarioDraft | null {
-  const useReserveFloor =
-    RESERVE_FLOOR_STRATEGIES.length > 0 && rng() < 0.45;
   const level = pickOne([5, 6] as const, rng) ?? 5;
+  const shopSize = shopSizeAtLevel(level);
   const round = level + 2;
   const corePool = SHOP_OPERATORS.filter(
     (op) => op.covenants.includes(covenant) && op.tier <= level,
   );
+  if (corePool.length < 4 || shopSize < 2) return null;
 
-  const cheapCore = corePool.filter((op) => operatorPrice(op) <= 3);
-  const priceyCore = corePool.filter((op) => operatorPrice(op) >= 5);
-  if (cheapCore.length < 1 || priceyCore.length < 1 || corePool.length < 4) {
-    return null;
-  }
-
-  const winner = pickOne(cheapCore, rng);
+  // 同一盟约内按实际购买价比较，包含干员特质改价。
+  const highestPrice = Math.max(...corePool.map(operatorPrice));
+  const winner = pickOne(
+    corePool.filter((op) => operatorPrice(op) < highestPrice),
+    rng,
+  );
   if (!winner) return null;
   const winnerPrice = operatorPrice(winner);
-
-  const trapHighTier = shuffleWith(
-    priceyCore.filter((op) => op.name !== winner.name),
+  const pricierCards = shuffleWith(
+    corePool.filter((op) => operatorPrice(op) > winnerPrice),
     rng,
-  ).slice(0, 2);
-  if (!trapHighTier.length) return null;
+  ).slice(0, Math.min(2, shopSize - 1, corePool.length - 3));
 
   const shopCoreNames = new Set([
     winner.name,
-    ...trapHighTier.map((op) => op.name),
+    ...pricierCards.map((op) => op.name),
   ]);
   const deployedCore = shuffleWith(
     corePool.filter((op) => !shopCoreNames.has(op.name)),
@@ -358,74 +351,23 @@ function draftBudgetSynergy(
   for (const op of fillers) ownedNames.add(op.name);
 
   const excludedShop = new Set([...ownedNames, ...shopCoreNames]);
-  const cheapDecoyCount = DEALER_SHOP_SIZE - 1 - trapHighTier.length;
-  const cheapDecoys = pickDistinct(
+  const decoyCount = shopSize - 1 - pricierCards.length;
+  const decoys = pickDistinct(
     SHOP_OPERATORS.filter(
-      (op) =>
-        !op.covenants.includes(covenant) &&
-        op.tier <= level &&
-        operatorPrice(op) <= winnerPrice + 1,
+      (op) => !op.covenants.includes(covenant) && op.tier <= level,
     ),
-    cheapDecoyCount,
+    decoyCount,
     rng,
     excludedShop,
   );
-  if (cheapDecoys.length < cheapDecoyCount) return null;
+  if (decoys.length < decoyCount) return null;
 
-  if (useReserveFloor) {
-    const floorStrategy = pickOne(RESERVE_FLOOR_STRATEGIES, rng);
-    const floor = floorStrategy?.advisor?.reserveFundsFloor;
-    if (floorStrategy && floor) {
-      const funds = floor.minFunds + winnerPrice;
-      // Ensure pricey trap cards drop funds strictly below reserve floor.
-      const validTraps = trapHighTier.filter(
-        (op) => funds - operatorPrice(op) < floor.minFunds,
-      );
-      if (validTraps.length >= 1) {
-        const extraDecoys = pickDistinct(
-          SHOP_OPERATORS.filter(
-            (op) => !op.covenants.includes(covenant) && op.tier <= level,
-          ),
-          DEALER_SHOP_SIZE - 1 - validTraps.length,
-          rng,
-          new Set([...ownedNames, winner.name, ...validTraps.map((o) => o.name)]),
-        );
-        if (extraDecoys.length === DEALER_SHOP_SIZE - 1 - validTraps.length) {
-          const run = createBaseRun({
-            level,
-            round,
-            funds,
-            strategy: floorStrategy.name,
-            goalCovenant: covenant,
-            goalTarget: 3,
-          });
-          run.operators = [...deployedCore, ...fillers].map((op) => ({
-            name: op.name,
-            elite: false,
-            deployed: true,
-            copies: 1,
-          }));
-          run.shop = [
-            winner.name,
-            ...validTraps.map((op) => op.name),
-            ...extraDecoys.map((op) => op.name),
-          ];
-          return {
-            archetype: 'budget_synergy',
-            run,
-            goalCovenant: covenant,
-            goalTarget: 3,
-            summary: `当前携带策略「${floorStrategy.name}」且手头有 ${funds} 资金，兼顾留资门槛与【${covenant}】成型选最优抓牌！`,
-            bonus: `部分策略要求休整结束保留不低于 ${floor.minFunds} 资金；贪买高费卡会亏掉策略红利`,
-          };
-        }
-      }
-    }
-  }
-
-  // Budget tight mode: funds exactly allow winner (<= 3 or 4) while high-tier tempting core cards are unaffordable.
-  const funds = winnerPrice;
-  const strategy = pickStrategyForCovenant(covenant, rng);
+  const floorStrategy =
+    rng() < 0.45 ? pickOne(RESERVE_FLOOR_STRATEGIES, rng) : undefined;
+  const floor = floorStrategy?.advisor?.reserveFundsFloor;
+  const funds = winnerPrice + (floor?.minFunds ?? 0);
+  const strategy =
+    floorStrategy?.name ?? pickStrategyForCovenant(covenant, rng);
   const run = createBaseRun({
     level,
     round,
@@ -440,29 +382,41 @@ function draftBudgetSynergy(
     deployed: true,
     copies: 1,
   }));
-  run.shop = [
-    winner.name,
-    ...trapHighTier.map((op) => op.name),
-    ...cheapDecoys.map((op) => op.name),
-  ];
+  run.shop = [winner, ...pricierCards, ...decoys].map((op) => op.name);
 
   return {
     archetype: 'budget_synergy',
+    expectedPick: winner.name,
     run,
     goalCovenant: covenant,
     goalTarget: 3,
-    summary: `资金见底只剩 ${funds} 资！别被高阶核心晃花眼，选出当前买得起且最赚的一抓！`,
-    bonus: '商店里 5~6 阶高费卡虽强，但资金不足无法买下；算清手头余额优先稳稳点亮主轴',
+    summary: floor
+      ? `携带策略「${strategy}」，手头有 ${funds} 资金。兼顾留资门槛与【${covenant}】成型，选出最优抓牌。`
+      : `手头只剩 ${funds} 资金。选出买得起且能点亮【${covenant}】的最优抓牌。`,
+    bonus: floor
+      ? `休整结束至少保留 ${floor.minFunds} 资金才能获取策略红利，注意更贵的同盟约候选。`
+      : '比较候选价格与手头余额，优先选能立即点亮主轴的干员。',
   };
 }
 
-function isClearWinner(advice: readonly RecruitAdvice[]): boolean {
-  if (advice.length !== DEALER_SHOP_SIZE) return false;
+function isClearWinner(
+  draft: ScenarioDraft,
+  advice: readonly RecruitAdvice[],
+): boolean {
+  if (advice.length !== draft.run.shop.length || advice.length < 2)
+    return false;
   const [first, second] = advice;
-  if (first.affordable !== true) return false;
-  if (first.score <= 0) return false;
-  if (second.affordable === false) return true;
-  return first.score - second.score >= SCENARIO_MIN_SCORE_MARGIN;
+  if (
+    first.operator.name !== draft.expectedPick ||
+    first.affordable !== true ||
+    first.score <= 0
+  ) {
+    return false;
+  }
+  return (
+    second.affordable === false ||
+    first.score - second.score >= SCENARIO_MIN_SCORE_MARGIN
+  );
 }
 
 function condenseLines(lines: readonly string[], limit: number): string[] {
@@ -478,9 +432,7 @@ function condenseLines(lines: readonly string[], limit: number): string[] {
   return out;
 }
 
-function buildScenarioContext(
-  draft: ScenarioDraft,
-): DealerScenarioContext {
+function buildScenarioContext(draft: ScenarioDraft): DealerScenarioContext {
   const {run, archetype, goalCovenant, goalTarget} = draft;
   const lineup = deployedLineup(run);
   const reserve = reserveLineup(run);
@@ -507,7 +459,9 @@ function buildScenarioContext(
       active: item.active,
     }));
 
-  const toUnit = (entry: AdvisorRun['operators'][number]): DealerScenarioUnit => {
+  const toUnit = (
+    entry: AdvisorRun['operators'][number],
+  ): DealerScenarioUnit => {
     const op = OPERATORS.find((item) => item.name === entry.name);
     return {
       name: entry.name,
@@ -616,7 +570,7 @@ function materializeScenarioRound(
     missionBonus: draft.bonus,
     scenarioContext: context,
     impostorTotal: 1,
-    goodTotal: DEALER_SHOP_SIZE - 1,
+    goodTotal: cards.length - 1,
     introLine: pickLine(SCENARIO_DEAL_LINES, introSeed, draft.goalCovenant),
     cards,
     hintRevealed: false,
@@ -639,8 +593,9 @@ function draftByArchetype(
 }
 
 /**
- * Generates a high-margin practical recruit scenario validated by the live
- * RunAdvisor (`recommendRecruits`) engine with zero hardcoded operator names.
+ * 根据轮号及随机源生成一轮带有唯一最优抓牌的商店局面。
+ * preferredArchetype 指定出题主题，未指定时排除 avoidArchetype。
+ * 若赛季数据中无法找到符合题干和最低分差的局面，抛出异常。
  */
 export function buildScenarioRound(options: {
   roundNumber: number;
@@ -655,85 +610,48 @@ export function buildScenarioRound(options: {
   const introSeed =
     options.introSeed ?? roundNumber + Math.floor(orderRng() * 97);
 
-  const archetypePool = preferredArchetype
+  const archetypes = preferredArchetype
     ? [preferredArchetype]
-    : SCENARIO_ARCHETYPES.filter((a) => a !== avoidArchetype);
-  const activePool = archetypePool.length ? archetypePool : SCENARIO_ARCHETYPES;
+    : SCENARIO_ARCHETYPES.filter((kind) => kind !== avoidArchetype);
 
-  let bestFallback: {
-    draft: ScenarioDraft;
-    advice: RecruitAdvice[];
-    gap: number;
-  } | null = null;
+  function tryRound(
+    archetype: DealerScenarioArchetype,
+    covenant: string,
+    draftRng: () => number,
+  ): DealerRound | null {
+    const draft = draftByArchetype(archetype, covenant, draftRng);
+    if (!draft) return null;
+    const advice = recommendRecruits(draft.run, draft.run.shop.length);
+    if (!isClearWinner(draft, advice)) return null;
+    return materializeScenarioRound(
+      draft,
+      advice,
+      roundNumber,
+      orderRng,
+      introSeed,
+    );
+  }
 
   for (let attempt = 0; attempt < 36; attempt++) {
-    const archetype =
-      attempt < 24
-        ? (pickOne(activePool, rng) ?? 'covenant_step')
-        : (SCENARIO_ARCHETYPES[attempt % SCENARIO_ARCHETYPES.length] ??
-          'covenant_step');
-    const covenant =
-      pickOne(ELIGIBLE_CORE_COVENANTS, rng) ?? ELIGIBLE_CORE_COVENANTS[0];
-    if (!covenant) break;
-
-    const draft = draftByArchetype(archetype, covenant, rng);
-    if (!draft) continue;
-
-    const advice = recommendRecruits(draft.run, DEALER_SHOP_SIZE);
-    if (isClearWinner(advice)) {
-      return materializeScenarioRound(
-        draft,
-        advice,
-        roundNumber,
-        orderRng,
-        introSeed,
-      );
-    }
-
-    if (
-      advice.length === DEALER_SHOP_SIZE &&
-      advice[0].affordable === true &&
-      advice[0].score > 0
-    ) {
-      const gap =
-        advice[1].affordable === false
-          ? 999
-          : advice[0].score - advice[1].score;
-      if (!bestFallback || gap > bestFallback.gap) {
-        bestFallback = {draft, advice, gap};
-      }
-    }
+    const archetype = pickOne(archetypes, rng);
+    const covenant = pickOne(ELIGIBLE_CORE_COVENANTS, rng);
+    if (!archetype || !covenant) break;
+    const round = tryRound(archetype, covenant, rng);
+    if (round) return round;
   }
 
-  // Deterministic scan fallback across all eligible core covenants so we never fail.
-  if (!bestFallback) {
+  // 输入随机源反复给出相同草稿时，按盟约遍历并换用可复现的独立随机源。
+  // 兜底局面也必须符合指定题型、题干指向的抓牌和同一分差要求。
+  for (const archetype of archetypes) {
     for (const covenant of ELIGIBLE_CORE_COVENANTS) {
-      for (const archetype of SCENARIO_ARCHETYPES) {
-        const draft = draftByArchetype(archetype, covenant, rng);
-        if (!draft) continue;
-        const advice = recommendRecruits(draft.run, DEALER_SHOP_SIZE);
-        if (advice.length === DEALER_SHOP_SIZE && advice[0].affordable === true) {
-          bestFallback = {
-            draft,
-            advice,
-            gap: advice[0].score - advice[1].score,
-          };
-          break;
-        }
+      const fallbackRng = createSeededRandom(
+        `dealer-scenario:${archetype}:${covenant}`,
+      );
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const round = tryRound(archetype, covenant, fallbackRng);
+        if (round) return round;
       }
-      if (bestFallback) break;
     }
   }
-
-  if (!bestFallback) {
-    throw new Error('Unable to build a valid scenario round from season data.');
-  }
-
-  return materializeScenarioRound(
-    bestFallback.draft,
-    bestFallback.advice,
-    roundNumber,
-    orderRng,
-    introSeed,
-  );
+  throw new Error('Unable to build a valid scenario round from season data.');
 }

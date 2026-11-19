@@ -12,6 +12,7 @@ import {writeFileSync} from 'node:fs';
 import {pinyin} from 'pinyin-pro';
 import {
   OPERATORS,
+  ADDITIONAL_OPERATORS,
   EQUIPMENT,
   STRATEGIES,
   ALL_COVENANTS,
@@ -24,6 +25,7 @@ import {
 const names = [
   ...new Set([
     ...OPERATORS.map((o) => o.name),
+    ...ADDITIONAL_OPERATORS.map((o) => o.name),
     ...ALL_COVENANTS,
     ...EQUIPMENT.map((e) => e.name),
     ...STRATEGIES.map((s) => s.name),

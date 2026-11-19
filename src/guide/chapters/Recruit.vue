@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import Markup from '../components/Markup';
 import Segmented from '../components/Segmented.vue';
+import SelectInput, {
+  type SelectEntry,
+} from '../../quickref/components/SelectInput.vue';
 import {eq, avatar} from '../chips';
 import {ref} from 'vue';
 import {OPERATORS, TIERS, TIER_LABELS} from '../../../data/index';
@@ -13,6 +16,15 @@ const advancedHammer = eq('维式重锤', '维式重锤＋').replace(
 );
 const eliteName = ref('乌啾'),
   poolMode = ref(0);
+const eliteOperatorOptions: readonly SelectEntry<string>[] = TIERS.map(
+  (tier) => ({
+    label: `${TIER_LABELS[tier]} 阶`,
+    options: OPERATORS.filter((o) => o.tier === tier).map((o) => ({
+      value: o.name,
+      label: o.name,
+    })),
+  }),
+);
 </script>
 <template>
   <div class="chap-h">
@@ -152,18 +164,11 @@ const eliteName = ref('乌啾'),
       <h4>精锐前后对比</h4>
       <div class="row" style="margin-bottom: 10px">
         <label for="elSel" class="lab" style="margin: 0">干员</label>
-        <select id="elSel" v-model="eliteName">
-          <optgroup
-            v-for="tier in TIERS"
-            :key="tier"
-            :label="TIER_LABELS[tier] + ' 阶'">
-            <option
-              v-for="operator in OPERATORS.filter((o) => o.tier === tier)"
-              :key="operator.name">
-              {{ operator.name }}
-            </option>
-          </optgroup>
-        </select>
+        <SelectInput
+          id="elSel"
+          v-model="eliteName"
+          :options="eliteOperatorOptions"
+          aria-label="选择干员对比精锐前后" />
       </div>
       <Markup as="div" id="elOut" :html="eliteComparison(eliteName)" />
     </div>
@@ -252,7 +257,7 @@ const eliteName = ref('乌啾'),
       <div class="cmpc">
         <div class="cmph">
           <b>整备区</b>
-          <span class="tag">10 格 + 临时 5 格</span>
+          <span class="tag">干员 10 格（含召唤物） · 装备 5 格</span>
         </div>
         <Markup
           as="div"
@@ -264,7 +269,9 @@ const eliteName = ref('乌啾'),
           <li class="x">不计入盟约人数（远见 / 奇迹 / 投资人除外）</li>
           <li>可以装备道具</li>
           <li>部分特质放在整备区也生效</li>
-          <li class="w">临时 5 格在下一阶段开始时清空，里面的干员直接消失</li>
+          <li class="w">
+            干员与装备各占独立栏位。溢出物资在腾出空位后补入，仍溢出的物资进入下一阶段时清空。
+          </li>
         </ul>
       </div>
     </div>

@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="卫戍速查">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<script>try{var t=JSON.parse(localStorage.getItem('wsq.settings.v1')||'{}').theme;if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;}catch{}</script>
+<script>try{var s=JSON.parse(localStorage.getItem('wsq.settings.v1')||'{}');if(s.theme==='dark'||s.theme==='light')document.documentElement.dataset.theme=s.theme;if(s.reducedMotion)document.documentElement.dataset.motion='reduce';}catch{}</script>
 <link rel="stylesheet" href="/assets/css/base.css">
 <link rel="stylesheet" href="/assets/css/guide.css">
 <!-- Discover fonts early; boot settles the current faces before revealing the mounted page. -->
@@ -25,12 +25,26 @@
 <body class="is-loading" data-page="guide" aria-busy="true">
 
 <section id="load-screen" role="status" aria-live="polite">
-  <div class="load-mark" aria-hidden="true"><i></i><i></i><i></i></div>
-  <p class="load-pending">正在加载图解教程</p>
-  <p class="load-slow">连接较慢，仍在加载</p>
-  <p class="load-error">加载失败，请重试</p>
-  <button type="button" class="load-retry" onclick="location.reload()">重新加载</button>
-  <noscript><style>.load-mark,.load-pending { display:none }</style>启用 JavaScript 以加载数据。</noscript>
+  <div class="load-stage">
+    <div class="load-core" aria-hidden="true">
+      <svg class="load-orbit" viewBox="0 0 88 88" fill="none">
+        <circle class="load-track" cx="44" cy="44" r="39"/>
+        <circle class="load-arc" cx="44" cy="44" r="39"/>
+        <g transform="translate(22 22) scale(0.6875)">
+          <path class="load-shield" fill-rule="evenodd" d="M12 10h8v6h8v-6h8v6h8v-6h8v28l-8 9-12 7-12-7-8-9V10Zm10 12v8h8v-8h-8Zm12 0v8h8v-8h-8ZM22 34v8h8v-8h-8Zm12 0v8h8v-8h-8Z"/>
+          <rect class="load-node" x="34" y="34" width="8" height="8"/>
+        </g>
+      </svg>
+    </div>
+    <strong class="load-title">规程图解教程</strong>
+    <div class="load-status">
+      <p class="load-pending">正在加载图解教程</p>
+      <p class="load-slow">连接较慢，仍在加载</p>
+      <p class="load-error">加载失败，请重试</p>
+      <button type="button" class="load-retry" onclick="location.reload()">重新加载</button>
+      <noscript><style>.load-core,.load-pending { display:none }</style>请启用 JavaScript 以加载教程数据。</noscript>
+    </div>
+  </div>
 </section>
 
 <div id="app" style="display:contents"></div>

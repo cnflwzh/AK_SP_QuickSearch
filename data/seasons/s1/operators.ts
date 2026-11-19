@@ -13,6 +13,10 @@ import type {Operator} from '../../types.ts';
  * avatar       头像文件名：assets/img/avatars/<avatar>.webp
  * price        特殊购买价格（缺省按等阶基础价）
  * eliteCopies  合成精锐所需张数（缺省按赛季默认张数）
+ * roles        据 V3_1 charShopChessDatas 的升变形态/defaultSkillIndex 和默认模组整理。
+ *              精锐才解锁的职能另记于 eliteOnlyRoles；攻击和造成伤害类装备按携带者判定。
+ *              来源为 ArknightsGameData 6f63c14 的 activity_table、character_table、
+ *              char_patch_table、skill_table 和 battle_equip_table。
  * borrowable   未持有时可借用同名助战补位（V3_1 chessType === NORMAL，仅限非特许六星）
  * backupOperator 未持有且未借用时的系统替补干员（V3_1 backupCharId）
  */
@@ -27,6 +31,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<进入休整期时>转化2层【乌萨斯】临时层数为固定层数',
     elite: '<进入休整期时>转化4层【乌萨斯】临时层数为固定层数',
     roles: ['控制', '阻挡', '群攻'],
+    melee: true,
   },
   {
     name: '艾丝黛尔',
@@ -40,6 +45,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     elite:
       '<战斗中>每次开启技能时使已激活的【萨尔贡】层数+2（每回合至多叠加4层）',
     roles: ['阻挡', '群攻'],
+    melee: true,
   },
   {
     name: '幽灵鲨',
@@ -51,6 +57,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<战斗中>部署时使已激活的【阿戈尔】层数+1（每回合至多叠加1层）',
     elite: '<战斗中>部署时使已激活的【阿戈尔】层数+2（每回合至多叠加2层）',
     roles: ['阻挡', '群攻'],
+    melee: true,
   },
   {
     name: '野鬃',
@@ -62,6 +69,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<战斗中>部署时使已激活的【卡西米尔】层数+1（每回合至多叠加2层）',
     elite: '<战斗中>部署时使已激活的【卡西米尔】层数+2（每回合至多叠加4层）',
     roles: ['控制'],
+    melee: true,
   },
   {
     name: '慕斯',
@@ -73,6 +81,8 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<休整期结束时>使已激活的【维多利亚】层数+1',
     elite: '<休整期结束时>使已激活的【维多利亚】层数+2',
     roles: ['高频'],
+    melee: true,
+    combatAction: '可造成法伤',
   },
   {
     name: '角峰',
@@ -84,6 +94,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<战斗中>对每名敌人首次造成伤害时使目标陷入2秒寒冷',
     elite: '<战斗中>对每名敌人首次造成伤害时使目标陷入4秒寒冷',
     roles: ['控制', '阻挡'],
+    melee: true,
   },
   {
     name: '灰喉',
@@ -106,6 +117,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<休整期结束时>使已激活的【伊比利亚】层数+2',
     elite: '<休整期结束时>使已激活的【伊比利亚】层数+4',
     roles: ['对空', '控制', '群攻'],
+    combatAction: '可造成法伤',
   },
   {
     name: '卡达',
@@ -117,6 +129,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<休整期结束时>使已激活的【奥术】层数+1',
     elite: '<休整期结束时>使已激活的【奥术】层数+2',
     roles: ['对空', '高频', '控制'],
+    combatAction: '可造成法伤',
   },
   {
     name: '摆渡人',
@@ -128,6 +141,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<获得时>【坚守】【不屈】层数+1',
     elite: '<获得时>【坚守】【不屈】层数+2',
     roles: ['阻挡', '群攻'],
+    melee: true,
   },
   {
     name: '夏栎',
@@ -141,6 +155,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     elite:
       '<休整期结束时>使当前已激活且层数最多的盟约层数+2（此干员在整备区也生效）',
     roles: ['对空', '治疗'],
+    combatAction: '可造成法伤',
   },
   {
     name: '杰克',
@@ -152,6 +167,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<战斗中>造成的伤害变为弱点伤害',
     elite: '<战斗中>造成的伤害变为弱点伤害',
     roles: ['高频'],
+    melee: true,
   },
   {
     name: '霜叶',
@@ -163,6 +179,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<获得时>【灵巧】层数+2',
     elite: '<获得时>【灵巧】层数+4',
     roles: ['对空', '控制'],
+    melee: true,
   },
   {
     name: '拜松',
@@ -174,6 +191,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<获得时>【炎】层数+2',
     elite: '<获得时>【炎】层数+4',
     roles: ['阻挡'],
+    melee: true,
   },
   {
     name: '褐果',
@@ -185,6 +203,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<获得时>【聚合】层数+2',
     elite: '<获得时>【聚合】层数+4',
     roles: ['治疗', '元素回复'],
+    combatAction: '无伤害',
   },
   {
     name: '烈夏',
@@ -195,7 +214,8 @@ export const S1_OPERATORS: readonly Operator[] = [
     avatar: 'char_194_leto',
     trait: '<战斗开始时>使已激活的【乌萨斯】临时层数+4',
     elite: '<战斗开始时>使已激活的【乌萨斯】临时层数+8',
-    roles: ['对空'],
+    roles: ['对空', '群攻'],
+    melee: true,
   },
   {
     name: '陨星',
@@ -219,7 +239,9 @@ export const S1_OPERATORS: readonly Operator[] = [
     avatar: 'char_140_whitew',
     trait: '<获得时>【叙拉古】层数+2',
     elite: '<获得时>【叙拉古】层数+4',
-    roles: ['对空', '控制', '群攻'],
+    roles: ['对空', '控制', '群攻', '沉默'],
+    melee: true,
+    combatAction: '可造成法伤',
   },
   {
     name: '地灵',
@@ -232,7 +254,8 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<战斗中>攻击范围内每有一名敌人被击倒使已激活的【莱塔尼亚】层数+1（每回合至多叠加1层）',
     elite:
       '<战斗中>攻击范围内每有一名敌人被击倒使已激活的【莱塔尼亚】层数+2（每回合至多叠加2层）',
-    roles: ['对空', '控制', '群攻'],
+    roles: ['对空', '控制'],
+    combatAction: '可造成法伤',
   },
   {
     name: '折光',
@@ -243,7 +266,9 @@ export const S1_OPERATORS: readonly Operator[] = [
     avatar: 'char_499_kaitou',
     trait: '<休整期结束时>使已激活的【莱塔尼亚】层数+4',
     elite: '<休整期结束时>使已激活的【莱塔尼亚】层数+8',
-    roles: ['对空', '群攻', '真伤'],
+    roles: ['对空', '群攻', '元素输出'],
+    elementalPrerequisites: ['凋亡'],
+    combatAction: '可造成法伤',
   },
   {
     name: '蓝毒',
@@ -254,7 +279,8 @@ export const S1_OPERATORS: readonly Operator[] = [
     avatar: 'char_129_bluep',
     trait: '<战斗中>【伊比利亚】每叠加2层，本干员攻击力+1%',
     elite: '<战斗中>【伊比利亚】每叠加1层，本干员攻击力+1%',
-    roles: ['对空', '高频'],
+    roles: ['对空', '高频', '群攻'],
+    combatAction: '可造成法伤',
   },
   {
     name: '泡泡',
@@ -268,6 +294,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     elite:
       '<战斗中>每次开启技能时使已激活的【萨尔贡】【坚守】层数+4（每回合至多叠加8层）',
     roles: ['阻挡'],
+    melee: true,
   },
   {
     name: '莎草',
@@ -279,6 +306,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<战斗中>每次开启技能时使身前一格干员回复2点技力',
     elite: '<战斗中>每次开启技能时使身前一格干员回复4点技力',
     roles: ['治疗'],
+    combatAction: '无伤害',
   },
   {
     name: '雪猎',
@@ -303,6 +331,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     elite:
       '<战斗中>部署时使已激活的【卡西米尔】【不屈】层数+4（每场战斗至多叠加24层）',
     roles: ['快活'],
+    melee: true,
   },
   {
     name: '复奏',
@@ -316,6 +345,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     elite:
       '<刷新时>若为本回合首次主动刷新，使已激活的【叙拉古】【莱塔尼亚】层数+4（此干员在整备区也生效）',
     roles: ['对空', '群攻'],
+    combatAction: '可造成法伤',
   },
   {
     name: '奥斯塔',
@@ -327,6 +357,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<获得时>获得一次免费刷新',
     elite: '<获得时>获得两次免费刷新',
     roles: ['对空', '控制', '群攻'],
+    combatAction: '可造成法伤',
   },
   {
     name: 'Miss.Christine',
@@ -337,7 +368,9 @@ export const S1_OPERATORS: readonly Operator[] = [
     avatar: 'char_4198_christ',
     trait: '<休整期结束时>使已激活的【维多利亚】【奥术】层数+3',
     elite: '<休整期结束时>使已激活的【维多利亚】【奥术】层数+6',
-    roles: ['对空', '控制', '群攻', '真伤'],
+    roles: ['对空', '群攻', '元素输出'],
+    elementalPrerequisites: ['神经', '麻痹'],
+    combatAction: '可造成法伤',
   },
   {
     name: '哈洛德',
@@ -349,6 +382,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<战斗中>【维多利亚】【谢拉格】每叠加5层，本干员攻击力+1%',
     elite: '<战斗中>【维多利亚】【谢拉格】每叠加5层，本干员攻击力+2%',
     roles: ['治疗', '元素回复'],
+    combatAction: '无伤害',
   },
   {
     name: '云迹',
@@ -362,6 +396,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     elite:
       '<战斗中>每次开启技能时使自身已激活的盟约层数+6（每回合至多叠加12层）',
     roles: ['对空', '控制', '群攻'],
+    melee: true,
   },
   {
     name: '蛇屠箱',
@@ -373,6 +408,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<休整期结束时>使已激活的【坚守】层数+4',
     elite: '<休整期结束时>使已激活的【坚守】层数+8',
     roles: ['阻挡'],
+    melee: true,
   },
   {
     name: '波登可',
@@ -383,7 +419,8 @@ export const S1_OPERATORS: readonly Operator[] = [
     avatar: 'char_258_podego',
     trait: '<售出时>下回合额外获得1资金',
     elite: '<售出时>下回合额外获得2资金',
-    roles: ['对空', '控制', '群攻'],
+    roles: ['对空', '控制', '群攻', '沉默'],
+    combatAction: '可造成法伤',
   },
   {
     name: '承曦格雷伊',
@@ -395,6 +432,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<获得时>获得一件精准狙击镜',
     elite: '<获得时>获得两件精准狙击镜',
     roles: ['控制', '群攻'],
+    combatAction: '可造成法伤',
   },
   {
     name: '锡人',
@@ -406,6 +444,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<获得时>【投资人】层数+4',
     elite: '<获得时>【投资人】层数+8',
     roles: ['治疗', '群攻'],
+    combatAction: '可造成法伤',
   },
   {
     name: '宴',
@@ -417,6 +456,8 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<获得时>【不屈】层数+4',
     elite: '<获得时>【不屈】层数+8',
     roles: ['高频'],
+    melee: true,
+    combatAction: '可造成法伤',
   },
   {
     name: '渡桥',
@@ -451,6 +492,8 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '只需两名本干员即可合成精锐',
     elite: '只需两名本干员即可合成精锐',
     roles: ['高频', '群攻'],
+    melee: true,
+    combatAction: '可造成法伤',
   },
   {
     name: '瑰盐',
@@ -462,6 +505,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<战斗中>【伊比利亚】每叠加3层，本干员攻击力+1%',
     elite: '<战斗中>【伊比利亚】每叠加3层，本干员攻击力+2%',
     roles: ['治疗'],
+    combatAction: '无伤害',
   },
   {
     name: '真理',
@@ -473,7 +517,8 @@ export const S1_OPERATORS: readonly Operator[] = [
     avatar: 'char_195_glassb',
     trait: '购买价格为1',
     elite: '购买价格为1',
-    roles: ['对空', '控制'],
+    roles: ['对空', '控制', '群攻'],
+    combatAction: '可造成法伤',
   },
   {
     name: '铸铁',
@@ -485,6 +530,8 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<休整期结束时>使已激活的【突袭】层数+3',
     elite: '<休整期结束时>使已激活的【突袭】层数+6',
     roles: ['高频'],
+    melee: true,
+    combatAction: '可造成法伤',
   },
   {
     name: '星源',
@@ -498,6 +545,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     elite:
       '<休整期结束时>使当前已激活且层数最多的盟约层数+4（此干员在整备区也生效）',
     roles: ['对空', '控制', '群攻'],
+    combatAction: '可造成法伤',
   },
   {
     name: '安哲拉',
@@ -522,6 +570,8 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<获得时>获得一件“莱塔尼亚小鼓”',
     elite: '<获得时>获得两件“莱塔尼亚小鼓”',
     roles: ['阻挡', '群攻'],
+    melee: true,
+    combatAction: '可造成法伤',
   },
   {
     name: '卡涅利安',
@@ -535,6 +585,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['对空', '群攻'],
     borrowable: true,
     backupOperator: 'Pith',
+    combatAction: '可造成法伤',
   },
   {
     name: '乌啾',
@@ -548,6 +599,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     elite:
       '<进入休整期时>场上每有一名【乌萨斯】干员，转化2层【乌萨斯】临时层数为固定层数',
     roles: ['治疗'],
+    combatAction: '无伤害',
   },
   {
     name: '海沫',
@@ -564,6 +616,7 @@ export const S1_OPERATORS: readonly Operator[] = [
       roundGrowth: {baseStep: 1, eliteStep: 2, baseMax: 4, eliteMax: 8},
     },
     roles: ['高频', '群攻'],
+    melee: true,
   },
   {
     name: '旅骨',
@@ -577,6 +630,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     elite:
       '<休整期结束时>使自身及身前一格干员已激活的盟约叠加等同于其售出价格2倍的层数',
     roles: ['群攻'],
+    combatAction: '可造成法伤',
   },
   {
     name: '风絮',
@@ -590,6 +644,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     elite:
       '<休整期结束时>本回合每获得过一名干员，使已激活的【炎】【聚合】层数+4（每回合至多叠加32层）',
     roles: ['治疗'],
+    combatAction: '无伤害',
   },
   {
     name: '极光',
@@ -601,6 +656,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<获得时>【谢拉格】层数+1（每次触发后升级，至多叠加12层）',
     elite: '<获得时>【谢拉格】层数+1（每次触发后升级，至多叠加12层）',
     roles: ['控制', '阻挡'],
+    melee: true,
   },
   {
     name: '耶拉',
@@ -612,6 +668,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<获得时>获得一件“谢拉格不融冰”',
     elite: '<获得时>获得两件“谢拉格不融冰”',
     roles: ['对空', '高频', '控制', '群攻'],
+    combatAction: '可造成法伤',
   },
   {
     name: '初雪',
@@ -624,7 +681,8 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<战斗中>攻击范围内每有一名敌人进入冻结使已激活的【谢拉格】层数+1（每回合至多叠加16层）',
     elite:
       '<战斗中>攻击范围内每有一名敌人进入冻结使已激活的【谢拉格】层数+2（每回合至多叠加32层）',
-    roles: ['对空', '控制', '群攻'],
+    roles: ['对空', '群攻', '破抗'],
+    combatAction: '可造成法伤',
   },
   {
     name: '深巡',
@@ -637,7 +695,9 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<战斗中>部署时【阿戈尔】每叠加20层，使自身及周围四格干员攻击速度+1，持续30秒',
     elite:
       '<战斗中>部署时【阿戈尔】每叠加10层，使自身及周围四格干员攻击速度+1，持续30秒',
-    roles: ['对空', '控制', '阻挡'],
+    roles: ['对空', '控制', '阻挡', '群攻'],
+    melee: true,
+    combatAction: '可造成法伤',
   },
   {
     name: '斯卡蒂',
@@ -650,6 +710,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     elite: '<战斗中>部署时使已激活的【阿戈尔】层数+8（每场战斗至多叠加16层）',
     borrowable: true,
     backupOperator: 'Sharp',
+    melee: true,
   },
   {
     name: '瑕光',
@@ -663,6 +724,8 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['治疗', '控制', '阻挡'],
     borrowable: true,
     backupOperator: '预备干员-重装',
+    melee: true,
+    combatAction: '可造成法伤',
   },
   {
     name: '忍冬',
@@ -676,6 +739,8 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['控制', '群攻'],
     borrowable: true,
     backupOperator: '郁金香',
+    melee: true,
+    combatAction: '可造成法伤',
   },
   {
     name: '伺夜',
@@ -688,7 +753,8 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<战斗中>伤害变为弱点伤害；每击倒一名敌人使已激活的【叙拉古】【精准】层数+2（每回合至多叠加8层）',
     elite:
       '<战斗中>伤害变为弱点伤害；每击倒一名敌人使已激活的【叙拉古】【精准】层数+4（每回合至多叠加16层）',
-    roles: ['对空', '高频', '群攻', '真伤'],
+    roles: ['对空', '高频', '阻挡', '破抗'],
+    combatAction: '可造成法伤',
   },
   {
     name: '水灯心',
@@ -710,7 +776,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     avatar: 'char_332_archet',
     trait: '<进入休整期时>使自身及身前一格干员已激活的盟约层数+3',
     elite: '<进入休整期时>使自身及身前一格干员已激活的盟约层数+6',
-    roles: ['对空', '高频'],
+    roles: ['对空', '高频', '群攻'],
     borrowable: true,
     backupOperator: 'Stormeye',
   },
@@ -737,6 +803,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     elite:
       '<售出时>随机获得一名当前人数最多盟约的干员（不高于当前调度中心等级；无法获得自身）',
     roles: ['控制', '群攻'],
+    melee: true,
   },
   {
     name: '罗比菈塔',
@@ -748,6 +815,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<休整期结束时>同一行每有1名干员，使已激活的【坚守】【助力】层数+2',
     elite: '<休整期结束时>同一行每有1名干员，使已激活的【坚守】【助力】层数+4',
     roles: ['阻挡'],
+    melee: true,
   },
   {
     name: '乌有',
@@ -759,6 +827,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<获得时>获得一枚“盟约之币”',
     elite: '<获得时>获得两枚“盟约之币”',
     roles: ['快活', '控制', '高频'],
+    melee: true,
   },
   {
     name: '历阵锐枪芬',
@@ -772,6 +841,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     elite:
       '<战斗中>被击倒时召唤整备区一名【卡西米尔】干员（优先最右侧）上场，整备区干员再部署时间-60%',
     roles: ['群攻'],
+    melee: true,
   },
   {
     name: '凯瑟琳',
@@ -783,6 +853,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<获得时>获得一件维式重锤，小概率获得特殊维式重锤',
     elite: '<获得时>获得一件特殊维式重锤，小概率获得终极维式重锤',
     roles: ['阻挡'],
+    melee: true,
   },
   {
     name: '盟约·辅助干员',
@@ -793,7 +864,9 @@ export const S1_OPERATORS: readonly Operator[] = [
     avatar: 'char_616_pithst',
     trait: '<战斗中>攻击力和生命上限+20%',
     elite: '<战斗中>攻击力和生命上限+40%',
-    roles: ['对空', '真伤'],
+    roles: ['对空', '高频', '群攻', '元素输出'],
+    inflictsElements: ['神经', '灼燃', '凋亡'],
+    combatAction: '可造成法伤',
   },
   {
     name: '风丸',
@@ -807,6 +880,8 @@ export const S1_OPERATORS: readonly Operator[] = [
     elite:
       '<战斗中>自身被击倒或与傀儡发生替换时使已激活的【不屈】层数+4（每回合至多叠加20层）',
     roles: ['群攻'],
+    melee: true,
+    combatAction: '可造成法伤',
   },
   {
     name: '至简',
@@ -819,6 +894,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '购买价格为1',
     elite: '购买价格为1',
     roles: ['对空', '高频'],
+    combatAction: '可造成法伤',
   },
   {
     name: '奥尔佳',
@@ -829,7 +905,8 @@ export const S1_OPERATORS: readonly Operator[] = [
     avatar: 'char_4245_alga',
     trait: '<获得时>获得一件乌萨斯呼吸器',
     elite: '<获得时>获得两件乌萨斯呼吸器',
-    roles: ['控制', '群攻'],
+    roles: ['控制'],
+    melee: true,
   },
   {
     name: '青枳',
@@ -840,6 +917,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     avatar: 'char_488_buildr',
     trait: '<进入休整期时>使自身及身后一格干员已激活的盟约层数+3',
     elite: '<进入休整期时>使自身及身后一格干员已激活的盟约层数+6',
+    melee: true,
   },
   {
     name: '黑键',
@@ -852,9 +930,12 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<战斗中>攻击范围内每有一名敌人被击倒使已激活的【莱塔尼亚】【精准】层数+1（每回合至多叠加8层）',
     elite:
       '<战斗中>攻击范围内每有一名敌人被击倒使已激活的【莱塔尼亚】【精准】层数+2（每回合至多叠加16层）',
-    roles: ['对空', '控制', '群攻'],
+    roles: ['对空', '控制', '群攻', '元素输出'],
     borrowable: true,
     backupOperator: 'Pith',
+    eliteOnlyRoles: ['元素输出'],
+    inflictsElements: ['凋亡'],
+    combatAction: '可造成法伤',
   },
   {
     name: '艾雅法拉',
@@ -867,9 +948,10 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<战斗中>【莱塔尼亚】【奥术】每叠加2层，本干员技力自然回复速度+0.02/秒，攻击力+1%',
     elite:
       '<战斗中>【莱塔尼亚】【奥术】每叠加1层，本干员技力自然回复速度+0.02/秒，攻击力+1%',
-    roles: ['对空', '群攻'],
+    roles: ['对空', '高频', '群攻'],
     borrowable: true,
     backupOperator: '预备干员-术师',
+    combatAction: '可造成法伤',
   },
   {
     name: '赫拉格',
@@ -885,6 +967,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['高频'],
     borrowable: true,
     backupOperator: '预备干员-近卫',
+    melee: true,
   },
   {
     name: '维伊',
@@ -895,7 +978,8 @@ export const S1_OPERATORS: readonly Operator[] = [
     avatar: 'char_4226_veen',
     trait: '<战斗中>【乌萨斯】每叠加2层，本干员攻击速度+1',
     elite: '<战斗中>【乌萨斯】每叠加1层，本干员攻击速度+1',
-    roles: ['对空'],
+    roles: ['对空', '群攻', '高频'],
+    combatAction: '可造成法伤',
   },
   {
     name: '温蒂',
@@ -910,6 +994,8 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['控制', '群攻', '真伤'],
     borrowable: true,
     backupOperator: 'Misery',
+    melee: true,
+    combatAction: '可造成法伤',
   },
   {
     name: '流明',
@@ -923,6 +1009,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     elite:
       '<战斗结束时>每有一名存活的我方干员，使已激活的【伊比利亚】【聚合】层数+2',
     roles: ['治疗'],
+    combatAction: '无伤害',
   },
   {
     name: '余',
@@ -935,9 +1022,13 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<战斗中>周围八格每有一名敌人触发元素损伤爆发使自身已激活的盟约层数+1（每回合至多叠加8层）',
     elite:
       '<战斗中>周围八格每有一名敌人触发元素损伤爆发使自身已激活的盟约层数+2（每回合至多叠加16层）',
-    roles: ['阻挡', '群攻', '真伤'],
+    roles: ['阻挡', '群攻', '治疗', '元素回复', '元素输出'],
     borrowable: true,
     backupOperator: 'Mechanist',
+    inflictsElements: ['灼燃'],
+    melee: true,
+    combatAction: '可造成法伤',
+    minimumFieldRoles: {count: 4, roles: ['治疗', '元素回复']},
   },
   {
     name: '森蚺',
@@ -950,9 +1041,10 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<战斗中>部署时使已激活的【萨尔贡】【不屈】层数+4（每回合至多叠加12层）',
     elite:
       '<战斗中>部署时使已激活的【萨尔贡】【不屈】层数+8（每回合至多叠加24层）',
-    roles: ['控制', '阻挡'],
+    roles: ['阻挡'],
     borrowable: true,
     backupOperator: 'Sharp',
+    melee: true,
   },
   {
     name: '灵知',
@@ -966,6 +1058,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['对空', '控制', '群攻'],
     borrowable: true,
     backupOperator: 'Raidian',
+    combatAction: '可造成法伤',
   },
   {
     name: '归溟幽灵鲨',
@@ -981,6 +1074,8 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['群攻'],
     borrowable: true,
     backupOperator: 'Misery',
+    melee: true,
+    combatAction: '可造成法伤',
   },
   {
     name: '水月',
@@ -996,6 +1091,8 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['高频', '控制', '群攻'],
     borrowable: true,
     backupOperator: 'Misery',
+    melee: true,
+    combatAction: '可造成法伤',
   },
   {
     name: '远牙',
@@ -1008,7 +1105,7 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<战斗中>攻击范围内每有一名敌人被击倒使攻击范围内及整备区干员再部署时间-3秒',
     elite:
       '<战斗中>攻击范围内每有一名敌人被击倒使攻击范围内及整备区干员再部署时间-6秒',
-    roles: ['对空', '群攻'],
+    roles: ['对空', '高频'],
     borrowable: true,
     backupOperator: 'Stormeye',
   },
@@ -1023,9 +1120,10 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<战斗中>【卡西米尔】每叠加5层，本干员部署后100秒内基础攻击力+10、基础生命上限+50',
     elite:
       '<战斗中>【卡西米尔】每叠加5层，本干员部署后100秒内基础攻击力+20、基础生命上限+100',
-    roles: ['群攻', '真伤'],
+    roles: ['对空', '群攻', '真伤'],
     borrowable: true,
     backupOperator: '领主·Sharp',
+    melee: true,
   },
   {
     name: '涤火杰西卡',
@@ -1041,6 +1139,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['对空', '控制', '阻挡', '群攻'],
     borrowable: true,
     backupOperator: 'Mechanist',
+    melee: true,
   },
   {
     name: '白铁',
@@ -1054,6 +1153,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['群攻'],
     borrowable: true,
     backupOperator: 'Raidian',
+    melee: true,
   },
   {
     name: '斥罪',
@@ -1067,6 +1167,8 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['阻挡', '群攻'],
     borrowable: true,
     backupOperator: 'Mechanist',
+    melee: true,
+    combatAction: '可造成法伤',
   },
   {
     name: 'W',
@@ -1092,9 +1194,10 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<战斗中>每次开启技能时使自身已激活的盟约层数+4（每场战斗至多叠加12层）',
     elite:
       '<战斗中>每次开启技能时使自身已激活的盟约层数+8（每场战斗至多叠加24层）',
-    roles: ['对空', '高频', '群攻'],
+    roles: ['对空', '高频', '控制', '群攻'],
     borrowable: true,
     backupOperator: 'Pith',
+    combatAction: '可造成法伤',
   },
   {
     name: '山',
@@ -1108,6 +1211,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['高频', '群攻'],
     borrowable: true,
     backupOperator: '预备干员-近卫',
+    melee: true,
   },
   {
     name: '淬羽赫默',
@@ -1119,6 +1223,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<休整期结束时>使整备区每名干员已激活的盟约层数+1',
     elite: '<休整期结束时>使整备区每名干员已激活的盟约层数+2',
     roles: ['对空', '治疗'],
+    combatAction: '可造成法伤',
   },
   {
     name: '赫德雷',
@@ -1132,6 +1237,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['控制', '群攻', '真伤'],
     borrowable: true,
     backupOperator: 'Sharp',
+    melee: true,
   },
   {
     name: '夜莺',
@@ -1145,6 +1251,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['治疗'],
     borrowable: true,
     backupOperator: 'Touch',
+    combatAction: '无伤害',
   },
   {
     name: '仇白',
@@ -1158,6 +1265,8 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['对空', '控制', '群攻'],
     borrowable: true,
     backupOperator: 'Sharp',
+    melee: true,
+    combatAction: '可造成法伤',
   },
   {
     name: '异客',
@@ -1173,6 +1282,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['对空', '控制', '群攻'],
     borrowable: true,
     backupOperator: 'Pith',
+    combatAction: '可造成法伤',
   },
   {
     name: '安洁莉娜',
@@ -1185,9 +1295,10 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<休整期结束时>本回合每刷新1次，使已激活的【叙拉古】层数+2（每回合至多8层），【奇迹】层数+1（至多4层）',
     elite:
       '<休整期结束时>本回合每刷新1次，使已激活的【叙拉古】层数+4（每回合至多16层），【奇迹】层数+2（至多8层）',
-    roles: ['对空', '控制', '群攻'],
+    roles: ['对空', '治疗', '控制', '群攻'],
     borrowable: true,
     backupOperator: 'Raidian',
+    combatAction: '可造成法伤',
   },
   {
     name: '华法琳',
@@ -1201,6 +1312,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     elite:
       '<战斗开始时>使身前一格干员获得特质“<开启技能时>使自身已激活的盟约层数+2（每回合至多14层）”',
     roles: ['治疗'],
+    combatAction: '无伤害',
   },
   {
     name: '寒檀',
@@ -1212,6 +1324,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<休整期开始时><休整期结束时>使已激活的【远见】层数+3',
     elite: '<休整期开始时><休整期结束时>使已激活的【远见】层数+6',
     roles: ['对空', '控制', '群攻'],
+    combatAction: '可造成法伤',
   },
   {
     name: '纯烬艾雅法拉',
@@ -1227,6 +1340,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['治疗', '元素回复'],
     borrowable: true,
     backupOperator: 'Touch',
+    combatAction: '无伤害',
   },
   {
     name: '怒潮凛冬',
@@ -1242,6 +1356,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['控制', '群攻'],
     borrowable: true,
     backupOperator: '领主·Sharp',
+    melee: true,
   },
   {
     name: '艾丽妮',
@@ -1252,9 +1367,10 @@ export const S1_OPERATORS: readonly Operator[] = [
     avatar: 'char_4009_irene',
     trait: '<战斗中>周围12格每有一名敌人被击倒自身回复3点技力',
     elite: '<战斗中>周围12格每有一名敌人被击倒自身回复6点技力',
-    roles: ['对空', '高频', '群攻', '真伤'],
+    roles: ['对空', '高频', '控制', '群攻', '破抗'],
     borrowable: true,
     backupOperator: '预备干员-近卫',
+    melee: true,
   },
   {
     name: '棘刺',
@@ -1267,9 +1383,11 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<休整期结束时>使已激活的【伊比利亚】叠加等同于场上所有干员售出价格的层数（每回合至多12层）',
     elite:
       '<休整期结束时>使已激活的【伊比利亚】叠加等同于场上所有干员售出价格2倍的层数（每回合至多24层）',
-    roles: ['对空'],
+    roles: ['对空', '高频'],
     borrowable: true,
     backupOperator: '领主·Sharp',
+    melee: true,
+    combatAction: '可造成法伤',
   },
   {
     name: '黍',
@@ -1283,6 +1401,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['治疗', '阻挡', '控制'],
     borrowable: true,
     backupOperator: 'Mechanist',
+    melee: true,
   },
   {
     name: '佩佩',
@@ -1298,6 +1417,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['控制', '群攻'],
     borrowable: true,
     backupOperator: 'Sharp',
+    melee: true,
   },
   {
     name: '圣聆初雪',
@@ -1310,9 +1430,10 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<战斗中>攻击范围内每有一名敌人冻结，自身回复1技力并使已激活的【谢拉格】层数+1（每回合至多24层）',
     elite:
       '<战斗中>攻击范围内每有一名敌人冻结，自身回复2技力并使已激活的【谢拉格】层数+2（每回合至多48层）',
-    roles: ['对空', '控制', '群攻', '真伤'],
+    roles: ['对空', '控制', '群攻', '破抗'],
     borrowable: true,
     backupOperator: 'Pith',
+    combatAction: '可造成法伤',
   },
   {
     name: '凛御银灰',
@@ -1323,9 +1444,10 @@ export const S1_OPERATORS: readonly Operator[] = [
     avatar: 'char_1045_svash2',
     trait: '<战斗中>身前一格【谢拉格】【灵巧】干员每场战斗的叠层上限+75%',
     elite: '<战斗中>身前一格【谢拉格】【灵巧】干员每场战斗的叠层上限+150%',
-    roles: ['对空', '反隐', '群攻'],
+    roles: ['对空', '反隐', '群攻', '治疗'],
     borrowable: true,
     backupOperator: '郁金香',
+    melee: true,
   },
   {
     name: '歌蕾蒂娅',
@@ -1337,7 +1459,9 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait:
       '<进入休整期时>若同一行有3名干员，获得1个幽灵鲨、安哲拉、深巡或斯卡蒂',
     elite: '<进入休整期时>获得1个幽灵鲨、安哲拉、深巡或斯卡蒂',
-    roles: ['对空', '控制', '群攻'],
+    roles: ['对空', '控制', '群攻', '治疗'],
+    melee: true,
+    combatAction: '可造成法伤',
   },
   {
     name: '乌尔比安',
@@ -1353,6 +1477,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['控制', '群攻'],
     borrowable: true,
     backupOperator: '预备干员-近卫',
+    melee: true,
   },
   {
     name: '薇薇安娜',
@@ -1363,9 +1488,13 @@ export const S1_OPERATORS: readonly Operator[] = [
     avatar: 'char_4098_vvana',
     trait: '<战斗中>场上其他与自身拥有相同盟约的干员本回合叠层上限+7',
     elite: '<战斗中>场上其他与自身拥有相同盟约的干员本回合叠层上限+14',
-    roles: ['高频', '群攻'],
+    roles: ['高频', '元素输出'],
     borrowable: true,
     backupOperator: '郁金香',
+    eliteOnlyRoles: ['元素输出'],
+    elementalPrerequisites: ['灼燃'],
+    melee: true,
+    combatAction: '可造成法伤',
   },
   {
     name: '铃兰',
@@ -1379,6 +1508,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['对空', '治疗', '控制', '群攻'],
     borrowable: true,
     backupOperator: 'Raidian',
+    combatAction: '可造成法伤',
   },
   {
     name: '贝洛内',
@@ -1389,9 +1519,10 @@ export const S1_OPERATORS: readonly Operator[] = [
     avatar: 'char_4037_demetr',
     trait: '<战斗中>【叙拉古】【突袭】每叠加3层，本干员攻击力+1%',
     elite: '<战斗中>【叙拉古】【突袭】每叠加3层，本干员攻击力+2%',
-    roles: ['高频', '控制'],
+    roles: ['高频', '控制', '群攻', '破抗'],
     borrowable: true,
     backupOperator: 'Sharp',
+    melee: true,
   },
   {
     name: '维娜·维多利亚',
@@ -1407,6 +1538,8 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['控制', '高频', '群攻', '真伤'],
     borrowable: true,
     backupOperator: '领主·Sharp',
+    melee: true,
+    combatAction: '可造成法伤',
   },
   {
     name: '迷迭香',
@@ -1417,7 +1550,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     avatar: 'char_391_rosmon',
     trait: '<休整期结束时>使已激活的【精准】【助力】层数+10',
     elite: '<休整期结束时>使已激活的【精准】【助力】层数+20',
-    roles: ['控制', '群攻', '真伤'],
+    roles: ['控制', '群攻', '破抗'],
     borrowable: true,
     backupOperator: 'Stormeye',
   },
@@ -1433,6 +1566,8 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['群攻'],
     borrowable: true,
     backupOperator: 'Sharp',
+    melee: true,
+    combatAction: '可造成法伤',
   },
   {
     name: '塞雷娅',
@@ -1446,6 +1581,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['治疗', '阻挡'],
     borrowable: true,
     backupOperator: 'Mechanist',
+    melee: true,
   },
   {
     name: '溯光星源',
@@ -1459,6 +1595,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     elite:
       '<休整期结束时>本回合每消耗3资金，使已激活的【奥术】层数+4（每回合至多36层）',
     roles: ['对空', '高频', '控制', '群攻'],
+    combatAction: '可造成法伤',
   },
   {
     name: '老鲤',
@@ -1472,6 +1609,8 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['快活', '控制', '群攻'],
     borrowable: true,
     backupOperator: 'Misery',
+    melee: true,
+    combatAction: '可造成法伤',
   },
   {
     name: 'Mon3tr',
@@ -1497,7 +1636,7 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<休整期结束时>本回合每获得过一名干员，使已激活的【投资人】层数+2（每回合至多16层）',
     elite:
       '<休整期结束时>本回合每获得过一名干员，使已激活的【投资人】层数+4（每回合至多32层）',
-    roles: ['对空', '高频', '群攻'],
+    roles: ['对空', '高频', '控制', '群攻'],
     borrowable: true,
     backupOperator: '郁金香',
   },
@@ -1512,7 +1651,7 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<战斗中>每次开启技能时使已激活的【萨尔贡】【精准】层数+4（每回合至多16层）',
     elite:
       '<战斗中>每次开启技能时使已激活的【萨尔贡】【精准】层数+8（每回合至多32层）',
-    roles: ['对空', '高频'],
+    roles: ['对空', '高频', '破抗'],
     borrowable: true,
     backupOperator: 'Stormeye',
   },
@@ -1527,9 +1666,10 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<休整期结束时>整备区每有一名干员，使已激活的【卡西米尔】【迅捷】层数+1',
     elite:
       '<休整期结束时>整备区每有一名干员，使已激活的【卡西米尔】【迅捷】层数+2',
-    roles: ['高频'],
+    roles: ['高频', '阻挡', '群攻'],
     borrowable: true,
     backupOperator: '预备干员-先锋',
+    melee: true,
   },
   {
     name: '冻河',
@@ -1545,6 +1685,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['对空', '治疗', '控制', '群攻'],
     borrowable: true,
     backupOperator: 'Stormeye',
+    combatAction: '可造成法伤',
   },
   {
     name: '阿米娅',
@@ -1555,7 +1696,8 @@ export const S1_OPERATORS: readonly Operator[] = [
     avatar: 'char_002_amiya',
     trait: '<战斗中>身前一格干员提升盟约层数时，每次额外+1（无视叠层上限）',
     elite: '<战斗中>身前一格干员提升盟约层数时，每次额外+2（无视叠层上限）',
-    roles: ['对空', '高频'],
+    roles: ['对空', '治疗', '群攻', '真伤', '控制'],
+    combatAction: '可造成法伤',
   },
   {
     name: '引星棘刺',
@@ -1569,6 +1711,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['治疗', '群攻'],
     borrowable: true,
     backupOperator: 'Misery',
+    combatAction: '可造成法伤',
   },
   {
     name: '烛煌',
@@ -1581,9 +1724,11 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<战斗中>攻击范围内每有一名敌人触发元素损伤爆发使已激活的【炎】【维多利亚】层数+1（每回合至多12层）',
     elite:
       '<战斗中>攻击范围内每有一名敌人触发元素损伤爆发使已激活的【炎】【维多利亚】层数+2（每回合至多24层）',
-    roles: ['对空', '高频', '控制', '群攻', '真伤'],
+    roles: ['对空', '高频', '控制', '群攻', '元素输出'],
     borrowable: true,
     backupOperator: '预备干员-术师',
+    elementalPrerequisites: ['灼燃'],
+    combatAction: '可造成法伤',
   },
   {
     name: '浊心斯卡蒂',
@@ -1599,6 +1744,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['治疗', '群攻', '真伤'],
     borrowable: true,
     backupOperator: 'Raidian',
+    combatAction: '间接伤害',
   },
   {
     name: '克莱门莎',
@@ -1611,9 +1757,11 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<战斗开始时>【阿戈尔】每叠加20层，使全场敌人侵蚀损伤冷却恢复速度+1%',
     elite:
       '<战斗开始时>【阿戈尔】每叠加10层，使全场敌人侵蚀损伤冷却恢复速度+1%',
-    roles: ['群攻', '真伤'],
+    roles: ['控制', '群攻', '元素输出'],
     borrowable: true,
     backupOperator: '领主·Sharp',
+    inflictsElements: ['侵蚀'],
+    melee: true,
   },
   {
     name: '耀骑士临光',
@@ -1629,6 +1777,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['控制', '群攻', '真伤'],
     borrowable: true,
     backupOperator: '预备干员-近卫',
+    melee: true,
   },
   {
     name: '荒芜拉普兰德',
@@ -1641,9 +1790,10 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<战斗中>每击倒一名敌人使已激活的【叙拉古】层数+2（每场战斗至多20层）',
     elite:
       '<战斗中>所有【叙拉古】干员每击倒一名敌人使已激活的【叙拉古】层数+4（每场战斗至多40层）',
-    roles: ['对空', '高频', '控制', '群攻'],
+    roles: ['对空', '高频', '控制', '群攻', '沉默'],
     borrowable: true,
     backupOperator: 'Pith',
+    combatAction: '可造成法伤',
   },
   {
     name: '酒神',
@@ -1654,9 +1804,11 @@ export const S1_OPERATORS: readonly Operator[] = [
     avatar: 'char_1042_phatm2',
     trait: '<进入休整期时>获得一件随机装备（不高于调度中心等级）',
     elite: '<进入休整期时>获得两件随机装备（不高于调度中心等级）',
-    roles: ['对空', '群攻', '真伤'],
+    roles: ['对空', '群攻', '元素输出'],
     borrowable: true,
     backupOperator: 'Raidian',
+    inflictsElements: ['神经'],
+    combatAction: '可造成法伤',
   },
   {
     name: '逻各斯',
@@ -1669,9 +1821,10 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<获得时>【奥术】层数+10，【远见】层数+5；<战斗中>【奥术】【远见】每叠加3层，本干员攻速+1',
     elite:
       '<获得时>【奥术】层数+20，【远见】层数+10；<战斗中>【奥术】【远见】每叠加3层，本干员攻速+2',
-    roles: ['对空', '控制', '群攻'],
+    roles: ['对空', '控制', '群攻', '破抗'],
     borrowable: true,
     backupOperator: 'Pith',
+    combatAction: '可造成法伤',
   },
   {
     name: '真言',
@@ -1682,9 +1835,11 @@ export const S1_OPERATORS: readonly Operator[] = [
     avatar: 'char_4204_mantra',
     trait: '<战斗中>【萨尔贡】每叠加5层，本干员攻击力+1%',
     elite: '<战斗中>【萨尔贡】每叠加5层，本干员攻击力+2%',
-    roles: ['对空', '反隐', '控制', '群攻', '真伤'],
+    roles: ['对空', '反隐', '控制', '群攻', '元素输出'],
     borrowable: true,
     backupOperator: '预备干员-术师',
+    combatAction: '可造成法伤',
+    inflictsElements: ['麻痹'],
   },
   {
     name: '妮芙',
@@ -1697,9 +1852,11 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<战斗中>攻击范围内每有一名敌人陷入恐惧使已激活的【迅捷】层数+4（每回合至多20层）',
     elite:
       '<战斗中>攻击范围内每有一名敌人陷入恐惧使已激活的【迅捷】层数+8（每回合至多40层）',
-    roles: ['对空', '控制', '群攻', '真伤'],
+    roles: ['对空', '控制', '群攻', '元素输出'],
     borrowable: true,
     backupOperator: '预备干员-术师',
+    inflictsElements: ['凋亡'],
+    combatAction: '可造成法伤',
   },
   {
     name: '遥',
@@ -1715,6 +1872,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['对空', '治疗', '群攻'],
     borrowable: true,
     backupOperator: 'Raidian',
+    combatAction: '可造成法伤',
   },
   {
     name: '魔王',
@@ -1726,6 +1884,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     trait: '<休整期结束时>使已激活的核心盟约层数+10',
     elite: '<休整期结束时>使已激活的核心盟约层数+20',
     roles: ['治疗'],
+    combatAction: '无伤害',
   },
   {
     name: '史尔特尔',
@@ -1738,9 +1897,11 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<战斗中>每击倒一名敌人使已激活的【突袭】【不屈】层数+4（每回合至多16层）',
     elite:
       '<战斗中>每击倒一名敌人使已激活的【突袭】【不屈】层数+8（每回合至多32层）',
-    roles: ['群攻', '真伤'],
+    roles: ['群攻', '破抗'],
     borrowable: true,
     backupOperator: 'Sharp',
+    melee: true,
+    combatAction: '可造成法伤',
   },
   {
     name: '锏',
@@ -1753,9 +1914,10 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<战斗中>【卡西米尔】【谢拉格】【莱塔尼亚】每叠加6层，本干员技力回复+0.01/秒，生命上限+1%',
     elite:
       '<战斗中>【卡西米尔】【谢拉格】【莱塔尼亚】每叠加3层，本干员技力回复+0.01/秒，生命上限+1%',
-    roles: ['控制', '高频', '群攻', '真伤'],
+    roles: ['控制', '高频', '群攻', '破抗'],
     borrowable: true,
     backupOperator: 'Sharp',
+    melee: true,
   },
   {
     name: '机械师',
@@ -1768,6 +1930,8 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<进入休整期时>若同一行至少有三名干员，获得一名当前人数最多盟约的干员',
     elite: '<进入休整期时>获得一名当前人数最多盟约的干员',
     roles: ['对空', '阻挡', '群攻'],
+    melee: true,
+    combatAction: '可造成法伤',
   },
   {
     name: '塔露拉',
@@ -1780,9 +1944,12 @@ export const S1_OPERATORS: readonly Operator[] = [
       '<战斗中>【乌萨斯】击倒单位时叠加的临时层数提升至4层；6名乌萨斯时提升至6层',
     elite:
       '<战斗中>【乌萨斯】击倒单位时叠加的临时层数提升至6层；6名乌萨斯时提升至8层',
-    roles: ['群攻', '真伤'],
+    roles: ['群攻', '元素输出'],
     borrowable: true,
     backupOperator: 'Sharp',
+    inflictsElements: ['灼燃'],
+    melee: true,
+    combatAction: '可造成法伤',
   },
   {
     name: '夕',
@@ -1798,6 +1965,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['对空', '群攻'],
     borrowable: true,
     backupOperator: 'Pith',
+    combatAction: '可造成法伤',
   },
   {
     name: '蕾缪安',
@@ -1837,5 +2005,6 @@ export const S1_OPERATORS: readonly Operator[] = [
     roles: ['治疗', '阻挡', '群攻'],
     borrowable: true,
     backupOperator: 'Mechanist',
+    melee: true,
   },
 ];

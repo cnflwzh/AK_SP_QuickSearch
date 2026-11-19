@@ -51,6 +51,9 @@ import {
 import {useQuickrefActions} from '../state.ts';
 import {color, fx} from '../format.ts';
 import Segmented from '../components/Segmented.vue';
+import SearchInput from '../components/SearchInput.vue';
+import SelectInput, {type SelectOption} from '../components/SelectInput.vue';
+import EmptyState from '../components/EmptyState.vue';
 import CovenantIcon from '../components/CovenantIcon.vue';
 import PlanCovenants from '../components/PlanCovenants.vue';
 import PlanSummary from '../components/PlanSummary.vue';
@@ -78,6 +81,36 @@ const NOTE_PROMPTS = [
   ['+ 中期抓牌', '中期抓牌：'],
   ['+ 站位配装', '站位配装：'],
 ] as const;
+const POOL_COVENANT_OPTIONS: readonly SelectOption<string>[] = [
+  {value: '', label: '全部盟约'},
+  ...ALL_COVENANTS.map((name) => ({value: name, label: name})),
+];
+const POOL_TYPE_OPTIONS: readonly SelectOption<string>[] = [
+  {value: '', label: '全部类型'},
+  ...OPERATOR_TYPES.map((typeName) => ({value: typeName, label: typeName})),
+];
+const POOL_ROLE_OPTIONS: readonly SelectOption<'' | CombatRole>[] = [
+  {value: '', label: '全部职能'},
+  ...COMBAT_ROLE_LABELS.map((role) => ({value: role, label: role})),
+];
+const compareOptions = computed<readonly SelectOption<string>[]>(() => [
+  {value: '', label: '选择要对比的流派'},
+  ...presets.value
+    .filter((x) => x.plan.id !== plan.value.id)
+    .map((x) => ({
+      value: x.key,
+      label: `${x.builtin ? '' : '我的 · '}${x.plan.name}`,
+    })),
+]);
+const templatePresetOptions = computed<readonly SelectOption<string>[]>(() => [
+  {value: '', label: '选择参考流派…'},
+  ...presets.value
+    .filter((x) => x.plan.id !== plan.value.id && x.plan.ops.length > 0)
+    .map((x) => ({
+      value: x.key,
+      label: `${x.builtin ? '' : '我的 · '}${x.plan.name}`,
+    })),
+]);
 function insertNotePrompt(prefix: string): void {
   const currentNote = plan.value.note;
   if (currentNote.includes(prefix)) {
@@ -350,7 +383,7 @@ function setLayers(name: string, value: number): void {
 }
 const active = computed(() => stats.value.filter((s) => s.active));
 const cost = computed(() => planCost(ops.value));
-const diagnostics = computed(() => diagnoseLineup(ops.value));
+const diagnostics = computed(() => diagnoseLineup(ops.value, stats.value));
 const recs = computed(() => suggestions(ops.value, 8, plan.value.layers));
 const notes = computed(() => equipNotes(ops.value));
 const strategy = computed(() => STRATEGY[plan.value.strategy]);
@@ -581,15 +614,10 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
 
     <!-- 对比 -->
     <section v-if="panel === 'compare'" id="planner-compare" class="pl-panel">
-      <select v-model="other" aria-label="对比对象">
-        <option value="">选择要对比的流派</option>
-        <option
-          v-for="x in presets.filter((x) => x.plan.id !== plan.id)"
-          :key="x.key"
-          :value="x.key">
-          {{ x.builtin ? '' : '我的 · ' }}{{ x.plan.name }}
-        </option>
-      </select>
+      <SelectInput
+        v-model="other"
+        :options="compareOptions"
+        aria-label="对比对象" />
       <template v-if="otherPlan">
         <div class="pl-diff">
           <span>
@@ -735,25 +763,11 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
             </div>
             <label class="pl-starter-row">
               <span class="k">或套用现有流派微调</span>
-              <select
+              <SelectInput
+                model-value=""
+                :options="templatePresetOptions"
                 aria-label="套用现有流派微调"
-                value=""
-                @change="
-                  applyTemplatePreset(
-                    ($event.target as HTMLSelectElement).value,
-                  );
-                  ($event.target as HTMLSelectElement).value = '';
-                ">
-                <option value="">选择参考流派…</option>
-                <option
-                  v-for="x in presets.filter(
-                    (x) => x.plan.id !== plan.id && x.plan.ops.length > 0,
-                  )"
-                  :key="x.key"
-                  :value="x.key">
-                  {{ x.builtin ? '' : '我的 · ' }}{{ x.plan.name }}
-                </option>
-              </select>
+                @update:model-value="applyTemplatePreset" />
             </label>
           </div>
 
@@ -1006,9 +1020,8 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
                 v-if="picking === 'eq'"
                 id="planner-equipment"
                 class="pl-pick pl-eqpick">
-                <input
+                <SearchInput
                   v-model="equipmentQuery"
-                  type="search"
                   class="pl-paste"
                   placeholder="装备名字 / 拼音 / 效果"
                   aria-label="搜索装备" />
@@ -1034,9 +1047,10 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
                     <small>{{ e.name }}</small>
                   </button>
                 </div>
-                <p v-if="!filteredEquipment.length" class="empty">
-                  没有匹配的装备
-                </p>
+                <EmptyState
+                  v-if="!filteredEquipment.length"
+                  compact
+                  message="没有匹配的装备" />
               </div>
             </div>
           </Teleport>
@@ -1383,29 +1397,25 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
             </button>
           </div>
           <div class="pl-filter">
-            <input
+            <SearchInput
               v-model="poolQuery"
-              type="search"
               placeholder="名字 / 拼音 / 特质词"
               aria-label="搜索干员" />
-            <select v-model="poolCovenant" aria-label="盟约">
-              <option value="">全部盟约</option>
-              <option v-for="name in ALL_COVENANTS" :key="name">
-                {{ name }}
-              </option>
-            </select>
-            <select v-model="poolType" aria-label="特质类型">
-              <option value="">全部类型</option>
-              <option v-for="typeName in OPERATOR_TYPES" :key="typeName">
-                {{ typeName }}
-              </option>
-            </select>
-            <select v-model="poolRole" aria-label="实战职能">
-              <option value="">全部职能</option>
-              <option v-for="role in COMBAT_ROLE_LABELS" :key="role">
-                {{ role }}
-              </option>
-            </select>
+            <SelectInput
+              v-model="poolCovenant"
+              :options="POOL_COVENANT_OPTIONS"
+              highlight-active
+              aria-label="盟约" />
+            <SelectInput
+              v-model="poolType"
+              :options="POOL_TYPE_OPTIONS"
+              highlight-active
+              aria-label="特质类型" />
+            <SelectInput
+              v-model="poolRole"
+              :options="POOL_ROLE_OPTIONS"
+              highlight-active
+              aria-label="实战职能" />
             <Segmented
               :labels="['全部', ...TIER_LABELS.slice(1)]"
               :active="poolTier"
@@ -1523,16 +1533,13 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
               </button>
             </div>
           </template>
-          <div v-if="!pool.length" class="empty">
-            没有匹配的干员
-            <button
-              v-if="hasPoolFilter"
-              type="button"
-              class="filter-clear"
-              @click="resetPoolFilters">
-              清空筛选
-            </button>
-          </div>
+          <EmptyState
+            v-if="!pool.length"
+            compact
+            message="没有匹配的干员"
+            action-label="清空筛选"
+            :show-action="hasPoolFilter"
+            @action="resetPoolFilters" />
         </section>
       </Teleport>
     </div>

@@ -1,5 +1,10 @@
 import {
   ALL_COVENANTS,
+  COMBAT_ROLE_LABELS,
+  operatorsWithRoles,
+  equipmentWithRoles,
+  operatorRolesAtElite,
+  type CombatRole,
   EQUIPMENT,
   LEADERS,
   OPERATORS,
@@ -19,6 +24,13 @@ export function buildSearchDescription(plan: Plan): string {
   ].join('|');
 }
 
+/** 将已归一化的查询词匹配到职能名称，供结果列表和回车直达共用。 */
+export function matchingCombatRoles(query: string): Set<CombatRole> {
+  return new Set(
+    COMBAT_ROLE_LABELS.filter((role) => nameScore(role, query) > 0),
+  );
+}
+
 /** 查询仅命中干员精锐特质（名称、盟约和初始特质未命中）时返回 true。 */
 export function matchedOnlyElite(
   operator: Operator,
@@ -29,7 +41,12 @@ export function matchedOnlyElite(
   if (nameScore(operator.name, q) > 0) return false;
   if (operator.covenants.some((c) => nameScore(c, q) > 0)) return false;
   if (normalize(operator.trait).includes(q)) return false;
-  return normalize(operator.elite).includes(q);
+  const matchesRole = (role: CombatRole) => nameScore(role, q) > 0;
+  if (operatorRolesAtElite(operator, false).some(matchesRole)) return false;
+  return (
+    Boolean(operator.roles?.some(matchesRole)) ||
+    normalize(operator.elite).includes(q)
+  );
 }
 
 /** 查询仅命中装备进阶效果（名称、盟约和基础效果未命中）时返回 true。 */
@@ -102,6 +119,16 @@ export function topSearchTarget(
   if (best) {
     const found: SearchQuickTarget & {score: number; priority: number} = best;
     return {kind: found.kind, id: found.id};
+  }
+
+  const roles = [...matchingCombatRoles(q)];
+  if (roles.length) {
+    const firstOperator = operatorsWithRoles(roles).sort(
+      (a, b) => a.tier - b.tier,
+    )[0];
+    if (firstOperator) return {kind: 'op', id: firstOperator.name};
+    const firstItem = equipmentWithRoles(roles)[0];
+    if (firstItem) return {kind: 'eq', id: firstItem.name};
   }
 
   for (const op of OPERATORS) {

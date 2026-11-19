@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {avatarSrc} from '../../lib/ui/assets.ts';
 import type {RecruitAdvice} from '../../lib/recommendation/live/runAdvisor.ts';
+import EmptyState from '../components/EmptyState.vue';
 
 /**
  * 抓取建议列表。录入商店时它就是商店本身：按推荐排序，可直接记录抓到或移出候选；
@@ -156,5 +157,5 @@ function signed(value: number): string {
       </div>
     </li>
   </ol>
-  <p v-else class="ra-empty">{{ emptyMessage }}</p>
+  <EmptyState v-else compact :message="emptyMessage" />
 </template>

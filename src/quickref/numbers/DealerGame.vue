@@ -37,7 +37,12 @@ import {downloadBlob} from '../../lib/ui/download.ts';
 import {router} from '../../router/index.ts';
 import type {DetailKind} from '../../router/entities.ts';
 import CovenantIcon from '../components/CovenantIcon.vue';
-import Segmented from '../components/Segmented.vue';
+import SelectInput, {
+  type SelectEntry,
+  type SelectOption,
+} from '../components/SelectInput.vue';
+import SubTabs, {type SubTabItem} from '../components/SubTabs.vue';
+import CopyButton from '../components/CopyButton.vue';
 import {color} from '../format.ts';
 import {useQuickrefActions} from '../state.ts';
 import {
@@ -62,13 +67,19 @@ const {
   dealerMood,
 } = game;
 
-const modeLabels = ['今日同题', '自由拷打'] as const;
-const hintOptions: readonly {readonly id: HintLevel; readonly label: string}[] =
-  [
-    {id: 'blind', label: '盲猜记图鉴'},
-    {id: 'clue', label: '线索提示'},
-    {id: 'open', label: '明牌爽揍'},
-  ];
+const MODE_TABS: readonly SubTabItem<DealerMode>[] = [
+  {id: 'daily', label: '今日同题'},
+  {id: 'free', label: '自由拷打'},
+];
+const selectedMode = computed<DealerMode>({
+  get: () => state.mode,
+  set: (mode) => switchMode(mode),
+});
+const hintOptions: readonly SelectOption<HintLevel>[] = [
+  {value: 'blind', label: '盲猜记图鉴'},
+  {value: 'clue', label: '线索提示'},
+  {value: 'open', label: '明牌爽揍'},
+];
 
 const coreOptions = CORE_COVENANTS.filter((name) =>
   SELECTABLE_COVENANTS.includes(name),
@@ -76,14 +87,45 @@ const coreOptions = CORE_COVENANTS.filter((name) =>
 const addonOptions = ADDON_COVENANTS.filter((name) =>
   SELECTABLE_COVENANTS.includes(name),
 );
+const focusOptions = computed<readonly SelectEntry<string>[]>(() => [
+  {value: '', label: '综合特训（全题型）'},
+  {
+    value: 'mistakes',
+    label: `🎯 错题专攻（${
+      activeMistakeList.value.length
+        ? `${activeMistakeList.value.length} 项待复习`
+        : '暂无错题'
+    }）`,
+    disabled: !activeMistakeList.value.length,
+  },
+  {
+    label: '玩法专项',
+    options: [
+      {value: 'kind:scenario', label: '实战抓牌（局面决策）'},
+      {value: 'kind:covenant', label: '盟约点名（干员归属）'},
+      {value: 'kind:transmute', label: '同构转职（干员×装备）'},
+      {value: 'kind:trigger', label: '特质时机（触发×定位）'},
+      {value: 'kind:tier_check', label: '升本验阶（盲标等阶）'},
+      {value: 'kind:equipment', label: '装备整备（效果×费用）'},
+      {value: 'kind:strategy', label: '开局策略（策略立绘）'},
+      {value: 'kind:bounty', label: '悬赏猎金（通缉赏金）'},
+    ],
+  },
+  {
+    label: '核心盟约',
+    options: coreOptions.map((name) => ({value: name, label: name})),
+  },
+  {
+    label: '附加盟约',
+    options: addonOptions.map((name) => ({value: name, label: name})),
+  },
+]);
 
-const copied = ref(false);
 const copyFallback = ref('');
 const imageStatus = ref<'idle' | 'copied' | 'saved'>('idle');
 const fontReadyTick = ref(0);
 const active = ref(true);
 const showMistakes = ref(false);
-let copyTimer: ReturnType<typeof setTimeout> | undefined;
 let imageTimer: ReturnType<typeof setTimeout> | undefined;
 // KeepAlive 返回及从后台恢复时刷新日期，后台不保留轮询计时器。
 function refreshVisibleDate(): void {
@@ -110,7 +152,6 @@ onMounted(() => {
 });
 onBeforeUnmount(() => {
   releaseDateListener();
-  clearTimeout(copyTimer);
   clearTimeout(imageTimer);
 });
 
@@ -166,20 +207,18 @@ function launchMistakeDrill(): void {
   game.startMistakeDrill();
 }
 
-function switchMode(index: number): void {
-  const next: DealerMode = index === 0 ? 'daily' : 'free';
-  copied.value = false;
+function switchMode(next: DealerMode): void {
   imageStatus.value = 'idle';
   copyFallback.value = '';
   game.setMode(next);
 }
 
-function changeFocus(event: Event): void {
-  game.setFocusCovenant((event.target as HTMLSelectElement).value);
+function changeFocus(value: string): void {
+  game.setFocusCovenant(value);
 }
 
-function changeHint(event: Event): void {
-  game.setHintLevel((event.target as HTMLSelectElement).value as HintLevel);
+function changeHint(value: HintLevel): void {
+  game.setHintLevel(value);
 }
 
 function dealerShareLink(): string {
@@ -258,22 +297,6 @@ function saveShareImage(): void {
   }, 2600);
 }
 
-async function copyShareText(): Promise<void> {
-  clearTimeout(copyTimer);
-  const text = sharePreview.value;
-  try {
-    await navigator.clipboard.writeText(text);
-    copied.value = true;
-    copyFallback.value = '';
-    copyTimer = setTimeout(() => {
-      copied.value = false;
-    }, 2400);
-  } catch {
-    copied.value = false;
-    copyFallback.value = text;
-  }
-}
-
 function switchToFreeAfterDaily(): void {
   game.closeReport();
   game.setMode('free');
@@ -347,53 +370,25 @@ function inspectCardDetail(
 <template>
   <div class="nt-dealer">
     <div class="bar nt-dealer-bar">
-      <Segmented
-        :labels="modeLabels"
-        :active="state.mode === 'daily' ? 0 : 1"
-        attr="dealer-mode"
-        @change="switchMode" />
-      <select
+      <SubTabs
+        v-model="selectedMode"
+        :items="MODE_TABS"
+        :level="3"
+        inline
+        aria-label="对局模式"
+        attr="dealer-mode" />
+      <SelectInput
         v-if="state.mode === 'free'"
-        :value="state.focusCovenant"
+        :model-value="state.focusCovenant"
+        :options="focusOptions"
+        highlight-active
         aria-label="指定特训内容"
-        @change="changeFocus">
-        <option value="">综合特训（全题型）</option>
-        <option value="mistakes" :disabled="!activeMistakeList.length">
-          🎯 错题专攻（{{
-            activeMistakeList.length
-              ? `${activeMistakeList.length} 项待复习`
-              : '暂无错题'
-          }}）
-        </option>
-        <optgroup label="玩法专项">
-          <option value="kind:scenario">实战抓牌（局面决策）</option>
-          <option value="kind:covenant">盟约点名（干员归属）</option>
-          <option value="kind:transmute">同构转职（干员×装备）</option>
-          <option value="kind:trigger">特质时机（触发×定位）</option>
-          <option value="kind:tier_check">升本验阶（盲标等阶）</option>
-          <option value="kind:equipment">装备整备（效果×费用）</option>
-          <option value="kind:strategy">开局策略（策略立绘）</option>
-          <option value="kind:bounty">悬赏猎金（通缉赏金）</option>
-        </optgroup>
-        <optgroup label="核心盟约">
-          <option v-for="name in coreOptions" :key="name" :value="name">
-            {{ name }}
-          </option>
-        </optgroup>
-        <optgroup label="附加盟约">
-          <option v-for="name in addonOptions" :key="name" :value="name">
-            {{ name }}
-          </option>
-        </optgroup>
-      </select>
-      <select
-        :value="state.hintLevel"
+        @update:model-value="changeFocus" />
+      <SelectInput
+        :model-value="state.hintLevel"
+        :options="hintOptions"
         aria-label="卡面提示难度"
-        @change="changeHint">
-        <option v-for="opt in hintOptions" :key="opt.id" :value="opt.id">
-          {{ opt.label }}
-        </option>
-      </select>
+        @update:model-value="changeHint" />
       <div class="nt-dealer-bar-actions">
         <button
           v-if="
@@ -569,9 +564,14 @@ function inspectCardDetail(
             @click="saveShareImage">
             保存图片
           </button>
-          <button type="button" class="btn" @click="copyShareText">
-            {{ copied ? '✓ 文案已复制' : '复制文字+链接' }}
-          </button>
+          <CopyButton
+            :text="sharePreview"
+            label="复制文字+链接"
+            copied-label="文案已复制"
+            fallback-mode="emit"
+            :reset-ms="2400"
+            @copied="copyFallback = ''"
+            @fallback="copyFallback = $event" />
           <button type="button" class="btn" @click="game.closeReport">
             {{
               state.mode === 'daily' && session.dailyCompleted
@@ -934,7 +934,7 @@ function inspectCardDetail(
         <span class="nt-dealer-footer-tip">
           <template v-if="isRoundCleared">
             <template v-if="isBestPickMode">
-              已展开全部 5 张局内顾问评估与推荐理由，点卡片顶部
+              已展开全部 {{ round.cards.length }} 张候选的局内顾问评估与推荐理由，点卡片顶部
               <b>i</b>
               可查干员详情。
             </template>

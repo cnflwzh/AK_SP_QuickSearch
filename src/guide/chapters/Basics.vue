@@ -2,7 +2,8 @@
 import Markup from '../components/Markup';
 import Segmented from '../components/Segmented.vue';
 import {computed, ref} from 'vue';
-import {MODES} from '../../../data/index';
+import {MODES, CREDIT_MILESTONES} from '../../../data/index';
+const spendRewards = CREDIT_MILESTONES.filter((item) => item.kind === 'spend');
 import {basicsContent, roundTimeline, creditChart} from './basicsView';
 const content = basicsContent();
 const timelineMode = ref(1),
@@ -83,7 +84,7 @@ const credits = computed(() => creditChart(creditMode.value));
       <div class="row mt">
         <span class="tag a">极速模拟 100%</span>
         <span class="tag">无限决策时间</span>
-        <span class="tag">可离开 24h</span>
+        <span class="tag">个人模拟可永久暂离</span>
         <span class="tag">开局核心盟约二选一</span>
       </div>
     </div>
@@ -182,7 +183,7 @@ const credits = computed(() => creditChart(creditMode.value));
         :html="credits.crchart" />
     </div>
     <div class="card">
-      <h4>赛季商店进度</h4>
+      <h4>序列认证获取与限时累消奖励</h4>
       <Markup
         as="svg"
         class="svgbox"
@@ -193,9 +194,10 @@ const credits = computed(() => creditChart(creditMode.value));
         aria-describedby="season-shop-description"
         :html="content.shopbar" />
       <div class="row mt">
-        <span class="tag">作战认证上限 6250 / 序列</span>
-        <span class="tag a">关键目标 +2500</span>
-        <span class="tag r">赛季结束清零</span>
+        <span v-for="reward in spendRewards" :key="reward.value" class="tag">
+          限时兑换累计消费 {{ reward.value }} · {{ reward.reward }}
+        </span>
+        <span class="tag r">序列结束清零</span>
       </div>
       <div class="row mt">
         <span class="tag t">奖杯：仅联合模拟</span>
