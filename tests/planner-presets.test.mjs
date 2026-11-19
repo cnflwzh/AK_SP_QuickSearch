@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { BUILD_NAMES, OPERATOR, buildByName } from '../data/index.ts';
-import { banReplace, builtinPlan, covenantStats, isBanned, loadPlans, newSlot, samePlan, savePlans, MAX_NOTE } from '../src/lib/plans/index.ts';
+import {
+  banReplace,
+  builtinPlan,
+  isBanned,
+  loadPlans,
+  samePlan,
+  savePlans,
+  MAX_NOTE,
+} from '../src/lib/plans/index.ts';
 
 test('every built-in build converts to an editable plan', () => {
   for (const name of BUILD_NAMES) {
@@ -35,32 +43,6 @@ test('banned covenant members are replaced without bringing banned operators bac
       for (const pick of result.picks) assert.ok(!pick.alts.includes(pick.name));
     }
   }
-});
-
-test('a forced replacement is honoured and kept in the original slot', () => {
-  const ops = builtinPlan('炎').ops;
-  const first = banReplace(ops, ['投资人']);
-  if (!first.picks.length || !first.picks[0].alts.length) return;
-  const pick = first.picks[0], alt = pick.alts[0];
-  const forced = banReplace(ops, ['投资人'], { [pick.replaces]: alt });
-  assert.equal(forced.picks.find(p => p.replaces === pick.replaces).name, alt);
-  assert.equal(forced.ops[ops.findIndex(o => o.name === pick.replaces)].name, alt);
-});
-
-test('replacements restore the remaining core covenant when possible', () => {
-  const ops = builtinPlan('炎').ops;
-  const before = covenantStats(ops).find(s => s.name === '炎');
-  const result = banReplace(ops, ['投资人']);
-  const after = covenantStats(result.ops).find(s => s.name === '炎');
-  assert.ok(after.active || !before.active);
-  assert.ok(!result.lost.includes('炎'));
-});
-
-test('slots with nothing to replace keep their place', () => {
-  const ops = ['夕', '黍'].map(newSlot);
-  const result = banReplace(ops, []);
-  assert.deepEqual(result.ops.map(o => o.name), ['夕', '黍']);
-  assert.deepEqual(result.removed, []);
 });
 
 

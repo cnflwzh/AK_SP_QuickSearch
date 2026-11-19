@@ -15,6 +15,11 @@ import {
 } from '../../../data/index.ts';
 import {round1} from '../../lib/ui/dom.ts';
 import {avatarSrc} from '../../lib/ui/assets.ts';
+import {
+  hasAnyBox,
+  lineupBoxCoverage,
+  operatorBox,
+} from '../../lib/box/index.ts';
 import {banReplace} from '../../lib/recommendation/index.ts';
 import {
   atLayers,
@@ -265,6 +270,14 @@ const strategies = computed(() =>
 const primaryStrategy = computed(() => STRATEGY[p.value.plan.strategy]);
 const planEquipNotes = computed(() => equipNotes(p.value.plan.ops));
 const cost = computed(() => planCost(p.value.plan.ops));
+const boxCoverage = computed(() =>
+  hasAnyBox.value && settings.showBoxBadges
+    ? lineupBoxCoverage(
+        slotEntries.value.map((e) => e.operator.name),
+        operatorBox,
+      )
+    : null,
+);
 const coreNames = computed(() =>
   p.value.plan.ops.filter((s) => s.core).map((s) => s.name),
 );
@@ -791,6 +804,18 @@ watch(
           <span v-if="slotEntries.length" class="cnt">
             · {{ slotEntries.length }} 人 · 招募 {{ cost.recruit }}
             <template v-if="cost.elites">· {{ cost.elites }} 精锐</template>
+            <template v-if="boxCoverage && boxCoverage.total > 0">
+              · 自持激活 {{ boxCoverage.activated }}/{{ boxCoverage.total
+              }}<template v-if="boxCoverage.maxed">
+                （满练 {{ boxCoverage.maxed }}）
+              </template><template v-if="boxCoverage.untrained">
+                · 未练 {{ boxCoverage.untrained }}
+              </template><template v-if="boxCoverage.borrowed">
+                · 已借 {{ boxCoverage.borrowed }}
+              </template><template v-if="boxCoverage.borrowableMissing">
+                · 可借 6★ {{ boxCoverage.borrowableMissing }}
+              </template>
+            </template>
           </span>
         </h5>
         <Segmented

@@ -1,8 +1,13 @@
 import {reactive} from 'vue';
 import {
   COMMON_LAYER_COVENANTS,
+  CREDIT,
   type SHOP_MODE_IDS,
 } from '../../../data/index.ts';
+import {
+  defaultCreditTarget,
+  type CreditMode,
+} from '../../lib/numbers/numberTools.ts';
 
 export type LayerSection = 'threshold' | 'cycle' | 'headcount';
 export type ShopMode = (typeof SHOP_MODE_IDS)[number];
@@ -34,6 +39,15 @@ interface NumberToolsState {
     payout: '' | 'single' | 'multi';
     sort: '' | 'reward';
   };
+  credit: {
+    mode: CreditMode;
+    jointDifficulty: number;
+    soloLevel: number;
+    roundsCleared: number;
+    defeatedLeader: boolean;
+    currentCredit: number;
+    targetCredit: number;
+  };
   roundDifficulty: number;
 }
 
@@ -55,6 +69,15 @@ const state = reactive<NumberToolsState>({
     budget: {funds: null, upgrade: null, reserveOverride: null},
   },
   bounty: {search: '', payout: '', sort: ''},
+  credit: {
+    mode: 'joint',
+    jointDifficulty: 1,
+    soloLevel: 15,
+    roundsCleared: CREDIT.length,
+    defeatedLeader: true,
+    currentCredit: 0,
+    targetCredit: defaultCreditTarget(),
+  },
   roundDifficulty: 1,
 });
 

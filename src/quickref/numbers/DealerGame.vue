@@ -24,6 +24,8 @@ import {
   buildDealerPosterModel,
   DAILY_ROUND_COUNT,
   dailyTagFromKey,
+  MISTAKE_KIND_LABELS,
+  MISTAKE_MASTERY_STREAK,
   SELECTABLE_COVENANTS,
   type DealerCard,
   type DealerMode,
@@ -53,6 +55,9 @@ const {
   isRoundCleared,
   remainingImpostors,
   canCastUltimate,
+  activeMistakeList,
+  masteredMistakes,
+  mistakeSummaryByKind,
   rank,
   dealerMood,
 } = game;
@@ -77,6 +82,7 @@ const copyFallback = ref('');
 const imageStatus = ref<'idle' | 'copied' | 'saved'>('idle');
 const fontReadyTick = ref(0);
 const active = ref(true);
+const showMistakes = ref(false);
 let copyTimer: ReturnType<typeof setTimeout> | undefined;
 let imageTimer: ReturnType<typeof setTimeout> | undefined;
 // KeepAlive 返回及从后台恢复时刷新日期，后台不保留轮询计时器。
@@ -120,12 +126,45 @@ const defeatedTotal = computed(
 );
 const hintsUsedTotal = computed(() => session.value.stats.hintsUsed ?? 0);
 
+const isBestPickMode = computed(() => round.value.selectionMode === 'best_pick');
+
 const statusLabels: Readonly<Record<string, string>> = {
   punched: '串场！',
   calibrated: '⚡ 校准',
   shielded: '自己人',
   kept: '✓ 保留',
 };
+
+function cardStatusLabel(card: DealerCard): string {
+  if (isBestPickMode.value) {
+    if (card.status === 'punched') return '✓ 最优解';
+    if (card.status === 'calibrated') return '⚡ 最优解';
+    if (card.status === 'shielded') {
+      return `非最优 #${card.advisorRank ?? '?'}`;
+    }
+    return card.advisorRank ? `#${card.advisorRank}` : '备选';
+  }
+  return statusLabels[card.status] ?? '';
+}
+
+function toggleMistakesPanel(): void {
+  if (session.value.showReport) game.closeReport();
+  showMistakes.value = !showMistakes.value;
+}
+
+function toggleReportPanel(): void {
+  if (session.value.showReport) {
+    game.closeReport();
+  } else {
+    showMistakes.value = false;
+    game.openReport();
+  }
+}
+
+function launchMistakeDrill(): void {
+  showMistakes.value = false;
+  game.startMistakeDrill();
+}
 
 function switchMode(index: number): void {
   const next: DealerMode = index === 0 ? 'daily' : 'free';
@@ -240,12 +279,15 @@ function switchToFreeAfterDaily(): void {
   game.setMode('free');
 }
 
-function isRevealed(status: string): boolean {
-  return status !== 'unseen' || state.hintLevel === 'open';
+function isRevealed(card: DealerCard): boolean {
+  if (isBestPickMode.value) {
+    return card.status !== 'unseen' || isRoundCleared.value;
+  }
+  return card.status !== 'unseen' || state.hintLevel === 'open';
 }
 
 function isCardShown(card: DealerCard): boolean {
-  return isRevealed(card.status) || isRoundCleared.value;
+  return isRevealed(card) || isRoundCleared.value;
 }
 
 function cardTierData(card: DealerCard): number {
@@ -273,6 +315,7 @@ const KIND_ACCENT_COLORS: Readonly<Record<DealerRoundKind, string>> = {
   equipment: '#b46a07',
   strategy: '#2563eb',
   bounty: '#b91c1c',
+  scenario: '#0f766e',
 };
 
 const stageAccentColor = computed(() => {
@@ -282,6 +325,7 @@ const stageAccentColor = computed(() => {
 
 const blindPromptText = computed(() => {
   const {kind, targetCovenant} = round.value;
+  if (kind === 'scenario') return '当前局面最优解？';
   if (kind === 'covenant' || kind === 'transmute') {
     return `非【${targetCovenant}】编制？`;
   }
@@ -314,7 +358,15 @@ function inspectCardDetail(
         aria-label="指定特训内容"
         @change="changeFocus">
         <option value="">综合特训（全题型）</option>
+        <option value="mistakes" :disabled="!activeMistakeList.length">
+          🎯 错题专攻（{{
+            activeMistakeList.length
+              ? `${activeMistakeList.length} 项待复习`
+              : '暂无错题'
+          }}）
+        </option>
         <optgroup label="玩法专项">
+          <option value="kind:scenario">实战抓牌（局面决策）</option>
           <option value="kind:covenant">盟约点名（干员归属）</option>
           <option value="kind:transmute">同构转职（干员×装备）</option>
           <option value="kind:trigger">特质时机（触发×定位）</option>
@@ -356,6 +408,15 @@ function inspectCardDetail(
           @click="game.requestRoundHint">
           {{ round.hintRevealed ? '💡 已开提示' : '💡 提示' }}
         </button>
+        <button
+          type="button"
+          class="btn nt-dealer-mistakes-btn"
+          :class="{p: showMistakes}"
+          :aria-expanded="showMistakes"
+          @click="toggleMistakesPanel">
+          错题本
+          <b v-if="activeMistakeList.length">{{ activeMistakeList.length }}</b>
+        </button>
         <span class="nt-dealer-stat-pill">
           已打
           <b>{{ defeatedTotal }}</b>
@@ -372,11 +433,98 @@ function inspectCardDetail(
           type="button"
           class="btn"
           :class="{p: session.showReport}"
-          @click="session.showReport ? game.closeReport() : game.openReport()">
+          @click="toggleReportPanel">
           {{ session.showReport ? '返回牌局' : '战报/分享' }}
         </button>
       </div>
     </div>
+
+    <section
+      v-if="showMistakes && !session.showReport"
+      class="nc nt-dealer-mistakes"
+      aria-label="本地错题本">
+      <div class="nt-dealer-mistakes-head">
+        <div class="nt-dealer-mistakes-summary">
+          <strong>本地错题本</strong>
+          <span class="tag r">待复习 {{ activeMistakeList.length }}</span>
+          <span v-if="masteredMistakes > 0" class="tag t">
+            已掌握 {{ masteredMistakes }}
+          </span>
+        </div>
+        <div class="nt-dealer-mistakes-actions">
+          <button
+            v-if="activeMistakeList.length"
+            type="button"
+            class="btn p"
+            @click="launchMistakeDrill">
+            🎯 专攻错题
+          </button>
+          <button
+            v-if="masteredMistakes > 0"
+            type="button"
+            class="btn"
+            @click="game.clearMasteredMistakes">
+            清已掌握
+          </button>
+          <button
+            v-if="state.mistakes.length"
+            type="button"
+            class="btn"
+            @click="game.clearAllMistakes">
+            清空
+          </button>
+          <button type="button" class="btn" @click="showMistakes = false">
+            收起
+          </button>
+        </div>
+      </div>
+
+      <div
+        v-if="mistakeSummaryByKind.length"
+        class="nt-dealer-mistake-kinds">
+        <span
+          v-for="item in mistakeSummaryByKind"
+          :key="item.kind"
+          class="tag">
+          {{ item.label }} ×{{ item.count }}
+        </span>
+      </div>
+
+      <ul v-if="activeMistakeList.length" class="nt-dealer-mistake-list">
+        <li
+          v-for="item in activeMistakeList.slice(0, 24)"
+          :key="item.key"
+          class="nt-dealer-mistake-row">
+          <button
+            v-if="item.detailKind"
+            type="button"
+            class="nt-dealer-mistake-name link"
+            @click="actions.openDetail(item.detailKind, item.title)">
+            {{ item.title }}
+          </button>
+          <span v-else class="nt-dealer-mistake-name">{{ item.title }}</span>
+          <span class="nt-dealer-mistake-meta">
+            {{ MISTAKE_KIND_LABELS[item.roundKind] }} · {{ item.targetLabel }}
+          </span>
+          <span class="nt-dealer-mistake-count">错 {{ item.wrongCount }}</span>
+          <span class="nt-dealer-mistake-streak">
+            {{ item.correctStreak }}/{{ MISTAKE_MASTERY_STREAK }}
+          </span>
+          <button
+            type="button"
+            class="nt-dealer-mistake-del"
+            :aria-label="`移出错题 ${item.title}`"
+            title="移出错题本"
+            @click="game.removeMistake(item.key)">
+            ×
+          </button>
+        </li>
+      </ul>
+      <p v-else class="nt-dealer-mistakes-empty">
+        暂无待复习错题。答错的干员、装备、策略或悬赏会自动记入这里，在后续轮次中连续
+        {{ MISTAKE_MASTERY_STREAK }} 次无误处理即自动标记掌握。
+      </p>
+    </section>
 
     <section
       v-if="session.showReport"
@@ -468,6 +616,11 @@ function inspectCardDetail(
             <span class="tag">{{ roundHeading }}</span>
             <span class="tag nt-dealer-kind-tag">{{ round.missionTitle }}</span>
             <span
+              v-if="round.isMistakeReview"
+              class="tag nt-dealer-review-tag">
+              🎯 错题复盘
+            </span>
+            <span
               class="nt-dealer-target-badge"
               :style="{'--c': stageAccentColor}">
               <CovenantIcon
@@ -477,9 +630,13 @@ function inspectCardDetail(
             </span>
             <span class="tag" :class="isRoundCleared ? 't' : 'r'">
               {{
-                isRoundCleared
-                  ? '✓ 本轮已理清'
-                  : `找出 ${remainingImpostors} 处串场`
+                isBestPickMode
+                  ? isRoundCleared
+                    ? '✓ 已揭晓评估'
+                    : '选 1 张最优抓牌'
+                  : isRoundCleared
+                    ? '✓ 本轮已理清'
+                    : `找出 ${remainingImpostors} 处串场`
               }}
             </span>
             <span v-if="round.usedHint" class="tag nt-dealer-hinted-tag">
@@ -522,6 +679,72 @@ function inspectCardDetail(
         </div>
       </section>
 
+      <section
+        v-if="round.scenarioContext"
+        class="nc nt-dealer-board"
+        aria-label="当前局面">
+        <div class="nt-dealer-board-meta">
+          <span class="nt-dealer-board-pill">
+            <b>{{ round.scenarioContext.level }}</b>
+            本 · 第 {{ round.scenarioContext.round }} 回合
+          </span>
+          <span class="nt-dealer-board-pill funds">
+            💰
+            <b>{{ round.scenarioContext.funds }}</b>
+            资金
+          </span>
+          <button
+            v-if="round.scenarioContext.strategy"
+            type="button"
+            class="nt-dealer-board-strat"
+            @click="actions.openDetail('st', round.scenarioContext.strategy)">
+            策略：{{ round.scenarioContext.strategy }}
+          </button>
+          <div class="nt-dealer-board-covs">
+            <span
+              v-for="cov in round.scenarioContext.covenantHints"
+              :key="cov.name"
+              class="nt-dealer-board-cov"
+              :class="{
+                active: cov.active,
+                near: !cov.active && cov.count >= cov.need - 1,
+              }"
+              :style="{'--c': color(cov.name)}">
+              <CovenantIcon :name="cov.name" />
+              {{ cov.name }}
+              <b>{{ cov.count }}/{{ cov.need }}</b>
+            </span>
+          </div>
+        </div>
+        <div class="nt-dealer-board-units">
+          <span class="nt-dealer-board-label">
+            场上 ({{ round.scenarioContext.deployed.length }})
+          </span>
+          <button
+            v-for="unit in round.scenarioContext.deployed"
+            :key="unit.name"
+            type="button"
+            class="nt-dealer-unit-chip"
+            :class="{pair: unit.copies >= 2}"
+            :data-t="unit.tier"
+            :title="`查看场上干员 ${unit.name} 详情`"
+            @click="actions.openDetail('op', unit.name)">
+            <img
+              :src="avatarSrc(unit.name)"
+              alt=""
+              width="24"
+              height="24"
+              loading="lazy"
+              decoding="async" />
+            <span>{{ unit.name }}</span>
+            <b v-if="unit.copies >= 2" class="nt-dealer-unit-copies">
+              ×{{ unit.copies }}
+            </b>
+            <b v-else-if="unit.elite" class="nt-dealer-unit-copies">精</b>
+          </button>
+        </div>
+      </section>
+
       <section class="nt-dealer-shop" aria-label="本轮商店发牌">
         <article
           v-for="(card, index) in round.cards"
@@ -530,7 +753,11 @@ function inspectCardDetail(
           :class="[
             card.status,
             card.cardKind,
-            {cleared: isRoundCleared, equip: card.cardKind === 'equipment'},
+            {
+              cleared: isRoundCleared,
+              equip: card.cardKind === 'equipment',
+              'best-pick': isBestPickMode,
+            },
           ]"
           :data-t="cardTierData(card)">
           <div
@@ -573,7 +800,9 @@ function inspectCardDetail(
             :disabled="card.status !== 'unseen' || isRoundCleared"
             :aria-label="
               card.status === 'unseen'
-                ? `指出${card.title}不符合「${round.targetCovenant}」并痛扁发牌员`
+                ? isBestPickMode
+                  ? `选择${card.title}（${card.price ?? '?'}资金）作为当前局面最优抓牌`
+                  : `指出${card.title}不符合「${round.targetCovenant}」并痛扁发牌员`
                 : `${card.title}：${card.revealTags.map((t) => t.label).join('、')}`
             "
             @click="game.tapCard(index)">
@@ -590,11 +819,23 @@ function inspectCardDetail(
                 v-if="card.status !== 'unseen'"
                 class="nt-dealer-stamp"
                 :class="card.status">
-                {{ statusLabels[card.status] }}
+                {{ cardStatusLabel(card) }}
               </b>
             </div>
 
             <strong class="nt-dealer-name">{{ card.title }}</strong>
+
+            <span
+              v-if="card.price !== undefined"
+              class="nt-dealer-price"
+              :class="{
+                short:
+                  isRevealed(card) &&
+                  round.scenarioContext &&
+                  card.price > round.scenarioContext.funds,
+              }">
+              💰 {{ card.price }} 资
+            </span>
 
             <span v-if="card.attachedEquip" class="nt-dealer-equip-chip">
               <img
@@ -607,7 +848,7 @@ function inspectCardDetail(
               <span>同构·{{ card.attachedEquip.name }}</span>
             </span>
 
-            <template v-if="isRevealed(card.status)">
+            <template v-if="isRevealed(card)">
               <div class="nt-dealer-covs">
                 <span
                   v-for="tag in card.revealTags"
@@ -621,7 +862,27 @@ function inspectCardDetail(
                   {{ tag.label }}
                 </span>
               </div>
+              <div
+                v-if="
+                  isBestPickMode &&
+                  (card.advisorLosses?.length || card.advisorReasons?.length)
+                "
+                class="nt-dealer-advisor-notes">
+                <p
+                  v-for="(loss, lIdx) in card.advisorLosses"
+                  :key="`l-${lIdx}`"
+                  class="nt-dealer-advisor-loss">
+                  ⚠ {{ loss }}
+                </p>
+                <p
+                  v-for="(reason, rIdx) in card.advisorReasons"
+                  :key="`r-${rIdx}`"
+                  class="nt-dealer-advisor-reason">
+                  · {{ reason }}
+                </p>
+              </div>
               <p
+                v-else
                 class="nt-dealer-trait"
                 :title="card.traitSegments.map((s) => s.text).join('')">
                 <span
@@ -633,17 +894,37 @@ function inspectCardDetail(
               </p>
             </template>
 
+            <template v-else-if="isBestPickMode && state.hintLevel === 'open'">
+              <div class="nt-dealer-covs">
+                <span
+                  v-for="cov in card.operator?.covenants ?? []"
+                  :key="cov"
+                  class="nt-dealer-cov"
+                  :style="{'--c': color(cov)}">
+                  <CovenantIcon :name="cov" />
+                  {{ cov }}
+                </span>
+              </div>
+              <span class="nt-dealer-clue">{{ card.triggerHint }}</span>
+              <span class="nt-dealer-hit-cta">🎯 选最优抓牌</span>
+            </template>
+
             <template
               v-else-if="state.hintLevel === 'clue' || round.hintRevealed">
               <span class="nt-dealer-clue">{{ card.triggerHint }}</span>
               <span class="nt-dealer-prompt">{{ card.secondaryClue }}</span>
+              <span v-if="isBestPickMode" class="nt-dealer-hit-cta">
+                🎯 选最优抓牌
+              </span>
             </template>
 
             <template v-else>
               <span v-if="!card.attachedEquip" class="nt-dealer-prompt">
                 {{ blindPromptText }}
               </span>
-              <span class="nt-dealer-hit-cta">👊 揪出串场</span>
+              <span class="nt-dealer-hit-cta">
+                {{ isBestPickMode ? '🎯 选最优抓牌' : '👊 揪出串场' }}
+              </span>
             </template>
           </button>
         </article>
@@ -652,7 +933,12 @@ function inspectCardDetail(
       <footer class="nc nt-dealer-footer">
         <span class="nt-dealer-footer-tip">
           <template v-if="isRoundCleared">
-            <template v-if="round.cards[0]?.detailKind">
+            <template v-if="isBestPickMode">
+              已展开全部 5 张局内顾问评估与推荐理由，点卡片顶部
+              <b>i</b>
+              可查干员详情。
+            </template>
+            <template v-else-if="round.cards[0]?.detailKind">
               已翻开本轮全部 5 张信息，点右下角继续（此时点卡片顶部
               <b>i</b>
               复盘不计提示）。
@@ -660,6 +946,10 @@ function inspectCardDetail(
             <template v-else>
               已翻开本轮全部 5 张情报，点右下角继续下一轮。
             </template>
+          </template>
+          <template v-else-if="isBestPickMode">
+            结合场上编制、听牌对子与手头资金，点选 1 张收益最高的抓牌（误判
+            {{ session.stats.mistakes }} 次 · 无倒计时）。
           </template>
           <template v-else>
             点选不符合当前目标的条目，痛扁乱排队的发牌员（误判
@@ -682,7 +972,9 @@ function inspectCardDetail(
             @click="game.nextRound">
             {{
               !isRoundCleared
-                ? `还剩 ${remainingImpostors} 处串场`
+                ? isBestPickMode
+                  ? '选出最优抓牌'
+                  : `还剩 ${remainingImpostors} 处串场`
                 : state.mode === 'daily' &&
                     round.roundNumber >= DAILY_ROUND_COUNT
                   ? '查看今日战报 🏆'

@@ -1,18 +1,27 @@
 import {computed, reactive} from 'vue';
 import {
+  activeMistakes,
   BOUNTY_THEMES,
   buildDailyRounds,
   buildDealerRound,
+  buildMistakeRound,
   createOrderSeed,
   createSeededRandom,
   DAILY_ROUND_COUNT,
   EQUIP_THEMES,
   evaluateDealerRank,
   formatDealerShareText,
+  isMistakeMastered,
+  loadMistakes,
   localDateKey,
+  masteredMistakeCount,
+  mistakeStatsByKind,
   RAGE_PER_HIT,
   reactionLine,
+  recordMistake,
+  recordRoundMastery,
   replayShuffleLine,
+  saveMistakes,
   SELECTABLE_COVENANTS,
   STRATEGY_THEMES,
   summarizeRound,
@@ -21,6 +30,8 @@ import {
   TRIGGER_THEMES,
   type BountyChallengeTheme,
   type CardStatus,
+  type DealerCard,
+  type DealerMistakeRecord,
   type DealerMode,
   type DealerRound,
   type DealerRoundKind,
@@ -110,6 +121,7 @@ const FOCUS_KIND_MAP: Readonly<Record<string, DealerRoundKind>> = {
   'kind:equipment': 'equipment',
   'kind:strategy': 'strategy',
   'kind:bounty': 'bounty',
+  'kind:scenario': 'scenario',
 };
 
 const FREE_ROUND_CYCLE: readonly DealerRoundKind[] = [
@@ -126,10 +138,20 @@ function createFreeRound(
   roundNumber: number,
   focus: string,
   prevRound?: DealerRound,
+  mistakes: readonly DealerMistakeRecord[] = [],
 ): DealerRound {
   const rng = createSeededRandom(
     `wsq.dealer.free:${Date.now()}:${roundNumber}:${Math.random()}`,
   );
+
+  if (focus === 'mistakes') {
+    const review = buildMistakeRound(mistakes, {
+      roundNumber,
+      rng,
+      avoidKey: prevRound?.mistakeTargetKey,
+    });
+    if (review) return review;
+  }
 
   let kind: DealerRoundKind;
   let targetCovenant = '';
@@ -141,7 +163,7 @@ function createFreeRound(
 
   if (focus in FOCUS_KIND_MAP) {
     kind = FOCUS_KIND_MAP[focus];
-  } else if (focus) {
+  } else if (focus && focus !== 'mistakes') {
     kind =
       TRANSMUTE_COVENANTS.includes(focus) && roundNumber % 2 === 0
         ? 'transmute'
@@ -149,6 +171,15 @@ function createFreeRound(
     targetCovenant = focus;
   } else {
     kind = FREE_ROUND_CYCLE[(roundNumber - 1) % FREE_ROUND_CYCLE.length];
+  }
+
+  if (kind === 'scenario') {
+    return buildDealerRound({
+      roundNumber,
+      kind: 'scenario',
+      avoidArchetype: prevRound?.scenarioContext?.archetype,
+      rng,
+    });
   }
 
   if (kind === 'equipment') {
@@ -212,8 +243,11 @@ function createDailySession(
   };
 }
 
-function createFreeSession(focusCovenant: string): ModeSession {
-  const first = createFreeRound(1, focusCovenant);
+function createFreeSession(
+  focusCovenant: string,
+  mistakes: readonly DealerMistakeRecord[] = [],
+): ModeSession {
+  const first = createFreeRound(1, focusCovenant, undefined, mistakes);
   return {
     orderSeed: '',
     roundIndex: 0,
@@ -367,15 +401,23 @@ function saveDailySession(dateKey: string, session: ModeSession): void {
 }
 
 const initialDate = localDateKey();
+const initialMistakes = loadMistakes();
 const state = reactive({
   dateKey: initialDate,
   mode: 'daily' as DealerMode,
   hintLevel: 'blind' as HintLevel,
   focusCovenant: '',
   announcement: '',
+  mistakes: initialMistakes,
   daily: loadDailySession(initialDate),
-  free: createFreeSession(''),
+  free: createFreeSession('', initialMistakes),
 });
+
+function isTargetCard(round: DealerRound, card: DealerCard): boolean {
+  return round.selectionMode === 'best_pick'
+    ? Boolean(card.isBestPick)
+    : card.isImpostor;
+}
 
 /** 返回是否更换每日题，事件处理器据此拒绝来自旧牌面的点击。 */
 function ensureCurrentDate(): boolean {
@@ -394,7 +436,7 @@ function activeSession(): ModeSession {
 
 function roundCleared(round: DealerRound): boolean {
   return round.cards
-    .filter((card) => card.isImpostor)
+    .filter((card) => isTargetCard(round, card))
     .every((card) => card.status !== 'unseen');
 }
 
@@ -435,12 +477,20 @@ function completeCurrentRound(
   session: ModeSession,
   round: DealerRound,
   usedUltimate: boolean,
+  targetName?: string,
 ): void {
   let keptCount = 0;
   for (const card of round.cards) {
     if (card.status === 'unseen') {
       card.status = 'kept';
-      if (!card.isImpostor) keptCount++;
+      if (!isTargetCard(round, card)) keptCount++;
+    }
+  }
+  if (round.kind !== 'scenario' && state.mistakes.length) {
+    const updated = recordRoundMastery(state.mistakes, round);
+    if (updated !== state.mistakes) {
+      state.mistakes = updated;
+      saveMistakes(state.mistakes);
     }
   }
   const summary = summarizeRound(round);
@@ -459,6 +509,8 @@ function completeCurrentRound(
     round.targetCovenant,
     session.combo,
     session.eventCount,
+    targetName ? {name: targetName} : undefined,
+    round.selectionMode,
   );
   if (state.mode === 'daily') {
     if (session.roundIndex >= DAILY_ROUND_COUNT - 1) {
@@ -480,11 +532,16 @@ export function useDealerGame() {
   const remainingImpostors = computed(
     () =>
       round.value.cards.filter(
-        (card) => card.isImpostor && card.status === 'unseen',
+        (card) => isTargetCard(round.value, card) && card.status === 'unseen',
       ).length,
   );
   const canCastUltimate = computed(
     () => session.value.rage >= 100 && remainingImpostors.value > 0,
+  );
+  const activeMistakeList = computed(() => activeMistakes(state.mistakes));
+  const masteredMistakes = computed(() => masteredMistakeCount(state.mistakes));
+  const mistakeSummaryByKind = computed(() =>
+    mistakeStatsByKind(state.mistakes),
   );
   const rank = computed(() => evaluateDealerRank(session.value.stats));
   const usedAssistOnly = computed(() => {
@@ -528,7 +585,8 @@ export function useDealerGame() {
 
     recordRoundInteraction(s, current);
     s.eventCount++;
-    if (card.isImpostor) {
+    const isBestPickMode = current.selectionMode === 'best_pick';
+    if (isTargetCard(current, card)) {
       card.status = 'punched';
       s.combo++;
       s.rage = Math.min(100, s.rage + RAGE_PER_HIT);
@@ -538,8 +596,10 @@ export function useDealerGame() {
         maxCombo: Math.max(s.stats.maxCombo, s.combo),
       };
       if (roundCleared(current)) {
-        completeCurrentRound(s, current, false);
-        state.announcement = `识破串场条目「${card.title}」，本轮【${current.targetCovenant}】已理清`;
+        completeCurrentRound(s, current, false, card.title);
+        state.announcement = isBestPickMode
+          ? `命中本轮最优抓牌「${card.title}」，已展开全员评估`
+          : `识破串场条目「${card.title}」，本轮【${current.targetCovenant}】已理清`;
       } else {
         s.lastEvent = 'hit';
         s.dealerLine = reactionLine(
@@ -548,6 +608,7 @@ export function useDealerGame() {
           s.combo,
           s.eventCount,
           {name: card.title},
+          current.selectionMode,
         );
         state.announcement = `识破串场条目「${card.title}」，痛扁发牌员一拳`;
         if (state.mode === 'daily') saveDailySession(state.dateKey, s);
@@ -561,6 +622,10 @@ export function useDealerGame() {
       ...s.stats,
       mistakes: s.stats.mistakes + 1,
     };
+    if (current.kind !== 'scenario') {
+      state.mistakes = recordMistake(state.mistakes, current, card);
+      saveMistakes(state.mistakes);
+    }
     s.lastEvent = 'miss';
     s.dealerLine = reactionLine(
       'miss',
@@ -568,8 +633,11 @@ export function useDealerGame() {
       0,
       s.eventCount,
       {name: card.title},
+      current.selectionMode,
     );
-    state.announcement = `「${card.title}」符合【${current.targetCovenant}】要求，误判提示`;
+    state.announcement = isBestPickMode
+      ? `「${card.title}」并非最优抓牌（当前排名 #${card.advisorRank ?? '?'}），可查看评估后重选`
+      : `「${card.title}」符合【${current.targetCovenant}】要求，已记入错题本`;
     if (state.mode === 'daily') saveDailySession(state.dateKey, s);
   }
 
@@ -581,10 +649,12 @@ export function useDealerGame() {
 
     recordRoundInteraction(s, current);
     let clearedCount = 0;
+    let calibratedTitle: string | undefined;
     for (const card of current.cards) {
-      if (card.isImpostor && card.status === 'unseen') {
+      if (isTargetCard(current, card) && card.status === 'unseen') {
         card.status = 'calibrated';
         clearedCount++;
+        calibratedTitle = card.title;
       }
     }
     if (!clearedCount) return;
@@ -596,8 +666,11 @@ export function useDealerGame() {
       calibrated: s.stats.calibrated + clearedCount,
       maxCombo: Math.max(s.stats.maxCombo, s.combo),
     };
-    completeCurrentRound(s, current, true);
-    state.announcement = `物理校准发动，痛扁发牌员并理清 ${clearedCount} 项串场`;
+    completeCurrentRound(s, current, true, calibratedTitle);
+    state.announcement =
+      current.selectionMode === 'best_pick'
+        ? `决策校准发动，已标出本轮最优抓牌「${calibratedTitle ?? ''}」`
+        : `物理校准发动，痛扁发牌员并理清 ${clearedCount} 项串场`;
   }
 
   /** 在盲猜模式中主动点开本轮卡面线索提示（仅对当前轮生效，同时计入提示统计）。 */
@@ -651,6 +724,7 @@ export function useDealerGame() {
       prevRound.roundNumber + 1,
       state.focusCovenant,
       prevRound,
+      state.mistakes,
     );
     s.rounds = [next];
     s.roundIndex = 0;
@@ -680,6 +754,7 @@ export function useDealerGame() {
       round.value.roundNumber + 1,
       focus,
       round.value,
+      state.mistakes,
     );
     s.rounds = [fresh];
     s.roundIndex = 0;
@@ -687,6 +762,37 @@ export function useDealerGame() {
     recordVisibleAssistance();
     s.lastEvent = 'deal';
     s.dealerLine = fresh.introLine;
+  }
+
+  function startMistakeDrill(): void {
+    if (!activeMistakeList.value.length) return;
+    state.mode = 'free';
+    state.free.showReport = false;
+    setFocusCovenant('mistakes');
+    state.announcement = `已开启错题专攻（待复习 ${activeMistakeList.value.length} 项）`;
+  }
+
+  function removeMistake(key: string): void {
+    state.mistakes = state.mistakes.filter((item) => item.key !== key);
+    saveMistakes(state.mistakes);
+    if (state.focusCovenant === 'mistakes' && !activeMistakeList.value.length) {
+      state.focusCovenant = '';
+    }
+  }
+
+  function clearMasteredMistakes(): void {
+    state.mistakes = state.mistakes.filter((item) => !isMistakeMastered(item));
+    saveMistakes(state.mistakes);
+    state.announcement = '已清理已掌握的错题记录';
+  }
+
+  function clearAllMistakes(): void {
+    state.mistakes = [];
+    saveMistakes(state.mistakes);
+    if (state.focusCovenant === 'mistakes') {
+      state.focusCovenant = '';
+    }
+    state.announcement = '已清空本地错题本';
   }
 
   function setHintLevel(level: HintLevel): void {
@@ -718,7 +824,7 @@ export function useDealerGame() {
   }
 
   function resetFree(): void {
-    state.free = createFreeSession(state.focusCovenant);
+    state.free = createFreeSession(state.focusCovenant, state.mistakes);
     recordVisibleAssistance();
     state.announcement = '已重置自由拷打战绩';
   }
@@ -743,6 +849,9 @@ export function useDealerGame() {
     isRoundCleared,
     remainingImpostors,
     canCastUltimate,
+    activeMistakeList,
+    masteredMistakes,
+    mistakeSummaryByKind,
     rank,
     usedAssistOnly,
     dealerMood,
@@ -753,6 +862,10 @@ export function useDealerGame() {
     nextRound,
     setMode,
     setFocusCovenant,
+    startMistakeDrill,
+    removeMistake,
+    clearMasteredMistakes,
+    clearAllMistakes,
     setHintLevel,
     openReport,
     closeReport,

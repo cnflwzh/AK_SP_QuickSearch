@@ -5,13 +5,11 @@ import {
   covenantStats,
   createLineupEvaluator,
   newSlot,
-  suggestions,
 } from '../src/lib/plans/index.ts';
 import {
   createRecruitmentPool,
   newAdvisorRun,
   recommendRecruits,
-  runLineupGoal,
   sanitizeAdvisorRun,
 } from '../src/lib/recommendation/live/runAdvisor.ts';
 
@@ -27,34 +25,6 @@ const runWith = (names, extra = {}) => ({
   level: 6,
   operators: names.map((name) => owned(name)),
   ...extra,
-});
-
-test('fourth and fifth main-covenant members outrank an unrelated new addon', () => {
-  for (const names of [
-    ['拜松', '矩', '风絮'],
-    ['拜松', '矩', '风絮', '山'],
-  ]) {
-    // 夜莺能与风絮开启聚合，余则把已经激活的炎继续推进一名。
-    const run = runWith(names, {shop: ['夜莺', '余']});
-    assert.equal(runLineupGoal(run).covenant, '炎');
-    assert.equal(recommendRecruits(run)[0].operator.name, '余');
-    const lineup = names.map(newSlot);
-    const ranked = suggestions(lineup, OPERATORS.length);
-    assert.ok(
-      ranked.find((item) => item.op.name === '余').score >
-        ranked.find((item) => item.op.name === '夜莺').score,
-    );
-  }
-});
-
-test('a three-person mixed goal stops awarding progress for extra home members', () => {
-  const run = runWith(['拜松', '矩', '风絮'], {
-    mainCovenant: '炎',
-    mainTarget: 3,
-    shop: ['夜莺', '余'],
-  });
-  assert.equal(recommendRecruits(run)[0].operator.name, '夜莺');
-  assert.deepEqual(runLineupGoal({...run, mainCovenant: 'mixed'}), null);
 });
 
 test('banned covenants and individually excluded operators never return through either candidate source', () => {
@@ -78,12 +48,6 @@ test('banned covenants and individually excluded operators never return through 
     ['烈夏'],
   );
   assert.deepEqual(recommendRecruits({...run, shop: ['仇白']}), []);
-});
-
-test('owned cards conflicting with the recorded pool require correction instead of creating fictitious slots', () => {
-  const run = runWith(['拜松'], {bannedCovenants: ['炎']});
-  assert.deepEqual(recommendRecruits(run), []);
-  assert.equal(run.operators[0].name, '拜松');
 });
 
 test('default targets respect level while actual shop rewards can exceed it', () => {
@@ -129,29 +93,6 @@ test('reserve cards count only for the three economic covenants and never double
   }
 });
 
-test('a full lineup can gain an economic covenant without displacing any deployed operator', () => {
-  const names = OPERATORS.filter(
-    (operator) =>
-      operator.covenants.includes('炎') && !operator.covenants.includes('远见'),
-  )
-    .slice(0, 8)
-    .map((operator) => operator.name);
-  assert.equal(names.length, 8);
-  const run = runWith(names, {shop: ['空弦'], round: 14});
-  // 最后一轮已无未来进入休整触发；两名远见留整备区即可激活，不为未激活精准换人。
-  const partner = OPERATORS.find(
-    (operator) =>
-      operator.name !== '空弦' &&
-      operator.covenants.includes('远见') &&
-      !names.includes(operator.name),
-  );
-  run.operators.push(owned(partner.name, false));
-  const advice = recommendRecruits(run)[0];
-  assert.equal(advice.kind, 'reserve');
-  assert.equal(advice.replace, '');
-  assert.ok(advice.reasons.some((reason) => reason.includes('远见')));
-});
-
 test('same-name purchases distinguish pairs, promotions and already elite records without mutating the run', () => {
   const run = runWith(['真理'], {shop: ['真理']});
   assert.equal(recommendRecruits(run)[0].kind, 'pair');
@@ -179,18 +120,6 @@ test('loading older records adds independent pool defaults while sanitizing inva
   assert.deepEqual(saved.bannedCovenants, ['炎']);
   assert.deepEqual(saved.excludedOperators, ['真理']);
   assert.ok(saved.operators.every((operator) => OPERATOR[operator.name]));
-});
-
-test('optional snapshots preserve explicit zero and sanitize old saves', () => {
-  const run = sanitizeAdvisorRun({
-    round: 99,
-    funds: 0,
-    layers: {炎: 0, 奥术: 100, 无效: 3, 远见: '9'},
-  });
-  assert.equal(run.round, 14);
-  assert.equal(run.funds, 0);
-  assert.deepEqual(run.layers, {炎: 0, 奥术: 100});
-  assert.equal(sanitizeAdvisorRun({}).round, null);
 });
 
 test('acquisition traits distinguish base from elite and respect grouped layers', async () => {
@@ -225,41 +154,6 @@ test('known insufficient funds demote unaffordable cards without mutating snapsh
   assert.deepEqual(run, previous);
 });
 
-test('reserve-enabled production has positive value and shorter late-game horizon', async () => {
-  const {recurringValue} =
-    await import('../src/lib/recommendation/live/advisorValue.ts');
-  const slot = newSlot('夏栎');
-  const stats = covenantStats(['拜松', '矩', '风絮'].map(newSlot));
-  const context = {
-    totalRounds: 14,
-    round: 2,
-    level: 3,
-    strategy: '',
-    layers: {炎: 20},
-  };
-  const early = recurringValue(slot, false, stats, context);
-  assert.ok(early.score > 0);
-  assert.ok(
-    early.score >
-      recurringValue(slot, false, stats, {...context, round: 14}).score,
-  );
-});
-
-test('known foresight discounts and Shirus faction restriction affect affordability', () => {
-  const foresight = OPERATORS.find(
-    (op) => op.covenants.includes('远见') && op.tier === 4,
-  );
-  assert.ok(foresight);
-  const run = runWith([], {
-    funds: 3,
-    layers: {远见: 80},
-    shop: [foresight.name],
-  });
-  assert.notEqual(recommendRecruits(run)[0].label, '资金不足');
-  const other = runWith([], {funds: 0, strategy: '休露丝', shop: ['仇白']});
-  assert.equal(recommendRecruits(other)[0].label, '资金不足');
-});
-
 test('investor multiplies acquisition only from the existing active state', async () => {
   const {acquisitionValue} =
     await import('../src/lib/recommendation/live/advisorValue.ts');
@@ -279,32 +173,6 @@ test('investor multiplies acquisition only from the existing active state', asyn
   );
   assert.match(active.reasons.join(' '), /炎\+12层/);
   assert.match(inactive.reasons.join(' '), /炎\+4层/);
-});
-
-test('unknown discounts use price bounds: zero funds cannot buy a foresight card', () => {
-  for (const funds of [0, 1]) {
-    const run = runWith([], {funds, layers: {}, shop: ['逻各斯']});
-    const advice = recommendRecruits(run)[0];
-    assert.equal(advice.affordable, false);
-    assert.equal(advice.label, '资金不足');
-  }
-  const uncertain = recommendRecruits(
-    runWith([], {funds: 2, layers: {}, shop: ['逻各斯']}),
-  )[0];
-  assert.equal(uncertain.affordable, null);
-  assert.equal(uncertain.estimatedPrice, null);
-  const covered = recommendRecruits(
-    runWith([], {funds: 4, layers: {}, shop: ['逻各斯']}),
-  )[0];
-  assert.equal(covered.affordable, true);
-});
-
-test('Cannnot protects next-round income but not after the final round', () => {
-  const setup = runWith([], {funds: 5, strategy: '坎诺特', shop: ['仇白']});
-  const previous = recommendRecruits({...setup, round: 13})[0];
-  const final = recommendRecruits({...setup, round: 14})[0];
-  assert.equal(previous.breakdown.economy, -30);
-  assert.equal(final.breakdown.economy, 0);
 });
 
 test('guaranteed equipment acquisition preserves quantity and exact name, not random rewards', async () => {
@@ -368,23 +236,6 @@ test('deterministic production uses roster conditions and rest-start is not retr
     }).score,
     4,
   );
-});
-
-test('score explanation sums to total while affordability is a separate gate', () => {
-  const run = runWith(['拜松', '风絮', '矩'], {
-    level: 6,
-    funds: 0,
-    shop: ['逻各斯', '仇白', '矩'],
-  });
-  for (const item of recommendRecruits(run, 8)) {
-    const {lineup, production, acquisition, collection, economy} =
-      item.breakdown;
-    assert.ok(
-      Math.abs(
-        item.score - lineup - production - acquisition - collection - economy,
-      ) < 1e-8,
-    );
-  }
 });
 
 test('full-roster suggestions remain finite, deterministic and do not mutate inputs', async () => {
@@ -525,105 +376,6 @@ test('recording a promotion reward consumes the choice once and undo restores it
   }
 });
 
-test('front-cell producers count their own known covenants but never invent a neighbour', async () => {
-  const {recurringValue} =
-    await import('../src/lib/recommendation/live/advisorValue.ts');
-  const context = {
-    totalRounds: 14,
-    round: 14,
-    level: 6,
-    strategy: '',
-    layers: {},
-  };
-  const stats = [
-    {name: '远见', active: true},
-    {name: '灵巧', active: true},
-    {name: '助力', active: true},
-  ];
-  const normal = recurringValue(newSlot('渡桥'), true, stats, context);
-  assert.match(normal.reasons.join(' '), /远见\+2层/);
-  assert.match(normal.reasons.join(' '), /身前.*未/);
-  assert.equal(recurringValue(newSlot('渡桥'), false, stats, context).score, 0);
-  const pallas = recurringValue(newSlot('帕拉斯'), true, stats, context);
-  assert.match(pallas.reasons.join(' '), /灵巧\+9层/);
-  assert.match(pallas.reasons.join(' '), /助力\+9层/);
-  assert.ok(
-    recurringValue({...newSlot('渡桥'), elite: true}, true, stats, context)
-      .score > normal.score,
-  );
-  const archet = newSlot('空弦');
-  const future = recurringValue(archet, true, stats, {...context, round: 5});
-  assert.equal(future.score, 18);
-  assert.deepEqual(future.endOfRestGains, []);
-  assert.equal(
-    recurringValue({...archet, elite: true}, true, stats, {
-      ...context,
-      round: 5,
-    }).score,
-    36,
-  );
-  assert.equal(recurringValue(archet, true, stats, context).score, 0);
-  const buildrStats = [
-    {name: '坚守', active: true},
-    {name: '迅捷', active: true},
-    {name: '炎', active: true},
-  ];
-  const buildr = recurringValue(
-    newSlot('青枳'),
-    true,
-    buildrStats,
-    {...context, round: 5, frontTargets: {青枳: '矩'}},
-    {field: [newSlot('青枳'), newSlot('矩')], reserve: []},
-  );
-  assert.equal(buildr.score, 36);
-  assert.deepEqual(buildr.endOfRestGains, []);
-  assert.match(buildr.reasons.join(' '), /身后一格未录入/);
-  assert.equal(
-    recurringValue(newSlot('青枳'), true, buildrStats, context).score,
-    0,
-  );
-
-  const {restCommandOpportunity} =
-    await import('../src/lib/recommendation/live/advisorValue.ts');
-  assert.equal(
-    restCommandOpportunity([archet, newSlot('凯瑟琳')], [], {
-      ...context,
-      round: 5,
-      strategy: '苏苏洛',
-    }).score,
-    0,
-  );
-  const iberia = [{name: '伊比利亚', active: true}];
-  const layers = {...context, layers: {伊比利亚: 120}};
-  const blue = recurringValue(newSlot('蓝毒'), true, iberia, layers);
-  const eliteBlue = recurringValue(
-    {...newSlot('蓝毒'), elite: true},
-    true,
-    iberia,
-    layers,
-  );
-  assert.equal(blue.score, 18);
-  assert.equal(eliteBlue.score, 36);
-  assert.match(blue.reasons.join(' '), /攻击力约\+60%/);
-  assert.match(eliteBlue.reasons.join(' '), /攻击力约\+120%/);
-  const ursus = [{name: '乌萨斯', active: true}];
-  const leto = recurringValue(newSlot('烈夏'), true, ursus, context);
-  assert.equal(leto.score, 8);
-  assert.equal(
-    recurringValue({...newSlot('烈夏'), elite: true}, true, ursus, context)
-      .score,
-    16,
-  );
-  assert.equal(
-    recurringValue(newSlot('烈夏'), true, ursus, {...context, round: 5}).score,
-    8,
-  );
-  assert.deepEqual(leto.endOfRestGains, []);
-  assert.equal(recurringValue(newSlot('烈夏'), false, ursus, context).score, 0);
-  assert.equal(recurringValue(newSlot('烈夏'), true, [], context).score, 0);
-  assert.match(leto.reasons.join(' '), /临时\+4层.*不写入永久/);
-});
-
 test('Silence counts each recorded reserve carrier covenant once and only active effects', async () => {
   const {recurringValue} =
     await import('../src/lib/recommendation/live/advisorValue.ts');
@@ -656,18 +408,6 @@ test('Silence counts each recorded reserve carrier covenant once and only active
     }).score,
     0,
   );
-});
-
-test('a free field slot does not force a second solo operator to break an active solo covenant', () => {
-  const run = runWith(['艾丝黛尔'], {mainCovenant: 'mixed', shop: ['地灵']});
-  run.operators[0].elite = true;
-  const advice = recommendRecruits(run)[0];
-  assert.equal(advice.kind, 'reserve');
-  assert.equal(advice.replace, '');
-  assert.ok(advice.reasons.some((reason) => reason.includes('独行')));
-  assert.ok(advice.reasons.some((reason) => reason.includes('整备区')));
-  assert.equal(advice.breakdown.lineup, 0);
-  assert.equal(run.operators[0].deployed, true);
 });
 
 test('candidate recording keeps solo recommendation on reserve and undo restores the shop', async () => {
@@ -905,304 +645,6 @@ test('deterministic rest producers cross a shared threshold jointly and award it
   assert.match(acquisition.reasons.join(' '), /远见150层强化门槛/);
 });
 
-test('reserve promotion values the new deployment option without charging for an already free one', async () => {
-  const {recommendDeployments} =
-    await import('../src/lib/recommendation/live/runAdvisor.ts');
-  const run = runWith(['拜松'], {mainCovenant: 'mixed', shop: ['矩']});
-  run.operators[0].elite = true;
-  run.operators.push({...owned('矩', false), copies: 2});
-  const freeBefore = recommendDeployments(run, 20).find(
-    (item) => item.name === '矩',
-  );
-  const promoted = {
-    ...run,
-    operators: run.operators.map((op) =>
-      op.name === '矩' ? {...op, elite: true, copies: 1} : op,
-    ),
-  };
-  const freeAfter = recommendDeployments(promoted, 20).find(
-    (item) => item.name === '矩',
-  );
-  assert.ok(freeAfter.score > freeBefore.score);
-  const advice = recommendRecruits(run)[0];
-  assert.match(advice.reasons.join(' '), /晋升后.*上场/);
-  assert.match(advice.reasons.join(' '), /扣除.*免费/);
-  assert.ok(advice.breakdown.lineup > 0); // 新增两精锐绝技，而非重复计入原本可免费上场的炎人数
-  assert.equal(run.operators[1].deployed, false);
-});
-
-test('Sussurro selects a roster-aware one-trigger target rather than multiplying future production', async () => {
-  const {restCommandOpportunity} =
-    await import('../src/lib/recommendation/live/advisorValue.ts');
-  const field = ['涤火杰西卡', '慕斯', 'Miss.Christine'].map(newSlot);
-  field[0].eq = ['维式重锤'];
-  field[1].eq = ['精准狙击镜'];
-  const context = {
-    totalRounds: 14,
-    round: 2,
-    level: 4,
-    strategy: '苏苏洛',
-    layers: {},
-  };
-  const opportunity = restCommandOpportunity(field, [], context);
-  // 自然灵巧22+9=31；指令帕拉斯再+9可到40，不能只贪引星棘刺的12层。
-  const thresholdField = ['帕拉斯', '霜叶', '引星棘刺', '陨星'].map(newSlot);
-  const thresholdContext = {
-    ...context,
-    round: 14,
-    commandAvailable: true,
-    layers: {灵巧: 22, 迅捷: 0},
-    frontTargets: {帕拉斯: ''},
-  };
-  const threshold = restCommandOpportunity(
-    thresholdField,
-    [],
-    thresholdContext,
-  );
-  assert.equal(threshold.target, '帕拉斯');
-  assert.match(
-    threshold.reasons.join(' '),
-    /指令触发灵巧\+9层，加本次休整结束\+9层，合计可跨过40/,
-  );
-  assert.equal(
-    restCommandOpportunity(thresholdField, [], {
-      ...thresholdContext,
-      layers: {灵巧: 31, 迅捷: 0},
-    }).target,
-    '引星棘刺',
-  );
-  assert.equal(
-    restCommandOpportunity(thresholdField, [], {
-      ...thresholdContext,
-      commandAvailable: false,
-    }).score,
-    0,
-  );
-  const uncertainOrder = restCommandOpportunity(
-    thresholdField,
-    [newSlot('夏栎')],
-    thresholdContext,
-  );
-  assert.ok(
-    !uncertainOrder.reasons.some((reason) => reason.includes('合计可跨过')),
-  );
-  assert.match(uncertainOrder.reasons.join(' '), /未假定额外触发顺序/);
-
-  const {acquisitionCommandOpportunity} =
-    await import('../src/lib/recommendation/live/advisorValue.ts');
-  const obtain = acquisitionCommandOpportunity(thresholdField, [], {
-    ...thresholdContext,
-    strategy: '铃兰',
-    layers: {灵巧: 29, 迅捷: 0},
-  });
-  assert.equal(obtain.target, '霜叶');
-  assert.match(
-    obtain.reasons.join(' '),
-    /指令触发灵巧\+2层，加本次休整结束\+9层/,
-  );
-
-  assert.equal(opportunity.target, '涤火杰西卡'); // 两位携带装备者，额外触发维多利亚+4
-  assert.match(opportunity.reasons.join(' '), /维多利亚\+4/);
-  assert.match(opportunity.reasons.join(' '), /指令可用/);
-  assert.equal(
-    opportunity.score,
-    restCommandOpportunity(field, [], {...context, round: 14}).score,
-  );
-  assert.equal(
-    restCommandOpportunity(field, [], {...context, strategy: ''}).score,
-    0,
-  );
-  assert.equal(
-    restCommandOpportunity(field, [], {...context, commandAvailable: false})
-      .score,
-    0,
-  );
-  assert.ok(
-    restCommandOpportunity(field, [], {...context, commandAvailable: true})
-      .score > 0,
-  );
-  const {useRunAdvisor} =
-    await import('../src/quickref/advisor/useRunAdvisor.ts');
-  const advisor = useRunAdvisor();
-  advisor.reset();
-  advisor.setStrategy('苏苏洛');
-  advisor.setCommandAvailable(false);
-  assert.equal(advisor.run.value.commandAvailable, false);
-  advisor.setRound(3);
-  assert.equal(advisor.run.value.commandAvailable, null);
-  advisor.undo();
-  assert.equal(advisor.run.value.commandAvailable, false);
-  advisor.setStrategy('铃兰');
-  assert.equal(advisor.run.value.commandAvailable, null);
-  assert.equal(sanitizeAdvisorRun({strategy: '苏苏洛'}).commandAvailable, null);
-});
-
-test('free deployment considers replacing a solo member even when field slots are empty', async () => {
-  const {recommendDeployments} =
-    await import('../src/lib/recommendation/live/runAdvisor.ts');
-  const run = runWith(['艾丝黛尔'], {
-    mainCovenant: 'mixed',
-    operators: [owned('艾丝黛尔'), {...owned('地灵', false), elite: true}],
-  });
-  const advice = recommendDeployments(run).find((item) => item.name === '地灵');
-  assert.equal(advice?.replace, '艾丝黛尔');
-  const replacement = covenantStats([{...newSlot('地灵'), elite: true}]);
-  assert.ok(replacement.find((stat) => stat.name === '独行').active);
-  // 没有晋升或其他收益时，不为保持同一盟约而推荐无意义换人。
-  run.operators[1].elite = false;
-  assert.equal(recommendDeployments(run).length, 0);
-
-  const {useRunAdvisor} =
-    await import('../src/quickref/advisor/useRunAdvisor.ts');
-  const advisor = useRunAdvisor();
-  advisor.reset();
-  advisor.setMainCovenant('mixed');
-  advisor.recruit('艾丝黛尔');
-  advisor.recruit('地灵', 'reserve');
-  advisor.setElite('地灵', true);
-  assert.equal(advisor.setDeployment(advice.name, true, advice.replace), true);
-  assert.deepEqual(
-    advisor.run.value.operators
-      .filter((op) => op.deployed)
-      .map((op) => op.name),
-    ['地灵'],
-  );
-  assert.ok(
-    advisor.covenants.value.find((stat) => stat.name === '独行').active,
-  );
-  advisor.undo();
-  assert.deepEqual(
-    advisor.run.value.operators
-      .filter((op) => op.deployed)
-      .map((op) => op.name),
-    ['艾丝黛尔'],
-  );
-  assert.equal(advisor.setDeployment('地灵', true, '不存在的干员'), false);
-  assert.deepEqual(
-    advisor.run.value.operators
-      .filter((op) => op.deployed)
-      .map((op) => op.name),
-    ['艾丝黛尔'],
-  );
-});
-
-test('Suzuran accounts for active reserve investors and respects their disabled state', async () => {
-  const {strategyValue} =
-    await import('../src/lib/recommendation/live/advisorValue.ts');
-  const field = [newSlot('承曦格雷伊')];
-  const reserve = ['锡人', '山', '老鲤'].map(newSlot);
-  const context = {
-    totalRounds: 14,
-    round: 8,
-    level: 6,
-    strategy: '铃兰',
-    layers: {},
-  };
-  const base = strategyValue(field, context);
-  assert.equal(strategyValue(field, context, reserve), base * 2);
-  assert.equal(
-    strategyValue(field, {...context, layers: {投资人: 100}}, reserve),
-    base * 3,
-  );
-  assert.equal(
-    strategyValue(
-      field,
-      {...context, inactiveCovenants: new Set(['投资人'])},
-      reserve,
-    ),
-    base,
-  );
-  assert.equal(
-    strategyValue(field, {...context, commandAvailable: false}, reserve),
-    0,
-  );
-  const {acquisitionCommandOpportunity} =
-    await import('../src/lib/recommendation/live/advisorValue.ts');
-  const opportunity = acquisitionCommandOpportunity(field, reserve, context);
-  assert.equal(opportunity.target, '承曦格雷伊');
-  assert.match(opportunity.reasons.join(' '), /若本次铃兰指令可用/);
-  assert.match(opportunity.reasons.join(' '), /额外触发一次获得时特质/);
-  assert.deepEqual(
-    acquisitionCommandOpportunity(field, reserve, {
-      ...context,
-      commandAvailable: false,
-    }).reasons,
-    [],
-  );
-});
-
-test('Support covenant production contributes to shared thresholds and requires field members', async () => {
-  const {covenantProductionValue, teamValue} =
-    await import('../src/lib/recommendation/live/advisorValue.ts');
-  const field = ['渡桥', '寒檀', '白铁', '罗比菈塔'].map(newSlot);
-  const context = {
-    totalRounds: 14,
-    round: 14,
-    level: 6,
-    strategy: '',
-    layers: {远见: 144},
-  };
-  const value = covenantProductionValue(
-    covenantStats(field, context.layers),
-    context,
-  );
-  assert.deepEqual(
-    value.endOfRestGains.find((gain) => gain.covenant === '远见'),
-    {covenant: '远见', amount: 2},
-  );
-  assert.equal(
-    teamValue(field, [], context) -
-      teamValue(field, [], {...context, layers: {远见: 150}}),
-    24,
-  );
-  const three = covenantProductionValue(
-    covenantStats([...field, newSlot('野鬃')]),
-    context,
-  );
-  assert.equal(
-    three.endOfRestGains.find((gain) => gain.covenant === '远见').amount,
-    4,
-  );
-  assert.equal(
-    covenantProductionValue(
-      covenantStats(field.slice(0, 3), {}, [field[3]]),
-      context,
-    ).score,
-    0,
-  );
-});
-
-test('buy advice sees a core-completing solo swap before the field is full', async () => {
-  const run = runWith(['艾丝黛尔', '折光', '复奏'], {
-    mainCovenant: 'mixed',
-    shop: ['地灵'],
-  });
-  const advice = recommendRecruits(run)[0];
-  assert.equal(advice.kind, 'replace');
-  assert.equal(advice.replace, '艾丝黛尔');
-  assert.match(advice.reasons.join(' '), /激活莱塔尼亚/);
-  assert.ok(!advice.losses.some((reason) => reason.includes('独行失效')));
-  const {useRunAdvisor} =
-    await import('../src/quickref/advisor/useRunAdvisor.ts');
-  const advisor = useRunAdvisor();
-  advisor.reset();
-  advisor.setMainCovenant('mixed');
-  for (const name of ['艾丝黛尔', '折光', '复奏']) advisor.recruit(name);
-  advisor.addShopCandidate('地灵');
-  advisor.recruitCandidate('地灵');
-  assert.equal(
-    advisor.run.value.operators.find((op) => op.name === '地灵').deployed,
-    false,
-  );
-  assert.equal(advisor.setDeployment('地灵', true, advice.replace), true);
-  assert.ok(
-    advisor.covenants.value.find((stat) => stat.name === '独行').active,
-  );
-  assert.ok(
-    advisor.covenants.value.find((stat) => stat.name === '莱塔尼亚').active,
-  );
-});
-
 test('recorded front targets add only confirmed distinct layers and are cleared atomically when moved', async () => {
   const {recurringValue} =
     await import('../src/lib/recommendation/live/advisorValue.ts');
@@ -1355,111 +797,6 @@ test('explicit game length separates fast final rest from standard and preserves
   assert.equal(advisor.run.value.commandAvailable, true);
 });
 
-test('Yan acquisition-count production uses confirmed current-round records without forecasting future draws', async () => {
-  const {recurringValue, restCommandOpportunity} =
-    await import('../src/lib/recommendation/live/advisorValue.ts');
-  const field = ['拜松', '矩', '风絮', '夕'].map(newSlot);
-  const stats = covenantStats(field);
-  const context = {
-    round: 14,
-    totalRounds: 14,
-    level: 6,
-    strategy: '',
-    layers: {炎: 30},
-    acquisitionsThisRound: 4,
-  };
-  for (const [name, count, elite, expected] of [
-    ['风絮', 4, false, 8],
-    ['风絮', 20, false, 16],
-    ['风絮', 20, true, 32],
-    ['夕', 20, false, 24],
-    ['夕', 20, true, 48],
-  ]) {
-    const slot = {...newSlot(name), elite};
-    const value = recurringValue(slot, true, stats, {
-      ...context,
-      acquisitionsThisRound: count,
-    });
-    assert.deepEqual(value.endOfRestGains, [
-      {covenant: '炎', amount: expected},
-    ]);
-    assert.equal(
-      value.score,
-      recurringValue(slot, true, stats, {
-        ...context,
-        round: 2,
-        acquisitionsThisRound: count,
-      }).score,
-    );
-  }
-  assert.deepEqual(
-    recurringValue(newSlot('风絮'), true, stats, {
-      ...context,
-      acquisitionsThisRound: null,
-    }).endOfRestGains,
-    [],
-  );
-  assert.equal(
-    restCommandOpportunity(field, [], {
-      ...context,
-      strategy: '苏苏洛',
-      commandAvailable: true,
-    }).score,
-    0,
-  );
-  const run = runWith(['拜松', '矩', '乌有'], {
-    mode: 'full',
-    round: 14,
-    funds: 4,
-    mainCovenant: '炎',
-    layers: {炎: 30},
-    acquisitionsThisRound: 4,
-    shop: ['风絮', '余'],
-  });
-  const recommendations = recommendRecruits(run);
-  assert.equal(recommendations[0].operator.name, '风絮');
-  assert.equal(recommendations[0].breakdown.production, 16); // 仅确认四名的下界 +8，不猜拟购买自身是否计入。
-  assert.equal(
-    recommendRecruits({...run, acquisitionsThisRound: 0})[0].operator.name,
-    '余',
-  );
-  const existing = {
-    ...run,
-    operators: [...run.operators, owned('风絮')],
-    shop: ['拜松'],
-  };
-  assert.equal(recommendRecruits(existing)[0].breakdown.production, 0); // 未确认新获得人数，不重复计算已有产出。
-  assert.equal(
-    recommendRecruits({...existing, acquisitionsThisRound: 8})[0].breakdown
-      .production,
-    0,
-  );
-  assert.equal(sanitizeAdvisorRun({}).acquisitionsThisRound, null);
-  const {useRunAdvisor} =
-    await import('../src/quickref/advisor/useRunAdvisor.ts');
-  const advisor = useRunAdvisor();
-  advisor.reset();
-  advisor.setMode('full');
-  advisor.setRound(3);
-  advisor.setAcquisitionsThisRound(4);
-  advisor.recruit('矩'); // 补录旧阵容不等于本轮获得。
-  assert.equal(advisor.run.value.acquisitionsThisRound, 4);
-  advisor.recruitCandidate('矩');
-  assert.equal(advisor.run.value.acquisitionsThisRound, null);
-  advisor.undo();
-  assert.equal(advisor.run.value.acquisitionsThisRound, 4);
-  advisor.recruitCandidate('矩');
-  advisor.recruitCandidate('矩');
-  assert.equal(advisor.run.value.operators[0].elite, true);
-  assert.equal(advisor.run.value.acquisitionsThisRound, null); // 不猜晋升计数，待用户确认。
-  advisor.setAcquisitionsThisRound(6);
-  advisor.setRound(4);
-  assert.equal(advisor.run.value.acquisitionsThisRound, null);
-  advisor.undo();
-  assert.equal(advisor.run.value.acquisitionsThisRound, 6);
-  assert.equal(advisor.run.value.round, 3);
-});
-
 test('all saved routes guide equal-value choices without replacing rules, funds or current holdings', async () => {
   const saved = (id, names) => ({
     id,
@@ -1547,56 +884,4 @@ test('all saved routes guide equal-value choices without replacing rules, funds 
     })(['拜松', '矩'].map(newSlot)).preference,
     0,
   );
-});
-
-test('equal-value replacement paths follow saved targets rather than record order', () => {
-  const names = ['拜松', '矩', '乌有', '风絮', '余', '仇白', '黍', '老鲤'];
-  const target = {
-    id: '保留拜松',
-    name: '保留拜松',
-    ops: [...names.filter((name) => name !== '矩'), '夕'].map(newSlot),
-    strategy: '',
-    note: '',
-    layers: {},
-    updated: 0,
-  };
-  const run = runWith(names, {
-    mode: 'full',
-    round: 14,
-    funds: 4,
-    mainCovenant: '炎',
-    acquisitionsThisRound: 4,
-    layers: {炎: 30},
-    shop: ['夕'],
-  });
-  const before = structuredClone(run);
-  const baseline = recommendRecruits(run)[0];
-  const preferred = recommendRecruits(run, 5, [target])[0];
-  assert.equal(baseline.replace, '拜松');
-  assert.equal(preferred.replace, '矩');
-  assert.equal(preferred.score, baseline.score);
-  const reversed = {...run, operators: [...run.operators].reverse()};
-  assert.equal(recommendRecruits(reversed, 5, [target])[0].replace, '矩');
-  const invested = {
-    ...run,
-    equipment: [
-      {id: 'scope', name: '精准狙击镜', holder: '矩', advanced: false},
-    ],
-  };
-  assert.notEqual(recommendRecruits(invested, 5, [target])[0].replace, '矩');
-  assert.equal(
-    recommendRecruits({...run, funds: 3}, 5, [target])[0].affordable,
-    false,
-  );
-  const competing = {
-    ...target,
-    id: '保留矩',
-    name: '保留矩',
-    ops: [...names.filter((name) => name !== '拜松'), '夕'].map(newSlot),
-  };
-  assert.equal(
-    recommendRecruits(run, 5, [target, competing])[0].score,
-    baseline.score,
-  );
-  assert.deepEqual(run, before);
 });

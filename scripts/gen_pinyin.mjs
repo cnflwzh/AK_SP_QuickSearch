@@ -17,6 +17,7 @@ import {
   ALL_COVENANTS,
   BUILD_NAMES,
   LEADERS,
+  COMBAT_ROLE_LABELS,
   PINYIN_OVERRIDES,
 } from '../data/index.ts';
 
@@ -28,6 +29,7 @@ const names = [
     ...STRATEGIES.map((s) => s.name),
     ...BUILD_NAMES,
     ...LEADERS.map((l) => l.name),
+    ...COMBAT_ROLE_LABELS,
   ]),
 ];
 

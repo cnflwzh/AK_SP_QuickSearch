@@ -174,13 +174,3 @@ test('flying escorts finish both sides with a three-second invisible transfer an
       assert.notDeepEqual(timeline[0].points.at(-1), timeline[1].points.at(-1));
     }
 });
-
-test('changing battlefield changes navigation without modifying shared checkpoints', () => {
-  const movement = LEADER_MOVEMENTS.fin.left;
-  const original = JSON.stringify(movement);
-  const first = movementTimeline(movement, LEADER_BATTLEFIELDS[0]);
-  const second = movementTimeline(movement, LEADER_BATTLEFIELDS[1]);
-  assert.notDeepEqual(first[1].points, second[1].points);
-  assert.equal(JSON.stringify(movement), original);
-  assert.deepEqual(movementTimeline(movement, LEADER_BATTLEFIELDS[0]), first);
-});

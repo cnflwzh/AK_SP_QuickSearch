@@ -5,6 +5,7 @@ import {
   OPERATORS,
   OPERATOR_TYPES,
   OPERATOR_TRIGGERS,
+  COMBAT_ROLE_LABELS,
   matchesOperatorTrigger,
   EQUIP,
   EQUIPMENT,
@@ -61,6 +62,8 @@ const operators = computed(() =>
       (!state.opTier || o.tier === state.opTier) &&
       (!state.opCovenant || o.covenants.includes(state.opCovenant)) &&
       (!state.opType || o.type === state.opType) &&
+      (!state.opRole ||
+        Boolean(o.roles?.includes(state.opRole as (typeof COMBAT_ROLE_LABELS)[number]))) &&
       matchesOperatorTrigger(o, state.opTrigger, state.opElite),
   ),
 );
@@ -72,13 +75,20 @@ const operatorFiltersActive = computed(
       state.opTier ||
       state.opCovenant ||
       state.opTrigger ||
-      state.opType
+      state.opType ||
+      state.opRole
     ),
 );
 function clearOperatorFilters(): void {
   onlyRunOps.value = false;
   hideBannedOps.value = false;
-  void updateQuery({tier: null, covenant: null, trigger: null, type: null});
+  void updateQuery({
+    tier: null,
+    covenant: null,
+    trigger: null,
+    type: null,
+    role: null,
+  });
 }
 
 /* ---------- 装备 ---------- */
@@ -236,6 +246,12 @@ const equipmentGroups = computed(() =>
       <select id="opType" v-model="state.opType" aria-label="特质类型">
         <option value="">全部特质类型</option>
         <option v-for="name in OPERATOR_TYPES" :key="name">{{ name }}</option>
+      </select>
+      <select id="opRole" v-model="state.opRole" aria-label="实战职能">
+        <option value="">全部实战职能</option>
+        <option v-for="role in COMBAT_ROLE_LABELS" :key="role">
+          {{ role }}
+        </option>
       </select>
       <Segmented
         :labels="['初始', '精锐']"

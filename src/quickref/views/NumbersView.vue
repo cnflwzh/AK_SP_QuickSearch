@@ -17,6 +17,8 @@ const panels = {
   layers: LayerTools,
   recruit: defineAsyncComponent(() => import('../numbers/RecruitTools.vue')),
   bounty: defineAsyncComponent(() => import('../numbers/BountyTools.vue')),
+  credit: defineAsyncComponent(() => import('../numbers/CreditTools.vue')),
+  box: defineAsyncComponent(() => import('../numbers/BoxTools.vue')),
   dealer: defineAsyncComponent(() => import('../numbers/DealerGame.vue')),
   excuse: defineAsyncComponent(() => import('../numbers/ExcuseTools.vue')),
 };
@@ -61,6 +63,7 @@ function selectTool(index: number): void {
   <RunBanner
     v-if="
       activeTool !== 'advisor' &&
+      activeTool !== 'box' &&
       activeTool !== 'dealer' &&
       activeTool !== 'excuse'
     " />
@@ -75,13 +78,14 @@ function selectTool(index: number): void {
     </nav>
     <!-- 仅工具切换产生过渡；临时输入和详情弹窗更新不重建面板。 -->
     <Transition name="number-panel" mode="out-in">
-      <KeepAlive :max="6">
+      <KeepAlive :max="9">
         <component :is="panels[activeTool]" :key="activeTool" />
       </KeepAlive>
     </Transition>
     <ExtraRules
       v-if="
         activeTool !== 'advisor' &&
+        activeTool !== 'box' &&
         activeTool !== 'dealer' &&
         activeTool !== 'excuse'
       " />

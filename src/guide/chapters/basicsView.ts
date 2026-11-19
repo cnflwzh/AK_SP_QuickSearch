@@ -1,6 +1,13 @@
 /** 第 1 章 入门：难度、规程等级、解锁关系、回合时间轴、认证收益 */
 import {
-  DIFFICULTIES, MODES, DECISION_ROUNDS, SOLO_LEVELS, ROUND_TIME, CREDIT,
+  DIFFICULTIES,
+  MODES,
+  DECISION_ROUNDS,
+  SOLO_LEVELS,
+  ROUND_TIME,
+  CREDIT,
+  LEADER_CREDIT_BONUS,
+  CREDIT_MILESTONES,
 } from '../../../data/index';
 import { html } from '../../lib/ui/dom';
 import { cv } from '../chips';
@@ -142,7 +149,7 @@ export function creditChart(i: number) {
 
     const m = multipliers[i];
     const W = 600, x0 = 38, bw = (W - x0 - 10) / 15, BASE_Y = 190;
-    const max = (CREDIT[CREDIT.length - 1] + 50) * 1.5;
+    const max = (CREDIT[CREDIT.length - 1] + LEADER_CREDIT_BONUS) * 1.5;
     const h = (v: number) => v / max * 170;
     let s = '';
 
@@ -160,8 +167,8 @@ export function creditChart(i: number) {
         + `<text class="axl" x="${cx}" y="206" text-anchor="middle">${k + 1}${k === 13 ? '+' : ''}</text>`;
     });
 
-    // 击败领袖：最终通过回合的基础认证 + 50 击败奖励
-    const bonus = Math.round(50 * m);
+    // 击败领袖：最终通过回合的基础认证 + 击败领袖奖励
+    const bonus = Math.round(LEADER_CREDIT_BONUS * m);
     const base = Math.round(CREDIT[CREDIT.length - 1] * m);
     const x = x0 + 14 * bw + 3;
     const h1 = base / max * 170, h2 = bonus / max * 170;
@@ -176,28 +183,27 @@ export function creditChart(i: number) {
   return out;
 }
 function seasonShopBar(out: Record<string, string>) {
-  const max = 8750, x0 = 20, W = 580;
+  const max =
+    CREDIT_MILESTONES[CREDIT_MILESTONES.length - 1]?.value ?? 8750;
+  const battleCap =
+    CREDIT_MILESTONES.find((m) => m.title.includes('上限'))?.value ??
+    Math.min(6250, max);
+  const x0 = 20, W = 580;
   const sx = (v: number) => x0 + v / max * (W - x0);
   let s = `<rect x="${x0}" y="64" width="${W - x0}" height="14" rx="7" fill="var(--surface2)" stroke="var(--line)"/>`
-    + `<rect x="${x0}" y="64" width="${sx(6250) - x0}" height="14" rx="7" fill="var(--teal)" style="transform-origin:${x0}px 0;animation:grow 1.2s both"/>`
-    + `<rect x="${sx(6250)}" y="64" width="${sx(8750) - sx(6250)}" height="14" rx="0" fill="var(--accent)" opacity=".85"/>`;
+    + `<rect x="${x0}" y="64" width="${sx(battleCap) - x0}" height="14" rx="7" fill="var(--teal)" style="transform-origin:${x0}px 0;animation:grow 1.2s both"/>`
+    + `<rect x="${sx(battleCap)}" y="64" width="${sx(max) - sx(battleCap)}" height="14" rx="0" fill="var(--accent)" opacity=".85"/>`;
 
-  const MARKS: [number, string, string][] = [
-    [3000, '终端主题', '乌萨斯齐心团'],
-    [6000, '家具', '卫戍之光投币玩偶'],
-    [6250, '作战上限', ''],
-    [8750, '+关键目标', ''],
-  ];
-  MARKS.forEach(([v, title, reward], i) => {
+  CREDIT_MILESTONES.forEach(({value: v, title, reward = ''}, i) => {
     const x = sx(v);
     const above = i < 2;
-    const anchor = v > 8000 ? 'end' : 'middle';
+    const anchor = v > max * 0.9 ? 'end' : 'middle';
     const tx = Math.min(x, W - 4);
     s += `<line x1="${x}" x2="${x}" y1="${i % 2 ? 56 : 86}" y2="${i % 2 ? 92 : 58}" stroke="var(--ink2)"/>`
       + `<text class="axl" x="${tx}" y="${above ? 40 : 116}" text-anchor="${anchor}" style="fill:var(--ink);font-size:13px">${v}</text>`
       + `<text class="axl" x="${tx}" y="${above ? 22 : 132}" text-anchor="${anchor}">${title}${reward ? ' · ' + reward : ''}</text>`;
   });
-  out.shopbar = `<desc id="season-shop-description">${MARKS.map(([value, title, reward]) => `${value} 认证：${title}${reward ? '，' + reward : ''}`).join('；')}</desc>` + s;
+  out.shopbar = `<desc id="season-shop-description">${CREDIT_MILESTONES.map(({value, title, reward}) => `${value} 认证：${title}${reward ? '，' + reward : ''}`).join('；')}</desc>` + s;
 }
 
 

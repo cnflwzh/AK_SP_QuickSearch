@@ -7,7 +7,7 @@ import {
   shallowRef,
   type ComponentPublicInstance,
 } from 'vue';
-import {NUMBER_TOOLS} from '../../../data/index.ts';
+import {NUMBER_TOOLS, SEASON_META, SEASONS} from '../../../data/index.ts';
 import LiveStatus from '../../lib/ui/LiveStatus.vue';
 import {downloadBlob} from '../../lib/ui/download.ts';
 import {
@@ -32,7 +32,18 @@ import {
   type SettingsBackup,
   type ThemePreference,
 } from '../../lib/settings/index.ts';
-import {PAGE_LABELS} from '../../router/location.ts';
+import {
+  BOX_OPERATORS,
+  applyBoxBatch,
+  boxSeasonActivatedCount,
+  boxSeasonBorrowedCount,
+  boxSeasonCount,
+  boxSeasonMaxedCount,
+  exportOperatorBox,
+  hasAnyBox,
+} from '../../lib/box/index.ts';
+import {PAGE_LABELS, PAGE_PATHS} from '../../router/location.ts';
+import {navigate} from '../../router/navigation.ts';
 import {plans, restorePlanBackup} from '../planStore.ts';
 import Segmented from '../components/Segmented.vue';
 import '../workbench.css';
@@ -58,6 +69,10 @@ const MODULE_TOGGLES = [
     title: '顶部标题与教程入口',
   },
   {
+    key: 'showTabCounts',
+    title: '栏目名称旁显示总数角标（如 干员 142）',
+  },
+  {
     key: 'showRunBanner',
     title: '跨页面「本局」提示横幅',
   },
@@ -68,6 +83,10 @@ const MODULE_TOGGLES = [
   {
     key: 'showRequestButtons',
     title: '联机求牌快捷短语按钮',
+  },
+  {
+    key: 'showBoxBadges',
+    title: '在流派与卡片上显示自持练度角标',
   },
   {
     key: 'showFooter',
@@ -443,7 +462,16 @@ function handleMoveTab(tabId: ContentTabId, delta: -1 | 1): void {
 /* ---------- 导入导出与重置 ---------- */
 const fileInput = ref<HTMLInputElement>();
 const includePlansInExport = ref(plans.length > 0);
+
+function openBoxTool(): void {
+  if (settings.hiddenTools.includes('box')) {
+    toggleToolHidden('box');
+  }
+  void navigate({path: PAGE_PATHS.nu, query: {tool: 'box'}});
+}
+const includeBoxInExport = ref(hasAnyBox.value);
 const importPlansFromBackup = ref(true);
+const importBoxFromBackup = ref(true);
 const showPasteBox = ref(false);
 const pasteText = ref('');
 const exportTextFallback = ref('');
@@ -492,6 +520,12 @@ const previewSummary = computed(() => {
   if (pendingBackup.value.plans?.length) {
     parts.push(`附带 ${pendingBackup.value.plans.length} 套流派`);
   }
+  const boxCount = pendingBackup.value.box
+    ? Object.keys(pendingBackup.value.box).length
+    : 0;
+  if (boxCount > 0) {
+    parts.push(`附带 ${boxCount} 名干员练度`);
+  }
   return parts.join(' · ');
 });
 
@@ -505,7 +539,10 @@ function exportSettingsFile(): void {
   clearNotices();
   try {
     const bundled = includePlansInExport.value ? plans : undefined;
-    const json = serializeSettingsBackup(settings, bundled);
+    const bundledBox = includeBoxInExport.value
+      ? exportOperatorBox()
+      : undefined;
+    const json = serializeSettingsBackup(settings, bundled, bundledBox);
     const now = new Date();
     const date = [
       now.getFullYear(),
@@ -516,8 +553,13 @@ function exportSettingsFile(): void {
       new Blob([json], {type: 'application/json;charset=utf-8'}),
       `卫戍速查-配置备份-${date}.json`,
     );
-    statusMessage.value = bundled?.length
-      ? `已导出配置与 ${bundled.length} 套流派文件。`
+    const extras: string[] = [];
+    if (bundled?.length) extras.push(`${bundled.length} 套流派`);
+    if (bundledBox && Object.keys(bundledBox).length) {
+      extras.push(`${Object.keys(bundledBox).length} 名干员练度`);
+    }
+    statusMessage.value = extras.length
+      ? `已导出配置文件（附带 ${extras.join('、')}）。`
       : '已导出配置文件。';
   } catch (cause) {
     errorMessage.value =
@@ -529,11 +571,19 @@ async function copySettingsText(): Promise<void> {
   clearNotices();
   try {
     const bundled = includePlansInExport.value ? plans : undefined;
-    const json = serializeSettingsBackup(settings, bundled);
+    const bundledBox = includeBoxInExport.value
+      ? exportOperatorBox()
+      : undefined;
+    const json = serializeSettingsBackup(settings, bundled, bundledBox);
     try {
       await navigator.clipboard.writeText(json);
-      statusMessage.value = bundled?.length
-        ? `已复制配置文本（含 ${bundled.length} 套流派），可在其他设备粘贴导入。`
+      const extras: string[] = [];
+      if (bundled?.length) extras.push(`${bundled.length} 套流派`);
+      if (bundledBox && Object.keys(bundledBox).length) {
+        extras.push(`${Object.keys(bundledBox).length} 名干员练度`);
+      }
+      statusMessage.value = extras.length
+        ? `已复制配置文本（含 ${extras.join('、')}），可在其他设备粘贴导入。`
         : '已复制配置文本，可在其他设备粘贴导入。';
     } catch {
       exportTextFallback.value = json;
@@ -550,6 +600,8 @@ function loadBackupText(text: string, sourceLabel: string): void {
   pendingBackup.value = parseSettingsBackup(text);
   pendingSourceName.value = sourceLabel;
   importPlansFromBackup.value = (pendingBackup.value.plans?.length ?? 0) > 0;
+  importBoxFromBackup.value =
+    Object.keys(pendingBackup.value.box ?? {}).length > 0;
 }
 
 async function onSelectFile(event: Event): Promise<void> {
@@ -609,6 +661,17 @@ function confirmImportBackup(): void {
       if (merged.conflicts)
         messages.push(`冲突保留副本 ${merged.conflicts} 套`);
     }
+    const incomingBox = pendingBackup.value.box;
+    if (
+      importBoxFromBackup.value &&
+      incomingBox &&
+      Object.keys(incomingBox).length
+    ) {
+      applyBoxBatch(incomingBox, 'merge');
+      messages.push(
+        `合并 ${Object.keys(incomingBox).length} 名干员练度`,
+      );
+    }
     // 流派落盘可能因空间或权限失败，先完成它，避免报错后界面设置已部分应用。
     applySettings(pendingBackup.value.settings);
     statusMessage.value = messages.join('，') + '。';
@@ -658,6 +721,7 @@ function handleResetAll(): void {
       <section class="panel settings-card" aria-labelledby="set-appearance">
         <header class="settings-card-head">
           <div>
+            <span class="settings-kicker">DISPLAY</span>
             <h2 id="set-appearance">外观与排版</h2>
           </div>
         </header>
@@ -704,6 +768,7 @@ function handleResetAll(): void {
             </span>
             <input
               type="checkbox"
+              class="settings-switch"
               :checked="settings.reducedMotion"
               @change="
                 updateSetting(
@@ -715,53 +780,19 @@ function handleResetAll(): void {
         </div>
       </section>
 
-      <section class="panel settings-card" aria-labelledby="set-modules">
+      <section class="panel settings-card" aria-labelledby="set-habits">
         <header class="settings-card-head">
           <div>
-            <h2 id="set-modules">页面展示模块</h2>
+            <span class="settings-kicker">PREFERENCES</span>
+            <h2 id="set-habits">速查与交互习惯</h2>
           </div>
         </header>
 
         <div class="settings-rows">
-          <label
-            v-for="item in MODULE_TOGGLES"
-            :key="item.key"
-            class="settings-toggle-row">
+          <label class="settings-row settings-select-line">
             <span class="settings-row-info">
-              <b>{{ item.title }}</b>
+              <b>打开网站默认进入</b>
             </span>
-            <input
-              type="checkbox"
-              :checked="settings[item.key]"
-              @change="
-                updateSetting(
-                  item.key,
-                  ($event.target as HTMLInputElement).checked,
-                )
-              " />
-          </label>
-        </div>
-      </section>
-
-      <section
-        class="panel settings-card settings-card-wide"
-        aria-labelledby="set-tabs">
-        <header class="settings-card-head">
-          <div>
-            <h2 id="set-tabs">顶部 Tab 排列与显隐</h2>
-          </div>
-          <button
-            type="button"
-            class="btn"
-            :disabled="isDefaultTabOrder"
-            @click="resetContentTabs">
-            恢复默认顺序
-          </button>
-        </header>
-
-        <div class="settings-tab-controls">
-          <label class="settings-select-row">
-            <span>打开网站默认进入</span>
             <select
               aria-label="打开网站默认进入"
               :value="settings.defaultTab"
@@ -782,19 +813,134 @@ function handleResetAll(): void {
             </select>
           </label>
 
-          <label class="settings-inline-check">
+          <label
+            v-for="item in HABIT_TOGGLES"
+            :key="item.key"
+            class="settings-toggle-row">
+            <span class="settings-row-info">
+              <b>{{ item.title }}</b>
+            </span>
             <input
               type="checkbox"
-              :checked="settings.showTabCounts"
+              class="settings-switch"
+              :checked="settings[item.key]"
               @change="
                 updateSetting(
-                  'showTabCounts',
+                  item.key,
                   ($event.target as HTMLInputElement).checked,
                 )
               " />
-            <span>在栏目名称旁显示总数角标（如 干员 142）</span>
           </label>
         </div>
+      </section>
+
+      <section class="panel settings-card" aria-labelledby="set-modules">
+        <header class="settings-card-head">
+          <div>
+            <span class="settings-kicker">MODULES</span>
+            <h2 id="set-modules">页面展示模块</h2>
+          </div>
+        </header>
+
+        <div class="settings-rows">
+          <label
+            v-for="item in MODULE_TOGGLES"
+            :key="item.key"
+            class="settings-toggle-row">
+            <span class="settings-row-info">
+              <b>{{ item.title }}</b>
+            </span>
+            <input
+              type="checkbox"
+              class="settings-switch"
+              :checked="settings[item.key]"
+              @change="
+                updateSetting(
+                  item.key,
+                  ($event.target as HTMLInputElement).checked,
+                )
+              " />
+          </label>
+        </div>
+      </section>
+
+      <section class="panel settings-card" aria-labelledby="set-tools">
+        <header class="settings-card-head">
+          <div>
+            <span class="settings-kicker">TOOLS</span>
+            <h2 id="set-tools">小工具栏目与练度</h2>
+          </div>
+          <span class="tag">已开 {{ visibleToolCount }}/{{ CUSTOMIZABLE_TOOL_IDS.length }}</span>
+        </header>
+
+        <div class="settings-rows">
+          <div class="settings-subblock top">
+            <div class="settings-row-info">
+              <b>「小工具」内展示的子栏目</b>
+              <small>点击切换显隐，至少保留 1 个</small>
+            </div>
+            <div
+              class="settings-tool-pills"
+              role="group"
+              aria-label="小工具子栏目">
+              <button
+                v-for="tool in customizableTools"
+                :key="tool.id"
+                type="button"
+                :class="[
+                  'settings-tool-pill',
+                  {on: !settings.hiddenTools.includes(tool.id)},
+                ]"
+                :aria-pressed="!settings.hiddenTools.includes(tool.id)"
+                :disabled="
+                  !settings.hiddenTools.includes(tool.id) &&
+                  visibleToolCount <= 1
+                "
+                @click="handleToggleTool(tool.id)">
+                {{
+                  settings.hiddenTools.includes(tool.id)
+                    ? `+ ${tool.label}`
+                    : `✓ ${tool.label}`
+                }}
+              </button>
+            </div>
+          </div>
+
+          <div class="settings-box-shortcut">
+            <div class="settings-row-info">
+              <b>干员练度与自持加成</b>
+              <small>
+                自持 {{ boxSeasonCount }}/{{ BOX_OPERATORS.length }} 名 · 已激活
+                {{ boxSeasonActivatedCount }} 名 · 满加成
+                {{ boxSeasonMaxedCount }} 名<template
+                  v-if="boxSeasonBorrowedCount">
+                  · 助战已借 {{ boxSeasonBorrowedCount }} 名
+                </template>
+              </small>
+            </div>
+            <button type="button" class="btn p" @click="openBoxTool">
+              打开干员练度 →
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section
+        class="panel settings-card settings-card-wide"
+        aria-labelledby="set-tabs">
+        <header class="settings-card-head">
+          <div>
+            <span class="settings-kicker">NAVIGATION</span>
+            <h2 id="set-tabs">顶部 Tab 排列与显隐</h2>
+          </div>
+          <button
+            type="button"
+            class="btn"
+            :disabled="isDefaultTabOrder"
+            @click="resetContentTabs">
+            恢复默认顺序
+          </button>
+        </header>
 
         <TransitionGroup
           tag="ul"
@@ -873,177 +1019,151 @@ function handleResetAll(): void {
         </TransitionGroup>
       </section>
 
-      <section class="panel settings-card" aria-labelledby="set-habits">
+      <section
+        class="panel settings-card settings-card-wide"
+        aria-labelledby="set-backup">
         <header class="settings-card-head">
           <div>
-            <h2 id="set-habits">速查与小工具习惯</h2>
+            <span class="settings-kicker">BACKUP & RESET</span>
+            <h2 id="set-backup">配置备份、导入与重置</h2>
           </div>
         </header>
 
-        <div class="settings-rows">
-          <label
-            v-for="item in HABIT_TOGGLES"
-            :key="item.key"
-            class="settings-toggle-row">
-            <span class="settings-row-info">
-              <b>{{ item.title }}</b>
-            </span>
-            <input
-              type="checkbox"
-              :checked="settings[item.key]"
-              @change="
-                updateSetting(
-                  item.key,
-                  ($event.target as HTMLInputElement).checked,
-                )
-              " />
-          </label>
-
-          <div class="settings-subblock">
-            <div class="settings-row-info">
-              <b>「小工具」内展示的子栏目</b>
-              <small>至少保留 1 个</small>
+        <div class="settings-backup-grid">
+          <div class="settings-rows">
+            <div class="settings-backup-checks">
+              <label class="settings-inline-check">
+                <input v-model="includePlansInExport" type="checkbox" />
+                <span>
+                  导出时附带「我的流派 / 已修改预设」（{{ plans.length }} 套）
+                </span>
+              </label>
+              <label class="settings-inline-check">
+                <input v-model="includeBoxInExport" type="checkbox" />
+                <span>
+                  导出时附带「干员练度 Box」（自持 {{ boxSeasonCount }} 名<template
+                    v-if="boxSeasonBorrowedCount">
+                    · 已借 {{ boxSeasonBorrowedCount }} 名
+                  </template>）
+                </span>
+              </label>
             </div>
-            <div
-              class="settings-tool-pills"
-              role="group"
-              aria-label="小工具子栏目">
-              <button
-                v-for="tool in customizableTools"
-                :key="tool.id"
-                type="button"
-                :class="[
-                  'settings-tool-pill',
-                  {on: !settings.hiddenTools.includes(tool.id)},
-                ]"
-                :aria-pressed="!settings.hiddenTools.includes(tool.id)"
-                :disabled="
-                  !settings.hiddenTools.includes(tool.id) &&
-                  visibleToolCount <= 1
-                "
-                @click="handleToggleTool(tool.id)">
-                {{
-                  settings.hiddenTools.includes(tool.id)
-                    ? `+ ${tool.label}`
-                    : `✓ ${tool.label}`
-                }}
+
+            <div class="settings-btn-group">
+              <button type="button" class="btn p" @click="exportSettingsFile">
+                导出配置文件 (.json)
               </button>
+              <button type="button" class="btn" @click="copySettingsText">
+                复制配置文本
+              </button>
+              <button type="button" class="btn" @click="fileInput?.click()">
+                选择文件导入
+              </button>
+              <button
+                type="button"
+                :class="['btn', {on: showPasteBox}]"
+                :aria-expanded="showPasteBox"
+                @click="showPasteBox = !showPasteBox">
+                粘贴文本导入
+              </button>
+              <input
+                ref="fileInput"
+                type="file"
+                accept=".json,application/json"
+                hidden
+                @change="onSelectFile" />
             </div>
-          </div>
-        </div>
-      </section>
 
-      <section class="panel settings-card" aria-labelledby="set-backup">
-        <header class="settings-card-head">
-          <div>
-            <h2 id="set-backup">配置导入导出与重置</h2>
-          </div>
-        </header>
+            <div v-if="exportTextFallback" class="settings-box">
+              <p class="settings-box-note">全选并复制配置文本</p>
+              <textarea
+                class="settings-textarea"
+                readonly
+                aria-label="配置导出文本"
+                :value="exportTextFallback"
+                @focus="
+                  ($event.target as HTMLTextAreaElement).select()
+                "></textarea>
+            </div>
 
-        <div class="settings-rows">
-          <label class="settings-inline-check">
-            <input v-model="includePlansInExport" type="checkbox" />
-            <span>
-              导出时附带「我的流派 / 已修改预设」（当前 {{ plans.length }} 套）
-            </span>
-          </label>
+            <div v-if="showPasteBox" class="settings-box">
+              <textarea
+                v-model="pasteText"
+                class="settings-textarea"
+                aria-label="粘贴配置备份文本"
+                placeholder="在此粘贴从其他设备复制的 JSON 配置文本…"></textarea>
+              <div class="settings-btn-group">
+                <button type="button" class="btn p" @click="parsePastedBackup">
+                  解析配置
+                </button>
+                <button
+                  type="button"
+                  class="btn"
+                  @click="
+                    showPasteBox = false;
+                    pasteText = '';
+                  ">
+                  收起
+                </button>
+              </div>
+            </div>
 
-          <div class="settings-btn-group">
-            <button type="button" class="btn p" @click="exportSettingsFile">
-              导出配置文件 (.json)
-            </button>
-            <button type="button" class="btn" @click="copySettingsText">
-              复制配置文本
-            </button>
-            <button type="button" class="btn" @click="fileInput?.click()">
-              选择文件导入
-            </button>
-            <button
-              type="button"
-              :class="['btn', {on: showPasteBox}]"
-              :aria-expanded="showPasteBox"
-              @click="showPasteBox = !showPasteBox">
-              粘贴文本导入
-            </button>
-            <input
-              ref="fileInput"
-              type="file"
-              accept=".json,application/json"
-              hidden
-              @change="onSelectFile" />
-          </div>
-
-          <div v-if="exportTextFallback" class="settings-box">
-            <p class="settings-box-note">
-              全选并复制配置文本
+            <p v-if="readingFile" class="settings-note" role="status">
+              正在读取配置文件…
             </p>
-            <textarea
-              class="settings-textarea"
-              readonly
-              aria-label="配置导出文本"
-              :value="exportTextFallback"
-              @focus="
-                ($event.target as HTMLTextAreaElement).select()
-              "></textarea>
-          </div>
 
-          <div v-if="showPasteBox" class="settings-box">
-            <textarea
-              v-model="pasteText"
-              class="settings-textarea"
-              aria-label="粘贴配置备份文本"
-              placeholder="在此粘贴从其他设备复制的 JSON 配置文本…"></textarea>
-            <div class="settings-btn-group">
-              <button type="button" class="btn p" @click="parsePastedBackup">
-                解析配置
-              </button>
-              <button
-                type="button"
-                class="btn"
-                @click="
-                  showPasteBox = false;
-                  pasteText = '';
-                ">
-                收起
-              </button>
+            <div v-if="pendingBackup" class="settings-box settings-preview">
+              <b>即将应用来自「{{ pendingSourceName }}」的配置</b>
+              <small>导出时间：{{ previewExportedAt }}</small>
+              <p class="settings-preview-summary">{{ previewSummary }}</p>
+              <label
+                v-if="pendingBackup.plans?.length"
+                class="settings-inline-check">
+                <input v-model="importPlansFromBackup" type="checkbox" />
+                <span>
+                  同时合并恢复附带的
+                  {{ pendingBackup.plans.length }} 套流派（不覆盖现有内容）
+                </span>
+              </label>
+              <label
+                v-if="
+                  pendingBackup.box && Object.keys(pendingBackup.box).length
+                "
+                class="settings-inline-check">
+                <input v-model="importBoxFromBackup" type="checkbox" />
+                <span>
+                  同时合并附带的
+                  {{ Object.keys(pendingBackup.box).length }} 名干员练度 Box
+                </span>
+              </label>
+              <div class="settings-btn-group">
+                <button
+                  type="button"
+                  class="btn p"
+                  @click="confirmImportBackup">
+                  确认应用设置
+                </button>
+                <button type="button" class="btn" @click="cancelImportPreview">
+                  取消
+                </button>
+              </div>
             </div>
+
+            <p v-if="errorMessage" class="settings-alert" role="alert">
+              {{ errorMessage }}
+            </p>
+            <p v-if="statusMessage" class="settings-status" role="status">
+              {{ statusMessage }}
+            </p>
           </div>
 
-          <p v-if="readingFile" class="settings-note" role="status">
-            正在读取配置文件…
-          </p>
-
-          <div v-if="pendingBackup" class="settings-box settings-preview">
-            <b>即将应用来自「{{ pendingSourceName }}」的配置</b>
-            <small>导出时间：{{ previewExportedAt }}</small>
-            <p class="settings-preview-summary">{{ previewSummary }}</p>
-            <label
-              v-if="pendingBackup.plans?.length"
-              class="settings-inline-check">
-              <input v-model="importPlansFromBackup" type="checkbox" />
-              <span>
-                同时合并恢复附带的
-                {{ pendingBackup.plans.length }} 套流派（不覆盖现有内容）
-              </span>
-            </label>
-            <div class="settings-btn-group">
-              <button type="button" class="btn p" @click="confirmImportBackup">
-                确认应用设置
-              </button>
-              <button type="button" class="btn" @click="cancelImportPreview">
-                取消
-              </button>
+          <div class="settings-reset-card">
+            <div class="settings-row-info">
+              <b>恢复默认界面设置</b>
+              <small>
+                仅重置主题、排版密度、开关与栏目顺序，不会删除你的自建流派、干员练度和本局记录。
+              </small>
             </div>
-          </div>
-
-          <p v-if="errorMessage" class="settings-alert" role="alert">
-            {{ errorMessage }}
-          </p>
-          <p v-if="statusMessage" class="settings-status" role="status">
-            {{ statusMessage }}
-          </p>
-
-          <div class="settings-reset-zone">
             <template v-if="!confirmResetOpen">
               <button
                 type="button"
@@ -1051,9 +1171,6 @@ function handleResetAll(): void {
                 @click="confirmResetOpen = true">
                 恢复全部默认设置
               </button>
-              <small>
-                仅重置界面设置与栏目顺序，不会删除自建流派和本局记录。
-              </small>
             </template>
             <div v-else class="settings-btn-group">
               <button
@@ -1072,6 +1189,31 @@ function handleResetAll(): void {
           </div>
         </div>
       </section>
+
+      <section
+        class="panel settings-card settings-card-wide settings-season-card"
+        aria-labelledby="set-season">
+        <div class="settings-season-meta">
+          <h2 id="set-season" class="settings-season-title">赛季数据</h2>
+          <span class="tag">{{ SEASON_META.id.toUpperCase() }}</span>
+          <span>
+            <b>{{ SEASON_META.title }}</b>
+            <small>（{{ SEASON_META.guideSubtitle }}）</small>
+          </span>
+          <span class="settings-season-ver">
+            规则基线：{{ SEASON_META.ruleVersion }} · 已注册
+            {{ SEASONS.length }} 个赛季
+          </span>
+          <a
+            v-if="SEASON_META.ruleSource"
+            class="btn"
+            :href="SEASON_META.ruleSource"
+            target="_blank"
+            rel="noopener noreferrer">
+            数据源 ↗
+          </a>
+        </div>
+      </section>
     </div>
     <LiveStatus :message="statusMessage || errorMessage" />
   </div>
@@ -1084,33 +1226,44 @@ function handleResetAll(): void {
 .settings-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  align-items: start;
+  gap: 14px;
+  align-items: stretch;
 }
 .settings-card {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
-  padding: 14px;
+  padding: 16px;
 }
 .settings-card-wide {
   grid-column: 1 / -1;
 }
 .settings-card-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.settings-kicker {
+  display: block;
+  font: 700 10px/1.2 var(--fn);
+  letter-spacing: 0.1em;
+  color: var(--ink3);
+  margin-bottom: 2px;
 }
 .settings-card-head h2 {
   margin: 0;
-  font-size: 17px;
+  font-size: 16.5px;
   font-weight: 700;
   color: var(--ink);
 }
 .settings-rows {
   display: grid;
-  gap: 10px;
+  gap: 8px;
+  align-content: start;
 }
 .settings-row {
   display: flex;
@@ -1125,14 +1278,18 @@ function handleResetAll(): void {
   padding-top: 0;
   border-top: 0;
 }
+.settings-select-line select {
+  min-width: 170px;
+}
 .settings-row-info {
   display: grid;
-  gap: 1px;
+  gap: 2px;
   min-width: 0;
-  flex: 1 1 200px;
+  flex: 1 1 180px;
 }
 .settings-row-info b {
   font-size: 13.5px;
+  font-weight: 600;
   color: var(--ink);
 }
 .settings-row-info small {
@@ -1149,36 +1306,124 @@ function handleResetAll(): void {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 40px;
-  padding: 6px 8px;
-  border-radius: 7px;
+  min-height: 42px;
+  padding: 6px 10px;
+  border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--surface2);
   cursor: pointer;
+  transition:
+    border-color 0.14s,
+    background-color 0.14s;
 }
 .settings-toggle-row:hover {
-  border-color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
 }
-.settings-toggle-row input[type='checkbox'] {
-  width: 18px;
-  height: 18px;
+.settings-switch {
+  appearance: none;
+  position: relative;
+  width: 38px;
+  height: 22px;
+  margin: 0;
   flex: none;
-  accent-color: var(--accent);
+  border-radius: 999px;
+  border: 1px solid var(--line2);
+  background: var(--surface);
   cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease;
 }
-.settings-tab-controls {
+.settings-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--ink3);
+  transition:
+    transform 0.16s ease,
+    background-color 0.16s ease;
+}
+.settings-switch:checked {
+  border-color: var(--teal);
+  background: var(--teal);
+}
+.settings-switch:checked::after {
+  transform: translateX(16px);
+  background: #fff;
+}
+.settings-switch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.settings-box-shortcut {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 10px 16px;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--teal) 38%, var(--line));
+  background: color-mix(in srgb, var(--teal) 6%, var(--surface2));
 }
-.settings-select-row {
-  display: inline-flex;
+.settings-box-shortcut .btn {
+  min-height: 36px;
+  white-space: nowrap;
+}
+.settings-backup-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(240px, 0.65fr);
+  gap: 16px;
+  align-items: start;
+}
+.settings-backup-checks {
+  display: grid;
+  gap: 4px;
+}
+.settings-reset-card {
+  display: grid;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px dashed color-mix(in srgb, var(--red) 42%, var(--line));
+  background: color-mix(in srgb, var(--red) 4%, var(--surface2));
+}
+.settings-season-card {
+  padding: 12px 16px;
+}
+.settings-season-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.settings-season-meta {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 8px 12px;
   font-size: 13px;
   color: var(--ink2);
+}
+.settings-season-meta b {
+  color: var(--ink);
+}
+.settings-season-meta small {
+  color: var(--ink3);
+}
+.settings-season-ver {
+  font-family: var(--fn);
+  font-size: 12px;
+  color: var(--ink3);
+}
+.settings-season-meta .btn {
+  margin-left: auto;
+  min-height: 34px;
 }
 .settings-inline-check {
   display: inline-flex;
@@ -1229,8 +1474,8 @@ function handleResetAll(): void {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 8px;
-  border-radius: 7px;
+  padding: 6px 10px;
+  border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--surface2);
   user-select: none;
@@ -1287,10 +1532,10 @@ function handleResetAll(): void {
 .settings-tab-idx {
   display: inline-grid;
   place-items: center;
-  min-width: 22px;
-  height: 22px;
+  min-width: 24px;
+  height: 24px;
   padding: 0 5px;
-  border-radius: 5px;
+  border-radius: 6px;
   background: var(--surface);
   border: 1px solid var(--line);
   font-family: var(--fn);
@@ -1309,7 +1554,7 @@ function handleResetAll(): void {
 .settings-tab-btns {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
 }
 .settings-step-btn {
   min-width: 34px;
@@ -1319,7 +1564,7 @@ function handleResetAll(): void {
 }
 .settings-vis-btn {
   min-height: 34px;
-  padding: 3px 9px;
+  padding: 3px 10px;
   border-color: var(--teal);
   color: var(--teal);
   font-weight: 600;
@@ -1337,6 +1582,10 @@ function handleResetAll(): void {
   padding-top: 8px;
   border-top: 1px dashed var(--line);
 }
+.settings-subblock.top {
+  padding-top: 0;
+  border-top: 0;
+}
 .settings-tool-pills {
   display: flex;
   flex-wrap: wrap;
@@ -1344,13 +1593,17 @@ function handleResetAll(): void {
 }
 .settings-tool-pill {
   min-height: 36px;
-  padding: 4px 11px;
+  padding: 4px 12px;
   border-radius: 999px;
   border: 1px dashed var(--line2);
   background: var(--surface2);
   color: var(--ink3);
   font-size: 13px;
   cursor: pointer;
+  transition:
+    border-color 0.14s,
+    background-color 0.14s,
+    color 0.14s;
 }
 .settings-tool-pill.on {
   border-style: solid;
@@ -1379,8 +1632,8 @@ function handleResetAll(): void {
 .settings-box {
   display: grid;
   gap: 8px;
-  padding: 10px;
-  border-radius: 7px;
+  padding: 10px 12px;
+  border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--surface2);
 }
@@ -1434,20 +1687,9 @@ function handleResetAll(): void {
   color: var(--teal);
   font-size: 13px;
 }
-.settings-reset-zone {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-  padding-top: 10px;
-  border-top: 1px dashed var(--line);
-}
-.settings-reset-zone small {
-  font-size: 12px;
-  color: var(--ink3);
-}
 .settings-danger-btn {
   min-height: 36px;
+  width: fit-content;
   color: var(--red);
   border-color: color-mix(in srgb, var(--red) 45%, var(--line));
 }
@@ -1460,18 +1702,36 @@ function handleResetAll(): void {
 }
 
 @container quickref-view (max-width: 820px) {
-  .settings-grid {
+  .settings-grid,
+  .settings-backup-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-height: 600px) {
+  .settings-grid {
+    gap: 10px;
+  }
+  .settings-card {
+    padding: 12px;
+    gap: 8px;
+  }
+  .settings-toggle-row {
+    min-height: 36px;
+    padding: 4px 8px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .tab-sort-move,
-  .settings-tab-item.dropping {
+  .settings-tab-item.dropping,
+  .settings-switch,
+  .settings-switch::after {
     transition: none !important;
   }
 }
 :global(:root[data-motion='reduce']) .tab-sort-move,
-:global(:root[data-motion='reduce']) .settings-tab-item.dropping {
+:global(:root[data-motion='reduce']) .settings-tab-item.dropping,
+:global(:root[data-motion='reduce']) .settings-switch,
+:global(:root[data-motion='reduce']) .settings-switch::after {
   transition: none !important;
 }
 </style>

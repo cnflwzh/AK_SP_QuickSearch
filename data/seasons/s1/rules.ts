@@ -76,6 +76,8 @@ export const S1_RULES: SeasonRules = {
     {level: '精英二', atk: '+10%', def: '+5%', hp: '+5%'},
     {level: '精英二 60 级', atk: '+10%', def: '+10%', hp: '+10%'},
   ],
+  /** 备战助战补位上限：V3_1 constData.borrowCount（不限好友）。 */
+  borrowLimit: 30,
   /** 联合模拟难度。efficiency = 认证效率 %，strength = 模拟强度 */
   difficulties: [
     {
@@ -102,6 +104,15 @@ export const S1_RULES: SeasonRules = {
   roundTime: [45, 45, 55, 55, 55, 70, 85, 85, 95, 95, 115, 115, 115, 120],
   /** 通过第 N 回合的基础认证：autoChessData.roundScoreDataList；其他难度乘效率。 */
   credit: [10, 20, 30, 50, 70, 90, 110, 130, 150, 170, 200, 230, 260, 300],
+  /** 击败领袖额外获得的基础认证（同样按难度 / 规程效率缩放）。 */
+  leaderCreditBonus: 50,
+  /** 赛季认证进度关键节点，供教程与效率计算器共用。 */
+  creditMilestones: [
+    {value: 3000, title: '终端主题', reward: '乌萨斯齐心团'},
+    {value: 6000, title: '家具', reward: '卫戍之光投币玩偶'},
+    {value: 6250, title: '作战上限'},
+    {value: 8750, title: '+关键目标'},
+  ],
   /** 个人模拟规程等级。efficiency = 认证效率 %，strength = 模拟强度 */
   soloLevels: [
     {level: 1, efficiency: 100, strength: 0, note: ''},
@@ -252,5 +263,76 @@ export const S1_RULES: SeasonRules = {
     ['战斗开始', ['<战斗开始时>']],
     ['战斗中', ['<战斗中>']],
     ['战斗结束', ['<战斗结束时>']],
+  ],
+  /** 实战职能标签：关联战术特训与领袖对策，干员标注以卫戍默认技能/特性与特质为准。 */
+  combatRoles: [
+    {
+      id: 'antiair',
+      label: '对空',
+      desc: '可稳定攻击空中目标',
+      trainingTypes: ['飞行'],
+      counterTags: ['对空'],
+    },
+    {
+      id: 'antistealth',
+      label: '反隐',
+      desc: '使敌人隐匿失效',
+      trainingTypes: ['隐匿'],
+    },
+    {
+      id: 'heal',
+      label: '治疗',
+      desc: '为友方提供生命回复或续航',
+      trainingTypes: ['持续'],
+      counterTags: ['续航'],
+    },
+    {
+      id: 'elemheal',
+      label: '元素回复',
+      desc: '为友方回复元素损伤',
+      trainingTypes: ['元素'],
+      counterTags: ['续航'],
+    },
+    {
+      id: 'multihit',
+      label: '高频',
+      desc: '多段连击或高攻速，破频次盾/弹体',
+      trainingTypes: ['频次'],
+      counterTags: ['集火'],
+    },
+    {
+      id: 'control',
+      label: '控制',
+      desc: '冻结、晕眩、束缚、停顿、战栗、恐惧或沉默',
+      trainingTypes: ['复苏'],
+      counterTags: ['控制'],
+    },
+    {
+      id: 'block',
+      label: '阻挡',
+      desc: '3 阻挡重装、前排护盾或强承伤',
+      trainingTypes: ['特异', '致命'],
+      counterTags: ['阻挡'],
+    },
+    {
+      id: 'aoe',
+      label: '群攻',
+      desc: '范围或多目标清杂',
+      trainingTypes: ['特异'],
+    },
+    {
+      id: 'truedmg',
+      label: '真伤',
+      desc: '真实伤害、元素损伤爆发或破抗输出',
+      trainingTypes: ['折射', '特异'],
+      counterTags: ['集火', '限时'],
+    },
+    {
+      id: 'fast',
+      label: '快活',
+      desc: '低再部署时间，适合救火与吃技能',
+      trainingTypes: ['致命'],
+      counterTags: ['避让'],
+    },
   ],
 };
