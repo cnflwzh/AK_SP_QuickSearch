@@ -149,6 +149,7 @@ function isPresetActive(rounds: number, leader: boolean): boolean {
           </div>
           <Segmented
             v-if="creditState.mode === 'joint'"
+            class="panel-reveal"
             :labels="MODES"
             :active="creditState.jointDifficulty"
             attr="credit-diff"
@@ -156,6 +157,7 @@ function isPresetActive(rounds: number, leader: boolean): boolean {
           <select
             v-else
             :value="creditState.soloLevel"
+            class="panel-reveal"
             aria-label="个人规程等级"
             @change="
               creditState.soloLevel = Number(
@@ -295,7 +297,7 @@ function isPresetActive(rounds: number, leader: boolean): boolean {
             <b>{{ progressPct }}%</b>
           </div>
           <div class="nt-credit-bar" aria-hidden="true">
-            <i :style="{width: `${progressPct}%`}"></i>
+            <i :style="{transform: `scaleX(${progressPct / 100})`}"></i>
           </div>
           <p class="nt-muted">
             前 {{ plan.roundsCleared }} 回合作战时限累计
@@ -505,7 +507,8 @@ function isPresetActive(rounds: number, leader: boolean): boolean {
   height: 100%;
   background: linear-gradient(90deg, var(--teal), var(--accent));
   border-radius: inherit;
-  transition: width 0.22s ease-out;
+  transform-origin: left;
+  transition: transform 0.22s ease-out;
 }
 .nt-credit-compare {
   padding: 14px 16px;

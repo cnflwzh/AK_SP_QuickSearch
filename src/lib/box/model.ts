@@ -127,6 +127,21 @@ export function resolveBoxKey(nameOrAvatar: string): string {
   return '';
 }
 
+/** 持久化映射接受其他赛季的规范 charId，普通外部名单只匹配本赛季。 */
+export function resolveStoredBoxKey(key: string): string {
+  return resolveBoxKey(key) || (AVATAR_KEY_RE.test(key) ? key : '');
+}
+
+/** 合并同一干员的记录，已持有优先于借用，重复的持有记录取较高练度。 */
+export function mergeBoxRank(
+  box: OperatorBox,
+  key: string,
+  rank: StoredBoxRank,
+): void {
+  const previous = box[key];
+  if (previous === undefined || rank > previous) box[key] = rank;
+}
+
 export function isValidOwnedBoxRank(value: unknown): value is OwnedBoxRank {
   return value === 0 || value === 1 || value === 2 || value === 3;
 }
@@ -142,10 +157,7 @@ export function isBorrowableAvatar(avatar: string): boolean {
 }
 
 /** 从 Box 映射读取指定 avatar 键的状态；缺省表示未持有 (-1)。直接属性读取以触发 Vue 响应式追踪。 */
-export function boxRankOf(
-  box: Readonly<OperatorBox>,
-  avatar: string,
-): BoxRank {
+export function boxRankOf(box: Readonly<OperatorBox>, avatar: string): BoxRank {
   const rank = box[avatar];
   if (!isValidBoxRank(rank)) return -1;
   if (rank === BOX_RANK_BORROWED) {
@@ -163,15 +175,11 @@ export function normalizeOperatorBox(raw: unknown): OperatorBox {
   }
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     if (!isValidBoxRank(value)) continue;
-    const resolved = resolveBoxKey(key);
-    if (resolved) {
-      if (value === BOX_RANK_BORROWED && !isBorrowableAvatar(resolved)) {
-        continue;
-      }
-      result[resolved] = value;
-    } else if (AVATAR_KEY_RE.test(key)) {
-      result[key] = value;
-    }
+    const resolved = resolveStoredBoxKey(key);
+    if (!resolved) continue;
+    const op = avatarToOperator.get(resolved);
+    if (value === BOX_RANK_BORROWED && op && !isBorrowableSixStar(op)) continue;
+    mergeBoxRank(result, resolved, value);
   }
   return {...result};
 }
