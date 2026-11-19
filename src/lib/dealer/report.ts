@@ -30,6 +30,7 @@ const DAILY_SCOPE_LABELS: Readonly<Record<DealerRoundKind, string>> = {
   equipment: '装备整备',
   strategy: '开局策略',
   bounty: '悬赏猎金',
+  scenario: '实战抓牌',
 };
 
 const FREE_SCOPE_PREFIX: Readonly<Record<DealerRoundKind, string>> = {
@@ -40,6 +41,7 @@ const FREE_SCOPE_PREFIX: Readonly<Record<DealerRoundKind, string>> = {
   equipment: '装备·',
   strategy: '策略·',
   bounty: '悬赏·',
+  scenario: '实战·',
 };
 
 export function cardMatrixCell(card: DealerCard): MatrixCell {

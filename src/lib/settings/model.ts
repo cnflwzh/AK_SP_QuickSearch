@@ -1,3 +1,4 @@
+import {normalizeOperatorBox, type OperatorBox} from '../box/model.ts';
 import {MAX_BACKUP_BYTES, readBackupPlans} from '../plans/backup.ts';
 import type {Plan} from '../plans/model.ts';
 
@@ -17,6 +18,8 @@ export const CUSTOMIZABLE_TOOL_IDS = [
   'layers',
   'recruit',
   'bounty',
+  'credit',
+  'box',
   'dealer',
   'excuse',
 ] as const;
@@ -40,6 +43,7 @@ export interface UserSettings {
   showRunBanner: boolean;
   showWikiLinks: boolean;
   showRequestButtons: boolean;
+  showBoxBadges: boolean;
   showFooter: boolean;
   collapsePresetBuilds: boolean;
   defaultOperatorElite: boolean;
@@ -58,6 +62,7 @@ export interface SettingsBackup {
   exportedAt: string;
   settings: UserSettings;
   plans?: Plan[];
+  box?: OperatorBox;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -101,6 +106,7 @@ export function createDefaultSettings(): UserSettings {
     showRunBanner: true,
     showWikiLinks: true,
     showRequestButtons: true,
+    showBoxBadges: true,
     showFooter: true,
     collapsePresetBuilds: false,
     defaultOperatorElite: false,
@@ -185,6 +191,7 @@ export function normalizeSettings(raw: unknown): UserSettings {
       'showRequestButtons',
       defaults.showRequestButtons,
     ),
+    showBoxBadges: readBool(raw, 'showBoxBadges', defaults.showBoxBadges),
     showFooter: readBool(raw, 'showFooter', defaults.showFooter),
     collapsePresetBuilds: readBool(
       raw,
@@ -202,18 +209,21 @@ export function normalizeSettings(raw: unknown): UserSettings {
   };
 }
 
-/** 序列化设置配置（可选附带自建/修改流派列表），供文件导出或跨设备剪贴板迁移。 */
+/** 序列化设置配置（可选附带自建/修改流派与个人干员练度 Box），供文件导出或跨设备迁移。 */
 export function serializeSettingsBackup(
   settings: UserSettings,
   plans?: readonly Plan[],
+  box?: Readonly<OperatorBox>,
 ): string {
   const cleanSettings = normalizeSettings(settings);
+  const cleanBox = box ? normalizeOperatorBox(box) : undefined;
   const backup: SettingsBackup = {
     format: SETTINGS_BACKUP_FORMAT,
     version: SETTINGS_BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
     settings: cleanSettings,
     ...(plans ? {plans: JSON.parse(JSON.stringify(plans)) as Plan[]} : {}),
+    ...(cleanBox && Object.keys(cleanBox).length ? {box: cleanBox} : {}),
   };
   const text = JSON.stringify(backup, null, 2);
   if (new TextEncoder().encode(text).length > MAX_SETTINGS_BACKUP_BYTES) {
@@ -254,11 +264,19 @@ export function parseSettingsBackup(text: string): SettingsBackup {
   }
   const plans =
     value.plans !== undefined ? readBackupPlans(value.plans) : undefined;
+  let box: OperatorBox | undefined;
+  if (value.box !== undefined) {
+    if (!isRecord(value.box)) {
+      throw new Error('配置文件中的干员练度 Box 数据格式无效。');
+    }
+    box = normalizeOperatorBox(value.box);
+  }
   return {
     format: SETTINGS_BACKUP_FORMAT,
     version: SETTINGS_BACKUP_VERSION,
     exportedAt: value.exportedAt,
     settings: normalizeSettings(value.settings),
     ...(plans ? {plans} : {}),
+    ...(box && Object.keys(box).length ? {box} : {}),
   };
 }

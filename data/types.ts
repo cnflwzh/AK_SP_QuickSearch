@@ -1,4 +1,36 @@
 /** 干员、装备、策略与盟约的静态数据契约；只读字段防止页面误改共享数据。 */
+export interface OperatorSellMechanics {
+  readonly base: number;
+  readonly elite: number;
+  /** 休整期结束时随回合增长的售出价配置（如海沫）。 */
+  readonly roundGrowth?: {
+    readonly baseStep: number;
+    readonly eliteStep: number;
+    readonly baseMax: number;
+    readonly eliteMax: number;
+  };
+}
+
+export type CombatRole =
+  | '对空'
+  | '反隐'
+  | '治疗'
+  | '元素回复'
+  | '高频'
+  | '控制'
+  | '阻挡'
+  | '群攻'
+  | '真伤'
+  | '快活';
+
+export interface CombatRoleMeta {
+  readonly id: string;
+  readonly label: CombatRole;
+  readonly desc: string;
+  readonly trainingTypes?: readonly string[];
+  readonly counterTags?: readonly CounterTag[];
+}
+
 export interface Operator {
   readonly name: string;
   readonly tier: number;
@@ -10,6 +42,12 @@ export interface Operator {
   readonly elite: string;
   readonly price?: number;
   readonly eliteCopies?: number;
+  readonly sellMechanics?: OperatorSellMechanics;
+  readonly roles?: readonly CombatRole[];
+  /** 未持有时能否通过助战借用同名干员补位（仅限非特许六星，对应官方 chessType === 'NORMAL'）。 */
+  readonly borrowable?: boolean;
+  /** 未持有且未借用助战时，系统默认替补出战的原型/预备干员名（对应官方 backupCharId）。 */
+  readonly backupOperator?: string;
 }
 
 export interface EquipmentMechanics {
@@ -26,6 +64,7 @@ export interface Equipment {
   readonly effect: string;
   readonly advanced: string | null;
   readonly mechanics?: EquipmentMechanics;
+  readonly roles?: readonly CombatRole[];
 }
 
 export type EquipmentCombo = readonly [
@@ -226,6 +265,12 @@ export interface SoloLevel {
   readonly efficiency: number;
   readonly strength: number;
   readonly note: string;
+}
+
+export interface CreditMilestone {
+  readonly value: number;
+  readonly title: string;
+  readonly reward?: string;
 }
 
 /** 领袖能力的一条；skill 为技能名（无名的被动能力省略）。text 写法见 data/leaders.ts 开头。 */
@@ -473,11 +518,15 @@ export interface SeasonRules {
   readonly dispatchByMode: readonly (readonly DispatchLevel[])[];
   readonly tierStats: readonly TierStats[];
   readonly ownOperatorBonus: readonly OwnOperatorBonus[];
+  /** 备战助战干员借用数量上限（对应官方 constData.borrowCount）。 */
+  readonly borrowLimit: number;
   readonly difficulties: readonly Difficulty[];
   readonly modes: readonly string[];
   readonly decisionRounds: Readonly<Record<string, readonly number[]>>;
   readonly roundTime: readonly number[];
   readonly credit: readonly number[];
+  readonly leaderCreditBonus: number;
+  readonly creditMilestones: readonly CreditMilestone[];
   readonly soloLevels: readonly SoloLevel[];
   readonly training: readonly TrainingType[];
   readonly bounties: readonly Bounty[];
@@ -486,6 +535,7 @@ export interface SeasonRules {
     label: string,
     tags: readonly string[],
   ])[];
+  readonly combatRoles: readonly CombatRoleMeta[];
 }
 
 export interface SeasonCredits {

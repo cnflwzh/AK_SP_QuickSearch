@@ -2,6 +2,7 @@
 import {computed, ref, watch} from 'vue';
 import {
   ALL_COVENANTS,
+  COMBAT_ROLE_LABELS,
   OPERATORS,
   EQUIPMENT,
   STRATEGIES,
@@ -85,8 +86,11 @@ const results = computed(() => {
       leaders: [],
     };
   const covenants = rankBy(ALL_COVENANTS, q, (name) => name);
-  // 复用盟约名称的汉字、全拼和首字母匹配，避免干员关联搜索只匹配中文说明。
+  // 复用盟约与实战职能名称的汉字、全拼和首字母匹配，搜 "反隐"/"fanyin"/"对空" 也能直达干员与装备。
   const matchingCovenants = new Set(covenants);
+  const matchingRoles = new Set(
+    COMBAT_ROLE_LABELS.filter((role) => nameScore(role, q) > 0),
+  );
   return {
     covenants,
     builds: rankBy(presets.value, q, (preset) => preset.plan.name, {
@@ -97,14 +101,23 @@ const results = computed(() => {
     }).map((preset) => preset.key),
     operators: rankBy(OPERATORS, q, (operator) => operator.name, {
       matchesRelatedName: (operator) =>
-        operator.covenants.some((name) => matchingCovenants.has(name)),
+        operator.covenants.some((name) => matchingCovenants.has(name)) ||
+        Boolean(operator.roles?.some((role) => matchingRoles.has(role))),
       descriptionOf: (operator) =>
-        operator.covenants.join('/') + operator.trait + operator.elite,
+        operator.covenants.join('/') +
+        (operator.roles?.join('/') ?? '') +
+        operator.trait +
+        operator.elite,
       tieBreak: (a, b) => a.tier - b.tier,
     }),
     equipment: rankBy(EQUIPMENT, q, (item) => item.name, {
+      matchesRelatedName: (item) =>
+        Boolean(item.roles?.some((role) => matchingRoles.has(role))),
       descriptionOf: (item) =>
-        (item.covenant || '') + item.effect + (item.advanced || ''),
+        (item.covenant || '') +
+        (item.roles?.join('/') ?? '') +
+        item.effect +
+        (item.advanced || ''),
     }),
     strategies: rankBy(STRATEGIES, q, (strategy) => strategy.name, {
       descriptionOf: (strategy) =>

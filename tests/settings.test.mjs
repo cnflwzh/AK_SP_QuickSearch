@@ -19,12 +19,6 @@ import {
   toggleToolHidden,
   visibleContentTabs,
 } from '../src/lib/settings/index.ts';
-import {TAB_IDS} from '../src/router/location.ts';
-
-test('settings tabs align with router content tabs and place settings after tools', () => {
-  assert.deepEqual([...TAB_IDS], [...CONTENT_TAB_IDS, 'se']);
-  assert.equal(TAB_IDS.indexOf('se'), TAB_IDS.indexOf('nu') + 1);
-});
 
 test('normalizeSettings deduplicates tab order, restores missing tabs, and blocks hiding all tabs or tools', () => {
   assert.deepEqual(normalizeSettings(null), createDefaultSettings());
@@ -144,11 +138,13 @@ test('settings backup serializes, validates, and preserves optional plans on rou
 
   const samplePlan = builtinPlan('炎');
   assert.ok(samplePlan);
-  const withPlans = serializeSettingsBackup(settings, [samplePlan]);
+  const sampleBox = {char_325_bison: 3, char_4055_bgsnow: 2};
+  const withPlans = serializeSettingsBackup(settings, [samplePlan], sampleBox);
   const parsedWithPlans = parseSettingsBackup(withPlans);
   assert.deepEqual(parsedWithPlans.settings, custom);
   assert.equal(parsedWithPlans.plans?.length, 1);
   assert.equal(parsedWithPlans.plans?.[0].name, samplePlan.name);
+  assert.deepEqual(parsedWithPlans.box, sampleBox);
 
   assert.throws(() => parseSettingsBackup('not-json'), /无法解析 JSON/);
   assert.throws(

@@ -8,11 +8,18 @@ export {
   type CovenantMemo,
   type DealerCard,
   type DealerGrade,
+  type DealerKnowledgeRoundKind,
+  type DealerMistakeRecord,
   type DealerMode,
   type DealerPosterModel,
   type DealerRank,
   type DealerRound,
   type DealerRoundKind,
+  type DealerScenarioArchetype,
+  type DealerScenarioContext,
+  type DealerScenarioCovenantHint,
+  type DealerScenarioUnit,
+  type DealerSelectionMode,
   type DealerStats,
   type EquipChallengeTheme,
   type HintBadgeTone,
@@ -48,6 +55,30 @@ export {
 } from './themes.ts';
 export {reactionLine, replayShuffleLine} from './copy.ts';
 export {buildDailyRounds, buildDealerRound} from './rounds.ts';
+export {
+  buildScenarioRound,
+  SCENARIO_ARCHETYPES,
+  SCENARIO_MIN_SCORE_MARGIN,
+} from './scenarioRounds.ts';
+export {
+  activeMistakes,
+  buildMistakeRound,
+  DEALER_MISTAKES_STORAGE_KEY,
+  isKnowledgeRoundKind,
+  isMistakeMastered,
+  loadMistakes,
+  masteredMistakeCount,
+  MAX_MISTAKE_RECORDS,
+  MISTAKE_KIND_LABELS,
+  MISTAKE_MASTERY_STREAK,
+  mistakeKey,
+  mistakeStatsByKind,
+  normalizeMistakes,
+  recordMistake,
+  recordRoundMastery,
+  roundTargetKey,
+  saveMistakes,
+} from './mistakes.ts';
 export {
   buildDealerPosterModel,
   cardMatrixCell,

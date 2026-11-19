@@ -5,6 +5,8 @@ import {
   LEADER_BATTLEFIELDS,
   MODES,
   ROUND_TIME,
+  rolesForCounterTag,
+  type CounterTag,
   type Leader,
 } from '../../../data/index.ts';
 import {leaderSrc} from '../../lib/ui/assets.ts';
@@ -22,6 +24,7 @@ import {runLeaderKey, setRunLeader} from '../planStore.ts';
 import {state, setLeader} from '../state.ts';
 import Segmented from './Segmented.vue';
 import LeaderMap from './LeaderMap.vue';
+import CounterLookupPanel from './CounterLookupPanel.vue';
 /**
  * 领袖详情：技能、对策、站位图与随行敌人、生命值。
  * 生命条按该领袖自身（含隐秘核心）的最大值缩放；秒伤 = 生命 ÷ 领袖回合时限。
@@ -115,6 +118,14 @@ const counters = computed(() => props.leader.counters.filter((c) => !c.hidden));
 const hiddenCounters = computed(() =>
   props.leader.counters.filter((c) => c.hidden),
 );
+const activeCounterTag = ref<CounterTag | ''>('');
+const activeCounterRoles = computed(() =>
+  activeCounterTag.value ? rolesForCounterTag(activeCounterTag.value) : [],
+);
+function toggleCounterLookup(tag: CounterTag): void {
+  if (!rolesForCounterTag(tag).length) return;
+  activeCounterTag.value = activeCounterTag.value === tag ? '' : tag;
+}
 const portrait = computed(() => leaderSrc(props.leader.name));
 const isRunLeader = computed(() => runLeaderKey.value === props.leader.name);
 const briefCopied = ref(false);
@@ -232,7 +243,21 @@ async function copyLeaderBrief(): Promise<void> {
       </p>
       <ul class="lwc">
         <li v-for="(c, i) in counters" :key="i" :style="{'--i': i}">
-          <i :class="['ctg', counterClass(c.tag)]">{{ c.tag }}</i>
+          <button
+            v-if="rolesForCounterTag(c.tag).length"
+            type="button"
+            :class="[
+              'ctg',
+              'ctg-btn',
+              counterClass(c.tag),
+              {on: activeCounterTag === c.tag},
+            ]"
+            :aria-expanded="activeCounterTag === c.tag"
+            :title="`点此查看可应对「${c.tag}」的干员与装备`"
+            @click="toggleCounterLookup(c.tag)">
+            {{ c.tag }} ▾
+          </button>
+          <i v-else :class="['ctg', counterClass(c.tag)]">{{ c.tag }}</i>
           <span v-html="leaderFx(c.text)"></span>
           <small>{{ c.by }}</small>
         </li>
@@ -244,12 +269,31 @@ async function copyLeaderBrief(): Promise<void> {
             v-for="(c, i) in hiddenCounters"
             :key="i"
             :style="{'--i': i + counters.length}">
-            <i :class="['ctg', counterClass(c.tag)]">{{ c.tag }}</i>
+            <button
+              v-if="rolesForCounterTag(c.tag).length"
+              type="button"
+              :class="[
+                'ctg',
+                'ctg-btn',
+                counterClass(c.tag),
+                {on: activeCounterTag === c.tag},
+              ]"
+              :aria-expanded="activeCounterTag === c.tag"
+              :title="`点此查看可应对「${c.tag}」的干员与装备`"
+              @click="toggleCounterLookup(c.tag)">
+              {{ c.tag }} ▾
+            </button>
+            <i v-else :class="['ctg', counterClass(c.tag)]">{{ c.tag }}</i>
             <span v-html="leaderFx(c.text)"></span>
             <small>{{ c.by }}</small>
           </li>
         </ul>
       </template>
+      <CounterLookupPanel
+        v-if="activeCounterTag && activeCounterRoles.length"
+        :title="`对策：${activeCounterTag}`"
+        :roles="activeCounterRoles"
+        @close="activeCounterTag = ''" />
     </section>
 
     <section class="lws mp">
@@ -449,3 +493,16 @@ async function copyLeaderBrief(): Promise<void> {
     </section>
   </article>
 </template>
+
+<style scoped>
+.ctg-btn {
+  border: 1px solid transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.ctg-btn:hover,
+.ctg-btn.on {
+  border-color: currentColor;
+  filter: brightness(1.06);
+}
+</style>

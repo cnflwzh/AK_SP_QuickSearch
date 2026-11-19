@@ -10,6 +10,7 @@ import {settings} from '../lib/settings/index.ts';
 import {
   CATEGORY_IDS,
   DIFFICULTIES,
+  ROLE_IDS,
   TRIGGER_IDS,
   TYPE_IDS,
   idForLabel,
@@ -71,6 +72,7 @@ export const state = reactive({
   opCovenant: labelControl('covenant', COVENANT_IDS),
   opTrigger: labelControl('trigger', TRIGGER_IDS),
   opType: labelControl('type', TYPE_IDS),
+  opRole: labelControl('role', ROLE_IDS),
   opElite: computed({
     get: () => {
       const value = text('elite');

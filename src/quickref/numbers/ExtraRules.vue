@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed} from 'vue';
+import {computed, ref} from 'vue';
 import {
   DECISION_ROUNDS,
   MODES,
@@ -8,13 +8,25 @@ import {
   TIER_LABELS,
   TIER_STATS,
   TRAINING,
+  rolesForTraining,
 } from '../../../data/index.ts';
 import {useNumberToolsState} from './useNumberToolsState.ts';
 import Segmented from '../components/Segmented.vue';
+import CounterLookupPanel from '../components/CounterLookupPanel.vue';
 const numberToolsState = useNumberToolsState();
 const decisions = computed(
   () => DECISION_ROUNDS[MODES[numberToolsState.roundDifficulty]],
 );
+const activeTraining = ref('');
+const activeTrainingItem = computed(() =>
+  TRAINING.find((item) => item.name === activeTraining.value),
+);
+const activeTrainingRoles = computed(() =>
+  activeTraining.value ? rolesForTraining(activeTraining.value) : [],
+);
+function toggleTraining(name: string): void {
+  activeTraining.value = activeTraining.value === name ? '' : name;
+}
 </script>
 
 <template>
@@ -96,15 +108,62 @@ const decisions = computed(
               </tr>
             </tbody>
           </table>
-          <h4 class="nt-training-title" aria-level="3">特训类型</h4>
+          <h4 class="nt-training-title" aria-level="3">
+            特训类型
+            <small class="nt-muted">点选展开对策干员与装备</small>
+          </h4>
           <div class="nt-training">
-            <span v-for="item in TRAINING" :key="item.name">
+            <button
+              v-for="item in TRAINING"
+              :key="item.name"
+              type="button"
+              :class="['nt-training-btn', {on: activeTraining === item.name}]"
+              :aria-expanded="activeTraining === item.name"
+              @click="toggleTraining(item.name)">
               <b>{{ item.name }}</b>
-              {{ item.desc }}
-            </span>
+              <span>{{ item.desc }}</span>
+            </button>
           </div>
+          <CounterLookupPanel
+            v-if="activeTrainingItem && activeTrainingRoles.length"
+            :title="`特训：${activeTrainingItem.name}`"
+            :subtitle="activeTrainingItem.desc"
+            :roles="activeTrainingRoles"
+            @close="activeTraining = ''" />
         </div>
       </div>
     </details>
   </div>
 </template>
+
+<style scoped>
+.nt-training-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 4px 8px;
+  border: 1px solid var(--line2);
+  border-radius: 6px;
+  background: var(--surface2);
+  color: var(--ink2);
+  font: inherit;
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.nt-training-btn b {
+  color: var(--ink);
+}
+.nt-training-btn:hover {
+  border-color: var(--accent);
+}
+.nt-training-btn.on {
+  border-color: var(--teal);
+  background: var(--teal-soft);
+  color: var(--teal);
+}
+.nt-training-btn.on b {
+  color: var(--teal);
+}
+</style>

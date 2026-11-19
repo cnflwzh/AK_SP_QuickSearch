@@ -22,6 +22,8 @@ export {
 export type {CovenantStat} from './covenants.ts';
 export {copiesFor, planCost, equipNotes} from './costs.ts';
 export type {PlanCost, EquipNote} from './costs.ts';
+export {diagnoseLineup} from './diagnostics.ts';
+export type {LineupDiagnostics, RoleCoverageEntry} from './diagnostics.ts';
 export {
   CODE_PREFIX,
   encodePlan,

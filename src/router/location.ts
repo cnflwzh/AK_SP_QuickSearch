@@ -1,5 +1,6 @@
 import type {LocationQuery, LocationQueryRaw} from 'vue-router';
 import {
+  COMBAT_ROLE_IDS,
   LEADERS,
   LEADER_BATTLEFIELDS,
   OPERATOR_TYPES,
@@ -65,6 +66,7 @@ export const TYPE_IDS: Readonly<Record<string, string>> = {
   preparation: OPERATOR_TYPES[3],
   specialization: OPERATOR_TYPES[4],
 };
+export const ROLE_IDS: Readonly<Record<string, string>> = COMBAT_ROLE_IDS;
 export const CATEGORY_IDS = [
   '',
   'stacking',
@@ -126,6 +128,7 @@ export function normalizeQuery(
     covenant();
     keep('trigger', Object.keys(TRIGGER_IDS));
     keep('type', Object.keys(TYPE_IDS));
+    keep('role', Object.keys(ROLE_IDS));
     keep('elite', ['0', '1']);
   }
   if (tab === 'eq') {
@@ -157,7 +160,15 @@ export function normalizeQuery(
   }
   if (tab === 'nu') {
     // 路由只标识工具子页；计算输入和本局记录由工具维护，不进入导航历史。
-    keep('tool', ['advisor', 'recruit', 'bounty', 'dealer', 'excuse']);
+    keep('tool', [
+      'advisor',
+      'recruit',
+      'bounty',
+      'credit',
+      'box',
+      'dealer',
+      'excuse',
+    ]);
   }
   if (tab === 'bd') {
     keep(

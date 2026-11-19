@@ -1,5 +1,5 @@
 import {COMPANION_EQUIP_NAME} from '../../../data/index.ts';
-import type {DealerGrade} from './types.ts';
+import type {DealerGrade, DealerSelectionMode} from './types.ts';
 
 const COMPANION_LABEL = COMPANION_EQUIP_NAME || '同构装备';
 
@@ -61,6 +61,30 @@ export const BOUNTY_DEAL_LINES = [
   '发牌员连强敌通缉令都敢动歪脑筋！按【$C】标准筛选，找出混在里头的不合规悬赏！',
   '「点了自以为稳拿的悬赏结果当场汗流浃背」——本轮【$C】考的就是各位通缉犯的底细！',
   '高额爆金还是稳健过渡？【$C】通缉榜已在桌上摊开，先把错贴的悬赏撕下来！',
+] as const;
+
+export const SCENARIO_DEAL_LINES = [
+  '光背名单哪够？这手【$C】中期实战牌面摆在眼前，资金与位置都有限，你抓哪一张？',
+  '发牌员推来一排实战商店候选：别只看星级和脸熟，结合当前【$C】局面和资金挑最优解！',
+  '休整期只剩这最后一次决策！看清场上编制、对子数和手头资金，帮【$C】选出最赚的一抓！',
+  '实战复盘开考！下面五张干员里只有一位是当前【$C】局面的最优抓牌，敢不敢一眼点中？',
+] as const;
+
+const SCENARIO_HIT_LINES = [
+  '精准运营！$O 正是这手【$C】局面的最优抓牌，全员评估已为你展开！',
+  '稳准狠！一眼相中 $O，这波【$C】节奏直接起飞，发牌员彻底没脾气！',
+  '老练调度师！选下 $O 收益断层领先，下面五张的局内顾问评分已全部揭晓！',
+] as const;
+
+const SCENARIO_MISS_LINES = [
+  '先别急着买 $O！它不是这手【$C】局面的最优解，看看已展开的评估理由再重新挑！',
+  '发牌员偷笑：$O 在当前资金/编制下并非最优选择，已亮出它的排名和短板供你复盘！',
+  '差一点！$O 的综合收益还拼不过最优抓牌，注意结合场上盟约、精锐对子与当前资金再选！',
+] as const;
+
+const SCENARIO_ULTIMATE_LINES = [
+  '局内决策校准启动！已标出本轮【$C】的最优抓牌并展开全员收益对比！',
+  '专三运算落定！发牌员老实亮出【$C】本轮最优解与五张候选的完整理由！',
 ] as const;
 
 const HIT_LINES = [
@@ -224,8 +248,18 @@ export function reactionLine(
   combo: number,
   seed: number,
   target?: {readonly name: string},
+  selectionMode: DealerSelectionMode = 'impostors',
 ): string {
   const targetName = target?.name ?? '这一格';
+  if (selectionMode === 'best_pick') {
+    if (event === 'ultimate') {
+      return pickLine(SCENARIO_ULTIMATE_LINES, seed, covenant, combo, targetName);
+    }
+    if (event === 'miss') {
+      return pickLine(SCENARIO_MISS_LINES, seed, covenant, combo, targetName);
+    }
+    return pickLine(SCENARIO_HIT_LINES, seed, covenant, combo, targetName);
+  }
   if (event === 'ultimate') {
     return pickLine(ULTIMATE_LINES, seed, covenant, combo, targetName);
   }

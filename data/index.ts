@@ -3,12 +3,17 @@
  * 页面代码只从这里 import，不直接引用单个赛季数据文件。
  */
 import {CURRENT_SEASON} from './season.ts';
+import {SEASONS, getSeason} from './seasons/registry.ts';
 import type {
   Bounty,
   Build,
   BuildField,
+  CombatRole,
+  CombatRoleMeta,
   CoreBuild,
+  CounterTag,
   Covenant,
+  CreditMilestone,
   CycleReward,
   Difficulty,
   DispatchLevel,
@@ -22,6 +27,7 @@ import type {
   MixedBuild,
   MovementBranches,
   Operator,
+  OperatorSellMechanics,
   OwnOperatorBonus,
   SeasonMeta,
   SoloLevel,
@@ -31,6 +37,7 @@ import type {
 } from './types.ts';
 
 export type * from './types.ts';
+export {SEASONS, getSeason};
 
 const byName = <T extends {readonly name: string}>(
   list: readonly T[],
@@ -50,6 +57,38 @@ export const OPERATOR_TRIGGERS: readonly (readonly [
   label: string,
   tags: readonly string[],
 ])[] = CURRENT_SEASON.rules.operatorTriggers;
+
+export const COMBAT_ROLES: readonly CombatRoleMeta[] =
+  CURRENT_SEASON.rules.combatRoles;
+export const COMBAT_ROLE_LABELS: readonly CombatRole[] = COMBAT_ROLES.map(
+  (role) => role.label,
+);
+export const COMBAT_ROLE_IDS: Readonly<Record<string, CombatRole>> =
+  Object.fromEntries(COMBAT_ROLES.map((role) => [role.id, role.label]));
+
+export function rolesForTraining(trainingName: string): CombatRole[] {
+  return COMBAT_ROLES.filter((role) =>
+    role.trainingTypes?.includes(trainingName),
+  ).map((role) => role.label);
+}
+
+export function rolesForCounterTag(tag: CounterTag): CombatRole[] {
+  return COMBAT_ROLES.filter((role) => role.counterTags?.includes(tag)).map(
+    (role) => role.label,
+  );
+}
+
+export function operatorsWithRoles(roles: readonly CombatRole[]): Operator[] {
+  if (!roles.length) return [];
+  const wanted = new Set(roles);
+  return OPERATORS.filter((op) => op.roles?.some((r) => wanted.has(r)));
+}
+
+export function equipmentWithRoles(roles: readonly CombatRole[]): Equipment[] {
+  if (!roles.length) return [];
+  const wanted = new Set(roles);
+  return EQUIPMENT.filter((eq) => eq.roles?.some((r) => wanted.has(r)));
+}
 
 const triggerTags = new Map(OPERATOR_TRIGGERS);
 
@@ -202,6 +241,7 @@ export const DISPATCH_BY_MODE: readonly (readonly DispatchLevel[])[] =
 export const TIER_STATS: readonly TierStats[] = CURRENT_SEASON.rules.tierStats;
 export const OWN_OPERATOR_BONUS: readonly OwnOperatorBonus[] =
   CURRENT_SEASON.rules.ownOperatorBonus;
+export const BORROW_LIMIT: number = CURRENT_SEASON.rules.borrowLimit;
 export const DIFFICULTIES: readonly Difficulty[] =
   CURRENT_SEASON.rules.difficulties;
 export const MODES: readonly string[] = CURRENT_SEASON.rules.modes;
@@ -209,6 +249,10 @@ export const DECISION_ROUNDS: Readonly<Record<string, readonly number[]>> =
   CURRENT_SEASON.rules.decisionRounds;
 export const ROUND_TIME: readonly number[] = CURRENT_SEASON.rules.roundTime;
 export const CREDIT: readonly number[] = CURRENT_SEASON.rules.credit;
+export const LEADER_CREDIT_BONUS: number =
+  CURRENT_SEASON.rules.leaderCreditBonus;
+export const CREDIT_MILESTONES: readonly CreditMilestone[] =
+  CURRENT_SEASON.rules.creditMilestones;
 export const SOLO_LEVELS: readonly SoloLevel[] =
   CURRENT_SEASON.rules.soloLevels;
 export const TRAINING: readonly TrainingType[] = CURRENT_SEASON.rules.training;
@@ -258,6 +302,33 @@ export function operatorEliteCopies(
       : undefined) ??
     SEASON_META.defaultEliteCopies
   );
+}
+
+/** 干员特殊售出机制配置；普通干员返回 undefined（默认售出价 1）。 */
+export function operatorSellMechanics(
+  nameOrOp: string | Pick<Operator, 'name' | 'sellMechanics'>,
+): OperatorSellMechanics | undefined {
+  if (typeof nameOrOp === 'string') {
+    return Object.hasOwn(OPERATOR, nameOrOp)
+      ? OPERATOR[nameOrOp].sellMechanics
+      : undefined;
+  }
+  return (
+    nameOrOp.sellMechanics ??
+    (Object.hasOwn(OPERATOR, nameOrOp.name)
+      ? OPERATOR[nameOrOp.name].sellMechanics
+      : undefined)
+  );
+}
+
+/** 干员基础售出价；特殊售价优先于默认值 1。 */
+export function operatorSellPrice(
+  nameOrOp: string | Pick<Operator, 'name' | 'sellMechanics'>,
+  elite = false,
+): number {
+  const mech = operatorSellMechanics(nameOrOp);
+  if (!mech) return 1;
+  return elite ? mech.elite : mech.base;
 }
 
 /** 局内推荐是否将该策略视为带有主动触发指令。 */
@@ -333,6 +404,8 @@ export const NUMBER_TOOLS = [
   {id: 'layers', label: '层数门槛'},
   {id: 'recruit', label: '找牌升本'},
   {id: 'bounty', label: '悬赏收益'},
+  {id: 'credit', label: '认证效率'},
+  {id: 'box', label: '干员练度'},
   {id: 'dealer', label: '痛扁发牌'},
   {id: 'excuse', label: '抽象文案'},
 ] as const;

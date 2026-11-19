@@ -3,10 +3,15 @@ import test from 'node:test';
 import {OPERATORS, RESTRICTED_MODE_COVENANTS} from '../data/index.ts';
 import {isBanned} from '../src/lib/recommendation/index.ts';
 import {
+  calculateCreditPlan,
+  compareJointDifficulties,
+  compareSoloLevels,
   nextCycleReward,
   nextLayerBreakpoint,
   poolBreakdown,
   refreshBudget,
+  roundCredit,
+  runsNeededForCredit,
   synthesisHitRate,
   synthesisTier,
 } from '../src/lib/numbers/numberTools.ts';
@@ -125,4 +130,56 @@ test('poolBreakdown reflects active shop pool, banned targets, and synthesis hit
   assert.equal(synthesisHitRate(0), 0);
   assert.equal(synthesisHitRate(2), 1);
   assert.equal(synthesisHitRate(6), 0.5);
+});
+
+test('credit calculator matches round scaling, leader bonus, and comparison rows', () => {
+  // 标准 100%：第 14 回合 300，击败领袖 +50 = 350
+  assert.deepEqual(roundCredit(14, 100, true), {
+    perRun: 350,
+    roundPart: 300,
+    leaderBonus: 50,
+  });
+  // 未打到最终回合即使勾选领袖也不加领袖奖励
+  assert.deepEqual(roundCredit(10, 120, true), {
+    perRun: Math.round(170 * 1.2),
+    roundPart: Math.round(170 * 1.2),
+    leaderBonus: 0,
+  });
+  // 终极 150% 击败领袖：450 + 75 = 525
+  assert.equal(roundCredit(14, 150, true).perRun, 525);
+  assert.equal(runsNeededForCredit(6250, 6250, 350), 0);
+  assert.equal(runsNeededForCredit(6500, 6250, 350), 0);
+  assert.equal(runsNeededForCredit(0, 6250, 525), Math.ceil(6250 / 525));
+
+  const plan = calculateCreditPlan({
+    efficiency: 120,
+    roundsCleared: 14,
+    defeatedLeader: true,
+    currentCredit: 1000,
+    targetCredit: 6250,
+  });
+  assert.equal(plan.perRun, 420);
+  assert.equal(plan.remainingCredit, 5250);
+  assert.equal(plan.runsNeeded, 13);
+  assert.ok(plan.maxCombatSeconds > 0);
+
+  const jointRows = compareJointDifficulties({
+    roundsCleared: 14,
+    defeatedLeader: true,
+    currentCredit: 0,
+    targetCredit: 6250,
+    activeIndex: 1,
+  });
+  assert.equal(jointRows.length, 4);
+  assert.equal(jointRows[1].active, true);
+  assert.ok(jointRows[3].perRun > jointRows[0].perRun);
+
+  const soloRows = compareSoloLevels({
+    roundsCleared: 14,
+    defeatedLeader: false,
+    currentCredit: 0,
+    targetCredit: 3000,
+    activeLevel: 7,
+  });
+  assert.ok(soloRows.some((row) => row.id === 'solo:7' && row.active));
 });

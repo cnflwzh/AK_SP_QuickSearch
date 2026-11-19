@@ -10,7 +10,7 @@ export const DAILY_ROUND_COUNT = 5;
 export const RAGE_PER_HIT = 25;
 
 export type DealerMode = 'daily' | 'free';
-export type DealerRoundKind =
+export type DealerKnowledgeRoundKind =
   | 'covenant'
   | 'transmute'
   | 'trigger'
@@ -18,6 +18,12 @@ export type DealerRoundKind =
   | 'equipment'
   | 'strategy'
   | 'bounty';
+export type DealerRoundKind = DealerKnowledgeRoundKind | 'scenario';
+export type DealerSelectionMode = 'impostors' | 'best_pick';
+export type DealerScenarioArchetype =
+  | 'covenant_step'
+  | 'elite_promote'
+  | 'budget_synergy';
 export type EquipChallengeTheme =
   | 'transmute_capable'
   | 'upgradable'
@@ -48,6 +54,48 @@ export interface CardRevealTag {
   readonly mismatch?: boolean;
 }
 
+export interface DealerScenarioUnit {
+  readonly name: string;
+  readonly tier: number;
+  readonly copies: number;
+  readonly elite: boolean;
+  readonly deployed: boolean;
+}
+
+export interface DealerScenarioCovenantHint {
+  readonly name: string;
+  readonly count: number;
+  readonly need: number;
+  readonly active: boolean;
+}
+
+export interface DealerScenarioContext {
+  readonly archetype: DealerScenarioArchetype;
+  readonly archetypeLabel: string;
+  readonly level: number;
+  readonly round: number;
+  readonly funds: number;
+  readonly strategy: string;
+  readonly goalCovenant: string;
+  readonly goalTarget: number;
+  readonly deployed: readonly DealerScenarioUnit[];
+  readonly reserve: readonly DealerScenarioUnit[];
+  readonly covenantHints: readonly DealerScenarioCovenantHint[];
+}
+
+export interface DealerMistakeRecord {
+  readonly key: string;
+  readonly cardKind: 'operator' | 'equipment' | 'strategy' | 'bounty';
+  readonly title: string;
+  readonly detailKind?: 'op' | 'eq' | 'st';
+  readonly roundKind: DealerKnowledgeRoundKind;
+  readonly targetKey: string;
+  readonly targetLabel: string;
+  readonly wrongCount: number;
+  readonly correctStreak: number;
+  readonly lastWrongAt: number;
+}
+
 export interface DealerCard {
   readonly cardKind: 'operator' | 'equipment' | 'strategy' | 'bounty';
   readonly operator?: Operator;
@@ -63,6 +111,14 @@ export interface DealerCard {
   readonly cornerBadgeHidden?: string;
   readonly hideTierBeforeReveal?: boolean;
   readonly isImpostor: boolean;
+  readonly isBestPick?: boolean;
+  readonly price?: number;
+  readonly advisorRank?: number;
+  readonly advisorLabel?: string;
+  readonly advisorScore?: number;
+  readonly advisorReasons?: readonly string[];
+  readonly advisorLosses?: readonly string[];
+  readonly advisorReplace?: string;
   readonly triggerHint: string;
   readonly secondaryClue: string;
   readonly traitSegments: readonly TraitSegment[];
@@ -80,6 +136,7 @@ export interface CovenantMemo {
 export interface DealerRound {
   readonly roundNumber: number;
   readonly kind: DealerRoundKind;
+  readonly selectionMode?: DealerSelectionMode;
   readonly targetCovenant: string;
   readonly targetLabel: string;
   readonly missionTitle: string;
@@ -90,6 +147,9 @@ export interface DealerRound {
   readonly tierCheckTheme?: TierCheckTheme;
   readonly strategyTheme?: StrategyChallengeTheme;
   readonly bountyTheme?: BountyChallengeTheme;
+  readonly scenarioContext?: DealerScenarioContext;
+  readonly isMistakeReview?: boolean;
+  readonly mistakeTargetKey?: string;
   readonly impostorTotal: number;
   readonly goodTotal: number;
   readonly introLine: string;
