@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {computed, nextTick, onBeforeUnmount, ref, watch} from 'vue';
 import {
+  COMBAT_ROLES,
   OPERATOR,
   EQUIP,
   EQUIPMENT_COMBOS,
@@ -11,7 +12,10 @@ import {
   COVENANTS,
   isCoreCovenant,
   rosterOf,
+  type CombatRole,
 } from '../../../data/index.ts';
+import {navigate} from '../../router/navigation.ts';
+import {PAGE_PATHS, ROLE_IDS, idForLabel} from '../../router/location.ts';
 import {avatarSrc, equipIconSrc, portraitSrc} from '../../lib/ui/assets.ts';
 import {
   color,
@@ -54,6 +58,12 @@ let returnFocus: HTMLElement | null = null;
 const operator = computed(() =>
   props.selection?.kind === 'op' ? OPERATOR[props.selection.name] : undefined,
 );
+const roleDescMap = new Map(COMBAT_ROLES.map((item) => [item.label, item.desc]));
+function openRoleFilter(role: CombatRole): void {
+  const id = idForLabel(ROLE_IDS, role);
+  if (!id) return;
+  void navigate({path: PAGE_PATHS.op, query: {role: id}});
+}
 const opBanned = computed(() =>
   operator.value ? isRunBannedOp(operator.value.name) : false,
 );
@@ -257,6 +267,15 @@ onBeforeUnmount(() => dialog.value?.close());
                 :key="name"
                 kind="cv"
                 :name="name" />
+              <button
+                v-for="role in operator.roles ?? []"
+                :key="role"
+                type="button"
+                class="sh-role-chip"
+                :title="`${role}：${roleDescMap.get(role) ?? ''}（点此按该职能筛选干员）`"
+                @click="openRoleFilter(role)">
+                {{ role }}
+              </button>
             </div>
           </div>
           <div class="operator-detail-controls">
@@ -317,6 +336,15 @@ onBeforeUnmount(() => dialog.value?.close());
                 v-if="equipment.covenant"
                 kind="cv"
                 :name="equipment.covenant" />
+              <button
+                v-for="role in equipment.roles ?? []"
+                :key="role"
+                type="button"
+                class="sh-role-chip"
+                :title="`${role}：${roleDescMap.get(role) ?? ''}（点此查看同职能干员）`"
+                @click="openRoleFilter(role)">
+                {{ role }}
+              </button>
             </div>
           </div>
           <button
@@ -620,6 +648,29 @@ onBeforeUnmount(() => dialog.value?.close());
 .sh-eq-assign {
   display: grid;
   gap: 2px;
+}
+.sh-role-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 1px 8px;
+  border: 1px solid color-mix(in srgb, var(--teal) 36%, var(--line2));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--teal) 9%, var(--surface2));
+  color: var(--teal);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 0.14s,
+    color 0.14s,
+    background-color 0.14s;
+}
+.sh-role-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 .sh-eq-slot {
   display: inline-flex;

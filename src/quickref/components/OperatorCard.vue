@@ -5,6 +5,11 @@ import PrtsLink from './PrtsLink.vue';
 import {cardLocation} from '../../router/navigation.ts';
 import {TIER_LABELS, type Operator} from '../../../data/index.ts';
 import {avatarSrc} from '../../lib/ui/assets.ts';
+import {
+  BOX_RANK_META,
+  hasAnyBox,
+  rankOfOperator,
+} from '../../lib/box/index.ts';
 import {settings} from '../../lib/settings/index.ts';
 import {fx} from '../format.ts';
 import {useQuickrefActions} from '../state.ts';
@@ -25,6 +30,11 @@ const altTargets = computed(
   () => runAltTargets.value.get(props.operator.name) ?? [],
 );
 const banned = computed(() => isRunBannedOp(props.operator.name));
+const boxRank = computed(() =>
+  hasAnyBox.value && settings.showBoxBadges && props.operator.stars > 0
+    ? rankOfOperator(props.operator.avatar)
+    : -1,
+);
 const wikiVisible = computed(
   () => !!props.showWikiLink && settings.showWikiLinks,
 );
@@ -84,6 +94,12 @@ const wikiSelected = computed(
               :name="name"
               static />
             <span class="tag">{{ operator.type }}</span>
+            <span
+              v-if="boxRank > 0"
+              :class="['tag', 'op-box-tag', `r${boxRank}`]"
+              :title="`自持练度加成：${BOX_RANK_META[boxRank].bonusText}`">
+              {{ BOX_RANK_META[boxRank].shortLabel }}
+            </span>
             <span v-if="eliteMatched" class="tag a">精锐词条</span>
           </div>
         </div>
@@ -122,5 +138,36 @@ const wikiSelected = computed(
   outline: 2px solid var(--accent);
   outline-offset: 2px;
   border-radius: 3px;
+}
+.op-box-tag {
+  --op-r1: #2563eb;
+  --op-r2: #059669;
+  font-family: var(--fn);
+  font-weight: 700;
+}
+:global(:root[data-theme='dark']) .op-box-tag {
+  --op-r1: #60a5fa;
+  --op-r2: #34d399;
+}
+@media (prefers-color-scheme: dark) {
+  :global(:root:not([data-theme='light'])) .op-box-tag {
+    --op-r1: #60a5fa;
+    --op-r2: #34d399;
+  }
+}
+.op-box-tag.r1 {
+  border-color: color-mix(in srgb, var(--op-r1) 50%, var(--line));
+  color: var(--op-r1);
+  background: color-mix(in srgb, var(--op-r1) 12%, var(--surface));
+}
+.op-box-tag.r2 {
+  border-color: color-mix(in srgb, var(--op-r2) 50%, var(--line));
+  color: var(--op-r2);
+  background: color-mix(in srgb, var(--op-r2) 12%, var(--surface));
+}
+.op-box-tag.r3 {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 </style>

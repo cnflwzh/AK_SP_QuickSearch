@@ -4,6 +4,7 @@ import {
   OPERATORS,
   OPERATOR,
   OPERATOR_TYPES,
+  COMBAT_ROLE_LABELS,
   EQUIPMENT,
   EQUIP,
   STRATEGIES,
@@ -15,6 +16,7 @@ import {
   TIERS,
   TIER_LABELS,
   isCoreCovenant,
+  type CombatRole,
 } from '../../../data/index.ts';
 import {avatarSrc, equipIconSrc, portraitSrc} from '../../lib/ui/assets.ts';
 import {nameScore, normalize} from '../../lib/ui/match.ts';
@@ -28,6 +30,7 @@ import {
   usesLayers,
   atLayers,
   newSlot,
+  diagnoseLineup,
   equipNotes,
   planCost,
   type Plan,
@@ -347,6 +350,7 @@ function setLayers(name: string, value: number): void {
 }
 const active = computed(() => stats.value.filter((s) => s.active));
 const cost = computed(() => planCost(ops.value));
+const diagnostics = computed(() => diagnoseLineup(ops.value));
 const recs = computed(() => suggestions(ops.value, 8, plan.value.layers));
 const notes = computed(() => equipNotes(ops.value));
 const strategy = computed(() => STRATEGY[plan.value.strategy]);
@@ -385,22 +389,29 @@ const poolQuery = computed({
   },
 });
 const poolType = ref('');
+const poolRole = ref<CombatRole | ''>('');
 const hasPoolFilter = computed(
   () =>
     !!(
       poolQuery.value ||
       poolCovenant.value ||
       poolType.value ||
+      poolRole.value ||
       poolTier.value
     ),
 );
 function resetPoolFilters(): void {
   poolType.value = '';
+  poolRole.value = '';
   void updateQuery({
     poolQuery: null,
     poolCovenant: null,
     poolTier: null,
   });
+}
+function filterPoolByRole(role: CombatRole): void {
+  poolRole.value = poolRole.value === role ? '' : role;
+  if (compact.value && poolRole.value) void openOperators();
 }
 const pool = computed(() => {
   const raw = poolQuery.value.trim();
@@ -410,9 +421,11 @@ const pool = computed(() => {
       (!poolTier.value || o.tier === poolTier.value) &&
       (!poolCovenant.value || o.covenants.includes(poolCovenant.value)) &&
       (!poolType.value || o.type === poolType.value) &&
+      (!poolRole.value || Boolean(o.roles?.includes(poolRole.value))) &&
       (!raw ||
         nameScore(o.name, q) > 0 ||
         o.covenants.some((c) => c === raw) ||
+        Boolean(o.roles?.some((r) => r === raw || nameScore(r, q) > 0)) ||
         o.trait.includes(raw) ||
         o.elite.includes(raw) ||
         o.type.includes(raw)),
@@ -1047,6 +1060,44 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
             </span>
           </div>
 
+          <div v-if="ops.length" class="pl-diag" aria-label="阵容实战职能体检">
+            <span class="k">
+              职能体检
+              <small v-if="diagnostics.missingEssential.length" class="warn">
+                缺
+                {{
+                  diagnostics.missingEssential.map((e) => e.role).join(' / ')
+                }}
+              </small>
+              <small v-else class="ok">基础完备</small>
+            </span>
+            <div class="pl-diag-chips">
+              <button
+                v-for="entry in diagnostics.entries"
+                :key="entry.role"
+                type="button"
+                :class="[
+                  'pl-diag-chip',
+                  {
+                    ok: entry.providers.length > 0,
+                    miss: entry.essential && entry.providers.length === 0,
+                    on: poolRole === entry.role,
+                  },
+                ]"
+                :aria-pressed="poolRole === entry.role"
+                :title="
+                  entry.providers.length
+                    ? `${entry.role}：${entry.providers.join('、')}（点击在干员池中筛选）`
+                    : `${entry.role}：${entry.desc}（当前未覆盖，点击筛选补位）`
+                "
+                @click="filterPoolByRole(entry.role)">
+                <span>{{ entry.role }}</span>
+                <b v-if="entry.providers.length">{{ entry.providers.length }}</b>
+                <b v-else-if="entry.essential">缺</b>
+              </button>
+            </div>
+          </div>
+
           <div class="pl-st">
             <button
               type="button"
@@ -1349,6 +1400,12 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
                 {{ typeName }}
               </option>
             </select>
+            <select v-model="poolRole" aria-label="实战职能">
+              <option value="">全部职能</option>
+              <option v-for="role in COMBAT_ROLE_LABELS" :key="role">
+                {{ role }}
+              </option>
+            </select>
             <Segmented
               :labels="['全部', ...TIER_LABELS.slice(1)]"
               :active="poolTier"
@@ -1370,6 +1427,7 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
               !poolQuery &&
               !poolCovenant &&
               !poolType &&
+              !poolRole &&
               !poolTier
             "
             class="pl-pick pl-altpick">
@@ -1513,3 +1571,90 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
     </nav>
   </div>
 </template>
+
+<style scoped>
+.pl-diag {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface2);
+}
+.pl-diag > .k {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink2);
+}
+.pl-diag > .k small {
+  font-weight: 600;
+  font-size: 11.5px;
+}
+.pl-diag > .k small.warn {
+  color: var(--red);
+}
+.pl-diag > .k small.ok {
+  color: var(--teal);
+}
+.pl-diag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pl-diag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 2px 9px;
+  border: 1px dashed var(--line2);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink3);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition:
+    border-color 0.12s,
+    color 0.12s,
+    background-color 0.12s;
+}
+.pl-diag-chip:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+.pl-diag-chip.ok {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--teal) 45%, var(--line2));
+  background: var(--teal-soft);
+  color: var(--teal);
+}
+.pl-diag-chip.miss {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--red) 55%, var(--line2));
+  background: color-mix(in srgb, var(--red) 5%, var(--surface));
+  color: var(--red);
+}
+.pl-diag-chip.on {
+  border-style: solid;
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+.pl-diag-chip b {
+  font-family: var(--fn);
+  font-size: 10.5px;
+}
+@media (pointer: coarse), (max-height: 600px) {
+  .pl-diag-chip {
+    min-height: 34px;
+  }
+}
+</style>

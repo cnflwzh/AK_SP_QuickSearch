@@ -45,6 +45,7 @@ import {
   TRIGGER_THEME_META,
   TRIGGER_THEMES,
 } from './themes.ts';
+import {buildScenarioRound} from './scenarioRounds.ts';
 import {
   DEALER_SHOP_SIZE,
   type BountyChallengeTheme,
@@ -52,6 +53,7 @@ import {
   type DealerCard,
   type DealerRound,
   type DealerRoundKind,
+  type DealerScenarioArchetype,
   type EquipChallengeTheme,
   type StrategyChallengeTheme,
   type TierCheckTheme,
@@ -71,7 +73,22 @@ function sampleDistinctByName<T extends {readonly name: string}>(
   fallback: readonly T[],
   count: number,
   rng: () => number,
+  forceIncludeName?: string,
 ): T[] {
+  if (forceIncludeName && count > 0) {
+    const forced =
+      primary.find((item) => item.name === forceIncludeName) ??
+      fallback.find((item) => item.name === forceIncludeName);
+    if (forced) {
+      const rest = sampleDistinctByName(
+        primary.filter((item) => item.name !== forced.name),
+        fallback.filter((item) => item.name !== forced.name),
+        count - 1,
+        rng,
+      );
+      return [forced, ...rest];
+    }
+  }
   const picked = shuffleWith(primary, rng).slice(0, count);
   if (picked.length >= count) return picked;
   const chosen = new Set(picked.map((item) => item.name));
@@ -485,9 +502,17 @@ function buildCovenantRound(options: {
   introSeed: number;
   usedNames?: Set<string>;
   preferredImpostors?: number;
+  forceIncludeName?: string;
 }): DealerRound {
-  const {roundNumber, targetCovenant, rng, orderRng, introSeed, usedNames} =
-    options;
+  const {
+    roundNumber,
+    targetCovenant,
+    rng,
+    orderRng,
+    introSeed,
+    usedNames,
+    forceIncludeName,
+  } = options;
   const goodPool = rosterOf(targetCovenant);
   const badPool = OPERATORS.filter(
     (op) => !op.covenants.includes(targetCovenant),
@@ -518,8 +543,20 @@ function buildCovenantRound(options: {
     ? badPool.filter((op) => !usedNames.has(op.name))
     : badPool;
 
-  const goodPicked = sampleDistinctByName(freshGood, goodPool, goodCount, rng);
-  const badPicked = sampleDistinctByName(freshBad, badPool, impostorCount, rng);
+  const goodPicked = sampleDistinctByName(
+    freshGood,
+    goodPool,
+    goodCount,
+    rng,
+    forceIncludeName,
+  );
+  const badPicked = sampleDistinctByName(
+    freshBad,
+    badPool,
+    impostorCount,
+    rng,
+    forceIncludeName,
+  );
   for (const op of [...goodPicked, ...badPicked]) usedNames?.add(op.name);
 
   const canonical = [...goodPicked, ...badPicked].map((op) =>
@@ -553,9 +590,17 @@ function buildTransmuteRound(options: {
   introSeed: number;
   usedNames?: Set<string>;
   preferredImpostors?: number;
+  forceIncludeName?: string;
 }): DealerRound {
-  const {roundNumber, targetCovenant, rng, orderRng, introSeed, usedNames} =
-    options;
+  const {
+    roundNumber,
+    targetCovenant,
+    rng,
+    orderRng,
+    introSeed,
+    usedNames,
+    forceIncludeName,
+  } = options;
   const goodPool = rosterOf(targetCovenant);
   const badPool = OPERATORS.filter(
     (op) => !op.covenants.includes(targetCovenant),
@@ -583,12 +628,14 @@ function buildTransmuteRound(options: {
     goodPool,
     Math.max(1, nativeGoodCount),
     rng,
+    forceIncludeName,
   );
   const nonTargetPicked = sampleDistinctByName(
     freshBad,
     badPool,
     1 + desiredImpostors,
     rng,
+    forceIncludeName,
   );
   for (const op of [...nativePicked, ...nonTargetPicked]) {
     usedNames?.add(op.name);
@@ -665,8 +712,16 @@ function buildEquipmentRound(options: {
   orderRng: () => number;
   introSeed: number;
   preferredImpostors?: number;
+  forceIncludeName?: string;
 }): DealerRound {
-  const {roundNumber, equipTheme, rng, orderRng, introSeed} = options;
+  const {
+    roundNumber,
+    equipTheme,
+    rng,
+    orderRng,
+    introSeed,
+    forceIncludeName,
+  } = options;
   const meta = EQUIP_THEME_META[equipTheme];
   const goodPool = EQUIPMENT.filter(meta.match);
   let badPool = EQUIPMENT.filter(meta.impostor);
@@ -690,9 +745,20 @@ function buildEquipmentRound(options: {
   );
   const goodCount = DEALER_SHOP_SIZE - desiredImpostors;
 
-  const goodPicked = shuffleWith(goodPool, rng).slice(0, goodCount);
-  const badPicked =
-    equipTheme === 'consumable' && trickyConsumables.length >= 3
+  const goodPicked = forceIncludeName
+    ? sampleDistinctByName(goodPool, goodPool, goodCount, rng, forceIncludeName)
+    : shuffleWith(goodPool, rng).slice(0, goodCount);
+  const badPicked = forceIncludeName
+    ? sampleDistinctByName(
+        equipTheme === 'consumable' && trickyConsumables.length >= 3
+          ? badPool.slice(0, 8)
+          : badPool,
+        badPool,
+        desiredImpostors,
+        rng,
+        forceIncludeName,
+      )
+    : equipTheme === 'consumable' && trickyConsumables.length >= 3
       ? [
           ...shuffleWith(badPool.slice(0, 8), rng).slice(0, desiredImpostors),
         ].slice(0, desiredImpostors)
@@ -729,9 +795,17 @@ function buildTriggerRound(options: {
   introSeed: number;
   usedNames?: Set<string>;
   preferredImpostors?: number;
+  forceIncludeName?: string;
 }): DealerRound {
-  const {roundNumber, triggerTheme, rng, orderRng, introSeed, usedNames} =
-    options;
+  const {
+    roundNumber,
+    triggerTheme,
+    rng,
+    orderRng,
+    introSeed,
+    usedNames,
+    forceIncludeName,
+  } = options;
   const meta = TRIGGER_THEME_META[triggerTheme];
   const goodPool = OPERATORS.filter(meta.match);
   const badPool = OPERATORS.filter(meta.impostor);
@@ -751,12 +825,19 @@ function buildTriggerRound(options: {
     ? badPool.filter((op) => !usedNames.has(op.name))
     : badPool;
 
-  const goodPicked = sampleDistinctByName(freshGood, goodPool, goodCount, rng);
+  const goodPicked = sampleDistinctByName(
+    freshGood,
+    goodPool,
+    goodCount,
+    rng,
+    forceIncludeName,
+  );
   const badPicked = sampleDistinctByName(
     freshBad.length >= impostorCount ? freshBad : fallbackBad,
     badPool,
     impostorCount,
     rng,
+    forceIncludeName,
   );
   for (const op of [...goodPicked, ...badPicked]) usedNames?.add(op.name);
 
@@ -791,9 +872,17 @@ function buildTierCheckRound(options: {
   introSeed: number;
   usedNames?: Set<string>;
   preferredImpostors?: number;
+  forceIncludeName?: string;
 }): DealerRound {
-  const {roundNumber, tierCheckTheme, rng, orderRng, introSeed, usedNames} =
-    options;
+  const {
+    roundNumber,
+    tierCheckTheme,
+    rng,
+    orderRng,
+    introSeed,
+    usedNames,
+    forceIncludeName,
+  } = options;
   const meta = TIER_CHECK_META[tierCheckTheme];
   const impostorCount = resolveImpostorCount(rng, options.preferredImpostors);
   const goodCount = DEALER_SHOP_SIZE - impostorCount;
@@ -802,8 +891,18 @@ function buildTierCheckRound(options: {
   if (meta.itemKind === 'equipment') {
     const goodPool = EQUIPMENT.filter((eq) => eq.tier >= 5);
     const badPool = EQUIPMENT.filter((eq) => eq.tier <= 4);
-    const goodPicked = shuffleWith(goodPool, rng).slice(0, goodCount);
-    const badPicked = shuffleWith(badPool, rng).slice(0, impostorCount);
+    const goodPicked = forceIncludeName
+      ? sampleDistinctByName(goodPool, goodPool, goodCount, rng, forceIncludeName)
+      : shuffleWith(goodPool, rng).slice(0, goodCount);
+    const badPicked = forceIncludeName
+      ? sampleDistinctByName(
+          badPool,
+          badPool,
+          impostorCount,
+          rng,
+          forceIncludeName,
+        )
+      : shuffleWith(badPool, rng).slice(0, impostorCount);
     canonical = [...goodPicked, ...badPicked].map(createTierEquipmentCard);
   } else {
     const goodPool = OPERATORS.filter((op) =>
@@ -823,12 +922,14 @@ function buildTierCheckRound(options: {
       goodPool,
       goodCount,
       rng,
+      forceIncludeName,
     );
     const badPicked = sampleDistinctByName(
       freshBad,
       badPool,
       impostorCount,
       rng,
+      forceIncludeName,
     );
     for (const op of [...goodPicked, ...badPicked]) usedNames?.add(op.name);
     canonical = [...goodPicked, ...badPicked].map((op) =>
@@ -862,16 +963,34 @@ function buildStrategyRound(options: {
   orderRng: () => number;
   introSeed: number;
   preferredImpostors?: number;
+  forceIncludeName?: string;
 }): DealerRound {
-  const {roundNumber, strategyTheme, rng, orderRng, introSeed} = options;
+  const {
+    roundNumber,
+    strategyTheme,
+    rng,
+    orderRng,
+    introSeed,
+    forceIncludeName,
+  } = options;
   const meta = STRATEGY_THEME_META[strategyTheme];
   const goodPool = STRATEGIES.filter(meta.match);
   const badPool = STRATEGIES.filter(meta.impostor);
   const impostorCount = resolveImpostorCount(rng, options.preferredImpostors);
   const goodCount = DEALER_SHOP_SIZE - impostorCount;
 
-  const goodPicked = shuffleWith(goodPool, rng).slice(0, goodCount);
-  const badPicked = shuffleWith(badPool, rng).slice(0, impostorCount);
+  const goodPicked = forceIncludeName
+    ? sampleDistinctByName(goodPool, goodPool, goodCount, rng, forceIncludeName)
+    : shuffleWith(goodPool, rng).slice(0, goodCount);
+  const badPicked = forceIncludeName
+    ? sampleDistinctByName(
+        badPool,
+        badPool,
+        impostorCount,
+        rng,
+        forceIncludeName,
+      )
+    : shuffleWith(badPool, rng).slice(0, impostorCount);
   const canonical = [...goodPicked, ...badPicked].map((st) =>
     createStrategyCard(st, strategyTheme),
   );
@@ -900,8 +1019,19 @@ function sampleDistinctBounties(
   count: number,
   rng: () => number,
   usedEnemyIds: Set<string>,
+  forceIncludeName?: string,
 ): Bounty[] {
   const picked: Bounty[] = [];
+  if (forceIncludeName && count > 0) {
+    const forced = pool.find(
+      (item) => item.name === forceIncludeName && !usedEnemyIds.has(item.enemyId),
+    );
+    if (forced) {
+      usedEnemyIds.add(forced.enemyId);
+      picked.push(forced);
+      if (picked.length >= count) return picked;
+    }
+  }
   for (const item of shuffleWith(pool, rng)) {
     if (usedEnemyIds.has(item.enemyId)) continue;
     usedEnemyIds.add(item.enemyId);
@@ -918,8 +1048,16 @@ function buildBountyRound(options: {
   orderRng: () => number;
   introSeed: number;
   preferredImpostors?: number;
+  forceIncludeName?: string;
 }): DealerRound {
-  const {roundNumber, bountyTheme, rng, orderRng, introSeed} = options;
+  const {
+    roundNumber,
+    bountyTheme,
+    rng,
+    orderRng,
+    introSeed,
+    forceIncludeName,
+  } = options;
   const meta = BOUNTY_THEME_META[bountyTheme];
   const goodPool = BOUNTIES.filter(meta.match);
   const badPool = BOUNTIES.filter(meta.impostor);
@@ -932,12 +1070,14 @@ function buildBountyRound(options: {
     goodCount,
     rng,
     usedEnemyIds,
+    forceIncludeName,
   );
   const badPicked = sampleDistinctBounties(
     badPool,
     impostorCount,
     rng,
     usedEnemyIds,
+    forceIncludeName,
   );
   const canonical = [...goodPicked, ...badPicked].map((b) =>
     createBountyCard(b, bountyTheme),
@@ -971,6 +1111,9 @@ interface DealerRoundOptions {
   tierCheckTheme?: TierCheckTheme;
   strategyTheme?: StrategyChallengeTheme;
   bountyTheme?: BountyChallengeTheme;
+  preferredArchetype?: DealerScenarioArchetype;
+  avoidArchetype?: DealerScenarioArchetype;
+  forceIncludeName?: string;
   rng: () => number;
   orderRng?: () => number;
   introSeed?: number;
@@ -979,11 +1122,23 @@ interface DealerRoundOptions {
 }
 
 function drawDealerRound(options: DealerRoundOptions): DealerRound {
-  const {roundNumber, rng, usedNames, preferredImpostors} = options;
+  const {roundNumber, rng, usedNames, preferredImpostors, forceIncludeName} =
+    options;
   const kind = options.kind ?? 'covenant';
   const shuffleRng = options.orderRng ?? rng;
   const introSeed =
     options.introSeed ?? roundNumber + Math.floor(shuffleRng() * 97);
+
+  if (kind === 'scenario') {
+    return buildScenarioRound({
+      roundNumber,
+      rng,
+      orderRng: shuffleRng,
+      introSeed,
+      preferredArchetype: options.preferredArchetype,
+      avoidArchetype: options.avoidArchetype,
+    });
+  }
 
   if (kind === 'equipment') {
     const equipTheme =
@@ -996,6 +1151,7 @@ function drawDealerRound(options: DealerRoundOptions): DealerRound {
       orderRng: shuffleRng,
       introSeed,
       preferredImpostors,
+      forceIncludeName,
     });
   }
 
@@ -1011,6 +1167,7 @@ function drawDealerRound(options: DealerRoundOptions): DealerRound {
       introSeed,
       usedNames,
       preferredImpostors,
+      forceIncludeName,
     });
   }
 
@@ -1026,6 +1183,7 @@ function drawDealerRound(options: DealerRoundOptions): DealerRound {
       introSeed,
       usedNames,
       preferredImpostors,
+      forceIncludeName,
     });
   }
 
@@ -1040,6 +1198,7 @@ function drawDealerRound(options: DealerRoundOptions): DealerRound {
       orderRng: shuffleRng,
       introSeed,
       preferredImpostors,
+      forceIncludeName,
     });
   }
 
@@ -1054,6 +1213,7 @@ function drawDealerRound(options: DealerRoundOptions): DealerRound {
       orderRng: shuffleRng,
       introSeed,
       preferredImpostors,
+      forceIncludeName,
     });
   }
 
@@ -1070,6 +1230,7 @@ function drawDealerRound(options: DealerRoundOptions): DealerRound {
       introSeed,
       usedNames,
       preferredImpostors,
+      forceIncludeName,
     });
   }
 
@@ -1081,6 +1242,7 @@ function drawDealerRound(options: DealerRoundOptions): DealerRound {
     introSeed,
     usedNames,
     preferredImpostors,
+    forceIncludeName,
   });
 }
 

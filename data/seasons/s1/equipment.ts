@@ -66,6 +66,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e05',
     effect: '无法被治疗，每秒回复75生命',
     advanced: '无法被治疗，每秒回复150生命',
+    roles: ['治疗'],
   },
   {
     name: '雪祀之衣',
@@ -84,6 +85,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e07',
     effect: '再部署时间-30%，生命上限-30%',
     advanced: '再部署时间-50%，生命上限-30%',
+    roles: ['快活'],
   },
   {
     name: '紧急调度券',
@@ -102,6 +104,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e09',
     effect: '攻击力+20%；地面干员攻击10%概率战栗2秒',
     advanced: '攻击力+35%；地面干员攻击10%概率战栗2秒',
+    roles: ['控制'],
   },
   {
     name: '萨尔贡浓茶',
@@ -156,6 +159,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e15',
     effect: '范围内友方首次低于50%生命时治疗35%',
     advanced: '范围内友方首次低于50%生命时治疗50%',
+    roles: ['治疗'],
   },
   {
     name: '灵巧涡轮手套',
@@ -165,6 +169,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e16',
     effect: '部署后每秒攻速+2（20次），受伤清空',
     advanced: '部署后每秒攻速+3（20次），受伤清空',
+    roles: ['高频'],
   },
   {
     name: '叙拉古正装',
@@ -174,6 +179,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e17',
     effect: '攻速+15，左右两侧干员攻速+10',
     advanced: '攻速+25，左右两侧干员攻速+15',
+    roles: ['高频'],
   },
   {
     name: '精准狙击镜',
@@ -228,6 +234,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e23',
     effect: '法抗+20，攻击使目标失去特殊能力5秒',
     advanced: '法抗+30，攻击使目标失去特殊能力5秒',
+    roles: ['控制'],
   },
   {
     name: '坚固维式重锤',
@@ -246,6 +253,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e25',
     effect: '攻击力+25%，攻速+30',
     advanced: '攻击力+45%，攻速+30',
+    roles: ['高频'],
   },
   {
     name: '突袭手雷',
@@ -255,6 +263,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e26',
     effect: '部署后10秒内攻击晕眩2秒',
     advanced: '部署后15秒内攻击晕眩2秒',
+    roles: ['控制'],
   },
   {
     name: '驮兽储蓄罐',
@@ -273,6 +282,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e28',
     effect: '阻挡+1，攻击力+20%，每次再部署叠加（2次）',
     advanced: '阻挡+1，攻击力+30%，每次再部署叠加（3次）',
+    roles: ['阻挡'],
   },
   {
     name: '多功能补剂',
@@ -291,6 +301,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e30',
     effect: '每次伤害额外1次25%攻击力法伤',
     advanced: '每次伤害额外2次25%攻击力法伤',
+    roles: ['高频'],
   },
   {
     name: '定期存折',
@@ -354,6 +365,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e37',
     effect: '攻击力+30%；法伤附带10%灼燃损伤',
     advanced: '攻击力+50%；法伤附带10%灼燃损伤',
+    roles: ['真伤'],
   },
   {
     name: '护盾无人机',
@@ -363,6 +375,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e38',
     effect: '治疗时10%概率给1层护盾',
     advanced: '治疗时15%概率给1层护盾',
+    roles: ['治疗'],
   },
   {
     name: 'M3茧甲',
@@ -390,6 +403,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e41',
     effect: '造成伤害12%概率寒冷1.5秒',
     advanced: '造成伤害20%概率寒冷1.5秒',
+    roles: ['控制'],
   },
   {
     name: '可靠怀表',
@@ -435,6 +449,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e46',
     effect: '伤害5%吸血；配汲取者之心→汲取者之镰',
     advanced: null,
+    roles: ['治疗'],
   },
   {
     name: '双模机械臂',
@@ -489,6 +504,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e52',
     effect: '攻击力+30%；5%麻痹，对麻痹敌人无视30%防御法抗',
     advanced: '攻击力+50%；5%麻痹，对麻痹敌人无视30%防御法抗',
+    roles: ['控制', '真伤'],
   },
   {
     name: '佣兵名牌',
@@ -525,6 +541,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e56',
     effect: '阻挡+2，每阻挡1名生命、防御+20%；配不退者之盾→卫护系统',
     advanced: null,
+    roles: ['阻挡'],
   },
   {
     name: '驱逐者瓦斯',
@@ -534,6 +551,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e57',
     effect: '范围内敌人异常状态时长+100%；配驱逐者警棍→防暴装备',
     advanced: null,
+    roles: ['控制'],
   },
   {
     name: '投机骰子',
@@ -581,6 +599,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e62',
     effect: '每次攻击/治疗攻速+2（60层）；配动能单手弩→动能轰击弩',
     advanced: null,
+    roles: ['高频'],
   },
   {
     name: '汲取者之心',
@@ -590,6 +609,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e63',
     effect: '攻击力+30%，攻速+30，每秒流失1%生命；配汲取者之喙→汲取者之镰',
     advanced: null,
+    roles: ['高频'],
   },
   {
     name: '终极维式重锤',
@@ -608,6 +628,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e65',
     effect: '免疫异常，阻挡+2，阻挡加生命防御，开技能诱导周围敌人3秒',
     advanced: null,
+    roles: ['阻挡', '控制'],
   },
   {
     name: '动能轰击弩',
@@ -617,6 +638,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e66',
     effect: '30%概率130%攻击；攻速叠满60层后30%概率范围100%物伤',
     advanced: null,
+    roles: ['高频', '群攻'],
   },
   {
     name: '汲取者之镰',
@@ -626,6 +648,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e67',
     effect: '攻击力+30%，攻速+30，5%吸血；技能期间翻倍且无法被治疗',
     advanced: null,
+    roles: ['高频', '治疗'],
   },
   {
     name: '驱逐者防暴装备',
@@ -635,6 +658,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e68',
     effect: '异常时长+100%，对异常敌人伤害+30%，技能期间50%传染异常',
     advanced: null,
+    roles: ['控制'],
   },
   {
     name: '天马之耀',
@@ -644,6 +668,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     icon: 'e69',
     effect: '生命上限+60%，每秒回复8%；攻击力+50%，额外30%攻击力真伤',
     advanced: null,
+    roles: ['治疗', '真伤'],
   },
 ];
 

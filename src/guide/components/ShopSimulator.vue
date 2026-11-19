@@ -5,7 +5,10 @@ import {
   OPERATOR,
   DISPATCH_BY_MODE,
   DISPATCH_MODES,
+  operatorEliteCopies,
   operatorPrice,
+  operatorSellMechanics,
+  operatorSellPrice,
   TIER_LABELS,
   TIERS,
 } from '../../../data/index';
@@ -48,7 +51,7 @@ const sim = reactive<ShopState>({
 });
 let cardId = 0;
 const pools = Array.from({length: 7}, (_, level) =>
-  OPERATORS.filter((o) => o.tier <= level && o.name !== '盟约·辅助干员'),
+  OPERATORS.filter((o) => o.tier <= level && o.stars > 0),
 );
 const pickRandom = <T,>(list: readonly T[]): T =>
   list[Math.floor(Math.random() * list.length)];
@@ -94,18 +97,22 @@ function reset() {
 }
 /** The special two-card merge and free reward use the current dispatch level. */
 function tryMerge(name: string) {
-  const need = name === '星极' ? 2 : 3;
+  const need = operatorEliteCopies(name);
   const copies = sim.bench
     .map((card, i) => (!card.elite && card.name === name ? i : -1))
     .filter((i) => i >= 0);
   if (copies.length < need) return;
   const used = copies.slice(0, need);
   sim.bench = sim.bench.filter((_, i) => !used.includes(i));
-  sim.bench.push({id: ++cardId, name, elite: true, pop: true, sale: 1});
+  sim.bench.push({
+    id: ++cardId,
+    name,
+    elite: true,
+    pop: true,
+    sale: operatorSellPrice(name, true),
+  });
   const pool = OPERATORS.filter(
-    (o) =>
-      o.tier === Math.min(MAX_LEVEL, sim.level + 1) &&
-      o.name !== '盟约·辅助干员',
+    (o) => o.tier === Math.min(MAX_LEVEL, sim.level + 1) && o.stars > 0,
   ).map((o) => o.name);
   const picks = new Set<string>();
   while (picks.size < 3 && picks.size < pool.length)
@@ -113,7 +120,13 @@ function tryMerge(name: string) {
   sim.reward = [...picks];
 }
 function addToBench(name: string) {
-  sim.bench.push({id: ++cardId, name, elite: false, pop: true, sale: 1});
+  sim.bench.push({
+    id: ++cardId,
+    name,
+    elite: false,
+    pop: true,
+    sale: operatorSellPrice(name, false),
+  });
   tryMerge(name);
 }
 function buy(index: number) {
@@ -135,7 +148,7 @@ function sell(index: number) {
   const card = sim.bench[index];
   if (!card) return;
   beginAction();
-  sim.spent -= card.name === '温蒂' ? (card.elite ? 6 : 3) : card.sale;
+  sim.spent -= card.sale;
   sim.bench.splice(index, 1);
 }
 function refresh() {
@@ -162,11 +175,13 @@ function upgrade() {
 function nextRound() {
   beginAction();
   sim.bench.forEach((card) => {
-    if (card.name === '海沫')
+    const growth = operatorSellMechanics(card.name)?.roundGrowth;
+    if (growth) {
       card.sale = Math.min(
-        card.elite ? 8 : 4,
-        card.sale + (card.elite ? 2 : 1),
+        card.elite ? growth.eliteMax : growth.baseMax,
+        card.sale + (card.elite ? growth.eliteStep : growth.baseStep),
       );
+    }
   });
   sim.round++;
   sim.cost = Math.max(0, sim.cost - 1);

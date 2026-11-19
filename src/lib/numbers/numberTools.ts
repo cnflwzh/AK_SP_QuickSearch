@@ -6,6 +6,18 @@ import {
 } from '../../../data/index.ts';
 import {isBanned} from '../recommendation/planning.ts';
 
+export {
+  calculateCreditPlan,
+  compareJointDifficulties,
+  compareSoloLevels,
+  defaultCreditTarget,
+  roundCredit,
+  runsNeededForCredit,
+  type CreditCalculation,
+  type CreditComparisonRow,
+  type CreditMode,
+} from './creditTools.ts';
+
 /** 返回严格高于当前层数的下一项；全部达到时返回 undefined。 */
 export function nextLayerBreakpoint(covenant: string, layers: number) {
   return LAYER_BREAKPOINTS[covenant]?.find((item) => item.layers > layers);

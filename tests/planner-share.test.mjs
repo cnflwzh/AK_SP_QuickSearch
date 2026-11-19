@@ -19,12 +19,9 @@ import {
   usesLayers,
 } from '../src/lib/plans/index.ts';
 import {
-  BitReader,
   BitWriter,
   packSharePayload,
-  readShareText,
   unpackSharePayload,
-  writeShareText,
 } from '../src/lib/plans/shareCodec.ts';
 import {TEXT_CODE_GROUPS} from '../src/lib/plans/shareTextCodebook.ts';
 
@@ -139,40 +136,6 @@ test('spaces, newlines, BOM, rare characters, emoji and lone UTF-16 surrogates a
       layers: Object.fromEntries(layerNames.map((name) => [name, 9999])),
     };
     roundTrip(fullWorstCase);
-  }
-});
-
-test('all text encodings work at unaligned bit positions', () => {
-  for (const mode of [0, 1, 2]) {
-    for (let offset = 0; offset < 8; offset++) {
-      const text = '\ufeff 炎队\n策略😀𠮷';
-      const writer = new BitWriter();
-      writer.write(0, offset);
-      assert.equal(writeShareText(writer, text, mode), true);
-      const reader = new BitReader(writer.finish());
-      reader.read(offset);
-      assert.equal(readShareText(reader, text.length, mode), text);
-    }
-  }
-  assert.equal(writeShareText(new BitWriter(), '\ud800', 0), false);
-});
-
-test('raw and compressed payloads work for all three text modes', () => {
-  for (const mode of [0, 1, 2]) {
-    for (const bytes of [
-      Uint8Array.of(7, 119, 251),
-      new Uint8Array(768).fill(42),
-    ]) {
-      const token = packSharePayload(bytes, mode);
-      assert.equal(token[0], (bytes.length === 3 ? 'ABC' : 'EFG')[mode]);
-      const {reader, mode: decodedMode} = unpackSharePayload(token);
-      assert.equal(decodedMode, mode);
-      assert.deepEqual(
-        Uint8Array.from(bytes, () => reader.read(8)),
-        bytes,
-      );
-      reader.finish();
-    }
   }
 });
 

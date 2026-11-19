@@ -53,6 +53,7 @@ test('external filters normalize repeated values, invalid IDs and out-of-range n
     covenant: 'victoria',
     trigger: 'battle',
     type: 'combat',
+    role: 'antistealth',
     elite: '1',
     q: '  攻击  ',
     card: 'op-char_4177_brigid',
@@ -64,6 +65,7 @@ test('external filters normalize repeated values, invalid IDs and out-of-range n
     covenant: 'victoria',
     trigger: 'battle',
     type: 'combat',
+    role: 'antistealth',
     elite: '1',
     q: '攻击',
     card: 'op-char_4177_brigid',
@@ -74,6 +76,7 @@ test('external filters normalize repeated values, invalid IDs and out-of-range n
       tier: 'NaN',
       covenant: '__proto__',
       type: 'unknown',
+      role: 'unknown',
       card: 'bad',
     }),
     {},
@@ -101,7 +104,7 @@ test('numbers links retain navigation destinations without calculator inputs or 
     bountyQuery: '假想敌',
   };
   assert.deepEqual(normalizeQuery('nu', transient), {});
-  for (const tool of ['recruit', 'bounty', 'dealer', 'excuse']) {
+  for (const tool of ['recruit', 'bounty', 'credit', 'box', 'dealer', 'excuse']) {
     const query = {
       ...transient,
       tool,

@@ -17,6 +17,7 @@ import {
   LEADERS,
   SEASON_META,
 } from '../../data/index.ts';
+import {initBoxStorageSync} from '../lib/box/index.ts';
 import {prefersReducedMotion} from '../lib/ui/dom.ts';
 import {
   isSmallWindow,
@@ -46,7 +47,20 @@ import {
 } from '../router/navigation.ts';
 import {topSearchTarget} from './searchRanking.ts';
 import {flushSave, presetOf, presets} from './planStore.ts';
+import {
+  clearRecent,
+  recentItems,
+  recordRecent,
+  type RecentItem,
+} from './recentStore.ts';
+import {
+  avatarSrc,
+  equipIconSrc,
+  leaderSrc,
+  portraitSrc,
+} from '../lib/ui/assets.ts';
 import {lazyView} from '../lib/ui/lazyView.ts';
+import CovenantIcon from './components/CovenantIcon.vue';
 import DetailSheet from './components/DetailSheet.vue';
 import PrtsPanel from './components/PrtsPanel.vue';
 import {provideWikiPanel} from './wikiPanel.ts';
@@ -84,7 +98,38 @@ const renderedQuery = computed(() => queryText(currentRoute.value.query, 'q'));
 const mountBackground = ref(!renderedQuery.value);
 const query = ref(renderedQuery.value);
 const composing = ref(false);
+const searchFocused = ref(false);
 const searching = computed(() => !!query.value.trim());
+const showRecentTray = computed(
+  () => searchFocused.value && !searching.value && recentItems.value.length > 0,
+);
+const RECENT_KIND_LABEL: Readonly<Record<RecentItem['kind'], string>> = {
+  op: '干员',
+  eq: '装备',
+  st: '策略',
+  cv: '盟约',
+  ld: '领袖',
+};
+function recentThumb(item: RecentItem): string {
+  if (item.kind === 'op') return avatarSrc(item.name);
+  if (item.kind === 'eq') return equipIconSrc(item.name);
+  if (item.kind === 'st') return portraitSrc(item.name);
+  if (item.kind === 'ld') return leaderSrc(item.name);
+  return '';
+}
+function openRecent(item: RecentItem): void {
+  searchFocused.value = false;
+  if (document.activeElement === searchInput.value) searchInput.value?.blur();
+  if (item.kind === 'cv') {
+    void openCovenant(item.name);
+    return;
+  }
+  if (item.kind === 'ld') {
+    void openLeader(item.name);
+    return;
+  }
+  openDetail(item.kind, item.name);
+}
 const searchInput = ref<HTMLInputElement | null>(null);
 const searchBar = ref<HTMLDivElement | null>(null);
 const view = ref<HTMLElement | null>(null);
@@ -98,6 +143,14 @@ let tabResizeObserver: ResizeObserver | undefined;
 const detail = computed(
   () => detailFromId(queryText(currentRoute.value.query, 'card')) ?? null,
 );
+watch(detail, (next, prev) => {
+  if (
+    next &&
+    (next.kind !== prev?.kind || next.name !== prev?.name)
+  ) {
+    recordRecent(next.kind, next.name);
+  }
+});
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 const scrollBehavior = (): ScrollBehavior =>
   prefersReducedMotion() ? 'instant' : 'smooth';
@@ -250,6 +303,7 @@ function closeDetail(): void {
 }
 async function openCovenant(name: string): Promise<void> {
   const fromOperator = detail.value?.kind === 'op' ? detail.value.name : '';
+  recordRecent('cv', name);
   await setCovenant(name);
   await nextTick();
   if (fromOperator) flashOperator(fromOperator);
@@ -258,9 +312,11 @@ async function openBuild(name: string): Promise<void> {
   await setBuild(name);
 }
 async function openLeader(name: string): Promise<void> {
+  if (name) recordRecent('ld', name);
   await setLeader(name);
 }
 async function pickCovenant(name: string): Promise<void> {
+  recordRecent('cv', name);
   await setCovenant(name);
   await nextTick();
   const element = view.value?.querySelector('.cvd');
@@ -373,10 +429,15 @@ function keydown(event: KeyboardEvent): void {
     searchInput.value?.select();
   } else if (
     event.key === 'Escape' &&
-    document.activeElement === searchInput.value &&
-    query.value
-  )
-    clearSearch();
+    document.activeElement === searchInput.value
+  ) {
+    if (query.value) {
+      clearSearch();
+    } else {
+      searchFocused.value = false;
+      searchInput.value?.blur();
+    }
+  }
 }
 function outsidePicker(event: MouseEvent): void {
   if (
@@ -418,6 +479,7 @@ async function onSearchEnter(event: KeyboardEvent): Promise<void> {
   else void openLeader(hit.id);
 }
 onMounted(() => {
+  initBoxStorageSync();
   scheduleTabScroll();
   if (tabBar.value && typeof ResizeObserver !== 'undefined') {
     tabResizeObserver = new ResizeObserver(() => {
@@ -470,6 +532,8 @@ onUnmounted(() => {
               placeholder="干员 / 装备 / 策略 / 盟约 / 特质，支持拼音（Enter 直开首项）"
               autocomplete="off"
               aria-label="搜索"
+              @focus="searchFocused = true"
+              @blur="searchFocused = false"
               @input="search"
               @keydown.enter="onSearchEnter"
               @compositionstart="composing = true"
@@ -514,6 +578,43 @@ onUnmounted(() => {
                 </RouterLink>
               </TransitionGroup>
             </nav>
+          </div>
+        </div>
+        <div
+          v-if="showRecentTray"
+          class="recent-tray"
+          data-noswipe
+          role="region"
+          aria-label="最近查看"
+          @mousedown.prevent>
+          <div class="wrap recent-tray-inner">
+            <span class="recent-label">最近</span>
+            <div class="recent-list">
+              <button
+                v-for="item in recentItems"
+                :key="`${item.kind}:${item.name}`"
+                type="button"
+                class="recent-chip"
+                :title="`${RECENT_KIND_LABEL[item.kind]} · ${item.name}`"
+                @click="openRecent(item)">
+                <CovenantIcon v-if="item.kind === 'cv'" :name="item.name" />
+                <img
+                  v-else-if="recentThumb(item)"
+                  :src="recentThumb(item)"
+                  alt=""
+                  width="20"
+                  height="20"
+                  decoding="async" />
+                <span>{{ item.name }}</span>
+              </button>
+            </div>
+            <button
+              type="button"
+              class="recent-clear"
+              aria-label="清空最近查看"
+              @click="clearRecent">
+              清空
+            </button>
           </div>
         </div>
       </div>
@@ -614,5 +715,93 @@ onUnmounted(() => {
   max-width: none;
   margin-left: 0;
   margin-right: min(50vw, 880px);
+}
+.recent-tray {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line2);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14);
+}
+.recent-tray-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+.recent-label {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink3);
+  white-space: nowrap;
+}
+.recent-list {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.recent-list::-webkit-scrollbar {
+  display: none;
+}
+.recent-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 3px 9px 3px 5px;
+  border: 1px solid var(--line2);
+  border-radius: 6px;
+  background: var(--surface2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.recent-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.recent-chip img {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--surface);
+}
+.recent-clear {
+  flex: none;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink3);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.recent-clear:hover {
+  color: var(--accent);
+  background: var(--surface2);
+}
+@media (max-height: 600px) {
+  .recent-tray-inner {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
 }
 </style>

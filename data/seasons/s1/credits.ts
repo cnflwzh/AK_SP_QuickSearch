@@ -42,7 +42,7 @@ export const S1_CREDITS: SeasonCredits = {
       name: 'ArknightsGameData',
       page: '',
       url: 'https://github.com/Kengxxiao/ArknightsGameData',
-      used: '游戏内招募与升级数值、回合配置、认证收益、敌人能力与技能参数，以及战场地形和敌人行进路线',
+      used: '游戏内招募与升级数值、回合配置、认证收益、干员默认技能与实战职能核对、敌人能力与技能参数，以及战场地形和敌人行进路线',
     },
     {
       name: '可露希尔 Wiki',
