@@ -167,6 +167,7 @@ test('box store tracks owned, activated, untrained, borrowable, and unowned stat
 
   // Importing/marking an operator owned automatically replaces its borrowed mark
   applyBoxBatch({[OPERATOR['塔露拉'].avatar]: 2}, 'merge');
+  applyBoxBatch({[OPERATOR['塔露拉'].avatar]: BOX_RANK_BORROWED}, 'merge');
   assert.equal(rankOfOperator('塔露拉'), 2);
   assert.equal(boxSeasonBorrowedCount.value, 0);
   assert.equal(boxSeasonBorrowableMissingCount.value, 66);
@@ -207,6 +208,14 @@ test('box store tracks owned, activated, untrained, borrowable, and unowned stat
 
   const exported = exportOperatorBox();
   assert.deepEqual(exported, {[OPERATOR['仇白'].avatar]: 3});
+
+  const overLimit = Object.fromEntries(
+    BORROWABLE_SIX_STARS.slice(0, BORROW_LIMIT + 1).map((op) => [
+      op.avatar, BOX_RANK_BORROWED,
+    ]),
+  );
+  assert.throws(() => applyBoxBatch(overLimit, 'replace'), /上限/);
+  assert.deepEqual(exportOperatorBox(), exported);
 
   clearOperatorBox();
   assert.equal(boxSeasonCount.value, 0);

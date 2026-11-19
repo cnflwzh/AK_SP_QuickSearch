@@ -21,7 +21,7 @@ export {
   type OwnedBoxRank,
   type StoredBoxRank,
 } from './model.ts';
-export {parseExternalBox, type BoxImportResult} from './import.ts';
+export {parseExternalBox, readYituliuWorkbook, type BoxImportResult} from './import.ts';
 export {
   BOX_STORAGE_KEY,
   applyBoxBatch,
@@ -36,6 +36,8 @@ export {
   hasAnyBox,
   initBoxStorageSync,
   operatorBox,
+  prepareBoxImport,
   rankOfOperator,
   setOperatorRank,
+  setOperatorRanks,
 } from './store.ts';

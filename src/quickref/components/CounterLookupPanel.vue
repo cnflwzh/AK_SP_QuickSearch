@@ -58,7 +58,7 @@ const matchedEquipment = computed(() => equipmentWithRoles(props.roles));
 </script>
 
 <template>
-  <div class="counter-lookup" role="region" :aria-label="`${title}对策推荐`">
+  <div class="counter-lookup panel-reveal" role="region" :aria-label="`${title}对策推荐`">
     <header class="cl-head">
       <div class="cl-title">
         <b>{{ title }}</b>

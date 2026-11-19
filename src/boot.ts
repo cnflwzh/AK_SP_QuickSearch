@@ -1,4 +1,5 @@
 import {settleInitialFonts} from './lib/runtime/fonts.ts';
+import {finishInitialNotice} from './lib/ui/initialNotice.ts';
 import {initSettingsDom} from './lib/settings/index.ts';
 
 initSettingsDom();
@@ -60,10 +61,10 @@ try {
   }
   import('./lib/ui/about.ts')
     .then((module) => {
-      const dispose = module.initAbout();
+      const dispose = module.initAbout(finishInitialNotice);
       import.meta.hot?.dispose(dispose);
     })
-    .catch(() => {});
+    .catch(finishInitialNotice);
   import('./lib/runtime/deferred.ts')
     .then((module) => module.loadDeferredAssets())
     .catch(() => {});

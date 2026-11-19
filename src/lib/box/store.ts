@@ -1,10 +1,12 @@
 import {computed, reactive} from 'vue';
+import {BORROW_LIMIT} from '../../../data/index.ts';
 import {
   BORROWABLE_SIX_STARS,
   BOX_OPERATORS,
   BOX_RANK_BORROWED,
   boxRankOf,
   isBorrowableAvatar,
+  mergeBoxRank,
   normalizeOperatorBox,
   resolveBoxKey,
   type BoxRank,
@@ -80,8 +82,9 @@ export const boxSeasonBorrowedCount = computed(
 /** 当前赛季尚未持有且尚未借用、但可通过助战借用的六星干员总数。 */
 export const boxSeasonBorrowableMissingCount = computed(
   () =>
-    BORROWABLE_SIX_STARS.filter((op) => boxRankOf(operatorBox, op.avatar) === -1)
-      .length,
+    BORROWABLE_SIX_STARS.filter(
+      (op) => boxRankOf(operatorBox, op.avatar) === -1,
+    ).length,
 );
 
 export const hasAnyBox = computed(
@@ -93,33 +96,72 @@ export function rankOfOperator(nameOrAvatar: string): BoxRank {
   return key ? boxRankOf(operatorBox, key) : -1;
 }
 
-export function setOperatorRank(nameOrAvatar: string, rank: BoxRank): boolean {
-  const key = resolveBoxKey(nameOrAvatar);
-  if (!key) return false;
-  if (rank === BOX_RANK_BORROWED && !isBorrowableAvatar(key)) return false;
-  const prev = boxRankOf(operatorBox, key);
-  if (rank === -1) {
-    if (prev === -1) return false;
-    delete operatorBox[key];
-  } else {
-    if (prev === rank) return false;
-    operatorBox[key] = rank;
+function validateBorrowLimit(next: Readonly<OperatorBox>): void {
+  const selected = BORROWABLE_SIX_STARS.filter(
+    (op) => next[op.avatar] === BOX_RANK_BORROWED,
+  );
+  // 旧版本允许超额。保留原选择供用户逐步纠正，但不能在超额时新增借用。
+  if (
+    selected.length > BORROW_LIMIT &&
+    selected.some((op) => operatorBox[op.avatar] !== BOX_RANK_BORROWED)
+  ) {
+    throw new Error(
+      `本次操作会选入 ${selected.length} 名助战，上限为 ${BORROW_LIMIT} 名。请缩小选择范围或先取消部分借用。`,
+    );
   }
-  writeStoredBox(operatorBox);
-  return true;
 }
 
+/** 按画笔指定的状态改写本季干员，返回实际改变数。超出借用名额时整批抛错且保留原状态。 */
+export function setOperatorRanks(
+  namesOrAvatars: readonly string[],
+  rank: BoxRank,
+): number {
+  const next: OperatorBox = {...operatorBox};
+  let changed = 0;
+  for (const nameOrAvatar of namesOrAvatars) {
+    const key = resolveBoxKey(nameOrAvatar);
+    if (!key || boxRankOf(next, key) === rank) continue;
+    if (rank === BOX_RANK_BORROWED && !isBorrowableAvatar(key)) continue;
+    if (rank === -1) delete next[key];
+    else next[key] = rank;
+    changed++;
+  }
+  if (!changed) return 0;
+  validateBorrowLimit(next);
+  replaceBoxState(next);
+  return changed;
+}
+
+/** 设置一名本季干员，返回是否改变。超出助战名额会抛出可展示的错误。 */
+export function setOperatorRank(nameOrAvatar: string, rank: BoxRank): boolean {
+  return setOperatorRanks([nameOrAvatar], rank) > 0;
+}
+
+/** 先验证名额，再返回同步提交函数，供配置恢复在流派保存成功后一次应用 Box。 */
+export function prepareBoxImport(
+  entries: Readonly<OperatorBox>,
+  mode: 'merge' | 'replace' = 'merge',
+): () => void {
+  const next: OperatorBox = {...operatorBox};
+  if (mode === 'replace') {
+    // 外部名单一般仅覆盖本季，其他赛季记录保留；备份明确提供的键可更新。
+    for (const op of BOX_OPERATORS) delete next[op.avatar];
+  }
+  for (const [key, rank] of Object.entries(normalizeOperatorBox(entries))) {
+    if (mode === 'merge') mergeBoxRank(next, key, rank);
+    else next[key] = rank;
+  }
+  validateBorrowLimit(next);
+  return () => replaceBoxState(next);
+}
+
+/** 导入一批练度。合并保留较高自持练度，覆盖替换本季；超出助战名额时不写入。 */
 export function applyBoxBatch(
   entries: Readonly<OperatorBox>,
   mode: 'merge' | 'replace' = 'merge',
 ): void {
-  const normalized = normalizeOperatorBox(entries);
-  if (mode === 'replace') {
-    replaceBoxState(normalized, true);
-    return;
-  }
-  const merged: OperatorBox = {...operatorBox, ...normalized};
-  replaceBoxState(merged, true);
+  const commit = prepareBoxImport(entries, mode);
+  commit();
 }
 
 export function clearOperatorBox(): void {
