@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {DISPATCH_LEVELS, operatorEliteCopies, STRATEGY} from '../data/index.ts';
 import {
   activeMistakes,
   buildDealerRound,
@@ -182,8 +183,14 @@ test('buildMistakeRound constructs valid 5-card review rounds containing the mis
 
 test('buildScenarioRound produces unambiguous, advisor-verified best-pick rounds across all archetypes', () => {
   for (const archetype of SCENARIO_ARCHETYPES) {
-    for (let i = 0; i < 10; i++) {
-      const rng = createSeededRandom(`scenario-${archetype}-${i}`);
+    const seeds = Array.from(
+      {length: 10},
+      (_, i) => `scenario-${archetype}-${i}`,
+    );
+    if (archetype === 'covenant_step') seeds.push('review-11');
+    if (archetype === 'elite_promote') seeds.push('review-36');
+    for (const [i, seed] of seeds.entries()) {
+      const rng = createSeededRandom(seed);
       const round = buildScenarioRound({
         roundNumber: i + 1,
         rng,
@@ -191,12 +198,15 @@ test('buildScenarioRound produces unambiguous, advisor-verified best-pick rounds
       });
       assert.equal(round.kind, 'scenario');
       assert.equal(round.selectionMode, 'best_pick');
-      assert.equal(round.cards.length, DEALER_SHOP_SIZE);
       assert.ok(round.scenarioContext);
-      assert.equal(
-        new Set(round.cards.map((c) => c.title)).size,
-        DEALER_SHOP_SIZE,
-      );
+      const context = round.scenarioContext;
+      assert.equal(context.archetype, archetype);
+      const shopSize = DISPATCH_LEVELS.find(
+        (row) => row.level === context.level,
+      ).operatorSlots;
+      assert.equal(round.cards.length, shopSize);
+      assert.equal(round.goodTotal + round.impostorTotal, shopSize);
+      assert.equal(new Set(round.cards.map((c) => c.title)).size, shopSize);
 
       const bestCards = round.cards.filter((c) => c.isBestPick);
       assert.equal(bestCards.length, 1);
@@ -206,11 +216,29 @@ test('buildScenarioRound produces unambiguous, advisor-verified best-pick rounds
       );
       assert.deepEqual(
         sortedByRank.map((c) => c.advisorRank),
-        [1, 2, 3, 4, 5],
+        Array.from({length: shopSize}, (_, rank) => rank + 1),
       );
 
       const [first, second] = sortedByRank;
       assert.ok(first.operator && first.operator.stars > 0);
+      if (archetype === 'elite_promote') {
+        const owned = context.deployed.find(
+          (unit) => unit.name === first.title,
+        );
+        assert.equal(owned?.copies, operatorEliteCopies(first.operator) - 1);
+      } else if (archetype === 'budget_synergy') {
+        const reserve =
+          STRATEGY[context.strategy]?.advisor?.reserveFundsFloor?.minFunds ?? 0;
+        assert.ok(first.operator.covenants.includes(context.goalCovenant));
+        assert.equal(context.funds - first.price, reserve);
+        assert.ok(
+          round.cards.some(
+            (card) =>
+              card.operator.covenants.includes(context.goalCovenant) &&
+              context.funds - card.price < reserve,
+          ),
+        );
+      }
       assert.ok(first.operator.tier <= round.scenarioContext.level);
       assert.ok(
         (first.price ?? 99) <= round.scenarioContext.funds,
@@ -250,6 +278,13 @@ test('useDealerGame tracks mistakes into storage, supports mistake drill, and ha
   assert.equal(game.round.value.isMistakeReview, true);
   assert.ok(game.round.value.cards.some((c) => c.title === missedTitle));
 
+  // 校准覆盖整轮，自动留下的错题不能计入连对。
+  game.session.value.rage = 100;
+  game.castUltimate();
+  assert.equal(game.isRoundCleared.value, true);
+  assert.equal(game.activeMistakeList.value[0].correctStreak, 0);
+  game.nextRound();
+
   // Clear two review rounds cleanly -> mistake becomes mastered.
   for (let pass = 0; pass < MISTAKE_MASTERY_STREAK; pass++) {
     game.round.value.cards.forEach((c, idx) => {
@@ -260,6 +295,9 @@ test('useDealerGame tracks mistakes into storage, supports mistake drill, and ha
   }
   assert.equal(game.activeMistakeList.value.length, 0);
   assert.equal(game.masteredMistakes.value, 1);
+  assert.equal(game.state.focusCovenant, '');
+  game.nextRound();
+  assert.ok(!game.round.value.isMistakeReview);
 
   // Switch Free Play focus to practical recruit scenarios (`kind:scenario`).
   game.setFocusCovenant('kind:scenario');

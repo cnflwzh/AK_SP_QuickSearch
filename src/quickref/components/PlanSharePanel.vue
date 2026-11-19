@@ -7,6 +7,8 @@ import {
   type Plan,
 } from '../../lib/plans/index.ts';
 import {downloadBlob} from '../../lib/ui/download.ts';
+import CopyButton from './CopyButton.vue';
+import StatusNotice from './StatusNotice.vue';
 
 /** 分享传入方案的当前内容；查看页和编辑页共用，不会修改或保存方案。 */
 const props = defineProps<{plan: Plan}>();
@@ -23,16 +25,6 @@ function markCopied(what: string): void {
   copyTimer = setTimeout(() => {
     copied.value = '';
   }, 1500);
-}
-async function copy(text: string, what: string): Promise<void> {
-  clearTimeout(copyTimer);
-  try {
-    await navigator.clipboard.writeText(text);
-    markCopied(what);
-  } catch {
-    copied.value = '';
-    prompt('复制下面的内容', text);
-  }
 }
 
 const canCopyImage =
@@ -96,13 +88,13 @@ async function copyImage(): Promise<void> {
           @click="showPreview = !showPreview">
           {{ showPreview ? '收起' : '预览' }}
         </button>
-        <button
-          type="button"
-          class="pri"
+        <CopyButton
+          :text="guideText"
+          label="复制文案"
+          copied-label="已复制文案"
+          variant="primary"
           aria-label="复制攻略文案"
-          @click="copy(guideText, 'guide')">
-          {{ copied === 'guide' ? '已复制文案' : '复制文案' }}
-        </button>
+          @copied="markCopied('guide')" />
       </span>
     </div>
     <pre v-if="showPreview" class="pl-guide-preview">{{ guideText }}</pre>
@@ -134,21 +126,26 @@ async function copyImage(): Promise<void> {
     <div class="pl-code">
       <span class="k">链接</span>
       <code>{{ link }}</code>
-      <button
-        type="button"
+      <CopyButton
+        :text="link"
+        label="复制"
+        copied-label="已复制"
+        variant="compact"
         aria-label="复制分享链接"
-        @click="copy(link, 'link')">
-        {{ copied === 'link' ? '已复制' : '复制' }}
-      </button>
+        @copied="markCopied('link')" />
     </div>
     <div class="pl-code">
       <span class="k">分享码</span>
       <code>{{ code }}</code>
-      <button type="button" aria-label="复制分享码" @click="copy(code, 'code')">
-        {{ copied === 'code' ? '已复制' : '复制' }}
-      </button>
+      <CopyButton
+        :text="code"
+        label="复制"
+        copied-label="已复制"
+        variant="compact"
+        aria-label="复制分享码"
+        @copied="markCopied('code')" />
     </div>
-    <p v-if="imageError" class="pl-warn" role="status">{{ imageError }}</p>
+    <StatusNotice v-if="imageError" tone="warning" :message="imageError" />
     <span class="sr-only" role="status">{{ copied ? '已复制' : '' }}</span>
   </section>
 </template>
@@ -157,7 +154,7 @@ async function copyImage(): Promise<void> {
 .plan-share {
   min-width: 0;
 }
-.plan-share button {
+.plan-share button:not(.copy-btn) {
   font-family: inherit;
   color: var(--ink);
   cursor: pointer;

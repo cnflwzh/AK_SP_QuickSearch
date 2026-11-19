@@ -1,5 +1,5 @@
 import { computed, inject, onBeforeUnmount, onMounted, provide, readonly, ref, type ComputedRef, type InjectionKey, type Ref } from 'vue';
-import { OPERATOR } from '../../data/index.ts';
+import { ADDITIONAL_OPERATORS, OPERATOR } from '../../data/index.ts';
 
 /** 本次页面会话的 Wiki 阅读状态，不写入流派或持久化存储。 */
 export interface WikiPanelController {
@@ -14,6 +14,7 @@ export interface WikiPanelController {
 
 const wikiPanelKey: InjectionKey<WikiPanelController> = Symbol('wiki-panel');
 // 两侧各保留至少约 320 CSS 像素；展开的折叠屏无需鼠标或悬停能力。
+const selectableWikiNames = new Set(ADDITIONAL_OPERATORS.filter((op) => op.source === 'operator').map((op) => op.name));
 const SPLIT_VIEW_QUERY = '(min-width: 640px)';
 
 /** 在速查根组件 setup 中调用；媒体查询监听随组件卸载一并清理。 */
@@ -41,7 +42,7 @@ export function provideWikiPanel(): WikiPanelController {
     operatorName: readonly(operatorName),
     isOpen,
     open(name) {
-      if (!mediaQuery?.matches || !OPERATOR[name]) return false;
+      if (!mediaQuery?.matches || !(Object.hasOwn(OPERATOR, name) || selectableWikiNames.has(name))) return false;
       if (!isOpen.value) returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       operatorName.value = name;
       return true;

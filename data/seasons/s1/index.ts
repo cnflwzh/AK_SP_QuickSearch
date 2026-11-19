@@ -8,6 +8,7 @@ import {
   S1_LEADER_MOVEMENTS,
 } from './leader-movement.ts';
 import {S1_LEADERS, S1_LEADER_MAP} from './leaders.ts';
+import {S1_ADDITIONAL_OPERATORS} from './additionalOperators.ts';
 import {S1_META} from './meta.ts';
 import {S1_OPERATORS} from './operators.ts';
 import {S1_RULES} from './rules.ts';
@@ -17,6 +18,12 @@ export const S1_SEASON: SeasonDefinition = {
   meta: S1_META,
   covenants: S1_COVENANTS,
   operators: S1_OPERATORS,
+  additionalOperators: S1_ADDITIONAL_OPERATORS,
+  // V3_1 的 diyChessDict 槽位数与 constData.diyCharLimitForLevels 的开局上限。
+  selectionLimits: [
+    {tier: 5, slots: 6, perRun: 2},
+    {tier: 6, slots: 6, perRun: 2},
+  ],
   equipment: S1_EQUIPMENT,
   equipmentCombos: S1_EQUIPMENT_COMBOS,
   strategies: S1_STRATEGIES,

@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import {computed, defineAsyncComponent, watch} from 'vue';
+import {computed, defineAsyncComponent, ref, watch} from 'vue';
 import {NUMBER_TOOLS, type NumberTool} from '../../../data/index.ts';
 import {queryText} from '../../router/location.ts';
 import {routeQuery, updateQuery} from '../../router/navigation.ts';
 import RunBanner from '../components/RunBanner.vue';
-import Segmented from '../components/Segmented.vue';
+import SubTabs, {
+  type SubTabDirection,
+  type SubTabItem,
+} from '../components/SubTabs.vue';
 import LayerTools from '../numbers/LayerTools.vue';
 import ExtraRules from '../numbers/ExtraRules.vue';
 import '../numbers/numbers.css';
@@ -42,21 +45,39 @@ const activeTool = computed<NumberTool>(() => {
     visibleTools.value[0].id
   );
 });
-const toolLabels = computed(() => visibleTools.value.map((tool) => tool.label));
-const activeIndex = computed(() =>
-  visibleTools.value.findIndex((tool) => tool.id === activeTool.value),
+const toolItems = computed<readonly SubTabItem<NumberTool>[]>(() =>
+  visibleTools.value.map((tool) => ({id: tool.id, label: tool.label})),
 );
+const panelTransition = ref<'subtab-next' | 'subtab-prev' | 'number-panel'>(
+  'number-panel',
+);
+watch(activeTool, (next, prev) => {
+  const order = visibleTools.value.map((tool) => tool.id);
+  const nextIndex = order.indexOf(next);
+  const prevIndex = order.indexOf(prev);
+  if (nextIndex >= 0 && prevIndex >= 0 && nextIndex !== prevIndex) {
+    panelTransition.value =
+      nextIndex > prevIndex ? 'subtab-next' : 'subtab-prev';
+  } else {
+    panelTransition.value = 'number-panel';
+  }
+});
+const selectedTool = computed<NumberTool>({
+  get: () => activeTool.value,
+  set: (id) => {
+    void updateQuery({
+      tool: id === visibleTools.value[0]?.id && id === 'layers' ? null : id,
+    });
+  },
+});
+function onToolChange(_id: NumberTool, dir: SubTabDirection): void {
+  if (dir === 'next') panelTransition.value = 'subtab-next';
+  else if (dir === 'prev') panelTransition.value = 'subtab-prev';
+}
 watch(advisorPreviewEnabled, (enabled) => {
   if (!enabled && queryText(routeQuery.value, 'tool') === 'advisor')
     void updateQuery({tool: null}, true);
 });
-function selectTool(index: number): void {
-  const id = visibleTools.value[index]?.id;
-  if (id)
-    void updateQuery({
-      tool: id === visibleTools.value[0]?.id && id === 'layers' ? null : id,
-    });
-}
 </script>
 
 <template>
@@ -69,15 +90,17 @@ function selectTool(index: number): void {
     " />
   <div class="numbers-tools workbench-controls">
     <!-- 工具标题沿用现有 h4 样式，由 aria-level 表达页面与卡片的标题层级。 -->
-    <nav class="bar" aria-label="小工具">
-      <Segmented
-        :labels="toolLabels"
-        :active="activeIndex"
+    <nav class="bar numbers-subtabs" aria-label="小工具">
+      <SubTabs
+        v-model="selectedTool"
+        :items="toolItems"
+        :level="2"
+        aria-label="小工具"
         attr="number-tool"
-        @change="selectTool" />
+        @change="onToolChange" />
     </nav>
     <!-- 仅工具切换产生过渡；临时输入和详情弹窗更新不重建面板。 -->
-    <Transition name="number-panel" mode="out-in">
+    <Transition :name="panelTransition" mode="out-in">
       <KeepAlive :max="9">
         <component :is="panels[activeTool]" :key="activeTool" />
       </KeepAlive>

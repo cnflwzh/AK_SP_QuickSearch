@@ -2,7 +2,7 @@ import {computed, reactive} from 'vue';
 import {BORROW_LIMIT} from '../../../data/index.ts';
 import {
   BORROWABLE_SIX_STARS,
-  BOX_OPERATORS,
+  OWNABLE_OPERATORS,
   BOX_RANK_BORROWED,
   boxRankOf,
   isBorrowableAvatar,
@@ -48,26 +48,26 @@ function replaceBoxState(next: OperatorBox, persist = true): void {
 /** 当前赛季已持有干员总数（含精零未练）。 */
 export const boxSeasonCount = computed(
   () =>
-    BOX_OPERATORS.filter((op) => boxRankOf(operatorBox, op.avatar) >= 0).length,
+    OWNABLE_OPERATORS.filter((op) => boxRankOf(operatorBox, op.avatar) >= 0).length,
 );
 
 /** 当前赛季已激活自持加成的干员总数（精一及以上）。 */
 export const boxSeasonActivatedCount = computed(
   () =>
-    BOX_OPERATORS.filter((op) => boxRankOf(operatorBox, op.avatar) >= 1).length,
+    OWNABLE_OPERATORS.filter((op) => boxRankOf(operatorBox, op.avatar) >= 1).length,
 );
 
 /** 当前赛季已持有但未练（精零）的干员总数。 */
 export const boxSeasonUntrainedCount = computed(
   () =>
-    BOX_OPERATORS.filter((op) => boxRankOf(operatorBox, op.avatar) === 0)
+    OWNABLE_OPERATORS.filter((op) => boxRankOf(operatorBox, op.avatar) === 0)
       .length,
 );
 
 /** 当前赛季已标记精二 60 级（满自持加成）的干员数。 */
 export const boxSeasonMaxedCount = computed(
   () =>
-    BOX_OPERATORS.filter((op) => boxRankOf(operatorBox, op.avatar) === 3)
+    OWNABLE_OPERATORS.filter((op) => boxRankOf(operatorBox, op.avatar) === 3)
       .length,
 );
 
@@ -145,7 +145,7 @@ export function prepareBoxImport(
   const next: OperatorBox = {...operatorBox};
   if (mode === 'replace') {
     // 外部名单一般仅覆盖本季，其他赛季记录保留；备份明确提供的键可更新。
-    for (const op of BOX_OPERATORS) delete next[op.avatar];
+    for (const op of OWNABLE_OPERATORS) delete next[op.avatar];
   }
   for (const [key, rank] of Object.entries(normalizeOperatorBox(entries))) {
     if (mode === 'merge') mergeBoxRank(next, key, rank);

@@ -14,6 +14,24 @@ import {
   eliteCopyCount,
   type RecordedOperator,
 } from '../../lib/recommendation/live/runAdvisor.ts';
+import SearchInput from '../components/SearchInput.vue';
+import SelectInput, {type SelectOption} from '../components/SelectInput.vue';
+import EmptyState from '../components/EmptyState.vue';
+
+const TIER_OPTIONS: readonly SelectOption<number>[] = [
+  {value: 0, label: '全部等阶'},
+  ...[1, 2, 3, 4, 5, 6].map((value) => ({
+    value,
+    label: `${TIER_LABELS[value]} 阶`,
+  })),
+];
+const COVENANT_OPTIONS: readonly SelectOption<string>[] = [
+  {value: '', label: '全部盟约'},
+  ...ALL_COVENANTS.filter(isBannableCovenant).map((name) => ({
+    value: name,
+    label: name,
+  })),
+];
 
 const props = withDefaults(
   defineProps<{
@@ -156,35 +174,27 @@ function clearFilters(): void {
 <template>
   <div class="ra-picker">
     <div class="ra-picker-controls">
-      <label class="ra-search">
-        <span class="sr-only">搜索候选</span>
-        <input
-          v-model="query"
-          type="search"
-          :placeholder="placeholder"
-          autocomplete="off"
-          data-initial-focus />
-      </label>
+      <SearchInput
+        v-model="query"
+        class="ra-search"
+        :placeholder="placeholder"
+        aria-label="搜索候选"
+        initial-focus />
       <label v-if="kind !== 'st'">
         <span class="sr-only">按等阶筛选</span>
-        <select v-model="tier">
-          <option :value="0">全部等阶</option>
-          <option v-for="value in 6" :key="value" :value="value">
-            {{ TIER_LABELS[value] }} 阶
-          </option>
-        </select>
+        <SelectInput
+          v-model="tier"
+          :options="TIER_OPTIONS"
+          highlight-active
+          aria-label="按等阶筛选" />
       </label>
       <label v-if="kind === 'op'" class="ra-picker-covenant">
         <span class="sr-only">按盟约筛选</span>
-        <select v-model="covenant">
-          <option value="">全部盟约</option>
-          <option
-            v-for="name in ALL_COVENANTS.filter(isBannableCovenant)"
-            :key="name"
-            :value="name">
-            {{ name }}
-          </option>
-        </select>
+        <SelectInput
+          v-model="covenant"
+          :options="COVENANT_OPTIONS"
+          highlight-active
+          aria-label="按盟约筛选" />
       </label>
     </div>
     <div class="ra-picker-status">
@@ -257,16 +267,13 @@ function clearFilters(): void {
           i
         </button>
       </article>
-      <div v-if="!results.length" class="ra-empty">
-        <p>没有匹配的候选。</p>
-        <button
-          v-if="hasFilters"
-          type="button"
-          class="btn"
-          @click="clearFilters">
-          清除筛选
-        </button>
-      </div>
+      <EmptyState
+        v-if="!results.length"
+        compact
+        message="没有匹配的候选。"
+        action-label="清除筛选"
+        :show-action="hasFilters"
+        @action="clearFilters" />
     </div>
     <div class="ra-picker-footer">
       <div

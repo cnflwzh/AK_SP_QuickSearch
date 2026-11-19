@@ -1,4 +1,4 @@
-import {OPERATOR, OPERATORS, type Operator} from '../../../data/index.ts';
+import {ADDITIONAL_OPERATORS, OPERATOR, OPERATORS, type Operator} from '../../../data/index.ts';
 
 /**
  * 对应干员来源、持有与卫戍「自持干员加成」的状态：
@@ -91,14 +91,25 @@ export const BOX_RANK_META: Readonly<Record<BoxRank, BoxRankMeta>> = {
 
 const AVATAR_KEY_RE = /^char_\d+_[a-zA-Z0-9_]+$/;
 
-const avatarToOperator = new Map<string, Operator>(
-  OPERATORS.filter((op) => op.stars > 0).map((op) => [op.avatar, op]),
-);
-
-/** 返回当前赛季可配置自持练度的干员列表（排除召唤/辅助干员）。 */
+/** 固定调配池中的可持有干员，用于区分预设、借用与替补。 */
 export const BOX_OPERATORS: readonly Operator[] = OPERATORS.filter(
   (op) => op.stars > 0,
 );
+
+/** 本赛季所有可记录账号练度的干员，包括能放入自选槽的自有六星。 */
+export const OWNABLE_OPERATORS = [
+  ...BOX_OPERATORS,
+  ...ADDITIONAL_OPERATORS.filter((op) => op.source === 'operator'),
+];
+const boxKeys = new Map<string, string>();
+for (const {name, avatar} of OWNABLE_OPERATORS) {
+  boxKeys.set(name, avatar);
+  boxKeys.set(avatar, avatar);
+}
+const systemAvatars = new Set([
+  ...ADDITIONAL_OPERATORS.filter((op) => op.source !== 'operator').map((op) => op.avatar),
+  ...OPERATORS.filter((op) => !op.stars).map((op) => op.avatar),
+]);
 
 /** 判断某干员是否属于「未持有时可借用同名助战补位」的非特许六星干员。 */
 export function isBorrowableSixStar(
@@ -110,6 +121,7 @@ export function isBorrowableSixStar(
 /** 当前赛季所有非特许、未持有时可借用助战的六星干员列表。 */
 export const BORROWABLE_SIX_STARS: readonly Operator[] =
   BOX_OPERATORS.filter(isBorrowableSixStar);
+const borrowableAvatars = new Set(BORROWABLE_SIX_STARS.map((op) => op.avatar));
 
 /** 当前赛季所有系统特许（未持有也自带本人、无需借用）的六星干员列表。 */
 export const PRESET_SIX_STARS: readonly Operator[] = BOX_OPERATORS.filter(
@@ -118,17 +130,12 @@ export const PRESET_SIX_STARS: readonly Operator[] = BOX_OPERATORS.filter(
 
 /** 将干员名或官方 charId（avatar）统一解析为本赛季 avatar 键；未知返回空串。 */
 export function resolveBoxKey(nameOrAvatar: string): string {
-  if (!nameOrAvatar) return '';
-  if (avatarToOperator.has(nameOrAvatar)) return nameOrAvatar;
-  if (Object.hasOwn(OPERATOR, nameOrAvatar)) {
-    const op = OPERATOR[nameOrAvatar];
-    return op.stars > 0 ? op.avatar : '';
-  }
-  return '';
+  return boxKeys.get(nameOrAvatar) ?? '';
 }
 
 /** 持久化映射接受其他赛季的规范 charId，普通外部名单只匹配本赛季。 */
 export function resolveStoredBoxKey(key: string): string {
+  if (systemAvatars.has(key)) return '';
   return resolveBoxKey(key) || (AVATAR_KEY_RE.test(key) ? key : '');
 }
 
@@ -152,18 +159,14 @@ export function isValidBoxRank(value: unknown): value is StoredBoxRank {
 
 /** 按 avatar 键判断是否属于本赛季可借用六星。 */
 export function isBorrowableAvatar(avatar: string): boolean {
-  const op = avatarToOperator.get(avatar);
-  return op ? isBorrowableSixStar(op) : false;
+  return borrowableAvatars.has(avatar);
 }
 
 /** 从 Box 映射读取指定 avatar 键的状态；缺省表示未持有 (-1)。直接属性读取以触发 Vue 响应式追踪。 */
 export function boxRankOf(box: Readonly<OperatorBox>, avatar: string): BoxRank {
   const rank = box[avatar];
   if (!isValidBoxRank(rank)) return -1;
-  if (rank === BOX_RANK_BORROWED) {
-    const op = avatarToOperator.get(avatar);
-    if (op && !isBorrowableSixStar(op)) return -1;
-  }
+  if (rank === BOX_RANK_BORROWED && boxKeys.has(avatar) && !isBorrowableAvatar(avatar)) return -1;
   return rank;
 }
 
@@ -177,8 +180,7 @@ export function normalizeOperatorBox(raw: unknown): OperatorBox {
     if (!isValidBoxRank(value)) continue;
     const resolved = resolveStoredBoxKey(key);
     if (!resolved) continue;
-    const op = avatarToOperator.get(resolved);
-    if (value === BOX_RANK_BORROWED && op && !isBorrowableSixStar(op)) continue;
+    if (value === BOX_RANK_BORROWED && boxKeys.has(resolved) && !isBorrowableAvatar(resolved)) continue;
     mergeBoxRank(result, resolved, value);
   }
   return {...result};

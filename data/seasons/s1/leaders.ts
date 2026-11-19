@@ -134,11 +134,13 @@ export const S1_LEADERS: readonly Leader[] = [
       },
       {
         tag: '集火',
+        roles: ['高频'],
         text: '<刺胄之弹>飞行途中挨数次攻击即被击破，攻速快的干员能拦截',
         by: '灭顶之灾',
       },
       {
         tag: '对空',
+        roles: ['对空'],
         text: '【死亡集群】召唤的<妖怪>被击倒时，胄损失 2% 最大生命：带上能打飞行单位的干员',
         by: '死亡集群',
       },
@@ -295,11 +297,13 @@ export const S1_LEADERS: readonly Leader[] = [
     counters: [
       {
         tag: '阻挡',
+        roles: ['阻挡'],
         text: '铳会巡逻进你的半场：路线上放防御最高的阻挡干员',
         by: '巡逻路线',
       },
       {
         tag: '续航',
+        roles: ['治疗', '元素回复'],
         text: '盯住防御最高的单位且越打越快，附带{侵蚀损伤}：主坦要有治疗',
         by: '特性',
       },
@@ -529,6 +533,7 @@ export const S1_LEADERS: readonly Leader[] = [
     counters: [
       {
         tag: '法抗',
+        roles: ['元素回复'],
         text: '管与余音造成法术伤害和{凋亡损伤}：阻挡位兼顾法抗与元素恢复',
         by: '伤害类型',
       },
@@ -630,10 +635,16 @@ export const S1_LEADERS: readonly Leader[] = [
       },
       {
         tag: '续航',
+        roles: ['阻挡'],
         text: '同时打防御最高的两个单位：准备两个能扛的阻挡位',
         by: '特性',
       },
-      {tag: '法抗', text: '全体法术伤害加{神经损伤}', by: '大潮'},
+      {
+        tag: '法抗',
+        roles: ['元素回复'],
+        text: '全体法术伤害加{神经损伤}',
+        by: '大潮',
+      },
       {
         tag: '集火',
         text: '<复核洋流使者>吃到<赘生甲壳>会大幅变强，优先击杀',
@@ -725,6 +736,7 @@ export const S1_LEADERS: readonly Leader[] = [
     counters: [
       {
         tag: '集火',
+        roles: ['破抗', '真伤'],
         text: '半血后防御与法抗提高、每次活化两件装备：准备削弱或持续输出处理强化阶段',
         by: '特性',
       },
@@ -735,6 +747,7 @@ export const S1_LEADERS: readonly Leader[] = [
       },
       {
         tag: '对空',
+        roles: ['对空'],
         text: '<萨科塔昂首>从平台顶部飞出，降低全场攻速，优先击落',
         by: '萨科塔昂首',
       },
@@ -790,6 +803,7 @@ export const S1_LEADERS: readonly Leader[] = [
       {tag: '分散', text: '攻击打整列：同一列别放多名干员', by: '冰凌'},
       {
         tag: '续航',
+        roles: ['治疗'],
         text: '{晕眩}一名干员并持续法术伤害；半血后多选一个目标',
         by: '自然涌动',
       },
@@ -883,10 +897,16 @@ export const S1_LEADERS: readonly Leader[] = [
     counters: [
       {
         tag: '控制',
+        roles: ['群攻'],
         text: '阻挡数最高的干员身边会刷<量变之械>：给它配范围输出',
         by: '洪流攻势',
       },
-      {tag: '集火', text: '命中处也会刷<量变之械>，要持续清场', by: '特性'},
+      {
+        tag: '集火',
+        roles: ['群攻'],
+        text: '命中处也会刷<量变之械>，要持续清场',
+        by: '特性',
+      },
       {
         tag: '集火',
         text: '半血后来自<冲击之械>方向的伤害降低，从另一侧输出',
@@ -1023,6 +1043,7 @@ export const S1_LEADERS: readonly Leader[] = [
     counters: [
       {
         tag: '续航',
+        roles: ['治疗'],
         text: '每次打当前生命最高的 3 个干员：高血量干员要有治疗',
         by: '特性',
       },
@@ -1205,16 +1226,28 @@ export const S1_LEADERS: readonly Leader[] = [
     counters: [
       {
         tag: '阻挡',
+        roles: ['阻挡'],
         text: '没被挡住时带减伤护盾：巡逻路线上一定要有人挡',
         by: '特性',
       },
-      {tag: '续航', text: '被挡住后下一击伤害提升：阻挡位要扛得住', by: '特性'},
+      {
+        tag: '续航',
+        roles: ['阻挡'],
+        text: '被挡住后下一击伤害提升：阻挡位要扛得住',
+        by: '特性',
+      },
       {
         tag: '控制',
+        roles: ['沉默'],
         text: '环波半径 1.5 格且可被沉默：阻挡位附近少放人，带沉默更稳',
         by: '离子环波',
       },
-      {tag: '对空', text: '<纤核漂游者>会飞，附带{神经损伤}', by: '纤核漂游者'},
+      {
+        tag: '对空',
+        roles: ['对空', '元素回复'],
+        text: '<纤核漂游者>会飞，附带{神经损伤}',
+        by: '纤核漂游者',
+      },
       {
         tag: '分散',
         text: '雷暴周期性劈站位密集处；攻击还会在干员间跳跃',
@@ -1347,9 +1380,15 @@ export const S1_LEADERS: readonly Leader[] = [
     },
     hiddenStage: null,
     counters: [
-      {tag: '阻挡', text: '被阻挡或停下时减伤变少：必须挡住', by: '明力'},
+      {
+        tag: '阻挡',
+        roles: ['阻挡'],
+        text: '被阻挡或停下时减伤变少：必须挡住',
+        by: '明力',
+      },
       {
         tag: '续航',
+        roles: ['阻挡'],
         text: '每次被阻挡对周围额外一次高额物理伤害：阻挡位要硬，身边少放人',
         by: '尚同',
       },

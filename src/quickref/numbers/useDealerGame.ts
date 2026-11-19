@@ -132,6 +132,7 @@ const FREE_ROUND_CYCLE: readonly DealerRoundKind[] = [
   'equipment',
   'strategy',
   'bounty',
+  'scenario',
 ];
 
 function createFreeRound(
@@ -486,11 +487,18 @@ function completeCurrentRound(
       if (!isTargetCard(round, card)) keptCount++;
     }
   }
-  if (round.kind !== 'scenario' && state.mistakes.length) {
+  // 校准会把所有未选择的正常牌自动保留，无法据此判断玩家已掌握错题。
+  if (!usedUltimate && round.kind !== 'scenario' && state.mistakes.length) {
     const updated = recordRoundMastery(state.mistakes, round);
     if (updated !== state.mistakes) {
       state.mistakes = updated;
       saveMistakes(state.mistakes);
+      if (
+        state.focusCovenant === 'mistakes' &&
+        updated.every(isMistakeMastered)
+      ) {
+        state.focusCovenant = '';
+      }
     }
   }
   const summary = summarizeRound(round);

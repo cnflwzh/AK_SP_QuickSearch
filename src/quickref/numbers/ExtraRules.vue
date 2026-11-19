@@ -126,6 +126,7 @@ function toggleTraining(name: string): void {
           </div>
           <CounterLookupPanel
             v-if="activeTrainingItem && activeTrainingRoles.length"
+            :key="activeTrainingItem.name"
             :title="`特训：${activeTrainingItem.name}`"
             :subtitle="activeTrainingItem.desc"
             :roles="activeTrainingRoles"

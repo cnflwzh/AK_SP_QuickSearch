@@ -21,6 +21,7 @@ import {
 } from '../../../data/index.ts';
 import {MAX_LAYERS, usesLayers} from '../../lib/plans/index.ts';
 import CovenantIcon from '../components/CovenantIcon.vue';
+import SelectInput, {type SelectOption} from '../components/SelectInput.vue';
 import {useRunAdvisor} from './useRunAdvisor.ts';
 
 defineEmits<{excludeOperator: []}>();
@@ -33,10 +34,8 @@ function optionalNumber(event: Event): number | null {
   const value = (event.target as HTMLInputElement).value.trim();
   return value === '' ? null : Number(value);
 }
-function updatePersonnelDocument(event: Event): void {
-  const select = event.target as HTMLSelectElement;
-  advisor.setPersonnelDocumentUsed(select.value === 'true');
-  select.value = String(run.value.personnelDocumentUsed);
+function updatePersonnelDocument(value: string): void {
+  advisor.setPersonnelDocumentUsed(value === 'true');
 }
 // 仅按全场精锐触发的盟约，不对应可从招募池移除的原生干员。
 const groups = [
@@ -48,41 +47,66 @@ const bonusDeploymentLimit =
   baseDeploymentLimit +
   (DEPLOYMENT_BONUS_EQUIP?.mechanics?.deploymentSlotBonus ?? 0);
 const deploymentBonusName = DEPLOYMENT_BONUS_EQUIP?.name ?? '扩展文档';
+
+const formatOptions: readonly SelectOption<AdvisorFormat>[] =
+  ADVISOR_FORMATS.map((f) => ({value: f.id, label: f.label}));
+const modeOptions: readonly SelectOption<AdvisorMode>[] = ADVISOR_MODES.map(
+  (m) => ({value: m.id, label: m.label}),
+);
+const mainCovenantOptions = computed<readonly SelectOption<string>[]>(() => [
+  {
+    value: '',
+    label: `自动判断${goal.value && !run.value.mainCovenant ? ` · ${goal.value.covenant}` : ''}`,
+  },
+  {value: 'mixed', label: '混搭，不锁主盟约'},
+  ...CORE_COVENANTS.map((name) => ({
+    value: name,
+    label: name,
+    disabled: inactiveCovenants.value.has(name),
+  })),
+]);
+const mainTargetOptions = computed<readonly SelectOption<number>[]>(() => [
+  {
+    value: 0,
+    label: `自动${goal.value ? ` · ${goal.value.target} 人` : ''}`,
+  },
+  {value: 3, label: '3 人，留位混搭'},
+  {value: 6, label: '6 人，追人数强化'},
+]);
+const personnelDocumentOptions: readonly SelectOption<string>[] = [
+  {value: 'false', label: `${baseDeploymentLimit}人 · 未记录使用文档`},
+  {
+    value: 'true',
+    label: `${bonusDeploymentLimit}人 · 已使用${deploymentBonusName}`,
+  },
+];
+const commandOptions: readonly SelectOption<string>[] = [
+  {value: 'unknown', label: '未知，保留条件收益'},
+  {value: 'true', label: '确认可用'},
+  {value: 'false', label: '已用 / 暂不可用'},
+];
+const layerCovenantOptions: readonly SelectOption<string>[] =
+  layerCovenants.map((name) => ({value: name, label: name}));
 </script>
 
 <template>
   <div class="ra-pool-settings">
     <label>
       对局长度
-      <select
-        :value="run.format"
-        @change="
-          advisor.setFormat(
-            ($event.target as HTMLSelectElement).value as AdvisorFormat,
-          )
-        ">
-        <option
-          v-for="format in ADVISOR_FORMATS"
-          :key="format.id"
-          :value="format.id">
-          {{ format.label }}
-        </option>
-      </select>
+      <SelectInput
+        :model-value="run.format"
+        :options="formatOptions"
+        aria-label="对局长度"
+        @update:model-value="advisor.setFormat($event)" />
     </label>
     <label>
       招募池范围
-      <select
-        :value="run.mode"
+      <SelectInput
+        :model-value="run.mode"
+        :options="modeOptions"
         :disabled="run.format === 'fast'"
-        @change="
-          advisor.setMode(
-            ($event.target as HTMLSelectElement).value as AdvisorMode,
-          )
-        ">
-        <option v-for="mode in ADVISOR_MODES" :key="mode.id" :value="mode.id">
-          {{ mode.label }}
-        </option>
-      </select>
+        aria-label="招募池范围"
+        @update:model-value="advisor.setMode($event)" />
     </label>
     <p v-if="run.mode === 'restricted'" class="ra-muted">
       模式固定缺席：{{
@@ -92,40 +116,20 @@ const deploymentBonusName = DEPLOYMENT_BONUS_EQUIP?.name ?? '扩展文档';
     <div class="ra-pool-direction">
       <label>
         主盟约
-        <select
-          :value="run.mainCovenant"
-          @change="
-            advisor.setMainCovenant(($event.target as HTMLSelectElement).value)
-          ">
-          <option value="">
-            自动判断{{ goal && !run.mainCovenant ? ` · ${goal.covenant}` : '' }}
-          </option>
-          <option value="mixed">混搭，不锁主盟约</option>
-          <option
-            v-for="name in CORE_COVENANTS"
-            :key="name"
-            :value="name"
-            :disabled="inactiveCovenants.has(name)">
-            {{ name }}
-          </option>
-        </select>
+        <SelectInput
+          :model-value="run.mainCovenant"
+          :options="mainCovenantOptions"
+          aria-label="主盟约"
+          @update:model-value="advisor.setMainCovenant($event)" />
       </label>
       <label>
         成型目标
-        <select
-          :value="run.mainTarget"
+        <SelectInput
+          :model-value="run.mainTarget"
+          :options="mainTargetOptions"
           :disabled="!goal"
-          @change="
-            advisor.setMainTarget(
-              Number(($event.target as HTMLSelectElement).value),
-            )
-          ">
-          <option :value="0">
-            自动{{ goal ? ` · ${goal.target} 人` : '' }}
-          </option>
-          <option :value="3">3 人，留位混搭</option>
-          <option :value="6">6 人，追人数强化</option>
-        </select>
+          aria-label="成型目标"
+          @update:model-value="advisor.setMainTarget($event)" />
       </label>
     </div>
     <p class="ra-muted">
@@ -140,16 +144,11 @@ const deploymentBonusName = DEPLOYMENT_BONUS_EQUIP?.name ?? '扩展文档';
     <div class="ra-pool-direction ra-run-context">
       <label>
         部署上限
-        <select
-          :value="String(run.personnelDocumentUsed)"
-          @change="updatePersonnelDocument">
-          <option value="false">
-            {{ baseDeploymentLimit }}人 · 未记录使用文档
-          </option>
-          <option value="true">
-            {{ bonusDeploymentLimit }}人 · 已使用{{ deploymentBonusName }}
-          </option>
-        </select>
+        <SelectInput
+          :model-value="String(run.personnelDocumentUsed)"
+          :options="personnelDocumentOptions"
+          aria-label="部署上限"
+          @update:model-value="updatePersonnelDocument" />
       </label>
       <label>
         当前回合
@@ -167,23 +166,19 @@ const deploymentBonusName = DEPLOYMENT_BONUS_EQUIP?.name ?? '扩展文档';
       </label>
       <label v-if="strategyUsesAdvisorCommand(run.strategy)">
         本次主动指令
-        <select
-          :value="
+        <SelectInput
+          :model-value="
             run.commandAvailable === null
               ? 'unknown'
               : String(run.commandAvailable)
           "
-          @change="
+          :options="commandOptions"
+          aria-label="本次主动指令"
+          @update:model-value="
             advisor.setCommandAvailable(
-              ($event.target as HTMLSelectElement).value === 'unknown'
-                ? null
-                : ($event.target as HTMLSelectElement).value === 'true',
+              $event === 'unknown' ? null : $event === 'true',
             )
-          ">
-          <option value="unknown">未知，保留条件收益</option>
-          <option value="true">确认可用</option>
-          <option value="false">已用 / 暂不可用</option>
-        </select>
+          " />
       </label>
       <label>
         本轮已获得人数（按游戏显示）
@@ -211,11 +206,10 @@ const deploymentBonusName = DEPLOYMENT_BONUS_EQUIP?.name ?? '扩展文档';
       </label>
       <label>
         记录盟约层数
-        <select v-model="layerSelection">
-          <option v-for="name in layerCovenants" :key="name" :value="name">
-            {{ name }}
-          </option>
-        </select>
+        <SelectInput
+          v-model="layerSelection"
+          :options="layerCovenantOptions"
+          aria-label="记录盟约层数" />
       </label>
       <label>
         {{ layerSelection }}层数

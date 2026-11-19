@@ -7,6 +7,7 @@ import {
   OPERATOR_TRIGGERS,
   COMBAT_ROLE_LABELS,
   matchesOperatorTrigger,
+  operatorRolesAtElite,
   EQUIP,
   EQUIPMENT,
   EQUIPMENT_COMBOS,
@@ -33,12 +34,53 @@ import {
 import {useCatalogEntrance} from '../catalogEntrance.ts';
 import RunBanner from '../components/RunBanner.vue';
 import Segmented from '../components/Segmented.vue';
+import SelectInput, {type SelectOption} from '../components/SelectInput.vue';
+import SubTabs, {
+  type SubTabDirection,
+  type SubTabItem,
+} from '../components/SubTabs.vue';
+import EmptyState from '../components/EmptyState.vue';
 import OperatorCard from '../components/OperatorCard.vue';
 import EquipmentCard from '../components/EquipmentCard.vue';
 import StrategyCard from '../components/StrategyCard.vue';
+import OperatorRosterSources, {
+  type RosterSource,
+} from '../components/OperatorRosterSources.vue';
+const rosterSource = ref<RosterSource>('fixed');
+const rosterDir = ref<SubTabDirection>('');
+const stDir = ref<SubTabDirection>('');
 const vEnter = useCatalogEntrance();
 defineProps<{kind: 'op' | 'eq' | 'st'}>();
 const actions = useQuickrefActions();
+
+const opTierTabs: readonly SubTabItem<number>[] = [
+  '全部',
+  ...TIER_LABELS.slice(1),
+].map((label, id) => ({id, label}));
+const eqTierTabs: readonly SubTabItem<number>[] = [
+  '全部',
+  ...TIER_LABELS.slice(1),
+  '组合',
+].map((label, id) => ({id, label}));
+const stCategoryTabs: readonly SubTabItem<number>[] = STRATEGY_CATEGORIES.map(
+  (label, id) => ({id, label}),
+);
+const opCovenantOptions: readonly SelectOption<string>[] = [
+  {value: '', label: '全部盟约'},
+  ...ALL_COVENANTS.map((name) => ({value: name, label: name})),
+];
+const opTriggerOptions: readonly SelectOption<string>[] = [
+  {value: '', label: '全部触发时机'},
+  ...OPERATOR_TRIGGERS.map(([label]) => ({value: label, label})),
+];
+const opTypeOptions: readonly SelectOption<string>[] = [
+  {value: '', label: '全部特质类型'},
+  ...OPERATOR_TYPES.map((name) => ({value: name, label: name})),
+];
+const opRoleOptions: readonly SelectOption<string>[] = [
+  {value: '', label: '全部实战职能'},
+  ...COMBAT_ROLE_LABELS.map((role) => ({value: role, label: role})),
+];
 
 /* ---------- 干员 ---------- */
 const onlyRunOps = ref(false);
@@ -63,7 +105,7 @@ const operators = computed(() =>
       (!state.opCovenant || o.covenants.includes(state.opCovenant)) &&
       (!state.opType || o.type === state.opType) &&
       (!state.opRole ||
-        Boolean(o.roles?.includes(state.opRole as (typeof COMBAT_ROLE_LABELS)[number]))) &&
+        operatorRolesAtElite(o, state.opElite).some((role) => role === state.opRole)) &&
       matchesOperatorTrigger(o, state.opTrigger, state.opElite),
   ),
 );
@@ -101,6 +143,11 @@ const selectedMaterial = ref('');
 const equipCovenants = computed(() =>
   ALL_COVENANTS.filter((cov) => EQUIPMENT.some((eq) => eq.covenant === cov)),
 );
+const equipCovenantOptions = computed<readonly SelectOption<string>[]>(() => [
+  {value: '', label: '全部盟约'},
+  {value: '__any__', label: '可转盟约装'},
+  ...equipCovenants.value.map((cov) => ({value: cov, label: cov})),
+]);
 const comboMaterials = computed(() =>
   [...new Set(EQUIPMENT_COMBOS.flatMap(([a, b]) => [a, b]))].filter((name) =>
     Object.hasOwn(EQUIP, name),
@@ -205,7 +252,14 @@ const equipmentGroups = computed(() =>
 </script>
 <template>
   <RunBanner />
-  <template v-if="kind === 'op'">
+  <OperatorRosterSources
+    v-if="kind === 'op'"
+    v-model="rosterSource"
+    @switch="rosterDir = $event" />
+  <div
+    v-if="kind === 'op' && rosterSource === 'fixed'"
+    :class="{'subtab-panel': !!rosterDir}"
+    :data-dir="rosterDir || undefined">
     <div class="bar" data-key="filters">
       <button
         v-if="run && inRunAny.size"
@@ -228,31 +282,37 @@ const equipmentGroups = computed(() =>
             : `排除禁池 ${bannedCount}`
         }}
       </button>
-      <Segmented
-        :labels="['全部', ...TIER_LABELS.slice(1)]"
-        :active="state.opTier"
-        attr="opt"
-        @change="state.opTier = $event" />
-      <select id="opC" v-model="state.opCovenant" aria-label="盟约">
-        <option value="">全部盟约</option>
-        <option v-for="name in ALL_COVENANTS" :key="name">{{ name }}</option>
-      </select>
-      <select id="opTrigger" v-model="state.opTrigger" aria-label="触发时机">
-        <option value="">全部触发时机</option>
-        <option v-for="[label] in OPERATOR_TRIGGERS" :key="label">
-          {{ label }}
-        </option>
-      </select>
-      <select id="opType" v-model="state.opType" aria-label="特质类型">
-        <option value="">全部特质类型</option>
-        <option v-for="name in OPERATOR_TYPES" :key="name">{{ name }}</option>
-      </select>
-      <select id="opRole" v-model="state.opRole" aria-label="实战职能">
-        <option value="">全部实战职能</option>
-        <option v-for="role in COMBAT_ROLE_LABELS" :key="role">
-          {{ role }}
-        </option>
-      </select>
+      <SubTabs
+        v-model="state.opTier"
+        :items="opTierTabs"
+        :level="3"
+        inline
+        aria-label="干员等阶"
+        attr="opt" />
+      <SelectInput
+        id="opC"
+        v-model="state.opCovenant"
+        :options="opCovenantOptions"
+        highlight-active
+        aria-label="盟约" />
+      <SelectInput
+        id="opTrigger"
+        v-model="state.opTrigger"
+        :options="opTriggerOptions"
+        highlight-active
+        aria-label="触发时机" />
+      <SelectInput
+        id="opType"
+        v-model="state.opType"
+        :options="opTypeOptions"
+        highlight-active
+        aria-label="特质类型" />
+      <SelectInput
+        id="opRole"
+        v-model="state.opRole"
+        :options="opRoleOptions"
+        highlight-active
+        aria-label="实战职能" />
       <Segmented
         :labels="['初始', '精锐']"
         :active="state.opElite ? 1 : 0"
@@ -287,17 +347,13 @@ const equipmentGroups = computed(() =>
           show-wiki-link />
       </div>
     </template>
-    <div v-if="!operators.length" class="empty">
-      <span>当前筛选下没有干员</span>
-      <button
-        v-if="operatorFiltersActive"
-        type="button"
-        class="filter-clear"
-        @click="clearOperatorFilters">
-        清空筛选
-      </button>
-    </div>
-  </template>
+    <EmptyState
+      v-if="!operators.length"
+      message="当前筛选下没有干员"
+      action-label="清空筛选"
+      :show-action="operatorFiltersActive"
+      @action="clearOperatorFilters" />
+  </div>
   <template v-else-if="kind === 'eq'">
     <div class="bar" data-key="filters">
       <button
@@ -308,21 +364,19 @@ const equipmentGroups = computed(() =>
         @click="onlyRunEq = !onlyRunEq">
         本局配装
       </button>
-      <Segmented
-        :labels="['全部', ...TIER_LABELS.slice(1), '组合']"
-        :active="state.eqTier"
-        attr="eqt"
-        @change="state.eqTier = $event" />
-      <select
+      <SubTabs
+        v-model="state.eqTier"
+        :items="eqTierTabs"
+        :level="2"
+        inline
+        aria-label="装备等阶"
+        attr="eqt" />
+      <SelectInput
         v-if="equipCovenants.length"
         v-model="eqCovenant"
-        aria-label="装备盟约">
-        <option value="">全部盟约</option>
-        <option value="__any__">可转盟约装</option>
-        <option v-for="cov in equipCovenants" :key="cov" :value="cov">
-          {{ cov }}
-        </option>
-      </select>
+        :options="equipCovenantOptions"
+        highlight-active
+        aria-label="装备盟约" />
       <button
         v-if="comboMaterials.length"
         type="button"
@@ -409,18 +463,14 @@ const equipmentGroups = computed(() =>
           :item="item" />
       </div>
     </template>
-    <div v-if="!equipment.length" class="empty">
-      <span>当前筛选下没有装备</span>
-      <button
-        v-if="equipmentFiltersActive"
-        type="button"
-        class="filter-clear"
-        @click="clearEquipFilters">
-        清空筛选
-      </button>
-    </div>
+    <EmptyState
+      v-if="!equipment.length"
+      message="当前筛选下没有装备"
+      action-label="清空筛选"
+      :show-action="equipmentFiltersActive"
+      @action="clearEquipFilters" />
   </template>
-  <template v-else>
+  <template v-else-if="kind === 'st'">
     <div class="bar">
       <button
         v-if="run && runStrategies.all.size"
@@ -430,32 +480,34 @@ const equipmentGroups = computed(() =>
         @click="onlyRunSt = !onlyRunSt">
         本局策略 {{ runStrategies.all.size }}
       </button>
-      <Segmented
-        :labels="STRATEGY_CATEGORIES"
-        :active="state.stCategory"
+      <SubTabs
+        v-model="state.stCategory"
+        :items="stCategoryTabs"
+        :level="2"
+        inline
+        aria-label="策略分类"
         attr="stc"
-        @change="state.stCategory = $event" />
+        @change="(_, dir) => (stDir = dir)" />
       <span class="cnt">{{ strategies.length }} 名</span>
     </div>
-    <div class="qg">
+    <div
+      :key="state.stCategory"
+      :class="['qg', {'subtab-panel': !!stDir}]"
+      :data-dir="stDir || undefined">
       <StrategyCard
         v-enter
         v-for="strategy in strategies"
         :key="strategy.name"
         :strategy="strategy" />
     </div>
-    <div v-if="!strategies.length" class="empty">
-      <span>当前筛选下没有策略</span>
-      <button
-        type="button"
-        class="filter-clear"
-        @click="
-          onlyRunSt = false;
-          state.stCategory = 0;
-        ">
-        显示全部策略
-      </button>
-    </div>
+    <EmptyState
+      v-if="!strategies.length"
+      message="当前筛选下没有策略"
+      action-label="显示全部策略"
+      @action="
+        onlyRunSt = false;
+        state.stCategory = 0;
+      " />
   </template>
   <LiveStatus
     :message="

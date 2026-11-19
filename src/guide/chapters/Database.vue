@@ -2,6 +2,9 @@
 import Markup from '../components/Markup';
 import LiveStatus from '../../lib/ui/LiveStatus.vue';
 import Segmented from '../components/Segmented.vue';
+import SelectInput, {
+  type SelectOption,
+} from '../../quickref/components/SelectInput.vue';
 import {avatar} from '../chips';
 import {computed, ref} from 'vue';
 import {
@@ -19,6 +22,14 @@ const tier = ref(0),
   type = ref(''),
   query = ref(''),
   elite = ref(false);
+const covenantOptions: readonly SelectOption<string>[] = [
+  {value: '', label: '全部盟约'},
+  ...ALL_COVENANTS.map((name) => ({value: name, label: name})),
+];
+const typeOptions: readonly SelectOption<string>[] = [
+  {value: '', label: '全部类型'},
+  ...OPERATOR_TYPES.map((name) => ({value: name, label: name})),
+];
 const operators = computed(() => {
   const search = query.value.trim();
   return OPERATORS.filter(
@@ -59,14 +70,18 @@ const equipmentColumns = TIERS.map((tier) => ({
       aria-label="干员等阶"
       :labels="['全部', ...TIER_LABELS.slice(1)]"
       v-model="tier" />
-    <select id="dbCov" aria-label="盟约" v-model="covenant">
-      <option value="">全部盟约</option>
-      <option v-for="name in ALL_COVENANTS" :key="name">{{ name }}</option>
-    </select>
-    <select id="dbType" aria-label="特质类型" v-model="type">
-      <option value="">全部类型</option>
-      <option v-for="name in OPERATOR_TYPES" :key="name">{{ name }}</option>
-    </select>
+    <SelectInput
+      id="dbCov"
+      v-model="covenant"
+      :options="covenantOptions"
+      highlight-active
+      aria-label="盟约" />
+    <SelectInput
+      id="dbType"
+      v-model="type"
+      :options="typeOptions"
+      highlight-active
+      aria-label="特质类型" />
     <input
       type="search"
       id="dbQ"

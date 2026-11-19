@@ -9,30 +9,6 @@ export const S1_CREDITS: SeasonCredits = {
   ],
   wikis: [
     {
-      name: 'NGA',
-      page: '终极模拟卫戍组排连胜分享 · 2026-11-12',
-      url: 'https://ngabbs.com/read.php?tid=47901793',
-      used: '莱塔尼亚四本成型、伊比利亚低阶六人，以及涤火杰西卡 / 塞雷娅 / 罗比菈塔 / 白铁的坚守维主轴',
-    },
-    {
-      name: '小红书 · 育儿博士',
-      page: '4图轮椅攻略：从小白成为卫戍高手 · 2026-11-11',
-      url: 'https://www.xiaohongshu.com/search_result/6af43dda000000002b02aceb?xsec_token=ABgTpD-cOZqlbfs_cvDxl22eLgAfsP5ho4wZuHPvqdS6o=&xsec_source=',
-      used: '卡西米尔的砾、风丸、瑕光起手，后期玛恩纳 / 史尔特尔与不屈、突袭搭配',
-    },
-    {
-      name: '小红书 · 🌵🌵🌵',
-      page: '卫戍协议 伊比利亚阵营玩法详解 · 2026-11-11',
-      url: 'https://www.xiaohongshu.com/search_result/6af3f3a8000000002b012298?xsec_token=ABVKHOqlYrjrQOjlH_Nwa2DuQnNU9Q4Ox04VdjJGe5l5Y=&xsec_source=',
-      used: '旅骨与海沫 / 温蒂的卖价叠层、低阶六伊阵容、精准与聚合搭配',
-    },
-    {
-      name: '小黑盒',
-      page: '十大流派构筑讨论 · 2026-11-09',
-      url: 'https://www.xiaoheihe.cn/app/bbs/link/196514413',
-      used: '评论区关于阿戈尔聚合 / 灵巧、卡西米尔不屈、白铁升级装备的实战反馈',
-    },
-    {
       name: 'PRTS',
       page: '',
       url: 'https://prts.wiki/',
@@ -42,7 +18,13 @@ export const S1_CREDITS: SeasonCredits = {
       name: 'ArknightsGameData',
       page: '',
       url: 'https://github.com/Kengxxiao/ArknightsGameData',
-      used: '游戏内招募与升级数值、回合配置、认证收益、干员默认技能与实战职能核对、敌人能力与技能参数，以及战场地形和敌人行进路线',
+      used: '游戏内招募与升级数值、回合配置、认证收益、自选名单与原型替补关系、干员默认技能与实战职能核对、敌人能力与技能参数，以及战场地形和敌人行进路线',
+    },
+    {
+      name: 'ArknightsGameResource',
+      page: '',
+      url: 'https://github.com/yuanyan3060/ArknightsGameResource',
+      used: '自选干员与替补原型头像',
     },
     {
       name: '可露希尔 Wiki',

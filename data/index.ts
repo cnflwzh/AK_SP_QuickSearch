@@ -11,7 +11,6 @@ import type {
   CombatRole,
   CombatRoleMeta,
   CoreBuild,
-  CounterTag,
   Covenant,
   CreditMilestone,
   CycleReward,
@@ -51,6 +50,9 @@ export const SHARE_OPERATOR_IDS: readonly number[] =
   SEASON_META.shareOperatorIds;
 
 export const OPERATORS: readonly Operator[] = CURRENT_SEASON.operators;
+/** 自选与替补按身份单列，固定商店、阵容推荐及分享编码只使用 OPERATORS。 */
+export const ADDITIONAL_OPERATORS = CURRENT_SEASON.additionalOperators ?? [];
+export const SELECTION_LIMITS = CURRENT_SEASON.selectionLimits ?? [];
 export const OPERATOR_TYPES: readonly string[] =
   CURRENT_SEASON.rules.operatorTypes;
 export const OPERATOR_TRIGGERS: readonly (readonly [
@@ -72,10 +74,16 @@ export function rolesForTraining(trainingName: string): CombatRole[] {
   ).map((role) => role.label);
 }
 
-export function rolesForCounterTag(tag: CounterTag): CombatRole[] {
-  return COMBAT_ROLES.filter((role) => role.counterTags?.includes(tag)).map(
-    (role) => role.label,
-  );
+/** 返回该干员在指定赛季精锐状态下已解锁的职能。 */
+export function operatorRolesAtElite(
+  operator: Operator,
+  elite: boolean,
+): readonly CombatRole[] {
+  const roles = operator.roles ?? [];
+  const eliteOnly = operator.eliteOnlyRoles;
+  return elite || !eliteOnly?.length
+    ? roles
+    : roles.filter((role) => !eliteOnly.includes(role));
 }
 
 export function operatorsWithRoles(roles: readonly CombatRole[]): Operator[] {
@@ -251,6 +259,8 @@ export const ROUND_TIME: readonly number[] = CURRENT_SEASON.rules.roundTime;
 export const CREDIT: readonly number[] = CURRENT_SEASON.rules.credit;
 export const LEADER_CREDIT_BONUS: number =
   CURRENT_SEASON.rules.leaderCreditBonus;
+export const CREDIT_CAPS = CURRENT_SEASON.rules.creditCaps;
+export const QUICK_CREDIT_MODE = CURRENT_SEASON.rules.quickCreditMode;
 export const CREDIT_MILESTONES: readonly CreditMilestone[] =
   CURRENT_SEASON.rules.creditMilestones;
 export const SOLO_LEVELS: readonly SoloLevel[] =

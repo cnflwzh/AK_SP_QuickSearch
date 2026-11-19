@@ -2,18 +2,23 @@
 import {computed, ref, watch} from 'vue';
 import {
   ALL_COVENANTS,
-  COMBAT_ROLE_LABELS,
   OPERATORS,
   EQUIPMENT,
   STRATEGIES,
   LEADERS,
 } from '../../../data/index.ts';
 import {normalize, nameScore} from '../../lib/ui/match.ts';
-import {buildSearchDescription, matchedOnlyElite} from '../searchRanking.ts';
+import {
+  buildSearchDescription,
+  matchedOnlyElite,
+  matchingCombatRoles,
+} from '../searchRanking.ts';
 import {presets} from '../planStore.ts';
 import {state} from '../state.ts';
 import Chip from '../components/Chip.vue';
 import Segmented from '../components/Segmented.vue';
+import EmptyState from '../components/EmptyState.vue';
+import SectionHeading from '../components/SectionHeading.vue';
 import LeaderRow from '../components/LeaderRow.vue';
 import OperatorCard from '../components/OperatorCard.vue';
 import EquipmentCard from '../components/EquipmentCard.vue';
@@ -88,9 +93,7 @@ const results = computed(() => {
   const covenants = rankBy(ALL_COVENANTS, q, (name) => name);
   // 复用盟约与实战职能名称的汉字、全拼和首字母匹配，搜 "反隐"/"fanyin"/"对空" 也能直达干员与装备。
   const matchingCovenants = new Set(covenants);
-  const matchingRoles = new Set(
-    COMBAT_ROLE_LABELS.filter((role) => nameScore(role, q) > 0),
-  );
+  const matchingRoles = matchingCombatRoles(q);
   return {
     covenants,
     builds: rankBy(presets.value, q, (preset) => preset.plan.name, {
@@ -171,12 +174,14 @@ const resultSummary = computed(() => {
 });
 </script>
 <template>
-  <div v-if="empty" class="empty">没有匹配「{{ query }}」</div>
+  <EmptyState v-if="empty" :message="`没有匹配「${query}」`" />
   <template v-if="results.covenants.length">
-    <div class="sec" role="heading" aria-level="2" data-key="heading:盟约">
-      盟约
-      <span class="n">{{ results.covenants.length }}</span>
-    </div>
+    <SectionHeading
+      class="sr-sec"
+      title="盟约"
+      :count="results.covenants.length"
+      :level="2"
+      data-key="heading:盟约" />
     <div class="row" data-key="covenants">
       <Chip
         v-for="name in results.covenants"
@@ -186,10 +191,12 @@ const resultSummary = computed(() => {
     </div>
   </template>
   <template v-if="results.builds.length">
-    <div class="sec" role="heading" aria-level="2" data-key="heading:流派">
-      流派
-      <span class="n">{{ results.builds.length }}</span>
-    </div>
+    <SectionHeading
+      class="sr-sec"
+      title="流派"
+      :count="results.builds.length"
+      :level="2"
+      data-key="heading:流派" />
     <div class="row" data-key="builds">
       <Chip
         v-for="name in results.builds"
@@ -199,20 +206,21 @@ const resultSummary = computed(() => {
     </div>
   </template>
   <template v-if="results.operators.length">
-    <div
-      class="sec sr-op-sec"
-      role="heading"
-      aria-level="2"
+    <SectionHeading
+      class="sr-sec sr-op-sec"
+      title="干员"
+      :count="results.operators.length"
+      :level="2"
       data-key="heading:干员">
-      干员
-      <span class="n">{{ results.operators.length }}</span>
-      <Segmented
-        class="sr-elite-seg"
-        :labels="['自动', '初始', '精锐']"
-        :active="eliteMode"
-        attr="srel"
-        @change="eliteMode = $event as 0 | 1 | 2" />
-    </div>
+      <template #extra>
+        <Segmented
+          class="sr-elite-seg"
+          :labels="['自动', '初始', '精锐']"
+          :active="eliteMode"
+          attr="srel"
+          @change="eliteMode = $event as 0 | 1 | 2" />
+      </template>
+    </SectionHeading>
     <div class="qg" data-key="operators">
       <OperatorCard
         v-for="{operator, eliteMatched} in visibleOperators"
@@ -231,10 +239,12 @@ const resultSummary = computed(() => {
     </button>
   </template>
   <template v-if="results.equipment.length">
-    <div class="sec" role="heading" aria-level="2" data-key="heading:装备">
-      装备
-      <span class="n">{{ results.equipment.length }}</span>
-    </div>
+    <SectionHeading
+      class="sr-sec"
+      title="装备"
+      :count="results.equipment.length"
+      :level="2"
+      data-key="heading:装备" />
     <div class="qg" data-key="equipment">
       <EquipmentCard
         v-for="item in results.equipment"
@@ -243,10 +253,12 @@ const resultSummary = computed(() => {
     </div>
   </template>
   <template v-if="results.strategies.length">
-    <div class="sec" role="heading" aria-level="2" data-key="heading:策略">
-      策略
-      <span class="n">{{ results.strategies.length }}</span>
-    </div>
+    <SectionHeading
+      class="sr-sec"
+      title="策略"
+      :count="results.strategies.length"
+      :level="2"
+      data-key="heading:策略" />
     <div class="qg" data-key="strategies">
       <StrategyCard
         v-for="strategy in results.strategies"
@@ -255,10 +267,12 @@ const resultSummary = computed(() => {
     </div>
   </template>
   <template v-if="results.leaders.length">
-    <div class="sec" role="heading" aria-level="2" data-key="heading:领袖">
-      领袖
-      <span class="n">{{ results.leaders.length }}</span>
-    </div>
+    <SectionHeading
+      class="sr-sec"
+      title="领袖"
+      :count="results.leaders.length"
+      :level="2"
+      data-key="heading:领袖" />
     <div class="lwl" data-key="leaders">
       <LeaderRow
         v-for="leader in results.leaders"
@@ -269,3 +283,12 @@ const resultSummary = computed(() => {
   </template>
   <LiveStatus :message="resultSummary" />
 </template>
+
+<style scoped>
+.sr-sec {
+  margin: 22px 0 10px;
+}
+.sr-sec:first-child {
+  margin-top: 0;
+}
+</style>

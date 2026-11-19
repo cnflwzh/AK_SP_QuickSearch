@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed, ref, toRefs} from 'vue';
+import {computed, ref, toRefs, watch} from 'vue';
 import LiveStatus from '../../lib/ui/LiveStatus.vue';
 import {
   DISPATCH_BY_MODE,
@@ -20,6 +20,10 @@ import {cardLocation} from '../../router/navigation.ts';
 import {run, runBans, runOps} from '../planStore.ts';
 import {useQuickrefActions} from '../state.ts';
 import NavigationLink from '../components/NavigationLink.vue';
+import SearchInput from '../components/SearchInput.vue';
+import SelectInput, {type SelectOption} from '../components/SelectInput.vue';
+import CopyButton from '../components/CopyButton.vue';
+import StatusNotice from '../components/StatusNotice.vue';
 import RefreshBudget from './RefreshBudget.vue';
 import {useWishlist} from './useWishlist.ts';
 import {useNumberToolsState, type ShopMode} from './useNumberToolsState.ts';
@@ -27,11 +31,13 @@ import {useNumberToolsState, type ShopMode} from './useNumberToolsState.ts';
 const actions = useQuickrefActions();
 const {targets, names, maxTargets, saveFailed, add, addMany, remove} =
   useWishlist();
-const copied = ref(false);
 const copyFallback = ref('');
 const recruitState = useNumberToolsState().recruit;
 const {search, showAllResults, onlyAvailable, level, shopMode} =
   toRefs(recruitState);
+watch(search, () => {
+  showAllResults.value = false;
+});
 const budget = recruitState.budget;
 const modeIndex = computed(() =>
   Math.max(
@@ -75,7 +81,6 @@ function importRunToWishlist(): void {
   if (!target.value && ordered[0] && OPERATOR[ordered[0]]) {
     recruitState.targetName = ordered[0];
   }
-  copied.value = false;
   copyFallback.value = '';
 }
 const searchResults = computed(() => {
@@ -99,48 +104,37 @@ function selectTarget(operator: Operator): void {
   recruitState.targetName = operator.name;
   search.value = '';
 }
-function searchOperators(event: Event): void {
-  showAllResults.value = false;
-  search.value = (event.target as HTMLInputElement).value;
-}
 function changeLevel(nextLevel: number): void {
   // 当前升级价属于当前等级，升/降级后需要重新填写，不沿用上一等级价格。
   if (nextLevel === level.value) return;
   level.value = nextLevel;
   budget.upgrade = null;
 }
-function changeMode(event: Event): void {
-  shopMode.value = (event.target as HTMLSelectElement).value as ShopMode;
+const shopModeOptions: readonly SelectOption<ShopMode>[] = SHOP_MODE_IDS.map(
+  (id, index) => ({value: id, label: DISPATCH_MODES[index]}),
+);
+function changeMode(mode: ShopMode): void {
+  shopMode.value = mode;
   budget.upgrade = null;
 }
 function addTarget(operator: Operator): void {
   add(operator.name);
-  copied.value = false;
   copyFallback.value = '';
 }
 function removeTarget(name: string): void {
   remove(name);
-  copied.value = false;
   copyFallback.value = '';
 }
-/** 仅在玩家点击复制时写剪贴板；权限不可用时提供可选中的文本。 */
-async function copyTargets(): Promise<void> {
-  const text =
+function wishlistText(): string {
+  return (
     '卫戍待找干员\n' +
     targets.value
       .map(
         (operator) =>
           `${operator.name} · ${TIER_LABELS[operator.tier]}阶 · ${operatorPrice(operator)}资金`,
       )
-      .join('\n');
-  try {
-    await navigator.clipboard.writeText(text);
-    copied.value = true;
-    copyFallback.value = '';
-  } catch {
-    copied.value = false;
-    copyFallback.value = text;
-  }
+      .join('\n')
+  );
 }
 const searchSummary = computed(() => {
   if (!normalize(search.value)) return '';
@@ -154,11 +148,11 @@ const searchSummary = computed(() => {
   <div class="nt-recruit">
     <div class="bar nt-toolbar">
       <h4 class="nt-section-title" aria-level="2">找牌与升本</h4>
-      <select :value="shopMode" aria-label="调度模式" @change="changeMode">
-        <option v-for="(id, index) in SHOP_MODE_IDS" :key="id" :value="id">
-          {{ DISPATCH_MODES[index] }}
-        </option>
-      </select>
+      <SelectInput
+        :model-value="shopMode"
+        :options="shopModeOptions"
+        aria-label="调度模式"
+        @update:model-value="changeMode" />
     </div>
     <section class="nc nt-recruit-grid" aria-label="目标干员与刷新预算">
       <section class="nt-operator-search">
@@ -203,19 +197,10 @@ const searchSummary = computed(() => {
           <span class="nt-muted">名字 / 拼音 / 盟约</span>
         </header>
         <div class="bar nt-search-row">
-          <input
-            type="search"
-            :value="search"
+          <SearchInput
+            v-model="search"
             placeholder="找谁？"
-            aria-label="查找目标干员"
-            @input="searchOperators" />
-          <button
-            v-if="search"
-            type="button"
-            class="btn nt-text-button"
-            @click="search = ''">
-            清空
-          </button>
+            aria-label="查找目标干员" />
         </div>
         <template v-if="search">
           <label class="nt-checkbox">
@@ -383,9 +368,14 @@ const searchSummary = computed(() => {
           待找清单
           <small>{{ targets.length }}/{{ maxTargets }}</small>
         </h4>
-        <button type="button" class="btn nt-text-button" @click="copyTargets">
-          {{ copied ? '已复制' : '复制给队友' }}
-        </button>
+        <CopyButton
+          :text="wishlistText"
+          label="复制给队友"
+          copied-label="已复制"
+          variant="compact"
+          fallback-mode="emit"
+          @copied="copyFallback = ''"
+          @fallback="copyFallback = $event" />
       </header>
       <div class="nt-target-list">
         <div
@@ -419,9 +409,10 @@ const searchSummary = computed(() => {
           </button>
         </div>
       </div>
-      <p v-if="saveFailed" role="status" class="nt-warning">
-        清单暂未保存，请检查浏览器的存储权限。
-      </p>
+      <StatusNotice
+        v-if="saveFailed"
+        tone="warning"
+        message="清单暂未保存，请检查浏览器的存储权限。" />
       <textarea
         v-if="copyFallback"
         class="nt-copy-fallback"

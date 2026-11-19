@@ -12,7 +12,7 @@
 .nt-heading h4 small { font-size: 12px; font-weight: 400; color: var(--ink3); margin-left: 5px; }
 .nt-toolbar { justify-content: space-between; }
 .nt-toolbar .nt-section-title { margin: 0; font-size: 14px; color: var(--ink2); font-weight: 500; }
-.nt-toolbar select { max-width: 100%; }
+.nt-toolbar .q-select { max-width: 100%; }
 .nt-muted, .nt-footnote { color: var(--ink3); font-size: 12px; }
 .numbers-tools .nt-footnote { margin-top: 8px; }
 .nt-warning { color: var(--red) !important; }
@@ -183,8 +183,6 @@
 /* 痛扁发牌小游戏 */
 .nt-dealer { display: grid; gap: 10px; min-width: 0; }
 .nt-dealer-bar { margin-bottom: 0; gap: 8px; }
-.nt-dealer-bar .seg { padding: 2px; }
-.nt-dealer-bar .seg button { min-height: 34px; padding: 4px 10px; }
 .nt-dealer-bar-actions { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .nt-dealer-hint-btn { min-height: 34px; padding: 4px 10px; white-space: nowrap; border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); color: var(--accent); }
 .nt-dealer-hint-btn.used { opacity: .68; }
@@ -465,12 +463,8 @@
 .nt-excuse-flash-text { font-size: 13px; line-height: 1.55; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .nt-excuse-controls-card { padding: 8px 12px; }
 .nt-excuse-controls { margin-bottom: 0; }
-.nt-excuse-search { position: relative; flex: 1 1 180px; min-width: 120px; display: flex; align-items: center; }
-.numbers-tools .nt-excuse-search input[type=search] { width: 100%; padding-right: 36px; }
-.nt-excuse-search input[type=search]::-webkit-search-cancel-button { display: none; }
-.nt-excuse-clear { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; padding: 0; border: 0; border-radius: 5px; background: var(--surface); color: var(--ink2); display: grid; place-items: center; font-size: 13px; line-height: 1; }
-.nt-excuse-clear:hover { color: var(--accent); background: var(--accent-soft); }
-.nt-excuse-controls .seg { flex: none; margin: 0; }
+.nt-excuse-search { flex: 1 1 180px; min-width: 120px; }
+.nt-excuse-controls .subtabs { flex: none; margin: 0; }
 .nt-excuse-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .nt-excuse-card { display: grid; gap: 8px; align-content: start; padding: 10px 12px; transition: border-color .15s, background-color .15s; }
 .nt-excuse-card.copied { border-color: var(--teal); background: color-mix(in srgb, var(--teal) 6%, var(--surface)); }
@@ -501,10 +495,9 @@
   .nt-excuse-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @container number-tools (max-width: 560px) {
-  .nt-dealer-bar:has(select + select) .seg { flex: 1 1 100%; }
-  .nt-dealer-bar .seg { flex: 1 1 auto; }
-  .nt-dealer-bar .seg button { flex: 1; }
-  .nt-dealer-bar select { flex: 1 1 120px; min-width: 0; }
+  .nt-dealer-bar:has(.q-select + .q-select) .subtabs { flex: 1 1 100%; }
+  .nt-dealer-bar .subtabs { flex: 1 1 auto; }
+  .nt-dealer-bar .q-select { flex: 1 1 120px; min-width: 0; }
   .nt-dealer-bar-actions { width: 100%; justify-content: space-between; margin-left: 0; }
   .nt-dealer-stage { grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .nt-dealer-board-covs { margin-left: 0; }
@@ -520,7 +513,7 @@
   .nt-threshold-heading, .nt-threshold-row { grid-template-columns: 72px 68px minmax(0, 1fr); gap: 7px; padding-left: 10px; padding-right: 10px; }
   .nt-threshold-number { font-size: 21px; white-space: normal; overflow-wrap: anywhere; line-height: 1.2; }
   .nt-threshold-effect { font-size: 12px; gap: 3px; }
-  .nt-toolbar select { max-width: 70%; }
+  .nt-toolbar .q-select { max-width: 70%; }
   .nt-fold summary small { font-size: 11px; }
   .nt-reference-row { flex-wrap: wrap; font-size: 12px; }
   .nt-dispatch-table th:first-child { width: 82px; font-size: 11px; }
@@ -528,13 +521,13 @@
   .nt-dispatch-table button { font-size: 18px; }
   .nt-dispatch-table button small { display: none; }
   .nt-search-results { grid-template-columns: 1fr; }
-  .nt-bounty-controls input { flex-basis: 100%; }
-  .nt-bounty-controls select { margin-left: auto; }
+  .nt-bounty-controls .q-search { flex-basis: 100%; }
+  .nt-bounty-controls .q-select { margin-left: auto; }
   .nt-bounty-heading, .nt-bounty-row { grid-template-columns: minmax(0, 1fr) 40px 76px; gap: 6px; padding-left: 2px; padding-right: 2px; }
 }
 @container number-tools (max-width: 520px) {
   .nt-excuse-search { flex-basis: 100%; }
-  .nt-excuse-controls .seg { max-width: 100%; overflow-x: auto; }
+  .nt-excuse-controls .subtabs { max-width: 100%; }
 }
 /* 折叠屏或 PRTS 半栏：门槛和效果分行，避免多档数字挤压说明。 */
 @container number-tools (max-width: 360px) {
@@ -542,10 +535,6 @@
   .nt-threshold-row { grid-template-columns: minmax(0, 1fr) auto; }
   .nt-threshold-effect { grid-column: 1 / -1; }
   .nt-threshold-number { white-space: normal; text-align: right; }
-}
-@media (pointer: coarse), (max-height: 600px) {
-  .numbers-tools .nt-excuse-search input[type=search] { padding-right: 40px; }
-  .nt-excuse-clear { right: 2px; width: 34px; height: 34px; }
 }
 /* 安卓横屏小窗：压缩头尾与商店卡片纵向留白，保持控件 >= 34px 并尽量一屏操作。 */
 @media (max-height: 600px) {
@@ -557,8 +546,7 @@
   .numbers-tools > .bar { margin-bottom: 5px; }
   .nt-dealer { gap: 5px; }
   .nt-dealer-bar { gap: 5px; }
-  .nt-dealer-bar .seg button { min-height: 34px; padding: 2px 8px; font-size: 12px; }
-  .nt-dealer-bar select { min-height: 34px; max-width: 136px; padding-left: 6px; padding-right: 20px; font-size: 12px; text-overflow: ellipsis; }
+  .nt-dealer-bar .q-select { max-width: 146px; }
   .nt-dealer-bar-actions { gap: 5px; }
   .nt-dealer-stat-pill { padding: 3px 6px; font-size: 11.5px; }
   .nt-dealer-bar .btn { min-height: 34px; padding: 4px 8px; font-size: 12px; }
