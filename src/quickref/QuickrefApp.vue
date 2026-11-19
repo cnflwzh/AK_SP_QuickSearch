@@ -139,7 +139,7 @@ const tabsMoreRight = ref(false);
 /** 点 Tab 和左右滑动共用：按目标 Tab 的方向滑入新页面。 */
 const slide = ref<'' | 'l' | 'r'>('');
 let tabScrollFrame = 0;
-let tabResizeObserver: ResizeObserver | undefined;
+let navigationResizeObserver: ResizeObserver | undefined;
 const detail = computed(
   () => detailFromId(queryText(currentRoute.value.query, 'card')) ?? null,
 );
@@ -481,12 +481,21 @@ async function onSearchEnter(event: KeyboardEvent): Promise<void> {
 onMounted(() => {
   initBoxStorageSync();
   scheduleTabScroll();
-  if (tabBar.value && typeof ResizeObserver !== 'undefined') {
-    tabResizeObserver = new ResizeObserver(() => {
-      updateTabOverflow();
-      scheduleTabScroll();
+  if (typeof ResizeObserver !== 'undefined') {
+    navigationResizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.target === searchBar.value) {
+          // 搜索框在小窗里可以展开，页内吸顶工具栏要跟随整条导航的实际高度。
+          const height = entry.borderBoxSize?.[0]?.blockSize ?? searchBar.value.offsetHeight;
+          view.value?.style.setProperty('--qbar-height', `${height}px`);
+        } else if (entry.target === tabBar.value) {
+          updateTabOverflow();
+          scheduleTabScroll();
+        }
+      }
     });
-    tabResizeObserver.observe(tabBar.value);
+    if (searchBar.value) navigationResizeObserver.observe(searchBar.value, {box: 'border-box'});
+    if (tabBar.value) navigationResizeObserver.observe(tabBar.value);
   }
   document.addEventListener('keydown', keydown);
   document.addEventListener('click', outsidePicker);
@@ -494,8 +503,7 @@ onMounted(() => {
 onUnmounted(() => {
   cancelAnimationFrame(tabScrollFrame);
   clearTimeout(searchTimer);
-  tabResizeObserver?.disconnect();
-  tabResizeObserver = undefined;
+  navigationResizeObserver?.disconnect();
   document.removeEventListener('keydown', keydown);
   document.removeEventListener('click', outsidePicker);
 });

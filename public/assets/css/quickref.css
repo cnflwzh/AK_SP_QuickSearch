@@ -235,6 +235,10 @@
   min-height: 60vh;
 }
 
+.panel-reveal {
+  animation: pin .18s ease-out;
+}
+
 @keyframes pin {
   from {
     opacity: 0;
