@@ -246,6 +246,60 @@
   }
 }
 
+/* 二级 / 三级 Tab 内容切换过渡（比一级 36px 滑入更克制轻快，不喧宾夺主） */
+.subtab-panel {
+  animation: subtab-fade-up .16s cubic-bezier(.22, 1, .36, 1);
+}
+.subtab-panel[data-dir="next"] {
+  animation: subtab-slide-next .18s cubic-bezier(.22, 1, .36, 1);
+}
+.subtab-panel[data-dir="prev"] {
+  animation: subtab-slide-prev .18s cubic-bezier(.22, 1, .36, 1);
+}
+@keyframes subtab-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@keyframes subtab-slide-next {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+}
+@keyframes subtab-slide-prev {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+}
+
+.subtab-next-enter-active,
+.subtab-prev-enter-active {
+  transition: opacity .15s ease, transform .18s cubic-bezier(.22, 1, .36, 1);
+}
+.subtab-next-leave-active,
+.subtab-prev-leave-active {
+  transition: opacity .1s ease, transform .12s ease;
+}
+.subtab-next-enter-from {
+  opacity: 0;
+  transform: translateX(8px);
+}
+.subtab-next-leave-to {
+  opacity: 0;
+  transform: translateX(-5px);
+}
+.subtab-prev-enter-from {
+  opacity: 0;
+  transform: translateX(-8px);
+}
+.subtab-prev-leave-to {
+  opacity: 0;
+  transform: translateX(5px);
+}
+
 .sec {
   display: flex;
   align-items: center;
@@ -1185,8 +1239,8 @@ em.c.on {
 }
 
 .oc.op-card .h {
-  align-items: flex-start;
-  min-height: 36px;
+  align-items: center;
+  min-height: 44px;
 }
 
 .op-meta,
@@ -1205,10 +1259,6 @@ em.c.on {
   gap: 5px;
   flex-wrap: wrap;
   min-width: 0;
-}
-
-.oc.op-card.has-wiki .op-meta {
-  padding-right: 60px;
 }
 
 .oc:is(.op-card, .st-card) .h b {
@@ -2596,7 +2646,7 @@ mark {
 /* 场地与路线控制：只更新地图，保留技能和数值区的位置。 */
 .map-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin: 0 0 10px; position: relative; z-index: 2; }
 .map-controls .seg { flex-shrink: 0; }
-.map-picker { min-width: 100px; min-height: 34px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface2); color: var(--ink); cursor: pointer; font-size: 12px; }
+.map-picker { min-width: 120px; }
 .map-controls button:focus-visible, .map-controls select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .lwm .map-platform rect { fill: #a8b7b5; stroke: #677e7b; stroke-width: 2; }
 .lwm .map-platform path { stroke: #677e7b; stroke-width: 3; }
@@ -2989,13 +3039,13 @@ mark {
 .pl-sheet .pl-filter { position: sticky; top: -12px; z-index: 2; background: var(--surface); padding: 12px 0 8px; margin: 0; }
 .pl-sheet input[type=search] { min-height: 42px; font-size: 16px; }
 .pl-sheet .pl-filter input { flex: 1 1 140px; }
-.pl-sheet .pl-filter select { flex: 1 1 110px; min-width: 0; min-height: 42px; }
+.pl-sheet .pl-filter .q-select { flex: 1 1 110px; min-width: 0; }
 .pl-sheet .pl-filter .seg { flex: 1 1 100%; display: flex; }
 /* 较宽的底部面板（横屏小窗、平板）里，搜索、盟约、类型和等阶放同一行，给干员列表留出高度。 */
 @media (min-width: 521px) {
   .pl-sheet .pl-filter { flex-wrap: nowrap; gap: 5px; }
   .pl-sheet .pl-filter input { flex: 1 1 82px; min-width: 68px; }
-  .pl-sheet .pl-filter select { flex: 0 1 94px; padding-left: 7px; padding-right: 24px; background-position: right 7px center; }
+  .pl-sheet .pl-filter .q-select { flex: 0 1 98px; }
   .pl-sheet .pl-filter .seg { flex: 0 0 auto; }
   .pl-sheet .pl-filter .seg button { flex: 0 0 auto; padding-inline: 5px; white-space: nowrap; }
   .pl-sheet .pl-filter .filter-clear { flex: none; min-height: 36px; padding: 4px 8px; white-space: nowrap; }
@@ -3004,7 +3054,7 @@ mark {
   .pl-mobile-actions { padding: 6px 0 max(6px, var(--safe-area-bottom)); gap: 4px; }
   .pl-mobile-actions button { min-height: 36px; }
   .pl-code button { min-height: 34px; }
-  .pl-sheet input[type=search], .pl-sheet .pl-filter select { min-height: 36px; }
+  .pl-sheet input[type=search] { min-height: 36px; }
   .pl-sheet .pl-filter { top: -8px; padding: 8px 0 6px; }
   .pl-sheet .pl-filter .seg button, .pl-sheet :is(.pl-detail-btn, .pl-core-toggle, .pl-edit-cells .pl-eq, .pl-edit-actions > button) { min-height: 36px; }
   .pl-sheet .pl-tiles .tile { min-height: 72px; }
@@ -3250,7 +3300,7 @@ mark {
 
 /* 流派查看 */
 .bact { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.bact button, .bres .pri, .bbtn { font: inherit; font-size: 13px; cursor: pointer; border-radius: 6px; min-height: 36px; padding: 5px 12px; border: 1px solid var(--line2); background: var(--surface); color: var(--ink); }
+.bact > button:not(.copy-btn), .bres .pri, .bbtn { font: inherit; font-size: 13px; cursor: pointer; border-radius: 6px; min-height: 36px; padding: 5px 12px; border: 1px solid var(--line2); background: var(--surface); color: var(--ink); }
 .bact .pri, .bres .pri { background: var(--c); border-color: var(--c); color: #fff; font-weight: 700; }
 .bact .pri.in { background: var(--surface); color: var(--c); }
 .bact button.on { border-color: var(--c); color: var(--c); background: var(--surface2); }
@@ -3425,12 +3475,13 @@ mark {
   .bpk .alts { margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .pane[data-slide], .tabs a.on::after, .qg > .oc[data-catalog-enter], .pane .tierh { animation: none; }
+  .pane[data-slide], .tabs a.on::after, .qg > .oc[data-catalog-enter], .pane .tierh, .subtab-panel { animation: none; }
   .qg > .oc[data-catalog-enter=pending] { opacity: 1; }
-  .top-tab-sort-move, .bsel-drawer, .bsel-presets, .bsel-presets button, .preset-fold-arrow, .bsel-pin-move, .bsel-pin-enter-active, .bsel-pin-leave-active { transition: none !important; }
+  .top-tab-sort-move, .bsel-drawer, .bsel-presets, .bsel-presets button, .preset-fold-arrow, .bsel-pin-move, .bsel-pin-enter-active, .bsel-pin-leave-active, .subtab-next-enter-active, .subtab-next-leave-active, .subtab-prev-enter-active, .subtab-prev-leave-active { transition: none !important; }
 }
+:root[data-motion="reduce"] .subtab-panel { animation: none !important; }
 :root[data-motion="reduce"] .top-tab-sort-move,
-:root[data-motion="reduce"] :is(.bsel-drawer, .bsel-presets, .bsel-presets button, .preset-fold-arrow, .bsel-pin-move, .bsel-pin-enter-active, .bsel-pin-leave-active) { transition: none !important; }
+:root[data-motion="reduce"] :is(.bsel-drawer, .bsel-presets, .bsel-presets button, .preset-fold-arrow, .bsel-pin-move, .bsel-pin-enter-active, .bsel-pin-leave-active, .subtab-next-enter-active, .subtab-next-leave-active, .subtab-prev-enter-active, .subtab-prev-leave-active) { transition: none !important; }
 
 /* Navigation retains the existing control appearance while exposing real URLs. */
 .top-tab-sort-move { transition: transform 220ms cubic-bezier(0.2, 0, 0, 1); background: color-mix(in srgb,var(--bg) 94%,var(--surface)); border-radius: 6px; }
@@ -3448,21 +3499,22 @@ mark {
   gap: 5px;
 }
 :root[data-density="compact"] :is(.oc.op-card, .oc.st-card) {
-  padding: 5px 8px;
-  gap: 3px;
+  padding: 6px 9px;
+  gap: 4px;
   font-size: 12px;
   line-height: 1.45;
 }
-:root[data-density="compact"] .oc.op-card .operator-card-main { gap: 3px; }
-:root[data-density="compact"] :is(.oc.op-card, .oc.st-card) .h { align-items: center; gap: 7px; }
-:root[data-density="compact"] :is(.oc.op-card .h img, .oc.st-card .h .sp) { width: 34px; height: 34px; }
-:root[data-density="compact"] .oc.op-card.has-wiki .op-meta { padding-right: 60px; }
-:root[data-density="compact"] :is(.op-meta, .st-meta) { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 3px 5px; }
-:root[data-density="compact"] :is(.op-title-row, .op-tags, .st-title-row) { display: contents; }
+:root[data-density="compact"] .oc.op-card .operator-card-main { gap: 5px; }
+:root[data-density="compact"] :is(.oc.op-card, .oc.st-card) .h { align-items: center; gap: 7px; min-height: 36px; }
+:root[data-density="compact"] .oc.op-card .op-av { flex-basis: 36px; width: 36px; height: 36px; }
+:root[data-density="compact"] .oc.st-card .h .sp { width: 34px; height: 34px; }
+:root[data-density="compact"] .oc.op-card .op-tx { padding-top: 5px; font-size: 12px; }
+:root[data-density="compact"] .st-meta { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 3px 5px; }
+:root[data-density="compact"] .st-title-row { display: contents; }
 :root[data-density="compact"] :is(.oc.op-card, .oc.st-card) .h b { flex: 0 1 auto; font-size: 13.5px; }
-:root[data-density="compact"] .oc.op-card .cv { font-size: 11px; padding: 0 5px; }
+:root[data-density="compact"] .oc.op-card .cv { font-size: 10.5px; padding: 0 5px; }
 :root[data-density="compact"] :is(.oc.op-card, .oc.st-card) .tag { font-size: 10.5px; padding: 0 5px; }
-:root[data-density="compact"] .operator-card-wiki { top: 2px; right: 4px; }
+:root[data-density="compact"] .operator-card-wiki { top: 4px; right: 5px; }
 :root[data-density="compact"] .oc.st-card .hp { width: 78px; flex: none; margin-left: auto; gap: 4px; }
 :root[data-density="compact"] .oc.st-card .hp span { font-size: 12.5px; }
 
@@ -3473,21 +3525,22 @@ mark {
     gap: 5px;
   }
   :root:not([data-density="comfortable"]) :where(.wiki-open) :is(.oc.op-card, .oc.st-card) {
-    padding: 5px 8px;
-    gap: 3px;
+    padding: 6px 9px;
+    gap: 4px;
     font-size: 12px;
     line-height: 1.45;
   }
-  :root:not([data-density="comfortable"]) :where(.wiki-open) .oc.op-card .operator-card-main { gap: 3px; }
-  :root:not([data-density="comfortable"]) :where(.wiki-open) :is(.oc.op-card, .oc.st-card) .h { align-items: center; gap: 7px; }
-  :root:not([data-density="comfortable"]) :where(.wiki-open) :is(.oc.op-card .h img, .oc.st-card .h .sp) { width: 34px; height: 34px; }
-  :root:not([data-density="comfortable"]) :where(.wiki-open) .oc.op-card.has-wiki .op-meta { padding-right: 60px; }
-  :root:not([data-density="comfortable"]) :where(.wiki-open) :is(.op-meta, .st-meta) { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 3px 5px; }
-  :root:not([data-density="comfortable"]) :where(.wiki-open) :is(.op-title-row, .op-tags, .st-title-row) { display: contents; }
+  :root:not([data-density="comfortable"]) :where(.wiki-open) .oc.op-card .operator-card-main { gap: 5px; }
+  :root:not([data-density="comfortable"]) :where(.wiki-open) :is(.oc.op-card, .oc.st-card) .h { align-items: center; gap: 7px; min-height: 36px; }
+  :root:not([data-density="comfortable"]) :where(.wiki-open) .oc.op-card .op-av { flex-basis: 36px; width: 36px; height: 36px; }
+  :root:not([data-density="comfortable"]) :where(.wiki-open) .oc.st-card .h .sp { width: 34px; height: 34px; }
+  :root:not([data-density="comfortable"]) :where(.wiki-open) .oc.op-card .op-tx { padding-top: 5px; font-size: 12px; }
+  :root:not([data-density="comfortable"]) :where(.wiki-open) .st-meta { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 3px 5px; }
+  :root:not([data-density="comfortable"]) :where(.wiki-open) .st-title-row { display: contents; }
   :root:not([data-density="comfortable"]) :where(.wiki-open) :is(.oc.op-card, .oc.st-card) .h b { flex: 0 1 auto; font-size: 13.5px; }
-  :root:not([data-density="comfortable"]) :where(.wiki-open) .oc.op-card .cv { font-size: 11px; padding: 0 5px; }
+  :root:not([data-density="comfortable"]) :where(.wiki-open) .oc.op-card .cv { font-size: 10.5px; padding: 0 5px; }
   :root:not([data-density="comfortable"]) :where(.wiki-open) :is(.oc.op-card, .oc.st-card) .tag { font-size: 10.5px; padding: 0 5px; }
-  :root:not([data-density="comfortable"]) :where(.wiki-open) .operator-card-wiki { top: 2px; right: 4px; }
+  :root:not([data-density="comfortable"]) :where(.wiki-open) .operator-card-wiki { top: 4px; right: 5px; }
   :root:not([data-density="comfortable"]) :where(.wiki-open) .oc.st-card .hp { width: 78px; flex: none; margin-left: auto; gap: 4px; }
   :root:not([data-density="comfortable"]) :where(.wiki-open) .oc.st-card .hp span { font-size: 12.5px; }
 }
@@ -3498,21 +3551,22 @@ mark {
     gap: 5px;
   }
   :root:not([data-density="comfortable"]) :is(.oc.op-card, .oc.st-card) {
-    padding: 5px 8px;
-    gap: 3px;
+    padding: 6px 9px;
+    gap: 4px;
     font-size: 12px;
     line-height: 1.45;
   }
-  :root:not([data-density="comfortable"]) .oc.op-card .operator-card-main { gap: 3px; }
-  :root:not([data-density="comfortable"]) :is(.oc.op-card, .oc.st-card) .h { align-items: center; gap: 7px; }
-  :root:not([data-density="comfortable"]) :is(.oc.op-card .h img, .oc.st-card .h .sp) { width: 34px; height: 34px; }
-  :root:not([data-density="comfortable"]) .oc.op-card.has-wiki .op-meta { padding-right: 60px; }
-  :root:not([data-density="comfortable"]) :is(.op-meta, .st-meta) { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 3px 5px; }
-  :root:not([data-density="comfortable"]) :is(.op-title-row, .op-tags, .st-title-row) { display: contents; }
+  :root:not([data-density="comfortable"]) .oc.op-card .operator-card-main { gap: 5px; }
+  :root:not([data-density="comfortable"]) :is(.oc.op-card, .oc.st-card) .h { align-items: center; gap: 7px; min-height: 36px; }
+  :root:not([data-density="comfortable"]) .oc.op-card .op-av { flex-basis: 36px; width: 36px; height: 36px; }
+  :root:not([data-density="comfortable"]) .oc.st-card .h .sp { width: 34px; height: 34px; }
+  :root:not([data-density="comfortable"]) .oc.op-card .op-tx { padding-top: 5px; font-size: 12px; }
+  :root:not([data-density="comfortable"]) .st-meta { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 3px 5px; }
+  :root:not([data-density="comfortable"]) .st-title-row { display: contents; }
   :root:not([data-density="comfortable"]) :is(.oc.op-card, .oc.st-card) .h b { flex: 0 1 auto; font-size: 13.5px; }
-  :root:not([data-density="comfortable"]) .oc.op-card .cv { font-size: 11px; padding: 0 5px; }
+  :root:not([data-density="comfortable"]) .oc.op-card .cv { font-size: 10.5px; padding: 0 5px; }
   :root:not([data-density="comfortable"]) :is(.oc.op-card, .oc.st-card) .tag { font-size: 10.5px; padding: 0 5px; }
-  :root:not([data-density="comfortable"]) .operator-card-wiki { top: 2px; right: 4px; }
+  :root:not([data-density="comfortable"]) .operator-card-wiki { top: 4px; right: 5px; }
   :root:not([data-density="comfortable"]) .oc.st-card .hp { width: 78px; flex: none; margin-left: auto; gap: 4px; }
   :root:not([data-density="comfortable"]) .oc.st-card .hp span { font-size: 12.5px; }
 }

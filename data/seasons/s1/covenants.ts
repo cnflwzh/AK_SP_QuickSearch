@@ -13,6 +13,8 @@ import type {Covenant} from '../../types.ts';
  */
 export const S1_COVENANTS: Readonly<Record<string, Covenant>> = {
   炎: {
+    bonusRoles: ['元素输出'],
+    bonusElements: ['神经', '灼燃', '凋亡', '侵蚀'],
     id: 'yan',
     kind: 'core',
     color: '#d65645',
@@ -31,6 +33,8 @@ export const S1_COVENANTS: Readonly<Record<string, Covenant>> = {
     ],
   },
   萨尔贡: {
+    roles: ['高频'],
+    bonusRoles: ['群攻', '控制'],
     id: 'sargon',
     kind: 'core',
     color: '#d4a03c',
@@ -74,6 +78,7 @@ export const S1_COVENANTS: Readonly<Record<string, Covenant>> = {
     cycleReward: {every: 25, reward: '特效维式重锤 ×1'},
   },
   谢拉格: {
+    bonusRoles: ['阻挡', '群攻'],
     id: 'kjerag',
     kind: 'core',
     color: '#73bfdc',
@@ -105,6 +110,8 @@ export const S1_COVENANTS: Readonly<Record<string, Covenant>> = {
     restrictedModeAbsent: true,
   },
   叙拉古: {
+    roles: ['高频'],
+    bonusRoles: ['真伤', '控制', '群攻'],
     id: 'siracusa',
     kind: 'core',
     color: '#8a68b8',
@@ -124,6 +131,7 @@ export const S1_COVENANTS: Readonly<Record<string, Covenant>> = {
     ],
   },
   卡西米尔: {
+    bonusRoles: ['真伤'],
     id: 'kazimierz',
     kind: 'core',
     color: '#c4ad37',
@@ -162,6 +170,9 @@ export const S1_COVENANTS: Readonly<Record<string, Covenant>> = {
     ],
   },
   伊比利亚: {
+    memberArtsDamage: true,
+    roles: ['高频'],
+    bonusRoles: ['控制', '群攻'],
     id: 'iberia',
     kind: 'core',
     color: '#3f8a6a',
@@ -195,6 +206,7 @@ export const S1_COVENANTS: Readonly<Record<string, Covenant>> = {
     ],
   },
   精准: {
+    bonusRoles: ['破抗'],
     id: 'precision',
     kind: 'addon',
     need: 2,
@@ -227,6 +239,7 @@ export const S1_COVENANTS: Readonly<Record<string, Covenant>> = {
     commonLayerOrder: 2,
   },
   灵巧: {
+    roles: ['高频'],
     id: 'dexterity',
     kind: 'addon',
     need: 2,
@@ -339,6 +352,7 @@ export const S1_COVENANTS: Readonly<Record<string, Covenant>> = {
     },
   },
   突袭: {
+    bonusRoles: ['高频'],
     id: 'assault',
     kind: 'addon',
     need: 2,
@@ -413,6 +427,7 @@ export const S1_COVENANTS: Readonly<Record<string, Covenant>> = {
     mechanics: {countMode: 'fieldElites', bonusNeed: 5},
   },
   聚合: {
+    roles: ['治疗', '元素回复'],
     id: 'convergence',
     kind: 'addon',
     need: 2,
@@ -435,6 +450,9 @@ export const S1_COVENANTS: Readonly<Record<string, Covenant>> = {
     },
   },
   奥术: {
+    memberArtsDamage: true,
+    roles: ['高频'],
+    bonusRoles: ['反隐', '破抗'],
     id: 'arcane',
     kind: 'addon',
     need: 2,

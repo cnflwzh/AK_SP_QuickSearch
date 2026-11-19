@@ -63,7 +63,19 @@ import OperatorTile from '../components/OperatorTile.vue';
 import PlanSummary from '../components/PlanSummary.vue';
 import PlanSharePanel from '../components/PlanSharePanel.vue';
 import OperatorRequestButton from '../components/OperatorRequestButton.vue';
-import Segmented from '../components/Segmented.vue';
+import SubTabs, {
+  type SubTabDirection,
+  type SubTabItem,
+} from '../components/SubTabs.vue';
+import ConfirmButton from '../components/ConfirmButton.vue';
+import EmptyState from '../components/EmptyState.vue';
+import StatusNotice from '../components/StatusNotice.vue';
+
+const LINEUP_TABS: readonly SubTabItem<0 | 1>[] = [
+  {id: 0, label: '终盘阵容'},
+  {id: 1, label: '按等阶抓牌'},
+];
+const lineupDir = ref<SubTabDirection>('');
 /**
  * 流派：内置流派和我的流派都是预设。默认只读查看，局内扫一眼；点「编辑」进入规划器。
  * 「本局打这套」把它设为本局流派，盟约 / 效果 / 干员页随之高亮。
@@ -297,13 +309,11 @@ const main = computed(() =>
 );
 const isRun = computed(() => runKey.value === p.value.key);
 function remove(): void {
-  if (!confirm(`删除「${p.value.plan.name}」？`)) return;
   removePreset(p.value.key);
   void navigate(buildLocation(current.value.key), true);
 }
 function restore(): void {
-  if (confirm(`放弃对「${p.value.key}」的修改，恢复内置版本？`))
-    restorePreset(p.value.key);
+  restorePreset(p.value.key);
 }
 
 /* ---------- 盟约被 ban：被 ban 盟约的干员不会出现，给出替代 ---------- */
@@ -567,7 +577,10 @@ watch(
     </div>
   </div>
 
-  <p v-if="saveErrorMessage" class="pl-warn" role="status">{{ saveErrorMessage }}</p>
+  <StatusNotice
+    v-if="saveErrorMessage"
+    tone="warning"
+    :message="saveErrorMessage" />
 
   <PlanBackupPanel v-if="activePanel === 'backup'" id="build-backup" />
 
@@ -582,7 +595,7 @@ watch(
         粘贴
       </button>
     </div>
-    <p v-if="pasteError" class="pl-warn" role="status">{{ pasteError }}</p>
+    <StatusNotice v-if="pasteError" tone="warning" :message="pasteError" />
     <template v-if="imported">
       <PlanSummary
         :ops="imported.plan.ops"
@@ -597,7 +610,10 @@ watch(
         </button>
       </div>
     </template>
-    <p v-else-if="importText.trim()" class="pl-warn">认不出这个分享码</p>
+    <StatusNotice
+      v-else-if="importText.trim()"
+      tone="warning"
+      message="认不出这个分享码" />
   </section>
 
   <PlannerView v-if="editing" @done="completeEdit" />
@@ -648,12 +664,19 @@ watch(
           v-else
           :names="p.plan.ops.map((slot) => slot.name)"
           :build-name="p.plan.name" />
-        <button v-if="p.modified" type="button" @click="restore">
-          恢复默认
-        </button>
-        <button v-if="!p.builtin" type="button" class="dg" @click="remove">
-          删除
-        </button>
+        <ConfirmButton
+          v-if="p.modified"
+          label="恢复默认"
+          confirm-label="确认恢复"
+          tone="neutral"
+          :reset-key="p.key"
+          @confirm="restore" />
+        <ConfirmButton
+          v-if="!p.builtin"
+          label="删除"
+          confirm-label="确认删除"
+          :reset-key="p.key"
+          @confirm="remove" />
       </span>
     </div>
 
@@ -818,14 +841,21 @@ watch(
             </template>
           </span>
         </h5>
-        <Segmented
+        <SubTabs
           v-if="slotEntries.length"
-          :labels="['终盘阵容', '按等阶抓牌']"
-          :active="lineupMode"
+          v-model="lineupMode"
+          :items="LINEUP_TABS"
+          :level="3"
+          inline
+          aria-label="阵容视图"
           attr="bdl"
-          @change="lineupMode = $event as 0 | 1" />
+          @change="(_, dir) => (lineupDir = dir)" />
       </div>
-      <template v-if="slotEntries.length">
+      <div
+        v-if="slotEntries.length"
+        :key="lineupMode"
+        :class="{'subtab-panel': !!lineupDir}"
+        :data-dir="lineupDir || undefined">
         <template v-if="lineupMode === 0">
           <div class="tiles">
             <OperatorTile
@@ -928,8 +958,8 @@ watch(
             </div>
           </section>
         </div>
-      </template>
-      <div v-else class="empty">还没有干员，点「编辑」排阵容</div>
+      </div>
+      <EmptyState v-else message="还没有干员，点「编辑」排阵容" />
     </div>
     <div class="bgrid">
       <div v-if="tips.length">

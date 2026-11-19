@@ -5,6 +5,7 @@ import {
   OPERATOR,
   DISPATCH_BY_MODE,
   DISPATCH_MODES,
+  RESTRICTED_MODE_COVENANTS,
   operatorEliteCopies,
   operatorPrice,
   operatorSellMechanics,
@@ -13,8 +14,16 @@ import {
   TIERS,
 } from '../../../data/index';
 import {avatar} from '../chips';
+import {isBanned} from '../../lib/recommendation/planning';
 import {dispatchTable} from '../chapters/recruitView';
+import SelectInput, {
+  type SelectOption,
+} from '../../quickref/components/SelectInput.vue';
 import Markup from './Markup';
+
+const dispatchModeOptions: readonly SelectOption<number>[] = DISPATCH_MODES.map(
+  (label, i) => ({value: i, label}),
+);
 
 interface BenchCard {
   id: number;
@@ -34,9 +43,9 @@ interface ShopState {
   slots: (string | null)[];
 }
 const BENCH_SIZE = 10,
-  BENCH_MAX = 15,
   MAX_LEVEL = 6;
 const mode = ref(0),
+  lowSolo = ref(false),
   shopRoll = ref(0),
   flip = ref(false);
 const sim = reactive<ShopState>({
@@ -50,12 +59,21 @@ const sim = reactive<ShopState>({
   slots: [],
 });
 let cardId = 0;
-const pools = Array.from({length: 7}, (_, level) =>
-  OPERATORS.filter((o) => o.tier <= level && o.stars > 0),
+const restrictedBans = new Set(RESTRICTED_MODE_COVENANTS);
+const eligible = computed(() => {
+  const restricted = mode.value !== 0 || lowSolo.value;
+  return OPERATORS.filter(
+    (op) => op.stars > 0 && (!restricted || !isBanned(op.name, restrictedBans)),
+  );
+});
+const pools = computed(() =>
+  Array.from({length: MAX_LEVEL + 1}, (_, level) =>
+    eligible.value.filter((op) => op.tier <= level),
+  ),
 );
 const pickRandom = <T,>(list: readonly T[]): T =>
   list[Math.floor(Math.random() * list.length)];
-const randomOperator = (level: number) => pickRandom(pools[level]).name;
+const randomOperator = (level: number) => pickRandom(pools.value[level]).name;
 const levelInfo = (level: number) => DISPATCH_BY_MODE[mode.value][level - 1];
 const tierOf = (name: string) => OPERATOR[name].tier;
 const priceOf = (name: string) => operatorPrice(OPERATOR[name]);
@@ -65,7 +83,7 @@ const costPercent = computed(() =>
   maxed.value ? 0 : (sim.cost / (info.value.upgradeCost ?? 1)) * 100,
 );
 const benchCells = computed(() =>
-  Array.from({length: BENCH_MAX}, (_, i) => sim.bench[i]),
+  Array.from({length: BENCH_SIZE}, (_, i) => sim.bench[i]),
 );
 
 /** Every card has an identity, so purchases and sales patch only affected slots. */
@@ -111,9 +129,9 @@ function tryMerge(name: string) {
     pop: true,
     sale: operatorSellPrice(name, true),
   });
-  const pool = OPERATORS.filter(
-    (o) => o.tier === Math.min(MAX_LEVEL, sim.level + 1) && o.stars > 0,
-  ).map((o) => o.name);
+  const pool = eligible.value
+    .filter((o) => o.tier === Math.min(MAX_LEVEL, sim.level + 1))
+    .map((o) => o.name);
   const picks = new Set<string>();
   while (picks.size < 3 && picks.size < pool.length)
     picks.add(pickRandom(pool));
@@ -139,7 +157,7 @@ function buy(index: number) {
 }
 function claimReward(index: number) {
   const name = sim.reward?.[index];
-  if (!name || sim.bench.length >= BENCH_MAX) return;
+  if (!name || sim.bench.length >= BENCH_SIZE) return;
   beginAction();
   sim.reward = null;
   addToBench(name);
@@ -171,7 +189,7 @@ function upgrade() {
   while (sim.slots.length < info.value.operatorSlots)
     sim.slots.push(randomOperator(sim.level));
 }
-/** Round boundaries expire rewards/temporary slots and refill only frozen gaps. */
+/** Round boundaries expire unclaimed rewards and refill only frozen gaps. */
 function nextRound() {
   beginAction();
   sim.bench.forEach((card) => {
@@ -186,13 +204,12 @@ function nextRound() {
   sim.round++;
   sim.cost = Math.max(0, sim.cost - 1);
   sim.reward = null;
-  if (sim.bench.length > BENCH_SIZE) sim.bench = sim.bench.slice(0, BENCH_SIZE);
   if (sim.frozen) {
     sim.frozen = false;
     sim.slots = sim.slots.map((name) => name || randomOperator(sim.level));
   } else rollShop();
 }
-watch(mode, reset);
+watch([mode, lowSolo], reset);
 reset();
 </script>
 <template>
@@ -203,11 +220,15 @@ reset();
   <div class="card">
     <div class="row" style="margin-bottom: 14px">
       <label for="dispatchMode">模式</label>
-      <select id="dispatchMode" v-model.number="mode">
-        <option v-for="(label, i) in DISPATCH_MODES" :key="label" :value="i">
-          {{ label }}
-        </option>
-      </select>
+      <SelectInput
+        id="dispatchMode"
+        v-model="mode"
+        :options="dispatchModeOptions"
+        aria-label="调度模式" />
+      <label v-if="mode === 0">
+        <input v-model="lowSolo" type="checkbox" />
+        规程 1–4（固定缺席盟约）
+      </label>
       <span class="tag">切换模式重置练习</span>
     </div>
     <div class="sim">
@@ -330,8 +351,10 @@ reset();
         <div
           class="row"
           style="margin-top: 12px; justify-content: space-between">
-          <span class="lab" style="margin: 0">整备区 10 + 临时 5</span>
-          <span class="cnt" id="sBenchN">{{ sim.bench.length }} / 15</span>
+          <span class="lab" style="margin: 0">干员整备区（含召唤物）</span>
+          <span class="cnt" id="sBenchN">
+            {{ sim.bench.length }} / {{ BENCH_SIZE }}
+          </span>
         </div>
         <div class="bench" id="sBench">
           <div
@@ -341,7 +364,6 @@ reset();
             :class="{
               x: !card,
               hasava: !!card,
-              tmp: i >= BENCH_SIZE,
               el: card?.elite,
               pop: card?.pop,
             }"

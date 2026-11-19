@@ -1,4 +1,5 @@
 import {reactive} from 'vue';
+import type {CreditTargetKind} from '../../../data/types.ts';
 import {
   COMMON_LAYER_COVENANTS,
   CREDIT,
@@ -45,7 +46,11 @@ interface NumberToolsState {
     soloLevel: number;
     roundsCleared: number;
     defeatedLeader: boolean;
-    currentCredit: number;
+    battleEarned: number;
+    objectiveEarned: number;
+    limitedSpend: number;
+    balance: number;
+    targetKind: CreditTargetKind;
     targetCredit: number;
   };
   roundDifficulty: number;
@@ -75,7 +80,11 @@ const state = reactive<NumberToolsState>({
     soloLevel: 15,
     roundsCleared: CREDIT.length,
     defeatedLeader: true,
-    currentCredit: 0,
+    battleEarned: 0,
+    objectiveEarned: 0,
+    limitedSpend: 0,
+    balance: 0,
+    targetKind: 'battle',
     targetCredit: defaultCreditTarget(),
   },
   roundDifficulty: 1,

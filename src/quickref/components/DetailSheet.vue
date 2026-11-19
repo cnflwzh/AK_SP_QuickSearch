@@ -13,6 +13,7 @@ import {
   isCoreCovenant,
   rosterOf,
   type CombatRole,
+  type Operator,
 } from '../../../data/index.ts';
 import {navigate} from '../../router/navigation.ts';
 import {PAGE_PATHS, ROLE_IDS, idForLabel} from '../../router/location.ts';
@@ -45,6 +46,7 @@ import Chip from './Chip.vue';
 import CovenantIcon from './CovenantIcon.vue';
 import PrtsLink from './PrtsLink.vue';
 import OperatorRequestButton from './OperatorRequestButton.vue';
+import SectionHeading from './SectionHeading.vue';
 const props = defineProps<{
   selection: DetailSelection | null;
   /** 分屏时仅覆盖速查区域，保持旁边的 Wiki 可以交互。 */
@@ -59,6 +61,41 @@ const operator = computed(() =>
   props.selection?.kind === 'op' ? OPERATOR[props.selection.name] : undefined,
 );
 const roleDescMap = new Map(COMBAT_ROLES.map((item) => [item.label, item.desc]));
+
+interface RoleEntry {
+  readonly role: CombatRole;
+  readonly condition: string;
+}
+
+function operatorRoleCondition(op: Operator, role: CombatRole): string {
+  const conditions: string[] = [];
+  if (op.eliteOnlyRoles?.includes(role)) conditions.push('精锐');
+  if (role === '元素输出' && op.elementalPrerequisites) {
+    const targets = op.elementalPrerequisites.map((e) =>
+      e === '麻痹' ? e : e + '爆发',
+    );
+    conditions.push('需' + targets.join('或'));
+  }
+  if (op.minimumFieldRoles?.roles.includes(role)) {
+    conditions.push('场上≥' + op.minimumFieldRoles.count + '人');
+  }
+  return conditions.join(' · ');
+}
+
+const operatorRoleEntries = computed<RoleEntry[]>(() => {
+  const op = operator.value;
+  if (!op?.roles?.length) return [];
+  const entries = op.roles.map((role) => ({
+    role,
+    condition: operatorRoleCondition(op, role),
+  }));
+  // 常驻职能排在前，带前置条件的职能排在后，便于扫一眼先抓核心定位。
+  return [
+    ...entries.filter((e) => !e.condition),
+    ...entries.filter((e) => e.condition),
+  ];
+});
+
 function openRoleFilter(role: CombatRole): void {
   const id = idForLabel(ROLE_IDS, role);
   if (!id) return;
@@ -245,14 +282,13 @@ onBeforeUnmount(() => dialog.value?.close());
             alt=""
             width="80"
             height="80" />
-          <div>
-            <div class="row">
+          <div class="op-dh-info">
+            <div class="op-dh-eyebrow">
               <i class="tn">{{ TIER_LABELS[operator.tier] }} 阶</i>
-              <span class="stars">{{ '★'.repeat(operator.stars) }}</span>
-              <span class="tag">{{ operator.type }}</span>
-            </div>
-            <div class="operator-detail-title">
-              <h3 id="detail-title">{{ operator.name }}</h3>
+              <span v-if="operator.stars" class="stars">
+                {{ '★'.repeat(operator.stars) }}
+              </span>
+              <span class="op-dh-type">{{ operator.type }}</span>
               <span v-if="opBanned" class="tag r">本局禁池</span>
               <span v-if="opRunSlot" class="tag t">
                 {{ opRunSlot.core ? '★ 本局核心' : '✓ 本局主力' }}
@@ -261,21 +297,15 @@ onBeforeUnmount(() => dialog.value?.close());
                 ⇄ 备选·替{{ opAltTargets[0] }}
               </span>
             </div>
-            <div class="row">
+            <div class="operator-detail-title">
+              <h3 id="detail-title">{{ operator.name }}</h3>
+            </div>
+            <div class="op-dh-covs">
               <Chip
                 v-for="name in operator.covenants"
                 :key="name"
                 kind="cv"
                 :name="name" />
-              <button
-                v-for="role in operator.roles ?? []"
-                :key="role"
-                type="button"
-                class="sh-role-chip"
-                :title="`${role}：${roleDescMap.get(role) ?? ''}（点此按该职能筛选干员）`"
-                @click="openRoleFilter(role)">
-                {{ role }}
-              </button>
             </div>
           </div>
           <div class="operator-detail-controls">
@@ -316,13 +346,10 @@ onBeforeUnmount(() => dialog.value?.close());
             alt=""
             width="80"
             height="80" />
-          <div>
-            <div class="row">
+          <div class="op-dh-info">
+            <div class="op-dh-eyebrow">
               <i class="tn">{{ TIER_LABELS[equipment.tier] }} 阶</i>
               <span class="tag a">{{ equipment.price }} 资金</span>
-            </div>
-            <div class="operator-detail-title">
-              <h3 id="detail-title">{{ equipment.name }}</h3>
               <span v-if="eqOwners.length" class="tag t">
                 ✓ 给{{ eqOwners.join('·') }}
               </span>
@@ -331,20 +358,11 @@ onBeforeUnmount(() => dialog.value?.close());
                 ⇄ 合{{ eqCraftsInto[0] }}
               </span>
             </div>
-            <div class="row">
-              <Chip
-                v-if="equipment.covenant"
-                kind="cv"
-                :name="equipment.covenant" />
-              <button
-                v-for="role in equipment.roles ?? []"
-                :key="role"
-                type="button"
-                class="sh-role-chip"
-                :title="`${role}：${roleDescMap.get(role) ?? ''}（点此查看同职能干员）`"
-                @click="openRoleFilter(role)">
-                {{ role }}
-              </button>
+            <div class="operator-detail-title">
+              <h3 id="detail-title">{{ equipment.name }}</h3>
+            </div>
+            <div v-if="equipment.covenant" class="op-dh-covs">
+              <Chip kind="cv" :name="equipment.covenant" />
             </div>
           </div>
           <button
@@ -431,16 +449,58 @@ onBeforeUnmount(() => dialog.value?.close());
             <span class="tag t">{{ strategy.skill }}</span>
             <div v-html="fx(strategy.effect)"></div>
           </div>
+          <div v-if="operatorRoleEntries.length" class="sh-sec sh-roles-sec">
+            <SectionHeading
+              title="实战职能"
+              desc="点按可筛选同职能干员"
+              variant="plain"
+              :level="5" />
+            <div class="sh-roles-list">
+              <button
+                v-for="item in operatorRoleEntries"
+                :key="item.role"
+                type="button"
+                :class="['sh-role-chip', {'has-cond': !!item.condition}]"
+                :title="`${item.role}：${roleDescMap.get(item.role) ?? ''}${item.condition ? `（触发条件：${item.condition}）` : ''}（点此按该职能筛选干员）`"
+                @click="openRoleFilter(item.role)">
+                <span class="sh-role-name">{{ item.role }}</span>
+                <span v-if="item.condition" class="sh-role-cond">
+                  {{ item.condition }}
+                </span>
+              </button>
+            </div>
+          </div>
+          <div
+            v-else-if="equipment && equipment.roles?.length"
+            class="sh-sec sh-roles-sec">
+            <SectionHeading
+              title="实战职能"
+              desc="点按可查看同职能干员"
+              variant="plain"
+              :level="5" />
+            <div class="sh-roles-list">
+              <button
+                v-for="role in equipment.roles"
+                :key="role"
+                type="button"
+                class="sh-role-chip"
+                :title="`${role}：${roleDescMap.get(role) ?? ''}（点此查看同职能干员）`"
+                @click="openRoleFilter(role)">
+                <span class="sh-role-name">{{ role }}</span>
+              </button>
+            </div>
+          </div>
           <div
             v-if="
               equipment &&
               quickTargetPreset &&
               quickTargetPreset.plan.ops.length
             "
-            class="sh-eq-assign">
-            <h5 class="cnt" style="margin: 0 0 6px">
-              配给「{{ quickTargetPreset.plan.name }}」
-            </h5>
+            class="sh-sec sh-eq-assign">
+            <SectionHeading
+              :title="`配给「${quickTargetPreset.plan.name}」`"
+              variant="plain"
+              :level="5" />
             <div class="row">
               <button
                 v-for="slot in quickTargetPreset.plan.ops"
@@ -475,8 +535,8 @@ onBeforeUnmount(() => dialog.value?.close());
               </button>
             </div>
           </div>
-          <div v-if="equipmentRecipes.length">
-            <h5 class="cnt" style="margin: 0 0 6px">组合配方</h5>
+          <div v-if="equipmentRecipes.length" class="sh-sec">
+            <SectionHeading title="组合配方" variant="plain" :level="5" />
             <div
               v-for="recipe in equipmentRecipes"
               :key="recipe[2]"
@@ -488,8 +548,8 @@ onBeforeUnmount(() => dialog.value?.close());
               <Chip kind="eq" :name="recipe[2]" />
             </div>
           </div>
-          <div v-if="builds.length">
-            <h5 class="cnt" style="margin: 0 0 6px">流派</h5>
+          <div v-if="builds.length" class="sh-sec">
+            <SectionHeading title="推荐流派" variant="plain" :level="5" />
             <div class="row">
               <Chip
                 v-for="name in builds"
@@ -498,8 +558,12 @@ onBeforeUnmount(() => dialog.value?.close());
                 :name="name" />
             </div>
           </div>
-          <div v-if="mates.length">
-            <h5 class="cnt" style="margin: 0 0 6px">同盟约 · 同阶</h5>
+          <div v-if="mates.length" class="sh-sec">
+            <SectionHeading
+              title="同盟约 · 同阶"
+              :count="`${mates.length} 名`"
+              variant="plain"
+              :level="5" />
             <div class="row">
               <Chip
                 v-for="mate in mates"
@@ -559,11 +623,41 @@ onBeforeUnmount(() => dialog.value?.close());
 </template>
 
 <style scoped>
+.op-dh-info {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  align-content: center;
+}
+.op-dh-eyebrow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.op-dh-type {
+  font-size: 11.5px;
+  color: var(--ink3);
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--surface2);
+  border: 1px solid var(--line);
+  line-height: 1.55;
+}
 .operator-detail-title {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
+}
+.operator-detail-title h3 {
+  margin: 0;
+}
+.op-dh-covs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .operator-detail-header > div {
   min-width: 0;
@@ -574,7 +668,7 @@ onBeforeUnmount(() => dialog.value?.close());
   flex-direction: column;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
 }
 .operator-detail-controls .sh-x {
   align-self: flex-end;
@@ -619,9 +713,9 @@ onBeforeUnmount(() => dialog.value?.close());
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 72px;
+  min-width: 68px;
   min-height: 32px;
-  padding: 4px 12px;
+  padding: 4px 11px;
   border: 1px solid var(--line2);
   border-radius: 6px;
   font-size: 12px;
@@ -629,12 +723,28 @@ onBeforeUnmount(() => dialog.value?.close());
 }
 @media (pointer: coarse) {
   .operator-quick-build,
+  .sh-role-chip,
   .operator-detail-actions :deep(.operator-request),
   .operator-detail-actions :deep(.prts-link) {
-    min-height: 38px;
+    min-height: 36px;
   }
 }
 @media (max-height: 600px) {
+  .sh-h {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+  .sh-h .pic {
+    width: 60px;
+    height: 60px;
+  }
+  .sh-h h3 {
+    font-size: 20px;
+  }
+  .sh-b {
+    padding: 12px;
+    gap: 10px;
+  }
   .operator-quick-build,
   .operator-detail-actions :deep(.operator-request),
   .operator-detail-actions :deep(.prts-link),
@@ -645,32 +755,64 @@ onBeforeUnmount(() => dialog.value?.close());
 .strategy-quick-row {
   margin-top: 6px;
 }
-.sh-eq-assign {
+
+/* ---------- 详情页主体区块统一排版 ---------- */
+.sh-sec {
   display: grid;
-  gap: 2px;
+  gap: 7px;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 65%, transparent);
+}
+.sh-roles-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .sh-role-chip {
   display: inline-flex;
   align-items: center;
-  min-height: 24px;
-  padding: 1px 8px;
-  border: 1px solid color-mix(in srgb, var(--teal) 36%, var(--line2));
-  border-radius: 999px;
+  min-height: 28px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--teal) 40%, var(--line2));
+  border-radius: 6px;
   background: color-mix(in srgb, var(--teal) 9%, var(--surface2));
   color: var(--teal);
   font: inherit;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
+  overflow: hidden;
   cursor: pointer;
   transition:
     border-color 0.14s,
     color 0.14s,
     background-color 0.14s;
 }
+.sh-role-name {
+  padding: 3px 9px;
+  line-height: 1.3;
+}
+.sh-role-chip.has-cond {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--teal) 45%, var(--line2));
+  background: var(--surface2);
+}
+.sh-role-cond {
+  padding: 3px 8px;
+  border-left: 1px solid color-mix(in srgb, var(--line2) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  color: var(--ink2);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+}
 .sh-role-chip:hover {
+  border-style: solid;
   border-color: var(--accent);
   color: var(--accent);
   background: var(--accent-soft);
+}
+.sh-role-chip:hover .sh-role-cond {
+  color: var(--accent);
 }
 .sh-eq-slot {
   display: inline-flex;

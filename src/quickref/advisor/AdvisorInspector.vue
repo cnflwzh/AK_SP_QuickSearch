@@ -5,8 +5,14 @@ import {avatarSrc, equipIconSrc} from '../../lib/ui/assets.ts';
 import {supportsFrontTarget} from '../../lib/recommendation/live/advisorPosition.ts';
 import {eliteCopyCount} from '../../lib/recommendation/live/runAdvisor.ts';
 import {peekFx} from '../format.ts';
+import SelectInput, {type SelectOption} from '../components/SelectInput.vue';
 import {useRunAdvisor} from './useRunAdvisor.ts';
 import type {AdvisorSelection} from './types.ts';
+
+const COPY_OPTIONS: readonly SelectOption<number>[] = [
+  {value: 1, label: '1 张'},
+  {value: 2, label: '2 张 · 对子'},
+];
 
 const props = defineProps<{selection: AdvisorSelection}>();
 const emit = defineEmits<{
@@ -35,26 +41,47 @@ const held = computed(() =>
 const warehouse = computed(() =>
   run.value.equipment.filter((item) => !item.holder),
 );
-const selectValue = (event: Event): string =>
-  (event.target as HTMLSelectElement).value;
+const warehouseOptions = computed<readonly SelectOption<string>[]>(() => [
+  {value: '', label: '从仓库装备…'},
+  ...warehouse.value.map((item) => ({
+    value: item.id,
+    label: `${item.name}${item.advanced ? ' · 进阶' : ''}`,
+  })),
+]);
+const frontTargetOptions = computed<readonly SelectOption<string>[]>(() => [
+  {value: '__unknown__', label: '未知，只计自身'},
+  {value: '', label: '确认无人'},
+  ...frontChoices.value.map((target) => ({
+    value: target.name,
+    label: target.name,
+  })),
+]);
+const replaceOptions = computed<readonly SelectOption<string>[]>(() => [
+  {value: '', label: '替换谁上场…'},
+  ...deployed.value.map((outgoing) => ({
+    value: outgoing.name,
+    label: `换下${outgoing.name}`,
+  })),
+]);
+const holderOptions = computed<readonly SelectOption<string>[]>(() => [
+  {value: '', label: '仓库 · 未携带'},
+  ...run.value.operators.map((item) => ({
+    value: item.name,
+    label: `${item.name} · ${item.deployed ? '上场' : '整备区'}`,
+  })),
+]);
 const isChecked = (event: Event): boolean =>
   (event.target as HTMLInputElement).checked;
-function equipFromWarehouse(event: Event): void {
-  const id = selectValue(event);
+function equipFromWarehouse(id: string): void {
   if (id && operator.value) advisor.assignEquipment(id, operator.value.name);
-  (event.target as HTMLSelectElement).value = '';
 }
-function assignHolder(event: Event): void {
+function assignHolder(holder: string): void {
   if (!equipment.value) return;
-  const select = event.target as HTMLSelectElement;
-  if (!advisor.assignEquipment(equipment.value.id, select.value))
-    select.value = equipment.value.holder;
+  advisor.assignEquipment(equipment.value.id, holder);
 }
-function replace(event: Event): void {
-  const outgoingName = selectValue(event);
+function replace(outgoingName: string): void {
   if (outgoingName && operator.value)
     advisor.setDeployment(operator.value.name, true, outgoingName);
-  (event.target as HTMLSelectElement).value = '';
 }
 function remove(): void {
   if (operator.value) advisor.removeOperator(operator.value.name);
@@ -79,14 +106,11 @@ function remove(): void {
       <div class="ra-ownership-controls">
         <label v-if="!operator.elite && eliteCopyCount(operator.name) > 2">
           <span class="sr-only">持有张数</span>
-          <select
-            :value="operator.copies"
-            @change="
-              advisor.setCopies(operator.name, Number(selectValue($event)))
-            ">
-            <option :value="1">1 张</option>
-            <option :value="2">2 张 · 对子</option>
-          </select>
+          <SelectInput
+            :model-value="operator.copies"
+            :options="COPY_OPTIONS"
+            aria-label="持有张数"
+            @update:model-value="advisor.setCopies(operator.name, $event)" />
         </label>
         <span v-else-if="!operator.elite" class="ra-muted">两张合成精锐</span>
         <label class="ra-check">
@@ -142,37 +166,27 @@ function remove(): void {
           v-if="warehouse.length && held.length < 2"
           class="ra-warehouse-select">
           <span class="sr-only">从仓库装备</span>
-          <select value="" @change="equipFromWarehouse">
-            <option value="">从仓库装备…</option>
-            <option v-for="item in warehouse" :key="item.id" :value="item.id">
-              {{ item.name }}{{ item.advanced ? ' · 进阶' : '' }}
-            </option>
-          </select>
+          <SelectInput
+            model-value=""
+            :options="warehouseOptions"
+            aria-label="从仓库装备"
+            @update:model-value="equipFromWarehouse" />
         </label>
       </div>
       <label
         v-if="operator.deployed && supportsFrontTarget(operator.name)"
         class="ra-holder-select">
         身前一格（选填）
-        <select
-          :value="run.frontTargets[operator.name] ?? '__unknown__'"
-          @change="
+        <SelectInput
+          :model-value="run.frontTargets[operator.name] ?? '__unknown__'"
+          :options="frontTargetOptions"
+          aria-label="身前一格"
+          @update:model-value="
             advisor.setFrontTarget(
               operator.name,
-              selectValue($event) === '__unknown__'
-                ? null
-                : selectValue($event),
+              $event === '__unknown__' ? null : $event,
             )
-          ">
-          <option value="__unknown__">未知，只计自身</option>
-          <option value="">确认无人</option>
-          <option
-            v-for="target in frontChoices"
-            :key="target.name"
-            :value="target.name">
-            {{ target.name }}
-          </option>
-        </select>
+          " />
       </label>
       <section class="ra-inspector-section ra-operator-trait">
         <div class="ra-section-heading">
@@ -211,15 +225,11 @@ function remove(): void {
         </button>
         <label v-else>
           <span class="sr-only">替换谁上场</span>
-          <select value="" @change="replace">
-            <option value="">替换谁上场…</option>
-            <option
-              v-for="outgoing in deployed"
-              :key="outgoing.name"
-              :value="outgoing.name">
-              换下{{ outgoing.name }}
-            </option>
-          </select>
+          <SelectInput
+            model-value=""
+            :options="replaceOptions"
+            aria-label="替换谁上场"
+            @update:model-value="replace" />
         </label>
         <button type="button" class="ra-text-button ra-danger" @click="remove">
           移除干员
@@ -240,15 +250,11 @@ function remove(): void {
       </div>
       <label class="ra-holder-select">
         携带者
-        <select :value="equipment.holder" @change="assignHolder">
-          <option value="">仓库 · 未携带</option>
-          <option
-            v-for="item in run.operators"
-            :key="item.name"
-            :value="item.name">
-            {{ item.name }} · {{ item.deployed ? '上场' : '整备区' }}
-          </option>
-        </select>
+        <SelectInput
+          :model-value="equipment.holder"
+          :options="holderOptions"
+          aria-label="携带者"
+          @update:model-value="assignHolder" />
       </label>
       <label v-if="EQUIP[equipment.name]?.advanced" class="ra-check">
         <input

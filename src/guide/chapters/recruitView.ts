@@ -144,13 +144,13 @@ function formation(out: Record<string, string>) {
     return '<div class="g" style="visibility:hidden"></div>';
   }).join('');
 
-  const BENCH = ['真理', '慕斯', '深靛', '卡达', '灰喉', '夏栎', '星源', '淬羽赫默', '焰尾', '历阵锐枪芬', '拜松', '霜叶'];
+  const BENCH = ['真理', '慕斯', '深靛', '卡达', '灰喉', '夏栎', '星源', '淬羽赫默', '焰尾', '历阵锐枪芬'];
   out.benchDemo = range(15).map(i => {
     const name = BENCH[i];
-    const temp = i >= 10 ? 'tmp' : '';
-    if (!name) return `<div class="b x ${temp}"></div>`;
+    if (i >= 10) return '<div class="b x" style="cursor:default">装备</div>';
+    if (!name) return `<div class="b x"></div>`;
     const tier = OPERATOR[name].tier;
-    return `<div class="b hasava ${temp}" data-t="${tier}" style="cursor:default">${avatar(name)}<i>${TIER_LABELS[tier]}</i>${name}</div>`;
+    return `<div class="b hasava" data-t="${tier}" style="cursor:default">${avatar(name)}<i>${TIER_LABELS[tier]}</i>${name}</div>`;
   }).join('');
 
   const mentioning = (keyword: string) => OPERATORS.filter(o => (o.trait + o.elite).includes(keyword)).map(o => o.name);

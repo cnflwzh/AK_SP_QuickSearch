@@ -13,6 +13,7 @@ import {
 import {color} from '../format.ts';
 import {run, runStats} from '../planStore.ts';
 import CovenantIcon from '../components/CovenantIcon.vue';
+import SelectInput, {type SelectEntry} from '../components/SelectInput.vue';
 import LayerCalculator from './LayerCalculator.vue';
 import {useNumberToolsState, type LayerSection} from './useNumberToolsState.ts';
 
@@ -58,9 +59,15 @@ const detailOrder = computed(() =>
       ? 5
       : 1,
 );
-const groups = [
-  {label: '核心盟约', names: CORE_COVENANTS},
-  {label: '附加盟约', names: ADDON_COVENANTS},
+const groups: readonly SelectEntry<string>[] = [
+  {
+    label: '核心盟约',
+    options: CORE_COVENANTS.map((name) => ({value: name, label: name})),
+  },
+  {
+    label: '附加盟约',
+    options: ADDON_COVENANTS.map((name) => ({value: name, label: name})),
+  },
 ];
 const eliteCov = ALL_COVENANTS.find(
   (name) => COVENANTS[name].mechanics?.countMode === 'fieldElites',
@@ -107,19 +114,11 @@ async function select(
   <div ref="root" class="nt-layers">
     <div class="bar nt-toolbar">
       <h4 class="nt-section-title" aria-level="2">层数与强化</h4>
-      <select
-        :value="selected"
+      <SelectInput
+        :model-value="selected"
+        :options="groups"
         aria-label="选择盟约计算"
-        @change="select(($event.target as HTMLSelectElement).value)">
-        <optgroup
-          v-for="group in groups"
-          :key="group.label"
-          :label="group.label">
-          <option v-for="name in group.names" :key="name" :value="name">
-            {{ name }}
-          </option>
-        </optgroup>
-      </select>
+        @update:model-value="select" />
     </div>
 
     <div class="nt-layer-layout">

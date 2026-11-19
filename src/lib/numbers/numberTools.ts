@@ -8,6 +8,7 @@ import {isBanned} from '../recommendation/planning.ts';
 
 export {
   calculateCreditPlan,
+  creditRoundLimit,
   compareJointDifficulties,
   compareSoloLevels,
   defaultCreditTarget,

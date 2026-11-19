@@ -1,4 +1,5 @@
 import {settleInitialFonts} from './lib/runtime/fonts.ts';
+import {prefersReducedMotion} from './lib/ui/dom.ts';
 import {finishInitialNotice} from './lib/ui/initialNotice.ts';
 import {initSettingsDom} from './lib/settings/index.ts';
 
@@ -50,7 +51,21 @@ try {
   clearTimeout(slow);
   document.body.classList.remove('is-loading');
   document.body.removeAttribute('aria-busy');
-  screen?.remove();
+  if (screen) {
+    if (prefersReducedMotion() || document.hidden) {
+      screen.remove();
+    } else {
+      screen.classList.add('is-leaving');
+      let removed = false;
+      const cleanup = () => {
+        if (removed) return;
+        removed = true;
+        screen.remove();
+      };
+      screen.addEventListener('transitionend', cleanup, {once: true});
+      setTimeout(cleanup, 260);
+    }
+  }
   performance.mark('app-ready');
   await painted();
   // 统计下载独立于启动流程，网络不可达时也不影响速查和教程使用。

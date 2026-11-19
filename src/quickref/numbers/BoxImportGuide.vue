@@ -15,10 +15,18 @@ function hasSeenGuide(): boolean {
 import {onActivated, onDeactivated, onMounted, ref, watchEffect} from 'vue';
 import {initialNoticeComplete} from '../../lib/ui/initialNotice.ts';
 import {routeQuery} from '../../router/navigation.ts';
-import Segmented from '../components/Segmented.vue';
+import SubTabs, {
+  type SubTabDirection,
+  type SubTabItem,
+} from '../components/SubTabs.vue';
 
-const sources = ['MAA', '森空岛', '只有干员名'] as const;
+const sourceTabs: readonly SubTabItem<number>[] = [
+  {id: 0, label: 'MAA'},
+  {id: 1, label: '森空岛'},
+  {id: 2, label: '只有干员名'},
+];
 const source = ref(0);
+const stepDir = ref<SubTabDirection>('');
 const active = ref(false);
 const dialog = ref<HTMLDialogElement>();
 const emit = defineEmits<{start: [method: 'file' | 'paste']}>();
@@ -28,6 +36,7 @@ function show(): void {
   const element = dialog.value;
   if (!element?.isConnected || element.open) return;
   source.value = 0;
+  stepDir.value = '';
   element.showModal();
   shownThisVisit = true;
   try {
@@ -70,13 +79,17 @@ function start(method: 'file' | 'paste'): void {
       <button type="button" class="btn" @click="dialog?.close()">先跳过</button>
     </header>
     <div class="guide-body">
-      <Segmented
-        :labels="sources"
-        :active="source"
-        attr="box-import-source"
+      <SubTabs
+        v-model="source"
+        :items="sourceTabs"
+        :level="3"
         aria-label="选择名单来源"
-        @change="source = $event" />
-      <ol :key="source" class="panel-reveal">
+        attr="box-import-source"
+        @change="(_, dir) => (stepDir = dir)" />
+      <ol
+        :key="source"
+        class="subtab-panel"
+        :data-dir="stepDir || undefined">
         <template v-if="source === 0">
           <li>
             <b>让 MAA 看一遍你的干员</b>
@@ -178,7 +191,6 @@ h2 { margin: 0; font-size: 18px; }
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-.guide-body :deep(.seg) { flex-wrap: wrap; }
 ol { margin: 14px 0 0; padding-inline-start: 1.5em; }
 li { padding-inline-start: 3px; }
 li + li { margin-top: 12px; }
@@ -190,11 +202,11 @@ p { margin: 3px 0 0; color: var(--ink2); font-size: 14px; line-height: 1.55; }
 .guide-alternative { margin-top: 14px; border-top: 1px solid var(--line); }
 .guide-alternative summary { padding-block: 9px; color: var(--teal); cursor: pointer; }
 .guide-actions { justify-content: flex-end; border-top: 1px solid var(--line); }
-.btn, .guide-body :deep(.seg button) { min-height: 40px; }
+.btn { min-height: 40px; }
 @media (max-height: 600px) {
   .box-import-guide { max-height: calc(100dvh - 8px); }
   header, .guide-actions { padding-block: 6px; }
   .guide-body { padding-block: 8px; }
-  .btn, .guide-body :deep(.seg button) { min-height: 34px; }
+  .btn { min-height: 34px; }
 }
 </style>

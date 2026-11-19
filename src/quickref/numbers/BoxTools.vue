@@ -33,9 +33,34 @@ import {
 } from '../../lib/box/index.ts';
 import {avatarSrc} from '../../lib/ui/assets.ts';
 import {nameScore, normalize} from '../../lib/ui/match.ts';
+import OperatorRosterSources, {
+  type RosterSource,
+} from '../components/OperatorRosterSources.vue';
+import type {SubTabDirection} from '../components/SubTabs.vue';
 import BoxImportGuide from './BoxImportGuide.vue';
 import CovenantIcon from '../components/CovenantIcon.vue';
 import Segmented from '../components/Segmented.vue';
+import SearchInput from '../components/SearchInput.vue';
+import SelectInput, {type SelectOption} from '../components/SelectInput.vue';
+import ConfirmButton from '../components/ConfirmButton.vue';
+
+const FALLBACK_RANK_OPTIONS: readonly SelectOption<OwnedBoxRank>[] = [
+  {value: 3, label: '精二 60 级（满自持加成）'},
+  {value: 2, label: '精英二'},
+  {value: 1, label: '精英一'},
+  {value: 0, label: '已持有 · 未练（精0）'},
+];
+const TIER_FILTER_OPTIONS: readonly SelectOption<number>[] = [
+  {value: 0, label: '全部等阶'},
+  ...TIERS.map((t) => ({value: t, label: `${TIER_LABELS[t]} 阶`})),
+];
+const COVENANT_FILTER_OPTIONS: readonly SelectOption<string>[] = [
+  {value: '', label: '全部盟约'},
+  ...ALL_COVENANTS.map((name) => ({value: name, label: name})),
+];
+import StatusNotice from '../components/StatusNotice.vue';
+import SectionHeading from '../components/SectionHeading.vue';
+import EmptyState from '../components/EmptyState.vue';
 import {color} from '../format.ts';
 import {useQuickrefActions} from '../state.ts';
 
@@ -156,6 +181,16 @@ const STATUS_BUCKETS: readonly StatusBucketMeta[] = [
   },
 ];
 
+const BUCKET_ACCENT: Readonly<Record<StatusBucketId, string>> = {
+  e260: 'var(--bx-r3)',
+  e2: 'var(--bx-r2)',
+  e1: 'var(--bx-r1)',
+  e0: 'var(--bx-r0)',
+  borrowed: 'var(--bx-borrowed)',
+  unborrowed: 'var(--bx-unborrowed)',
+  preset: 'var(--bx-preset)',
+};
+
 const actions = useQuickrefActions();
 
 const categoryFilter = ref<CategoryFilter>('all');
@@ -166,7 +201,17 @@ const covenant = ref('');
 const tierFilter = ref(0);
 
 const editMode = ref(false);
+const rosterSource = ref<RosterSource>('fixed');
+const roster = ref<InstanceType<typeof OperatorRosterSources>>();
+const brushes = computed(() => rosterSource.value === 'selectable'
+  ? BRUSHES.filter((brush) => brush.rank !== BOX_RANK_BORROWED)
+  : BRUSHES);
+const rosterDir = ref<SubTabDirection>('');
 const brushIndex = ref(0);
+watch(rosterSource, (source) => {
+  brushIndex.value = 0;
+  if (source === 'substitute') editMode.value = false;
+});
 const importOpen = ref(false);
 const importText = ref('');
 const workbookName = ref('');
@@ -174,7 +219,6 @@ const fallbackRank = ref<OwnedBoxRank>(3);
 const importPreview = shallowRef<BoxImportResult | null>(null);
 const importError = ref('');
 const notice = ref('');
-const confirmClear = ref(false);
 const fileInput = ref<HTMLInputElement | null>(null);
 const importGuide = ref<InstanceType<typeof BoxImportGuide>>();
 const pasteField = ref<HTMLTextAreaElement>();
@@ -203,7 +247,7 @@ function invalidateImportPreview(): void {
 watch([importText, fallbackRank, importOpen], invalidateImportPreview, {flush: 'sync'});
 onBeforeUnmount(invalidateImportPreview);
 
-const currentBrush = computed<BoxRank>(() => BRUSHES[brushIndex.value].rank);
+const currentBrush = computed<BoxRank>(() => brushes.value[brushIndex.value].rank);
 const isBorrowBrush = computed(
   () => editMode.value && currentBrush.value === BOX_RANK_BORROWED,
 );
@@ -480,14 +524,13 @@ const hasAnyMarked = computed(
 );
 
 function toggleCategory(target: CategoryFilter): void {
+  rosterSource.value = 'fixed';
   categoryFilter.value = categoryFilter.value === target ? 'all' : target;
 }
 
 function toggleEditMode(): void {
+  if (rosterSource.value === 'substitute') rosterSource.value = 'fixed';
   editMode.value = !editMode.value;
-  if (!editMode.value) {
-    confirmClear.value = false;
-  }
 }
 
 function opPrimaryTag(op: Operator): string {
@@ -521,7 +564,7 @@ function opCardTitle(op: Operator): string {
     actionHint =
       currentBrush.value === BOX_RANK_BORROWED && !isBorrowableSixStar(op)
         ? '系统预设干员无需借用'
-        : `点击标为「${BRUSHES[brushIndex.value].label}」`;
+        : `点击标为「${brushes.value[brushIndex.value].label}」`;
   }
   return `${op.name}（${TIER_LABELS[op.tier]}阶 ${op.stars}★）：${opPrimaryTag(op)} · ${opSubText(op)}｜${actionHint}`;
 }
@@ -545,34 +588,40 @@ function onCardClick(op: Operator): void {
     return;
   }
   notice.value = '';
-  const current = rankOfOperator(op.avatar);
-  const target = currentBrush.value;
-  if (target === BOX_RANK_BORROWED && !isBorrowableSixStar(op)) {
+  if (currentBrush.value === BOX_RANK_BORROWED && !isBorrowableSixStar(op)) {
     notice.value = `「${op.name}」属于系统预设干员，局内自带本体出战，无需占用助战名额。`;
     return;
   }
-  const next: BoxRank =
-    target === -1 ? -1 : current === target ? -1 : target;
+  paintOperator(op.avatar);
+}
+
+function paintOperator(avatar: string): void {
+  notice.value = '';
+  const target = currentBrush.value;
   try {
-    setOperatorRank(op.avatar, next);
+    setOperatorRank(avatar, rankOfOperator(avatar) === target ? -1 : target);
   } catch (cause) {
     notice.value = cause instanceof Error ? cause.message : '练度更新失败。';
   }
 }
 
+const brushTargets = computed(() => {
+  if (rosterSource.value === 'selectable') return roster.value?.visibleOwnable ?? [];
+  if (rosterSource.value === 'substitute') return [];
+  return isBorrowBrush.value
+    ? filteredOperators.value.filter((op) => isBorrowableSixStar(op) && opRank(op) < 0)
+    : filteredOperators.value;
+});
+
 function applyBrushToVisible(): void {
   notice.value = '';
   const target = currentBrush.value;
-  const visible = filteredOperators.value;
-  const eligible = target === BOX_RANK_BORROWED
-    ? visible.filter((op) => isBorrowableSixStar(op) && opRank(op) < 0)
-    : visible;
-  if (!eligible.length) {
+  if (!brushTargets.value.length) {
     notice.value = '当前列表中没有可标记的干员。';
     return;
   }
   try {
-    const changed = setOperatorRanks(eligible.map((op) => op.avatar), target);
+    const changed = setOperatorRanks(brushTargets.value.map((op) => op.avatar), target);
     notice.value = `已更新 ${changed} 名干员为「${BOX_RANK_META[target].label}」。`;
   } catch (cause) {
     notice.value = cause instanceof Error ? cause.message : '批量编辑失败。';
@@ -581,7 +630,6 @@ function applyBrushToVisible(): void {
 
 function confirmClearAll(): void {
   clearOperatorBox();
-  confirmClear.value = false;
   notice.value = '已清空全部干员练度与助战借用标记。';
 }
 
@@ -665,7 +713,7 @@ function resetFilters(): void {
         <div class="bx-hero-top">
           <div class="bx-hero-title">
             <div class="bx-headline">
-              <span class="bx-kicker">自持加成激活</span>
+              <span class="bx-kicker">固定干员 · 自持加成激活</span>
               <strong>{{ rankCounts.activated }}</strong>
               <span class="bx-total">/ {{ rankCounts.total }}</span>
               <span class="bx-pct">{{ rankCounts.activatedPct }}%</span>
@@ -697,9 +745,10 @@ function resetFilters(): void {
           </div>
         </div>
 
-        <p v-if="rankCounts.borrowed > BORROW_LIMIT" class="bx-err" role="status">
-          旧记录超出 {{ rankCounts.borrowed - BORROW_LIMIT }} 个助战名额，请在「已借用」列表取消多出的选择。
-        </p>
+        <StatusNotice
+          v-if="rankCounts.borrowed > BORROW_LIMIT"
+          tone="danger"
+          :message="`旧记录超出 ${rankCounts.borrowed - BORROW_LIMIT} 个助战名额，请在「已借用」列表取消多出的选择。`" />
         <div
           class="bx-stacked-bar"
           role="img"
@@ -917,12 +966,10 @@ function resetFilters(): void {
         <div class="bx-import-controls">
           <label v-if="!workbookName" class="bx-fallback-rank">
             纯名单默认状态
-            <select v-model.number="fallbackRank" aria-label="纯名单默认状态">
-              <option :value="3">精二 60 级（满自持加成）</option>
-              <option :value="2">精英二</option>
-              <option :value="1">精英一</option>
-              <option :value="0">已持有 · 未练（精0）</option>
-            </select>
+            <SelectInput
+              v-model="fallbackRank"
+              :options="FALLBACK_RANK_OPTIONS"
+              aria-label="纯名单默认状态" />
           </label>
           <button v-if="!workbookName" type="button" class="btn p" @click="parseInput">
             解析预览
@@ -937,7 +984,10 @@ function resetFilters(): void {
             收起
           </button>
         </div>
-        <p v-if="importError" class="bx-err" role="alert">{{ importError }}</p>
+        <StatusNotice
+          v-if="importError"
+          tone="danger"
+          :message="importError" />
         <div v-if="importPreview" class="bx-preview panel-reveal">
           <p>
             识别格式：<b>{{ importPreview.formatLabel }}</b> · 匹配本赛季干员
@@ -984,7 +1034,7 @@ function resetFilters(): void {
         <div class="bx-brush">
           <span class="bx-edit-badge">标注模式</span>
           <Segmented
-            :labels="BRUSHES.map((b) => b.label)"
+            :labels="brushes.map((b) => b.label)"
             :active="brushIndex"
             attr="box-brush"
             @change="brushIndex = $event" />
@@ -993,28 +1043,16 @@ function resetFilters(): void {
           <button
             type="button"
             class="btn"
-            :disabled="!filteredOperators.length"
+            :disabled="!brushTargets.length"
             @click="applyBrushToVisible">
-            当前列表全标「{{ BRUSHES[brushIndex].label }}」
+            当前列表全标「{{ brushes[brushIndex].label }}」
           </button>
-          <button
-            v-if="hasAnyMarked && !confirmClear"
-            type="button"
-            class="btn bx-danger"
-            @click="confirmClear = true">
-            清空全部
-          </button>
-          <template v-if="confirmClear">
-            <button
-              type="button"
-              class="btn bx-danger-solid"
-              @click="confirmClearAll">
-              确认清空
-            </button>
-            <button type="button" class="btn" @click="confirmClear = false">
-              取消
-            </button>
-          </template>
+          <ConfirmButton
+            v-if="hasAnyMarked"
+            label="清空全部"
+            confirm-label="确认清空"
+            :reset-key="`${rosterSource}:${editMode}`"
+            @confirm="confirmClearAll" />
           <button type="button" class="btn p" @click="toggleEditMode">
             完成编辑
           </button>
@@ -1026,29 +1064,46 @@ function resetFilters(): void {
           <b>{{ rankCounts.borrowed }} / {{ BORROW_LIMIT }}</b> 名）；借用干员在局内无自持加成，属性等效精0。
         </template>
         <template v-else>
-          点干员卡片标为「{{ BRUSHES[brushIndex].label }}」（同状态再点退回未持有）；退出编辑模式后点卡片可安全查看干员详情，避免误触。
+          点干员卡片标为「{{ brushes[brushIndex].label }}」，再点一次退回未持有。
         </template>
       </p>
     </section>
 
+    <OperatorRosterSources
+      ref="roster"
+      v-model="rosterSource"
+      :tab-level="3"
+      show-ranks
+      :brush="editMode ? currentBrush : undefined"
+      @paint="paintOperator"
+      @switch="rosterDir = $event" />
+    <StatusNotice
+      v-if="notice"
+      tone="info"
+      :message="notice"
+      dismissible
+      @dismiss="notice = ''" />
+    <div
+      v-if="rosterSource === 'fixed'"
+      :class="['bx-fixed-pane', {'subtab-panel': !!rosterDir}]"
+      :data-dir="rosterDir || undefined">
     <section class="nc bx-toolbar" aria-label="列表筛选与分组">
       <div class="bx-filter-row">
-        <input
+        <SearchInput
           v-model="search"
-          type="search"
           class="bx-search"
           placeholder="搜干员名 / 拼音 / 盟约 / 替补干员…"
           aria-label="搜索干员" />
-        <select v-model.number="tierFilter" aria-label="按等阶筛选">
-          <option :value="0">全部等阶</option>
-          <option v-for="t in TIERS" :key="t" :value="t">
-            {{ TIER_LABELS[t] }} 阶
-          </option>
-        </select>
-        <select v-model="covenant" aria-label="按盟约筛选">
-          <option value="">全部盟约</option>
-          <option v-for="name in ALL_COVENANTS" :key="name">{{ name }}</option>
-        </select>
+        <SelectInput
+          v-model="tierFilter"
+          :options="TIER_FILTER_OPTIONS"
+          highlight-active
+          aria-label="按等阶筛选" />
+        <SelectInput
+          v-model="covenant"
+          :options="COVENANT_FILTER_OPTIONS"
+          highlight-active
+          aria-label="按盟约筛选" />
         <Segmented
           :labels="GROUP_MODE_LABELS"
           :active="groupModeIndex"
@@ -1077,7 +1132,6 @@ function resetFilters(): void {
         </button>
       </div>
 
-      <p v-if="notice" class="bx-notice" role="status">{{ notice }}</p>
     </section>
 
     <div class="bx-groups">
@@ -1086,27 +1140,22 @@ function resetFilters(): void {
           v-for="group in statusGroups"
           :key="group.id"
           class="bx-group">
-          <header :class="['bx-group-head', group.tone]">
-            <i class="bx-group-dot"></i>
-            <h3 class="bx-group-title">{{ group.title }}</h3>
-            <span
-              :class="[
-                'bx-group-count',
-                {
-                  over:
-                    group.id === 'borrowed' &&
-                    rankCounts.borrowed > BORROW_LIMIT,
-                },
-              ]">
-              {{
-                group.id === 'borrowed'
-                  ? `${group.items.length} / ${BORROW_LIMIT} 名`
-                  : `${group.items.length} 名`
-              }}
-            </span>
-            <span class="bx-group-desc">{{ group.desc }}</span>
-            <span class="bx-group-line" aria-hidden="true"></span>
-          </header>
+          <SectionHeading
+            variant="dot"
+            :accent="BUCKET_ACCENT[group.id]"
+            :title="group.title"
+            :count="
+              group.id === 'borrowed'
+                ? `${group.items.length} / ${BORROW_LIMIT} 名`
+                : `${group.items.length} 名`
+            "
+            :count-tone="
+              group.id === 'borrowed' && rankCounts.borrowed > BORROW_LIMIT
+                ? 'danger'
+                : 'default'
+            "
+            :desc="group.desc"
+            :level="3" />
 
           <div class="bx-grid">
             <article
@@ -1252,21 +1301,27 @@ function resetFilters(): void {
         </section>
       </template>
 
-      <div v-if="!filteredOperators.length" class="nc bx-empty">
-        <p>当前筛选下没有匹配的干员</p>
-        <button type="button" class="btn" @click="resetFilters">
-          重置筛选条件
-        </button>
-      </div>
+      <EmptyState
+        v-if="!filteredOperators.length"
+        card
+        message="当前筛选下没有匹配的干员"
+        action-label="重置筛选条件"
+        @action="resetFilters" />
     </div>
 
     <p class="nt-footnote">
-      提示：不含系统专属「盟约·辅助干员」（共 {{ rankCounts.total }} 名可持有干员）。默认处于安全浏览模式，点干员卡片看详情；点击「✎ 编辑练度」可标记自持等级或助战借用。数据仅存本机浏览器，可在「设置 → 配置备份」随配置迁移。
+      固定名单共 {{ rankCounts.total }} 名可持有干员。默认处于安全浏览模式，点干员卡片看详情；点击「✎ 编辑练度」可标记自持等级或助战借用。数据仅存本机浏览器，可在「设置 → 配置备份」随配置迁移。
     </p>
+    </div>
   </div>
 </template>
 
 <style scoped>
+.bx-fixed-pane {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
 .bx-tool {
   /* 高对比度七色体系：仅「未借用 6★（局内无法用本体）」用灰色，其余可用本体的类别各占独立色相 */
   --bx-r3: #c96f00;
@@ -1283,7 +1338,7 @@ function resetFilters(): void {
   gap: 12px;
   min-width: 0;
 }
-:global(:root[data-theme='dark']) .bx-tool {
+:global(:root[data-theme='dark'] .bx-tool) {
   --bx-r3: #fbbf24;
   --bx-r3-ink: #1b1306;
   --bx-r2: #34d399;
@@ -1296,7 +1351,7 @@ function resetFilters(): void {
   --bx-unborrowed: #94a3b8;
 }
 @media (prefers-color-scheme: dark) {
-  :global(:root:not([data-theme='light'])) .bx-tool {
+  :global(:root:not([data-theme='light']) .bx-tool) {
     --bx-r3: #fbbf24;
     --bx-r3-ink: #1b1306;
     --bx-r2: #34d399;
