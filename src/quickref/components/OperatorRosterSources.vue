@@ -13,7 +13,11 @@ import {
   type AdditionalOperator,
   type Operator,
 } from '../../../data/index.ts';
-import {BOX_OPERATORS, BOX_RANK_META, type BoxRank} from '../../lib/box/model.ts';
+import {
+  BOX_OPERATORS,
+  BOX_RANK_META,
+  type BoxRank,
+} from '../../lib/box/model.ts';
 import {rankOfOperator} from '../../lib/box/store.ts';
 import {avatarSrc} from '../../lib/ui/assets.ts';
 import {nameScore, normalize} from '../../lib/ui/match.ts';
@@ -515,23 +519,23 @@ defineExpose({visibleOwnable});
                     decoding="async"
                     alt="" />
                 </span>
-                <span class="rs-choice-body">
-                  <span class="rs-choice-top">
-                    <strong class="rs-choice-name">{{ op.name }}</strong>
-                    <span v-if="op.source === 'system'" class="rs-badge system">
-                      系统提供
-                    </span>
-                    <span
-                      v-else-if="showRanks"
-                      :class="[
-                        'rs-badge',
-                        rankOfOperator(op.avatar) >= 0
-                          ? `r${rankOfOperator(op.avatar)}`
-                          : 'missing',
-                      ]">
-                      {{ BOX_RANK_META[rankOfOperator(op.avatar)].label }}
-                    </span>
+                <span class="rs-choice-top">
+                  <strong class="rs-choice-name">{{ op.name }}</strong>
+                  <span v-if="op.source === 'system'" class="rs-badge system">
+                    系统提供
                   </span>
+                  <span
+                    v-else-if="showRanks"
+                    :class="[
+                      'rs-badge',
+                      rankOfOperator(op.avatar) >= 0
+                        ? `r${rankOfOperator(op.avatar)}`
+                        : 'missing',
+                    ]">
+                    {{ BOX_RANK_META[rankOfOperator(op.avatar)].label }}
+                  </span>
+                </span>
+                <span class="rs-choice-meta">
                   <span class="rs-covs">
                     <Chip
                       v-for="cov in op.covenants"
@@ -540,12 +544,12 @@ defineExpose({visibleOwnable});
                       :name="cov"
                       static />
                   </span>
+                  <PrtsLink
+                    v-if="op.source === 'operator' && brush === undefined"
+                    class="rs-choice-wiki"
+                    :name="op.name" />
                 </span>
               </component>
-              <PrtsLink
-                v-if="op.source === 'operator' && brush === undefined"
-                class="rs-choice-wiki"
-                :name="op.name" />
             </article>
           </div>
         </section>
@@ -922,9 +926,11 @@ defineExpose({visibleOwnable});
 .rs-choice-main {
   flex: 1;
   min-width: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: center;
   align-items: center;
-  gap: 9px;
+  gap: 3px 9px;
   padding: 7px 8px;
   border: 0;
   background: transparent;
@@ -955,14 +961,12 @@ button.rs-choice-main {
   object-fit: cover;
   display: block;
 }
-.rs-choice-body {
-  flex: 1;
-  min-width: 0;
-  display: grid;
-  gap: 4px;
+.rs-choice-main > .rs-av {
+  grid-row: span 2;
 }
 .rs-choice-top {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 5px;
   min-width: 0;
@@ -971,9 +975,13 @@ button.rs-choice-main {
   font-size: 13.5px;
   line-height: 1.25;
   color: var(--ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+}
+.rs-choice-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
 }
 .rs-covs {
   display: flex;
@@ -985,8 +993,8 @@ button.rs-choice-main {
   padding: 0 6px;
 }
 .rs-choice-wiki {
-  align-self: center;
-  margin-right: 6px;
+  margin-inline-start: auto;
+  min-height: 34px;
   font-size: 11px;
 }
 
@@ -1207,7 +1215,19 @@ button.rs-choice-main {
   .rs-search {
     flex-basis: 100%;
   }
-  .rs-choice-grid,
+  .rs-choice-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+  /* 有 Wiki 链接时，盟约和链接共用整张卡片的底行，给上方名字留足宽度。 */
+  .rs-choice-main:has(.rs-choice-wiki) > .rs-av {
+    grid-row: 1;
+    width: 34px;
+    height: 34px;
+  }
+  .rs-choice-main:has(.rs-choice-wiki) > .rs-choice-meta {
+    grid-column: 1 / -1;
+  }
   .rs-sub-slots {
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 158px), 1fr));
     gap: 6px;
@@ -1235,7 +1255,7 @@ button.rs-choice-main {
   }
   .rs-choice-main {
     padding: 5px 6px;
-    gap: 7px;
+    column-gap: 7px;
   }
   .rs-av {
     flex-basis: 36px;
