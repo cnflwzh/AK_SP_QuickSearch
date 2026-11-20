@@ -22,6 +22,8 @@ import {
   matchedOnlyAdvanced,
   matchedOnlyElite,
   matchingEnemyTerms,
+  prepareSearchQuery,
+  searchResults,
   topSearchTarget,
   trainingMatchScore,
 } from '../src/quickref/searchRanking.ts';
@@ -147,5 +149,55 @@ test('enemy, bounty, training, and glossary pinyin search matches names, terms, 
   assert.deepEqual(topSearchTarget('cizhouzhidan'), {
     kind: 'ld',
     id: '假想敌：胄',
+  });
+});
+
+test('global search intersects words across fields and retains contiguous pinyin priority', () => {
+  const search = (raw) => searchResults(prepareSearchQuery(raw));
+  const names = (query) => search(query).operators.map((op) => op.name);
+  assert.ok(names('乌萨斯 控制').includes('折桠'));
+  assert.ok(names('kongzhi，wusasi').includes('折桠'));
+  assert.deepEqual(names('控制 乌萨斯'), names('乌萨斯 控制'));
+  assert.ok(!names('乌萨斯 控制').includes('角峰'));
+  assert.ok(
+    search('weiduoliya').equipment.some((item) => item.name === '维式重锤'),
+  );
+  assert.deepEqual(topSearchTarget('lǚ gǔ'), {kind: 'op', id: '旅骨'});
+  assert.deepEqual(topSearchTarget('ｓｈａｒｐ'), topSearchTarget('Sharp'));
+  assert.deepEqual(topSearchTarget('假想敌:铳'), {
+    kind: 'ld',
+    id: '假想敌：铳',
+  });
+});
+
+test('the first displayed section and Enter share exact, related, and body ranking', () => {
+  for (const query of ['乌萨斯', '折桠 控制', '角峰 4秒寒冷', 'shuwang']) {
+    const result = searchResults(prepareSearchQuery(query));
+    const group = result.order[0];
+    const first = result[group][0];
+    const kinds = {operators: 'op', covenants: 'cv', bounties: 'bounty'};
+    assert.deepEqual(
+      topSearchTarget(query),
+      {
+        kind: kinds[group],
+        id: typeof first === 'string' ? first : first.name,
+      },
+      query,
+    );
+  }
+  assert.equal(matchedOnlyElite(OPERATOR['角峰'], '角峰 4秒寒冷'), true);
+  assert.equal(matchedOnlyElite(OPERATOR['角峰'], '角峰 控制'), false);
+});
+
+test('search picks up live edits to a build and compares its old key with other names', () => {
+  const plan = {name: '改名后的流派', strategy: '', ops: [], note: '手写备注'};
+  const builds = [{key: '原来的流派', plan}];
+  const query = prepareSearchQuery('备注');
+  assert.equal(searchResults(query, builds).builds[0], builds[0].key);
+  plan.note = '另一段说明';
+  assert.deepEqual(searchResults(query, builds).builds, []);
+  assert.deepEqual(topSearchTarget('原来的流派', builds), {
+    kind: 'bd',
+    id: builds[0].key,
   });
 });
