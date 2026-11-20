@@ -49,6 +49,13 @@ const routes: RouteRecordRaw[] = [
     path: '/',
     alias: ['/index', '/index.html'],
     redirect: (to) => {
+      const {buildPath, ...query} = to.query;
+      if (
+        typeof buildPath === 'string' &&
+        /^\/builds\/[^/?#]+(?:\/edit)?$/.test(buildPath)
+      ) {
+        return {path: buildPath, query, hash: to.hash};
+      }
       const entry = router.resolve(entryPath(to.hash));
       return {
         path: entry.path,

@@ -5,6 +5,16 @@
   <meta name="color-scheme" content="light dark">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>页面未找到 · 卫戍速查</title>
+  <script>
+    // 自建流派的 ID 仅在玩家设备上可知，交由首页路由恢复原地址、查询和分享片段。
+    const buildPath = location.pathname.replace(/\/$/, '');
+    if (/^\/builds\/[^/?#]+(?:\/edit)?$/.test(buildPath)) {
+      const entry = new URL(location.href);
+      entry.pathname = '/';
+      entry.searchParams.set('buildPath', buildPath);
+      location.replace(entry.href);
+    }
+  </script>
   <link rel="icon" href="/assets/icons/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/assets/css/base.css">
   <script>try{var theme=JSON.parse(localStorage.getItem('wsq.settings.v1')||'{}').theme;if(theme==='light'||theme==='dark')document.documentElement.dataset.theme=theme}catch{}</script>
