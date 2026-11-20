@@ -84,6 +84,14 @@
       "destination": "/index.html"
     },
     {
+      "source": "/box",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/box/",
+      "destination": "/index.html"
+    },
+    {
       "source": "/settings",
       "destination": "/index.html"
     },
@@ -360,6 +368,24 @@
     },
     {
       "source": "/tools/*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/box",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/box/",
       "headers": [
         {
           "key": "Cache-Control",

@@ -105,6 +105,11 @@ const routes: RouteRecordRaw[] = [
     redirect: (to) => ({path: '/tools', query: to.query, hash: to.hash}),
   },
   {
+    path: '/box',
+    name: 'box',
+    component: () => import('../quickref/numbers/BoxTools.vue'),
+  },
+  {
     path: '/settings',
     name: 'settings',
     meta: {tab: 'se'},
@@ -120,6 +125,7 @@ const routes: RouteRecordRaw[] = [
 /** Only the legacy entry restores a preference; explicit URLs always use deterministic defaults. */
 function entryPath(hash: string): string {
   if (hash.startsWith('#p=')) return '/builds';
+  if (hash.startsWith('#b=')) return '/box';
   const visible = visibleContentTabs();
   const fallback = PAGE_PATHS[visible[0] ?? 'fx'];
   if (
@@ -186,8 +192,37 @@ router.beforeResolve((to, from) => {
 });
 
 router.beforeEach((to) => {
+  if (to.name === 'box') {
+    if (
+      queryText(to.query, 'card') &&
+      !detailFromId(queryText(to.query, 'card'))
+    )
+      routeNotice.value = '未找到这张卡片。';
+    const boxQuery: Record<string, string> = {};
+    if (queryText(to.query, 'import') === '1') boxQuery.import = '1';
+    if (queryText(to.query, 'q').trim())
+      boxQuery.q = queryText(to.query, 'q').trim().slice(0, 200);
+    if (detailFromId(queryText(to.query, 'card')))
+      boxQuery.card = queryText(to.query, 'card');
+    if (!sameQuery(boxQuery, to.query))
+      return {path: to.path, query: boxQuery, hash: to.hash};
+    return;
+  }
   const tab = to.meta.tab;
   if (!tab) return;
+  if (tab === 'nu' && queryText(to.query, 'tool') === 'box') {
+    // 让目标页统一校验卡片、搜索词和导入面板，旧链接也保留同样的状态。
+    const {tool: _tool, ...query} = to.query;
+    return {path: '/box', query, hash: to.hash};
+  }
+  if (tab === 'nu' && queryText(to.query, 'tool') === 'bounty') {
+    const bountyQuery: Record<string, string> = {kind: 'bounty'};
+    if (queryText(to.query, 'q').trim())
+      bountyQuery.q = queryText(to.query, 'q').trim().slice(0, 200);
+    if (detailFromId(queryText(to.query, 'card')))
+      bountyQuery.card = queryText(to.query, 'card');
+    return {path: '/leaders', query: bountyQuery, hash: to.hash};
+  }
   const id = String(to.params.id ?? '');
   if (tab === 'cv' && (!id || !covenantName(id))) {
     if (id) routeNotice.value = '未找到这个盟约，已打开默认盟约。';
@@ -198,7 +233,7 @@ router.beforeEach((to) => {
     };
   }
   if (tab === 'ld' && id && !LEADERS.some((leader) => leader.id === id)) {
-    routeNotice.value = '未找到这个领袖，已返回领袖列表。';
+    routeNotice.value = '未找到这个 Boss，已返回敌人列表。';
     return {path: '/leaders', query: to.query, hash: to.hash};
   }
   if (tab === 'bd' && !id)

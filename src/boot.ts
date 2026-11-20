@@ -1,7 +1,7 @@
 import {settleInitialFonts} from './lib/runtime/fonts.ts';
 import {prefersReducedMotion} from './lib/ui/dom.ts';
 import {finishInitialNotice} from './lib/ui/initialNotice.ts';
-import {initSettingsDom} from './lib/settings/index.ts';
+import {initSettingsDom} from './lib/settings/store.ts';
 
 initSettingsDom();
 
@@ -41,16 +41,10 @@ try {
     const unmount = await mountQuickref();
     import.meta.hot?.dispose(unmount);
   }
-  // 首屏 DOM 就绪后即可选择字体，速览模块的下载与此过程互不依赖。
-  const [{initPeek}] = await Promise.all([
-    import('./lib/ui/peek.ts'),
-    settleInitialFonts(),
-  ]);
-  const disposePeek = initPeek();
-  import.meta.hot?.dispose(disposePeek);
+  await settleInitialFonts();
   clearTimeout(slow);
   document.body.classList.remove('is-loading');
-  document.body.removeAttribute('aria-busy');
+  document.getElementById('app')?.removeAttribute('aria-busy');
   if (screen) {
     if (prefersReducedMotion() || document.hidden) {
       screen.remove();
@@ -68,6 +62,13 @@ try {
   }
   performance.mark('app-ready');
   await painted();
+  // 速览是附加交互，模块下载或初始化失败时仍可使用页面和详情。
+  import('./lib/ui/peek.ts')
+    .then((module) => {
+      const dispose = module.initPeek();
+      import.meta.hot?.dispose(dispose);
+    })
+    .catch((error) => console.warn('Hover previews unavailable', error));
   // 统计下载独立于启动流程，网络不可达时也不影响速查和教程使用。
   if (import.meta.env.PROD && import.meta.env.VITE_GA_MEASUREMENT_ID?.trim()) {
     import('./lib/runtime/analytics.ts')
@@ -85,6 +86,7 @@ try {
     .catch(() => {});
 } catch (error) {
   clearTimeout(slow);
+  document.getElementById('app')?.removeAttribute('aria-busy');
   if (screen) screen.dataset.state = 'error';
   console.error('Page initialization failed', error);
 }

@@ -1,8 +1,8 @@
 import {
   computed,
-  nextTick,
   onActivated,
   onBeforeUnmount,
+  onDeactivated,
   onMounted,
   reactive,
   ref,
@@ -39,7 +39,9 @@ export function useSlidingPill(options: SlidingPillOptions) {
   const moreLeft = ref(false);
   const moreRight = ref(false);
 
-  let mounted = false;
+  let observing = false;
+  let pendingAnimation = false;
+  let pendingCenter = false;
   let observer: ResizeObserver | undefined;
   let rafId = 0;
 
@@ -55,29 +57,7 @@ export function useSlidingPill(options: SlidingPillOptions) {
       track.scrollLeft + track.clientWidth < track.scrollWidth - 2;
   }
 
-  function scrollActiveIntoView(smooth: boolean): void {
-    const track = options.trackRef.value;
-    if (!track || track.scrollWidth <= track.clientWidth + 2) return;
-    const active = track.querySelector<HTMLElement>(options.activeSelector);
-    if (!active) return;
-
-    const trackRect = track.getBoundingClientRect();
-    const activeRect = active.getBoundingClientRect();
-    const rawTarget =
-      track.scrollLeft +
-      (activeRect.left - trackRect.left) -
-      (track.clientWidth - activeRect.width) / 2;
-    const maxLeft = Math.max(0, track.scrollWidth - track.clientWidth);
-    const targetLeft = Math.max(0, Math.min(maxLeft, rawTarget));
-    if (Math.abs(track.scrollLeft - targetLeft) <= 1) return;
-
-    track.scrollTo({
-      left: targetLeft,
-      behavior: smooth && !prefersReducedMotion() ? 'smooth' : 'instant',
-    });
-  }
-
-  function measure(shouldAnimate: boolean): void {
+  function measure(shouldAnimate: boolean, centerActive: boolean): void {
     const track = options.trackRef.value;
     if (!track) return;
     updateScrollHints();
@@ -109,79 +89,82 @@ export function useSlidingPill(options: SlidingPillOptions) {
       top = activeRect.top - trackRect.top + track.scrollTop - track.clientTop;
     }
 
-    const canAnimate =
-      shouldAnimate && pill.visible && !prefersReducedMotion();
-    animated.value = canAnimate;
-    pill.left = left;
-    pill.top = top;
-    pill.width = width;
-    pill.height = height;
-    pill.visible = true;
+    if (
+      !pill.visible ||
+      pill.left !== left ||
+      pill.top !== top ||
+      pill.width !== width ||
+      pill.height !== height
+    ) {
+      // ResizeObserver 可能在移动开始后的下一帧回报同一尺寸，保留进行中的过渡。
+      animated.value = shouldAnimate && pill.visible && !prefersReducedMotion();
+      Object.assign(pill, {left, top, width, height, visible: true});
+    }
+
+    // 使用刚测得的按钮坐标居中，避免针对同一帧再读一遍包围盒。
+    if (!centerActive || track.scrollWidth <= track.clientWidth + 2) return;
+    const maxLeft = track.scrollWidth - track.clientWidth;
+    const targetLeft = Math.max(
+      0,
+      Math.min(maxLeft, left - (track.clientWidth - width) / 2),
+    );
+    if (Math.abs(track.scrollLeft - targetLeft) > 1) {
+      track.scrollTo({
+        left: targetLeft,
+        behavior: shouldAnimate && !prefersReducedMotion() ? 'smooth' : 'instant',
+      });
+    }
   }
 
   function scheduleMeasure(shouldAnimate: boolean, centerActive = false): void {
-    cancelAnimationFrame(rafId);
+    if (!observing) return;
+    pendingAnimation ||= shouldAnimate;
+    pendingCenter ||= centerActive;
+    if (rafId) return;
     rafId = requestAnimationFrame(() => {
       rafId = 0;
-      if (!mounted) return;
-      measure(shouldAnimate);
-      if (centerActive) scrollActiveIntoView(shouldAnimate);
+      measure(pendingAnimation, pendingCenter);
+      pendingAnimation = false;
+      pendingCenter = false;
     });
   }
 
-  watch(
-    options.activeSource,
-    async () => {
-      await nextTick();
-      if (!mounted) return;
-      measure(true);
-      scrollActiveIntoView(true);
-    },
-    {flush: 'post'},
-  );
-
+  watch(options.activeSource, () => scheduleMeasure(true, true), {
+    flush: 'post',
+  });
   if (options.layoutSource) {
-    watch(
-      options.layoutSource,
-      async () => {
-        await nextTick();
-        if (!mounted) return;
-        measure(false);
-        scrollActiveIntoView(false);
-      },
-      {flush: 'post'},
-    );
+    watch(options.layoutSource, () => scheduleMeasure(false, true), {
+      flush: 'post',
+    });
+  }
+
+  function resume(): void {
+    if (observing) return;
+    observing = true;
+    const track = options.trackRef.value;
+    if (track && typeof ResizeObserver !== 'undefined') {
+      observer ??= new ResizeObserver(() => scheduleMeasure(false));
+      observer.observe(track);
+    }
+    scheduleMeasure(false, true);
+  }
+
+  function suspend(): void {
+    observing = false;
+    observer?.disconnect();
+    cancelAnimationFrame(rafId);
+    rafId = 0;
+    pendingAnimation = false;
+    pendingCenter = false;
   }
 
   onMounted(() => {
-    mounted = true;
-    measure(false);
-    scrollActiveIntoView(false);
-
-    const track = options.trackRef.value;
-    if (track && typeof ResizeObserver !== 'undefined') {
-      observer = new ResizeObserver(() => {
-        scheduleMeasure(false, false);
-      });
-      observer.observe(track);
-    }
-
-    if (typeof document !== 'undefined' && document.fonts?.ready) {
-      void document.fonts.ready.then(() => {
-        if (mounted) scheduleMeasure(false, false);
-      });
-    }
+    resume();
+    void document.fonts?.ready.then(() => scheduleMeasure(false));
   });
-
-  onActivated(() => {
-    scheduleMeasure(false, true);
-  });
-
-  onBeforeUnmount(() => {
-    mounted = false;
-    cancelAnimationFrame(rafId);
-    observer?.disconnect();
-  });
+  onActivated(resume);
+  onDeactivated(suspend);
+  onBeforeUnmount(suspend);
 
   const pillStyle = computed(() => ({
     transform: `translate3d(${pill.left}px, ${pill.top}px, 0)`,

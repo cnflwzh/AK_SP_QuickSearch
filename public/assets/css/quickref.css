@@ -29,6 +29,59 @@
   vertical-align: .35em;
 }
 
+.qhead-actions {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.box-mini {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  min-height: 28px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb,var(--accent) 52%,var(--line));
+  background: color-mix(in srgb,var(--accent) 10%,var(--surface));
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: border-color .15s, background-color .15s, color .15s;
+}
+
+.box-mini.filled {
+  border-color: color-mix(in srgb,var(--teal) 45%,var(--line2));
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.box-mini.filled b {
+  font-family: var(--fn);
+  font-size: 12.5px;
+  color: var(--teal);
+}
+
+.box-mini:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.box-mini.on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.box-mini.on b {
+  color: var(--accent-ink);
+}
+
 .guide-mini {
   justify-self: end;
   font: inherit;
@@ -1856,9 +1909,9 @@ dialog.sheet::backdrop {
 .sh-h {
   display: grid;
   grid-template-columns: auto 1fr auto;
-  gap: 14px;
+  gap: 12px;
   align-items: center;
-  padding: 16px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--line);
   position: sticky;
   top: 0;
@@ -1921,9 +1974,9 @@ dialog.sheet::backdrop {
 }
 
 .sh-b {
-  padding: 16px;
+  padding: 12px 16px 14px;
   display: grid;
-  gap: 14px;
+  gap: 10px;
 }
 
 .cmp2 {
@@ -2389,21 +2442,22 @@ mark {
   box-shadow: var(--shadow);
 }
 .lwr .lw-pic { width: 48px; height: 48px; }
-.lwr-t { display: grid; gap: 4px; min-width: 0; }
+.lwr-t { display: grid; gap: 3px; min-width: 0; }
 .lwr-t b { font-size: 14.5px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lwr-t .row { gap: 4px; }
+.lwr-sub { font-size: 11.5px; color: var(--ink3); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lwr-hp { display: grid; gap: 4px; justify-items: end; width: 64px; }
 .lwr-hp b { font-family: var(--fn); font-size: 15px; color: var(--red); }
 .lwr-hp .trk { width: 100%; height: 5px; border-radius: 3px; background: var(--surface2); overflow: hidden; display: flex; justify-content: flex-end; }
 .lwr-hp .trk i { height: 100%; background: var(--red); border-radius: 3px; transform-origin: right; animation: grow .5s both; }
 .lwr .go { color: var(--ink3); font-size: 18px; }
 
-/* 详情：桌面左侧生命值与站位，右侧技能与对策；窄屏优先阅读技能与对策。 */
+/* 详情：顶栏与战前档案通栏，桌面左侧生命值与站位，右侧技能与对策；窄屏优先阅读档案、技能与对策。 */
 .lwd {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-areas: "h h" "hp ab" "mp ab" "mp ct";
-  grid-template-rows: auto auto auto 1fr;
+  grid-template-areas: "h h" "pf pf" "hp ab" "mp ab" "mp ct";
+  grid-template-rows: auto auto auto auto 1fr;
   gap: 10px;
   align-items: start;
   font-size: 12.5px;
@@ -2411,6 +2465,7 @@ mark {
   color: var(--ink);
 }
 .lwd-h { grid-area: h; }
+.lws.pf { grid-area: pf; }
 .lws.hp { grid-area: hp; }
 .lws.ct { grid-area: ct; }
 .lws.mp { grid-area: mp; }
@@ -2706,7 +2761,7 @@ mark {
 @container quickref-view (max-width: 860px) {
   .lwd {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "h" "ab" "ct" "mp" "hp";
+    grid-template-areas: "h" "pf" "ab" "ct" "mp" "hp";
     grid-template-rows: none;
   }
 }
@@ -3037,14 +3092,14 @@ mark {
 .pl-sheet .pl-pick-g > button small { max-width: 100%; font-size: 11px; }
 .pl-sheet .pl-pick-g > button img { width: 36px; height: 36px; }
 .pl-sheet .pl-filter { position: sticky; top: -12px; z-index: 2; background: var(--surface); padding: 12px 0 8px; margin: 0; }
-.pl-sheet input[type=search] { min-height: 42px; font-size: 16px; }
-.pl-sheet .pl-filter input { flex: 1 1 140px; }
+.pl-sheet input[type=search]:not(.q-search-input) { min-height: 42px; font-size: 16px; }
+.pl-sheet .pl-filter :is(input, .q-search) { flex: 1 1 140px; }
 .pl-sheet .pl-filter .q-select { flex: 1 1 110px; min-width: 0; }
 .pl-sheet .pl-filter .seg { flex: 1 1 100%; display: flex; }
 /* 较宽的底部面板（横屏小窗、平板）里，搜索、盟约、类型和等阶放同一行，给干员列表留出高度。 */
 @media (min-width: 521px) {
   .pl-sheet .pl-filter { flex-wrap: nowrap; gap: 5px; }
-  .pl-sheet .pl-filter input { flex: 1 1 82px; min-width: 68px; }
+  .pl-sheet .pl-filter :is(input, .q-search) { flex: 1 1 82px; min-width: 68px; }
   .pl-sheet .pl-filter .q-select { flex: 0 1 98px; }
   .pl-sheet .pl-filter .seg { flex: 0 0 auto; }
   .pl-sheet .pl-filter .seg button { flex: 0 0 auto; padding-inline: 5px; white-space: nowrap; }
@@ -3054,7 +3109,7 @@ mark {
   .pl-mobile-actions { padding: 6px 0 max(6px, var(--safe-area-bottom)); gap: 4px; }
   .pl-mobile-actions button { min-height: 36px; }
   .pl-code button { min-height: 34px; }
-  .pl-sheet input[type=search] { min-height: 36px; }
+  .pl-sheet input[type=search]:not(.q-search-input) { min-height: 36px; }
   .pl-sheet .pl-filter { top: -8px; padding: 8px 0 6px; }
   .pl-sheet .pl-filter .seg button, .pl-sheet :is(.pl-detail-btn, .pl-core-toggle, .pl-edit-cells .pl-eq, .pl-edit-actions > button) { min-height: 36px; }
   .pl-sheet .pl-tiles .tile { min-height: 72px; }
@@ -3433,13 +3488,13 @@ mark {
 .lw-act-btn:hover { border-color: var(--accent); color: var(--accent); }
 .lw-act-btn.on { border-color: var(--teal); background: var(--teal); color: #fff; font-weight: 700; }
 @media (pointer: coarse) {
-  .balt-chip, .balt-target, .pl-note-prompts button, .guide-mini, .runb-ban-btn, .runb-ld, .lw-act-btn, .bsel button.preset-fold { min-height: 36px; }
+  .balt-chip, .balt-target, .pl-note-prompts button, .box-mini, .guide-mini, .runb-ban-btn, .runb-ld, .lw-act-btn, .bsel button.preset-fold { min-height: 36px; }
   .runb .x { min-width: 34px; min-height: 34px; display: inline-grid; place-items: center; padding: 0; }
 }
 @media (max-height: 600px) {
   .cvtg .cv-emblem { --cv-emblem-size: 22px; padding: 3px; }
   .cv-run-picks { padding: 6px 8px; gap: 5px; }
-  .cv-rp, .cv-only-btn, .bar .run-filter-btn, .bar .run-ban-btn, .pl-starter-covs button, .bimp-bar button, .guide-mini, .runb-ban-btn, .runb-ld, .runb-bans .bc, .runb-bans .bc-clear, .lw-act-btn, .fxc-ban-toggle, .bpick .bc-more, .eq-craft-pill, .eq-craft-item, .empty .filter-clear, .bsel button.preset-fold { min-height: 34px; }
+  .cv-rp, .cv-only-btn, .bar .run-filter-btn, .bar .run-ban-btn, .pl-starter-covs button, .bimp-bar button, .box-mini, .guide-mini, .runb-ban-btn, .runb-ld, .runb-bans .bc, .runb-bans .bc-clear, .lw-act-btn, .fxc-ban-toggle, .bpick .bc-more, .eq-craft-pill, .eq-craft-item, .empty .filter-clear, .bsel button.preset-fold { min-height: 34px; }
   .runb .x { min-width: 34px; min-height: 34px; display: inline-grid; place-items: center; padding: 0; }
   .runb { padding: 4px 8px 4px 0; margin-bottom: 6px; gap: 4px 6px; }
   .bgrab-stage { padding: 6px 8px; gap: 5px; }
@@ -3457,16 +3512,18 @@ mark {
   .qhead { display: none; }
   .qbar .wrap { display: flex; align-items: center; gap: 6px; padding-top: 2px; padding-bottom: 0; }
   .tabs-wrap { order: 1; flex: 1 1 auto; min-width: 0; margin-top: 0; }
-  .search { order: 2; flex: none; width: 34px; height: 30px; padding: 0; gap: 0; justify-content: center; border-color: transparent; background: none; box-shadow: none; cursor: pointer; }
+  .search-anchor { order: 2; flex: none; }
+  .search-anchor:has(.search:focus-within, .search.has) { flex: 0 1 280px; }
+  .search { width: 34px; height: 30px; padding: 0; gap: 0; justify-content: center; border-color: transparent; background: none; box-shadow: none; cursor: pointer; }
   .search svg { stroke: var(--ink2); }
   .search input { flex: 0 0 0; width: 0; padding: 0; opacity: 0; }
   .search kbd, .search .x, .search.has .x { display: none; }
-  .search:focus-within, .search.has { flex: 0 1 280px; width: auto; padding: 0 4px 0 10px; gap: 8px; border-color: var(--accent); background: var(--surface); cursor: text; }
+  .search:focus-within, .search.has { width: 100%; padding: 0 4px 0 10px; gap: 8px; border-color: var(--accent); background: var(--surface); cursor: text; }
   .search:focus-within input, .search.has input { flex: 1; width: auto; opacity: 1; }
   .search:focus-within .x, .search.has .x { display: block; width: 24px; height: 24px; }
 }
 @media (max-height:520px) and (max-width:639px) {
-  .search:focus-within, .search.has { flex: 1 1 auto; }
+  .search-anchor:has(.search:focus-within, .search.has) { flex: 1 1 auto; }
   .qbar .wrap:has(.search:focus-within) .tabs-wrap, .qbar .wrap:has(.search.has) .tabs-wrap { display: none; }
 }
 @media (max-width: 600px) {

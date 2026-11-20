@@ -282,4 +282,12 @@ test('limited shop rewards use spending progress and allow an available balance 
     balance: 8750,
   });
   assert.equal(overStock.unreachableCredit, 500);
+  const invalidSpend = calculateCreditPlan({
+    ...target,
+    targetCredit: 8750,
+    limitedSpend: 9000,
+  });
+  assert.equal(invalidSpend.progress, 8250);
+  assert.equal(invalidSpend.remainingCredit, 500);
+  assert.equal(invalidSpend.unreachableCredit, 500);
 });

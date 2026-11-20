@@ -43,7 +43,7 @@ async function handleClick(): Promise<void> {
       props.fallbackMode === 'prompt' ? props.promptTitle : undefined,
   });
   if (outcome === 'copied') emit('copied', content);
-  else emit('fallback', content);
+  else if (outcome === 'fallback') emit('fallback', content);
 }
 
 defineExpose({reset});
@@ -127,7 +127,7 @@ defineExpose({reset});
 .copy-btn.is-primary.copied {
   border-color: var(--teal);
   background: var(--teal);
-  color: #fff;
+  color: var(--accent-ink);
 }
 .copy-btn-ic {
   width: 13px;
@@ -141,7 +141,7 @@ defineExpose({reset});
     transform: scale(0.8);
   }
 }
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-height: 600px) {
   .copy-btn.is-compact {
     min-height: 34px;
   }

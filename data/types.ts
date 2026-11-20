@@ -40,6 +40,8 @@ export interface Operator {
   readonly covenants: readonly string[];
   readonly type: string;
   readonly avatar: string;
+  /** 同一自持干员的升变模板 ID，在练度导入与旧备份中归到本体。 */
+  readonly formAvatars?: readonly string[];
   readonly trait: string;
   readonly elite: string;
   readonly price?: number;
@@ -310,6 +312,29 @@ export interface LeaderAbility {
   readonly text: string;
 }
 
+/** 敌人/Boss 名词、异常状态、损伤与特殊单位速查解释 */
+export interface EnemyTerm {
+  readonly term: string;
+  readonly kind: 'status' | 'mechanic' | 'unit';
+  readonly desc: string;
+}
+
+/** 领袖战斗速览档案：不出站即掌握攻击方式、面板抗性、索敌规律与阻挡需求 */
+export interface LeaderProfile {
+  /** 攻击与行动形态，如「定点远程 · 物理/法术」「巡逻近战 · 法术」 */
+  readonly attackMode: string;
+  /** 防御 / 法抗参考值及阶段抗性变化 */
+  readonly defense: string;
+  /** 核心索敌 / 仇恨目标说明 */
+  readonly targeting: string;
+  /** 阻挡需求与路线提示 */
+  readonly blocking: string;
+  /** 一句话战前速记 */
+  readonly summary: string;
+  /** 隐秘核心形态的关键机制变化（无隐秘核心省略） */
+  readonly hiddenSummary?: string;
+}
+
 /** 伤害与损伤类型，速查卡片按类型上色 */
 export type LeaderDamage = '物理' | '法术' | '真实' | '侵蚀' | '凋亡' | '神经';
 
@@ -318,6 +343,10 @@ export interface Leader {
   /** 敌人 ID，也是 public/assets/img/leaders/ 下的图片文件名 */
   readonly id: string;
   readonly damage: readonly LeaderDamage[];
+  /** 战斗基础档案（攻击方式、抗性参考、索敌规律、阻挡需求与战前速记） */
+  readonly profile: LeaderProfile;
+  /** 该 Boss 专属召唤物、部件或特殊机制名词解释 */
+  readonly terms?: readonly EnemyTerm[];
   readonly hp: readonly [
     standard: number,
     danger: number,
@@ -444,9 +473,23 @@ export interface LeaderCounter {
   readonly hidden?: boolean;
 }
 
+export type EnemyMobility = '地面' | '飞行';
+export type EnemyAttackRange = '近战' | '远程' | '近远' | '不攻击';
+export type EnemyDamageKind = '物理' | '法术' | '混伤' | '元素' | '无';
+
 export interface TrainingType {
   readonly name: string;
+  /** 是否参与开局的随机特训类型抽选。 */
+  readonly randomCandidate: boolean;
   readonly desc: string;
+  /** 该类特训波次的典型敌人与攻击方式 */
+  readonly attackStyle: string;
+  /** 核心威胁点与实战应对思路 */
+  readonly strategy: string;
+  /** 代表敌人或典型机制提示 */
+  readonly examples: readonly string[];
+  /** 关键机制标签 */
+  readonly tags: readonly string[];
 }
 
 export interface Bounty {
@@ -455,6 +498,20 @@ export interface Bounty {
   readonly enemyId: string;
   readonly funds: number;
   readonly when: string;
+  /** 行动方式：地面 / 飞行 */
+  readonly mobility: EnemyMobility;
+  /** 攻击距离：近战 / 远程 / 近远 / 不攻击 */
+  readonly range: EnemyAttackRange;
+  /** 主要伤害类型 */
+  readonly damage: EnemyDamageKind;
+  /** 攻击方式与核心机制简述 */
+  readonly mechanics: string;
+  /** 实战对策方法 */
+  readonly counter: string;
+  /** 推荐实战职能（用于联动查对策干员与装备） */
+  readonly roles?: readonly CombatRole[];
+  /** 机制关键词标签 */
+  readonly tags?: readonly string[];
 }
 
 export interface WikiSource {
@@ -536,6 +593,12 @@ export interface SeasonMeta {
   };
   readonly pinyinOverrides: Readonly<Record<string, readonly string[]>>;
   readonly shareOperatorIds: readonly number[];
+  readonly boxShare: {
+    /** 1–15 的协议编号。使用不兼容槽表的新赛季须分配新编号。 */
+    readonly version: number;
+    /** 对应官方 char_ID；已发布的下标不能更换或删除。 */
+    readonly operatorIds: readonly number[];
+  };
 }
 
 export interface SeasonRules {
@@ -572,6 +635,8 @@ export interface SeasonRules {
   readonly soloLevels: readonly SoloLevel[];
   readonly training: readonly TrainingType[];
   readonly bounties: readonly Bounty[];
+  /** 敌人通用名词、异常状态与元素损伤词典 */
+  readonly enemyGlossary: Readonly<Record<string, EnemyTerm>>;
   readonly operatorTypes: readonly string[];
   readonly operatorTriggers: readonly (readonly [
     label: string,
@@ -599,7 +664,11 @@ export interface AdditionalOperator {
 
 export interface SeasonDefinition {
   readonly additionalOperators?: readonly AdditionalOperator[];
-  readonly selectionLimits?: readonly {tier: number; slots: number; perRun: number}[];
+  readonly selectionLimits?: readonly {
+    tier: number;
+    slots: number;
+    perRun: number;
+  }[];
   readonly meta: SeasonMeta;
   readonly covenants: Readonly<Record<string, Covenant>>;
   readonly operators: readonly Operator[];

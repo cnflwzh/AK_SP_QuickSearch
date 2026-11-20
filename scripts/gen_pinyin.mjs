@@ -18,9 +18,33 @@ import {
   ALL_COVENANTS,
   BUILD_NAMES,
   LEADERS,
+  BOUNTIES,
+  TRAINING,
+  ENEMY_GLOSSARY,
   COMBAT_ROLE_LABELS,
   PINYIN_OVERRIDES,
 } from '../data/index.ts';
+
+const leaderExtraTerms = LEADERS.flatMap((leader) => [
+  ...leader.abilities.map((a) => a.skill).filter(Boolean),
+  ...leader.hiddenAbilities.map((a) => a.skill).filter(Boolean),
+  ...(leader.terms ?? []).map((t) => t.term),
+  ...leader.stage.escorts.map((e) => e.name),
+  ...(leader.hiddenStage?.escorts.map((e) => e.name) ?? []),
+]);
+
+const bountyExtraTerms = BOUNTIES.flatMap((bounty) => [
+  bounty.when,
+  bounty.mobility,
+  bounty.range,
+  bounty.damage,
+  ...(bounty.tags ?? []),
+]);
+
+const trainingExtraTerms = TRAINING.flatMap((training) => [
+  ...training.tags,
+  ...training.examples,
+]);
 
 const names = [
   ...new Set([
@@ -31,6 +55,12 @@ const names = [
     ...STRATEGIES.map((s) => s.name),
     ...BUILD_NAMES,
     ...LEADERS.map((l) => l.name),
+    ...leaderExtraTerms,
+    ...Object.keys(ENEMY_GLOSSARY),
+    ...BOUNTIES.map((b) => b.name),
+    ...bountyExtraTerms,
+    ...TRAINING.map((t) => t.name),
+    ...trainingExtraTerms,
     ...COMBAT_ROLE_LABELS,
   ]),
 ];

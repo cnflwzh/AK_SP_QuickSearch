@@ -48,6 +48,12 @@ const activeIndex = computed(() =>
   props.items.findIndex((item) => item.id === model.value),
 );
 
+const tabStopIndex = computed(() =>
+  activeIndex.value >= 0 && !props.items[activeIndex.value].disabled
+    ? activeIndex.value
+    : props.items.findIndex((item) => !item.disabled),
+);
+
 const layoutSignature = computed(
   () =>
     `${props.level}:${props.overflow}:${props.inline ? 1 : 0}:` +
@@ -130,7 +136,11 @@ function findEnabledIndex(start: number, step: 1 | -1): number {
 }
 
 function onKeydown(event: KeyboardEvent): void {
-  const current = activeIndex.value;
+  const buttons =
+    trackRef.value?.querySelectorAll<HTMLButtonElement>('.subtabs-btn');
+  const current = buttons
+    ? Array.from(buttons).indexOf(event.target as HTMLButtonElement)
+    : activeIndex.value;
   if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
     const next = findEnabledIndex(current < 0 ? -1 : current, 1);
     if (next >= 0) {
@@ -187,14 +197,14 @@ function onKeydown(event: KeyboardEvent): void {
           aria-hidden="true"
           :style="pillStyle" />
         <button
-          v-for="item in items"
+          v-for="(item, index) in items"
           :key="String(item.id)"
           type="button"
           role="tab"
           :disabled="item.disabled"
           :title="item.title"
           :aria-selected="item.id === model"
-          :tabindex="item.id === model ? 0 : -1"
+          :tabindex="index === tabStopIndex ? 0 : -1"
           :class="[
             'subtabs-btn',
             {
@@ -315,7 +325,6 @@ function onKeydown(event: KeyboardEvent): void {
   z-index: 0;
   pointer-events: none;
   box-sizing: border-box;
-  will-change: transform, width, height;
 }
 
 .subtabs-btn {

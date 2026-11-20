@@ -137,13 +137,13 @@ const content = enemyContent();
   </h3>
   <div class="g2">
     <div class="card">
-      <h4>悬赏敌人 · 资金奖励</h4>
+      <h4>单场悬赏示例 · 击倒奖励</h4>
       <Markup as="div" class="bty" id="bty" :html="content.bty" />
       <div class="row mt">
-        <span class="tag a">多轮悬赏：之后每场 +1</span>
+        <span class="tag a">多轮悬赏 · 每击倒一只获得 1 资金</span>
         <span class="tag">蚀裂 / 淤困 / 骨刺 / 黑云 / 再生 / 镜膜</span>
         <span class="tag t">
-          悬赏·飞行 / 频次 / 损伤 / 持续 / 隐匿 / 折射 Ⅰ–Ⅲ：两场内 1–3
+          限两场的悬赏会在接下来两场各追加一只，资金逐只归击倒者
         </span>
       </div>
     </div>

@@ -37,7 +37,12 @@ export interface SeasonDiff {
 const sameStringList = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && a.every((item, index) => item === b[index]);
 
-function diffOperator(prev: Operator, next: Operator): OperatorChange | null {
+function diffOperator(
+  prev: Operator,
+  next: Operator,
+  prevPrices: readonly number[],
+  nextPrices: readonly number[],
+): OperatorChange | null {
   const changes: FieldChange<string | number>[] = [];
   if (prev.tier !== next.tier) {
     changes.push({field: 'tier', before: prev.tier, after: next.tier});
@@ -58,12 +63,10 @@ function diffOperator(prev: Operator, next: Operator): OperatorChange | null {
   if (prev.elite !== next.elite) {
     changes.push({field: 'elite', before: prev.elite, after: next.elite});
   }
-  if ((prev.price ?? 0) !== (next.price ?? 0)) {
-    changes.push({
-      field: 'price',
-      before: prev.price ?? 0,
-      after: next.price ?? 0,
-    });
+  const beforePrice = prev.price ?? prevPrices[prev.tier];
+  const afterPrice = next.price ?? nextPrices[next.tier];
+  if (beforePrice !== afterPrice) {
+    changes.push({field: 'price', before: beforePrice, after: afterPrice});
   }
   return changes.length ? {name: next.name, changes} : null;
 }
@@ -204,7 +207,9 @@ export function diffSeasons(
   return {
     fromId: prev.meta.id,
     toId: next.meta.id,
-    operators: diffNamedList(prev.operators, next.operators, diffOperator),
+    operators: diffNamedList(prev.operators, next.operators, (before, after) =>
+      diffOperator(before, after, prev.meta.tierBasePrices, next.meta.tierBasePrices),
+    ),
     covenants: {added: addedCov, removed: removedCov, changed: changedCov},
     equipment: diffNamedList(prev.equipment, next.equipment, diffEquipment),
     strategies: diffNamedList(prev.strategies, next.strategies, diffStrategy),

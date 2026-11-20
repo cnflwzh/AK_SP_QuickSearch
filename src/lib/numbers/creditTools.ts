@@ -123,7 +123,7 @@ export function calculateCreditPlan(
   const kind = options.targetKind ?? 'battle';
   const progress =
     kind === 'spend'
-      ? whole(options.limitedSpend)
+      ? Math.min(CREDIT_CAPS.limitedSpend, whole(options.limitedSpend))
       : kind === 'total'
         ? battle + objectives
         : battle;
