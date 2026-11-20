@@ -516,14 +516,7 @@ async function onSearchEnter(event: KeyboardEvent): Promise<void> {
     routeNotice.value = '搜索暂时无法加载，请检查网络后重试。';
     return;
   }
-  const hit = ranking.topSearchTarget(
-    submittedQuery,
-    presets.value.map((preset) => ({
-      key: preset.key,
-      name: preset.plan.name,
-      plan: preset.plan,
-    })),
-  );
+  const hit = ranking.topSearchTarget(submittedQuery, presets.value);
   if (!hit) return;
   if (hit.kind === 'op' || hit.kind === 'eq' || hit.kind === 'st')
     openDetail(hit.kind, hit.id);
