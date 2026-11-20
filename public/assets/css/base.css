@@ -1337,6 +1337,12 @@ dialog.about::backdrop {
   font-size: 11px;
 }
 
+.pk-term-desc {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink2);
+}
+
 /* 可速览的元素：鼠标设备上显示帮助光标 */
 @media (hover:hover) and (pointer:fine) {
   em.c {
@@ -1346,8 +1352,8 @@ dialog.about::backdrop {
 
 /* 触屏：长按用于速览，关掉系统的长按菜单、选字和放大镜 */
 @media (pointer:coarse) {
-  [data-op], [data-eq], [data-st], [data-cv], .cv, em.c,
-  [data-op] *, [data-eq] *, [data-st] *, [data-cv] * {
+  [data-op], [data-eq], [data-st], [data-cv], [data-term], .cv, em.c,
+  [data-op] *, [data-eq] *, [data-st] *, [data-cv] *, [data-term] * {
     -webkit-touch-callout: none;
     -webkit-user-select: none;
     user-select: none;
@@ -1523,7 +1529,9 @@ em.ls {
   .lwd-desc,
   .lwd-pf-cell span,
   .lwd-pf-note,
+  .lwd-gloss-pin p,
   .lwd-gloss-item dd,
+  .pk-term-desc,
   .nt-muted,
   .nt-footnote,
   .nt-match-note,
