@@ -10,6 +10,7 @@ import {
   DEFAULT_COVENANT_ID,
   LEADERS,
 } from '../../data/index.ts';
+import {lazyView} from '../lib/ui/lazyView.ts';
 import {covenantName, detailFromId} from './entities.ts';
 import {
   settings,
@@ -30,11 +31,19 @@ import {
 declare module 'vue-router' {
   interface RouteMeta {
     tab?: TabId;
+    /** 受窗口大小限制的页面名称，同时用于提示和文档标题。 */
+    regularWindowTitle?: string;
   }
 }
 
 const catalog = () => import('../quickref/views/CatalogView.vue');
 const builds = () => import('../quickref/views/BuildsView.vue');
+const boxContent = lazyView(() => import('../quickref/numbers/BoxTools.vue'));
+const settingsContent = lazyView(
+  () => import('../quickref/views/SettingsView.vue'),
+);
+const regularWindowView = () =>
+  import('../quickref/views/RegularWindowView.vue');
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
@@ -108,18 +117,21 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/box',
     name: 'box',
-    component: () => import('../quickref/numbers/BoxTools.vue'),
+    meta: {regularWindowTitle: '我的 Box'},
+    component: regularWindowView,
+    props: {content: boxContent},
   },
   {
     path: PAGE_PATHS.se,
     name: 'settings',
-    meta: {tab: 'se'},
-    component: () => import('../quickref/views/SettingsView.vue'),
+    meta: {tab: 'se', regularWindowTitle: PAGE_LABELS.se},
+    component: regularWindowView,
+    props: {content: settingsContent},
   },
   {
     path: '/:pathMatch(.*)*',
     name: 'not-found',
-    component: () => import('../quickref/views/NotFoundView.vue'),
+    component: () => import('../quickref/views/RouteStatusView.vue'),
   },
 ];
 
