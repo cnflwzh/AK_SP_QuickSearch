@@ -1245,7 +1245,7 @@ function resetFilters(): void {
       v-if="rosterSource === 'fixed'"
       :class="['bx-fixed-pane', {'subtab-panel': !!rosterDir}]"
       :data-dir="rosterDir || undefined">
-      <BoxPlannerPanel v-if="hasAnyBox" />
+      <BoxPlannerPanel />
       <section class="nc bx-toolbar" aria-label="列表筛选与分组">
         <div class="bx-filter-row">
           <SearchInput
