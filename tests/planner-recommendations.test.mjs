@@ -12,6 +12,7 @@ import {
   banReplace,
   builtinPlan,
   covenantStats,
+  createLineupEvaluator,
   newSlot,
   suggestions,
 } from '../src/lib/plans/index.ts';
@@ -57,6 +58,49 @@ test('joint replacements preserve a six-person core when another covenant is ban
   assert.ok(covenantStats(ops).find((s) => s.name === '炎').bonusActive);
   const result = banReplace(ops, ['投资人']);
   assert.ok(covenantStats(result.ops).find((s) => s.name === '炎').bonusActive);
+});
+
+test('two automatic replacements can jointly restore an active covenant even when neither immediately activates it', () => {
+  const ops = ['维伊', '塔露拉', '波登可'].map(newSlot);
+  const result = banReplace(ops, ['乌萨斯']);
+  assert.equal(result.picks.length, 2);
+  assert.ok(covenantStats(ops).find((stat) => stat.name === '奥术').active);
+  assert.ok(
+    covenantStats(result.ops).find((stat) => stat.name === '奥术')?.active,
+  );
+  assert.ok(result.picks.every((pick) => pick.gains.includes('奥术')));
+  assert.ok(!result.lost.includes('奥术'));
+});
+
+test('a completed three-member goal only recommends another member for a real additional gain', () => {
+  const ops = ['地灵', '折光', '复奏'].map(newSlot);
+  const next = [...ops, newSlot('车尔尼')];
+  const mixed = createLineupEvaluator(ops)(next);
+  assert.equal(mixed.improves, false);
+  assert.ok(!mixed.changes.some((change) => change.covenant === '莱塔尼亚'));
+  assert.ok(!suggestions(ops, Infinity).some(({op}) => op.name === '车尔尼'));
+
+  const full = createLineupEvaluator(
+    ops,
+    {},
+    {
+      goal: {covenant: '莱塔尼亚', target: 6},
+    },
+  )(next);
+  assert.equal(full.improves, true);
+  assert.ok(
+    full.changes.some(
+      ({covenant, kind}) => covenant === '莱塔尼亚' && kind === 'up',
+    ),
+  );
+
+  const five = [...next, newSlot('薇薇安娜')];
+  const six = createLineupEvaluator(five)([...five, newSlot('艾雅法拉')]);
+  assert.ok(
+    six.changes.some(
+      ({covenant, kind}) => covenant === '莱塔尼亚' && kind === 'bonus',
+    ),
+  );
 });
 
 test('exhausted pools never reintroduce banned or duplicate operators', () => {

@@ -149,6 +149,20 @@ test('substitute equipment risks depend on the trigger and report a borrowable o
   assert.ok(!withCaster.substituteRisks.some((risk) => risk.role === '沉默'));
 });
 
+test('borrow plan covers essential roles first and spends one slot per independent need', () => {
+  const box = {[OPERATOR['拜松'].avatar]: 3};
+  const slots = [
+    newSlot('赫拉格'), // 高频
+    newSlot('白铁'), // 群攻
+    {...newSlot('隐德来希'), core: true}, // 群攻，同等覆盖时优先核心
+  ];
+  const suggest = (limit) =>
+    diagnoseLineup(slots, undefined, box, limit).borrowPlan;
+  assert.deepEqual(suggest(0).names, []);
+  assert.deepEqual(suggest(1), {names: ['隐德来希'], roles: ['群攻']});
+  assert.deepEqual(suggest(3).names, ['赫拉格', '隐德来希']);
+});
+
 test('conditional elemental output tracks the missing source of elemental damage', () => {
   const slots = ['折光', '妮芙'].map(newSlot);
   const box = {[OPERATOR['折光'].avatar]: 1};

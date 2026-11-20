@@ -36,6 +36,7 @@ import {
   setOperatorRanks,
 } from '../src/lib/box/index.ts';
 import {builtinPlan, newSlot} from '../src/lib/plans/index.ts';
+import {recommendBorrowBatch} from '../src/lib/box/insights.ts';
 
 test('box model distinguishes unowned (-1) from owned E0 (0) and trained ranks (1-3)', () => {
   assert.equal(rankFromEliteLevel(0, 50), 0);
@@ -423,7 +424,9 @@ test('box sync keeps released slot IDs and rejects an invalid code without impor
 
   // 文件中的备注可以引用其他 Box，仍应导入文件本身的记录。
   const json = JSON.stringify({[OPERATOR['鸿雪'].avatar]: 1, note: legacyCode});
-  assert.deepEqual(parseExternalBox(json).entries, {[OPERATOR['鸿雪'].avatar]: 1});
+  assert.deepEqual(parseExternalBox(json).entries, {
+    [OPERATOR['鸿雪'].avatar]: 1,
+  });
 
   const fullRoster = Object.fromEntries(
     OWNABLE_OPERATORS.map((op) => [op.avatar, 1]),
@@ -506,4 +509,121 @@ test('box insights classify operator status, rank builds by fit, and recommend b
 
   const training = recommendTraining(sampleBox, sources);
   assert.ok(training.some((item) => item.op.name === '仇白'));
+});
+
+test('two remaining borrows can complete the 谢拉格 lineup instead of splitting its slots with 炎', () => {
+  const sources = ['谢拉格', '炎'].map((key) => ({
+    key,
+    name: key,
+    builtin: true,
+    ops: builtinPlan(key).ops,
+  }));
+  const missing = new Set(['锏', '圣聆初雪', '烛煌', '仇白', '老鲤']);
+  const box = Object.fromEntries(
+    BORROWABLE_SIX_STARS.filter((op) => !missing.has(op.name)).map((op) => [
+      op.avatar,
+      0,
+    ]),
+  );
+  const inPlans = new Set(
+    sources.flatMap(({ops}) => ops.flatMap((slot) => [slot.name, ...slot.alt])),
+  );
+  for (const op of BORROWABLE_SIX_STARS.filter(
+    (op) => !inPlans.has(op.name),
+  ).slice(0, BORROW_LIMIT - 2)) {
+    box[op.avatar] = BOX_RANK_BORROWED;
+  }
+
+  const batch = recommendBorrowBatch(Object.freeze(box), sources);
+  assert.equal(
+    batch.ranking.filter((item) => !item.borrowed)[0].op.name,
+    '烛煌',
+  );
+  assert.deepEqual(new Set(batch.picks), new Set(['锏', '圣聆初雪']));
+  assert.equal(batch.completedLineups, 1);
+  assert.equal(batch.completedCores, 1);
+
+  const onlyYan = recommendBorrowBatch(box, sources, new Set(['炎']));
+  assert.equal(onlyYan.picks.length, 2);
+  assert.ok(
+    onlyYan.picks.every((name) => ['烛煌', '仇白', '老鲤'].includes(name)),
+  );
+  assert.equal(onlyYan.completedCores, 0);
+
+  const oneLeft = {...box, [OPERATOR['锏'].avatar]: BOX_RANK_BORROWED};
+  const last = recommendBorrowBatch(oneLeft, sources);
+  assert.deepEqual(last.picks, ['圣聆初雪']);
+  assert.ok(
+    last.ranking.some((item) => item.op.name === '锏' && item.borrowed),
+  );
+  assert.ok(
+    last.ranking
+      .find((item) => item.op.name === '圣聆初雪')
+      .reasons.includes('借后补齐 1 套主选'),
+  );
+  assert.deepEqual(
+    recommendBorrowBatch(
+      {...oneLeft, [OPERATOR['圣聆初雪'].avatar]: BOX_RANK_BORROWED},
+      sources,
+    ).picks,
+    [],
+  );
+});
+
+test('the final two borrows maximize completed goals even when an unrelated single is more efficient', () => {
+  const pending = ['锏', '圣聆初雪', '烛煌'];
+  const box = Object.fromEntries(
+    BORROWABLE_SIX_STARS.filter((op) => !pending.includes(op.name))
+      .slice(0, BORROW_LIMIT - 2)
+      .map((op) => [op.avatar, BOX_RANK_BORROWED]),
+  );
+  // 单借烛煌能补齐两套；三套不同的自建阵容都同时缺锏和圣聆初雪。
+  const lineups = [
+    ['烛煌', '拜松'],
+    ['烛煌', '地灵'],
+    ['锏', '圣聆初雪', '拜松'],
+    ['锏', '圣聆初雪', '地灵'],
+    ['锏', '圣聆初雪', '波登可'],
+  ];
+  const plans = lineups.map((names) => ({
+    name: names.join('、'),
+    key: names.join('/'),
+    builtin: false,
+    ops: names.map(newSlot),
+  }));
+  const batch = recommendBorrowBatch(
+    box,
+    plans,
+    new Set(plans.map(({key}) => key)),
+  );
+  assert.deepEqual(new Set(batch.picks), new Set(pending.slice(0, 2)));
+  assert.equal(batch.completedLineups, 3);
+});
+
+test('training priorities reflect which main lineups can field all their original operators', () => {
+  const sources = [
+    {
+      key: 'ready',
+      name: '现成阵容',
+      builtin: false,
+      ops: [newSlot('鸿雪'), newSlot('拜松')],
+    },
+    {
+      key: 'blocked',
+      name: '待借阵容',
+      builtin: false,
+      ops: [newSlot('仇白'), newSlot('烛煌')],
+    },
+  ];
+  const box = {[OPERATOR['鸿雪'].avatar]: 0, [OPERATOR['仇白'].avatar]: 0};
+  const [ready, blocked] = recommendTraining(box, sources);
+  assert.equal(ready.op.name, '鸿雪');
+  assert.ok(ready.score > blocked.score);
+  assert.ok(ready.reasons.includes('1 套主选已齐'));
+  assert.ok(!blocked.reasons.includes('1 套主选已齐'));
+  const after = recommendTraining(
+    {...box, [OPERATOR['烛煌'].avatar]: BOX_RANK_BORROWED},
+    sources,
+  );
+  assert.equal(after[0].score, after[1].score);
 });

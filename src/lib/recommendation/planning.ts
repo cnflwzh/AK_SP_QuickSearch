@@ -261,6 +261,7 @@ function slotAffinity(slot: PlanOp, op: Operator): number {
 function changedCovenants(
   before: readonly CovenantStat[],
   after: readonly CovenantStat[],
+  goal: LineupGoal | null,
 ): CovenantChange[] {
   const previous = new Map(before.map((stat) => [stat.name, stat]));
   const current = new Map(after.map((stat) => [stat.name, stat]));
@@ -268,6 +269,9 @@ function changedCovenants(
   return ALL_COVENANTS.flatMap((covenant) => {
     const was = previous.get(covenant),
       next = current.get(covenant);
+    // 三人混搭达标后，第四、五人没有主轴进度分；真正的六人强化仍由 bonus 报出。
+    const belowGoal =
+      !goal || covenant !== goal.covenant || (was?.count ?? 0) < goal.target;
     const kind: CovenantChange['kind'] | null =
       was?.active && !next?.active
         ? 'off'
@@ -280,6 +284,7 @@ function changedCovenants(
               : next &&
                   !next.broken &&
                   next.next > 0 &&
+                  belowGoal &&
                   next.count > (was?.count ?? 0)
                 ? 'up'
                 : null;
@@ -336,7 +341,7 @@ export function createLineupEvaluator(
   const initialCarriers = carrierCount(ops);
   return (next, reserve = options.reserve) => {
     const stats = covenantStats(next, layers, reserve, options.bannedCovenants);
-    const changes = changedCovenants(before, stats);
+    const changes = changedCovenants(before, stats, goal);
     const carrierGain = carrierCount(next) - initialCarriers;
     const score =
       scoreCounts(lineupCounts(next, reserve)) - initial + carrierGain * 20;
@@ -463,9 +468,41 @@ type ReplacementSearch = {
   score: number;
 };
 const REPLACEMENT_BEAM = 24;
+// 只剩两处时，当前赛季所有合法有序组合都在预算内。后续赛季扩容仍有上限。
+const MAX_EXACT_REPLACEMENT_PAIRS = 20_000;
+
+/** 最后一位无需保留下一层。复用人数数组，只为最终胜出者分配一份选择列表。 */
+function finishReplacements(
+  beam: readonly ReplacementSearch[],
+  candidates: readonly ReplacementCandidate[],
+  evaluate: (counts: Uint8Array) => number,
+): string[] {
+  let bestState = beam[0];
+  let bestName = '';
+  let bestScore = -Infinity;
+  let bestBox = -Infinity;
+  for (const state of beam) {
+    const counts = state.counts.slice();
+    for (const candidate of candidates) {
+      if (state.used & candidate.bit) continue;
+      for (const index of candidate.covenants) counts[index]++;
+      const score = evaluate(counts) + (state.affinity + candidate.affinity);
+      for (const index of candidate.covenants) counts[index]--;
+      const boxScore = state.boxScore + candidate.boxScore;
+      if (score > bestScore || (score === bestScore && boxScore > bestBox)) {
+        bestScore = score;
+        bestBox = boxScore;
+        bestState = state;
+        bestName = candidate.name;
+      }
+    }
+  }
+  // 同一层的已用人数相同；无合法组合时全层均已用光干员，沿用最佳前缀。
+  return [...bestState.choices, bestName];
+}
 
 /**
- * 对所有空位联合搜索，每层保留 24 套不同的候选阵容，计算量有固定上限。
+ * 两个自动空位在 20,000 个有序组合以内遍历完整名单，否则每层保留 24 套阵容。
  * forced 先锁定并预留干员，避免前面的自动推荐抢走后面手选的人；
  * layers 参与强化门槛计算。返回原站位顺序，保留装备，排除被 ban 与重复干员。
  * 此搜索以整队盟约和位置适配度评分，不修改输入。
@@ -530,7 +567,14 @@ export function banReplace(
       score: evaluate(counts),
     },
   ];
-  for (const slot of pending) {
+  const width =
+    pending.length === 2 &&
+    available.length > REPLACEMENT_BEAM &&
+    available.length * (available.length - 1) <= MAX_EXACT_REPLACEMENT_PAIRS
+      ? available.length
+      : REPLACEMENT_BEAM;
+  let choices: string[] = [];
+  for (const [depth, slot] of pending.entries()) {
     const candidates: ReplacementCandidate[] = available.map((op) => ({
       name: op.name,
       bit: OP_BITS[OP_INDEX.get(op.name)!],
@@ -538,6 +582,10 @@ export function banReplace(
       affinity: slotAffinity(slot, op),
       boxScore: boxAffinity(op),
     }));
+    if (depth === pending.length - 1) {
+      choices = finishReplacements(beam, candidates, evaluate);
+      break;
+    }
     const expanded: ReplacementSearch[] = [];
     for (const state of beam) {
       let added = false;
@@ -569,11 +617,11 @@ export function banReplace(
       variants.add(signature);
       seen.set(state.used, variants);
       beam.push(state);
-      if (beam.length === REPLACEMENT_BEAM) break;
+      if (beam.length >= width) break;
     }
   }
   pending.forEach((slot, index) => {
-    const name = beam[0]?.choices[index];
+    const name = choices[index];
     if (name) assignments.set(slot.name, name);
   });
   const selected = new Set([

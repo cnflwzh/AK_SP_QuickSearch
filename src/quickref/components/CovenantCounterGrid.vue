@@ -14,7 +14,7 @@ import {
 import {avatarSrc, equipIconSrc} from '../../lib/ui/assets.ts';
 import {isBoxSubstitute} from '../../lib/box/insights.ts';
 import {hasAnyBox, operatorBox} from '../../lib/box/store.ts';
-import {inRun, isRunBannedOp, run, runStat} from '../planStore.ts';
+import {isRunBannedOp, run, runSlotMap, runStat} from '../planStore.ts';
 import {useQuickrefActions} from '../state.ts';
 import CovenantIcon from './CovenantIcon.vue';
 import Segmented from './Segmented.vue';
@@ -37,7 +37,8 @@ const actions = useQuickrefActions();
 interface RankedOp {
   readonly op: Operator;
   readonly inCurrentRun: boolean;
-  readonly requiresElite: boolean;
+  readonly unlockedMatches: number;
+  readonly totalMatches: number;
   readonly isSubstitute: boolean;
 }
 
@@ -68,18 +69,26 @@ const rankedOps = computed<readonly RankedOp[]>(() => {
   const checkBox = hasAnyBox.value;
   return allMatchedOps.value
     .filter((op) => !isRunBannedOp(op.name))
-    .map((op) => ({
-      op,
-      inCurrentRun: inRun.value.has(op.name),
-      requiresElite: !operatorRolesAtElite(op, false).some((role) =>
-        roles.includes(role),
-      ),
-      isSubstitute: checkBox && isBoxSubstitute(op, operatorBox),
-    }))
+    .map((op) => {
+      const slot = runSlotMap.value.get(op.name);
+      const unlocked = operatorRolesAtElite(op, slot?.elite ?? false);
+      return {
+        op,
+        inCurrentRun: !!slot,
+        unlockedMatches: unlocked.filter((role) => roles.includes(role)).length,
+        totalMatches: (op.roles ?? []).filter((role) => roles.includes(role))
+          .length,
+        isSubstitute: checkBox && isBoxSubstitute(op, operatorBox),
+      };
+    })
     .sort((a, b) => {
       if (a.inCurrentRun !== b.inCurrentRun) return a.inCurrentRun ? -1 : 1;
       if (a.isSubstitute !== b.isSubstitute) return a.isSubstitute ? 1 : -1;
-      return a.op.tier - b.op.tier;
+      return (
+        b.unlockedMatches - a.unlockedMatches ||
+        b.totalMatches - a.totalMatches ||
+        a.op.tier - b.op.tier
+      );
     });
 });
 
@@ -107,6 +116,19 @@ function chipTitle(entry: RankedOp): string | undefined {
     : '未持有且未借用，局内将由原型/预备干员替补，可能缺失该对策能力';
 }
 
+// 同一干员可属于多个盟约；按已排好的次序分配一次即可保留各组的推荐顺序。
+const operatorsByCovenant = computed(() => {
+  const groups = new Map<string, RankedOp[]>();
+  for (const entry of availableOps.value) {
+    for (const covenant of entry.op.covenants) {
+      const group = groups.get(covenant);
+      if (group) group.push(entry);
+      else groups.set(covenant, [entry]);
+    }
+  }
+  return groups;
+});
+
 function buildGroups(
   covenants: readonly string[],
   kind: 'core' | 'addon',
@@ -114,10 +136,8 @@ function buildGroups(
   const runCovs = runStat.value;
   const groups: CovenantGroup[] = [];
   for (const cov of covenants) {
-    const ops = availableOps.value.filter((entry) =>
-      entry.op.covenants.includes(cov),
-    );
-    if (!ops.length) continue;
+    const ops = operatorsByCovenant.value.get(cov);
+    if (!ops) continue;
     groups.push({
       covenant: cov,
       kind,
@@ -284,7 +304,7 @@ const SCOPE_LABELS = ['全部', '核心盟约', '附加盟约'] as const;
                   decoding="async" />
                 <i class="tn">{{ TIER_LABELS[entry.op.tier] }}</i>
                 <span>{{ entry.op.name }}</span>
-                <small v-if="entry.requiresElite">精锐</small>
+                <small v-if="!entry.unlockedMatches">精锐</small>
                 <span v-if="entry.isSubstitute" class="ccg-sub-tag">替补</span>
                 <em v-if="entry.inCurrentRun">本局</em>
               </button>
@@ -334,7 +354,7 @@ const SCOPE_LABELS = ['全部', '核心盟约', '附加盟约'] as const;
                   decoding="async" />
                 <i class="tn">{{ TIER_LABELS[entry.op.tier] }}</i>
                 <span>{{ entry.op.name }}</span>
-                <small v-if="entry.requiresElite">精锐</small>
+                <small v-if="!entry.unlockedMatches">精锐</small>
                 <span v-if="entry.isSubstitute" class="ccg-sub-tag">替补</span>
                 <em v-if="entry.inCurrentRun">本局</em>
               </button>
