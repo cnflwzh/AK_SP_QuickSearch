@@ -661,7 +661,8 @@ function buildTransmuteRound(options: {
     (eq) => eq.covenant !== null && eq.covenant !== targetCovenant,
   );
   const decoyPool = [
-    ...shuffleWith(nullDecoys, rng).slice(0, 2),
+    // 两个带装干扰位各取一种。保留两次完整洗牌，后续每日题仍沿用原种子序列。
+    ...shuffleWith(nullDecoys, rng).slice(0, 1),
     ...shuffleWith(otherCovenantDecoys, rng).slice(0, 1),
   ];
 
