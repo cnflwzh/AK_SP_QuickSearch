@@ -103,6 +103,7 @@ test('all selectable covenants and transmute covenants build 5 distinct valid ca
     const round = buildDealerRound({
       roundNumber: 2,
       kind: 'transmute',
+      preferredImpostors: 3,
       targetCovenant: covenant,
       rng,
     });
@@ -122,6 +123,8 @@ test('all selectable covenants and transmute covenants build 5 distinct valid ca
       (c) => c.attachedEquip && c.attachedEquip.covenant !== covenant && c.isImpostor,
     );
     assert.ok(trueTransmuters.length >= 1, `Expected true transmuter for ${covenant}`);
-    assert.ok(falseTransmuters.length >= 1, `Expected decoy transmuter for ${covenant}`);
+    assert.equal(falseTransmuters.length, 2);
+    assert.ok(falseTransmuters.some((card) => card.attachedEquip.covenant === null));
+    assert.ok(falseTransmuters.some((card) => card.attachedEquip.covenant !== null));
   }
 });
