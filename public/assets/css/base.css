@@ -1567,3 +1567,48 @@ em.ls {
 :root[data-hide-footer="1"] body > footer {
   display: none;
 }
+
+/* 站内路由和托管平台的静态 404 共用版式，静态页无需加载应用脚本。 */
+.route-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: clamp(16px, 4vw, 36px);
+  max-width: 680px;
+  margin: clamp(16px, 6vh, 64px) auto;
+  padding: clamp(18px, 4vw, 38px);
+  border: 1px solid var(--line);
+  border-inline-start: 3px solid var(--teal);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.route-status-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: clamp(76px, 13vw, 120px);
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background-color: var(--surface2);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 12px 12px;
+  color: var(--teal);
+  font: 700 clamp(32px, 5vw, 54px)/1 var(--fn);
+}
+.route-status-mark svg { width: 66%; }
+.route-status-body { flex: 1 1 230px; min-width: 0; }
+.route-status-body :is(h1, h2) { margin: 0; color: var(--ink); font-size: clamp(21px, 3vw, 30px); line-height: 1.25; }
+.route-status-body p { margin: 8px 0 0; color: var(--ink2); line-height: 1.6; }
+.route-status-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.route-status-actions .btn { min-height: 36px; justify-content: center; text-decoration: none; }
+.route-status-standalone { max-width: 720px; padding-top: clamp(24px, 10vh, 96px); }
+.route-status-standalone .route-status { margin-top: 16px; }
+.route-status-brand { display: inline-flex; align-items: center; gap: 8px; color: var(--ink); font-weight: 700; text-decoration: none; }
+@media (max-height: 600px) {
+  .route-status { margin-block: 12px; padding: 16px 20px; }
+  .route-status-mark { width: 72px; }
+  .route-status-actions { margin-top: 12px; }
+  .route-status-standalone { padding-top: 16px; }
+}

@@ -40,7 +40,12 @@ import {
 } from './state.ts';
 import {navigationError, routeNotice, PAGE_LABELS} from '../router/index.ts';
 import {detailFromId} from '../router/entities.ts';
-import {enemyListLocation, queryText, rosterLocation} from '../router/location.ts';
+import {
+  enemyListLocation,
+  PAGE_PATHS,
+  queryText,
+  rosterLocation,
+} from '../router/location.ts';
 import {
   closeCard,
   currentRoute,
@@ -100,7 +105,15 @@ const tabs = computed(() => {
       : ('' as const),
   }));
 });
-const renderedQuery = computed(() => queryText(currentRoute.value.query, 'q'));
+const windowRestricted = computed(
+  () => isSmallWindow.value && !!currentRoute.value.meta.regularWindowTitle,
+);
+const showingRouteStatus = computed(
+  () => windowRestricted.value || currentRoute.value.name === 'not-found',
+);
+const renderedQuery = computed(() =>
+  showingRouteStatus.value ? '' : queryText(currentRoute.value.query, 'q'),
+);
 // 从搜索链接进入时延后挂载背景页。已经展示过的页面保留筛选、草稿和本局状态。
 const mountBackground = ref(!renderedQuery.value);
 const query = ref(renderedQuery.value);
@@ -108,7 +121,11 @@ const composing = ref(false);
 const searchFocused = ref(false);
 const searching = computed(() => !!query.value.trim());
 const showRecentTray = computed(
-  () => searchFocused.value && !searching.value && recentItems.value.length > 0,
+  () =>
+    !showingRouteStatus.value &&
+    searchFocused.value &&
+    !searching.value &&
+    recentItems.value.length > 0,
 );
 const RECENT_KIND_LABEL: Readonly<Record<RecentItem['kind'], string>> = {
   op: '干员',
@@ -159,8 +176,10 @@ const tabsMoreRight = ref(false);
 const slide = ref<'' | 'l' | 'r'>('');
 let tabScrollFrame = 0;
 let navigationResizeObserver: ResizeObserver | undefined;
-const detail = computed(
-  () => detailFromId(queryText(currentRoute.value.query, 'card')) ?? null,
+const detail = computed(() =>
+  showingRouteStatus.value
+    ? null
+    : (detailFromId(queryText(currentRoute.value.query, 'card')) ?? null),
 );
 // 首次打开详情才加载弹层；之后保留实例，让原生 dialog 关闭时还原焦点。
 const mountDetail = ref(!!detail.value);
@@ -177,7 +196,7 @@ const topOf = (element: Element): number =>
   element.getBoundingClientRect().top +
   window.scrollY -
   (searchBar.value?.offsetHeight ?? 0);
-watch(currentRoute, (route, previous) => {
+watch([currentRoute, renderedQuery], ([route], [previous]) => {
   clearTimeout(searchTimer);
   query.value = renderedQuery.value;
   if (!renderedQuery.value || route.path !== previous.path)
@@ -195,17 +214,23 @@ watchEffect(() => {
           ? presetOf(state.build)?.plan.name
           : '');
   const pageLabel =
-    currentRoute.value.name === 'box'
-      ? '我的 Box'
-      : tab
-        ? PAGE_LABELS[tab]
-        : '页面未找到';
+    currentRoute.value.meta.regularWindowTitle ??
+    (tab ? PAGE_LABELS[tab] : '页面未找到');
   document.title = [entity, pageLabel, '卫戍速查'].filter(Boolean).join(' · ');
 });
+// 在提示页发起的搜索走速览，后退仍能回到原来的 Box 导入链接或设置页。
+function writeSearchQuery(value: string): Promise<void> {
+  if (showingRouteStatus.value) {
+    return value
+      ? navigate({path: PAGE_PATHS.fx, query: {q: value}})
+      : Promise.resolve();
+  }
+  return updateQuery({q: value || null}, !!renderedQuery.value);
+}
 function clearSearch(): void {
   clearTimeout(searchTimer);
   query.value = '';
-  void updateQuery({q: null}, true);
+  if (!showingRouteStatus.value) void updateQuery({q: null}, true);
 }
 function search(event: Event): void {
   query.value = (event.target as HTMLInputElement).value;
@@ -214,7 +239,7 @@ function search(event: Event): void {
     return;
   searchTimer = setTimeout(() => {
     slide.value = '';
-    void updateQuery({q: query.value.trim() || null}, !!renderedQuery.value);
+    void writeSearchQuery(query.value.trim());
   }, 120);
 }
 function compositionEnd(event: CompositionEvent): void {
@@ -495,9 +520,11 @@ async function onSearchEnter(event: KeyboardEvent): Promise<void> {
   event.preventDefault();
   clearTimeout(searchTimer);
   // Enter 可能早于输入防抖完成。先保留结果页，所有跳转都能通过后退回到同一次搜索。
-  const submittedPath = currentRoute.value.path;
+  const submittedPath = showingRouteStatus.value
+    ? PAGE_PATHS.fx
+    : currentRoute.value.path;
   if (renderedQuery.value !== submittedQuery) {
-    await updateQuery({q: submittedQuery}, !!renderedQuery.value);
+    await writeSearchQuery(submittedQuery);
   }
   if (
     currentRoute.value.path !== submittedPath ||
@@ -765,7 +792,8 @@ onUnmounted(() => {
       v-if="mountDetail"
       :selection="detail"
       :split-view="wikiPanel.isOpen.value" />
-    <BoxOnboardingDialog />
+    <BoxOnboardingDialog
+      v-if="!isSmallWindow && currentRoute.name !== 'not-found'" />
   </div>
 </template>
 
