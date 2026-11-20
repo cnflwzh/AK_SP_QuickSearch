@@ -29,7 +29,7 @@ export const PAGE_PATHS: Record<TabId, string> = {
   op: '/operators',
   eq: '/equipment',
   st: '/strategies',
-  ld: '/leaders',
+  ld: '/enemies',
   nu: '/tools',
   se: '/settings',
 };
@@ -90,6 +90,11 @@ export function queryText(
 /** 自选与替补详情在名单内展示，avatar 是赛季数据中稳定的干员标识。 */
 export function rosterLocation(avatar: string) {
   return {path: PAGE_PATHS.op, query: {roster: avatar}};
+}
+
+/** 生成敌人分类的列表链接，搜索结果与对局速查共用同一入口。 */
+export function enemyListLocation(kind: 'bounty' | 'normal') {
+  return {path: PAGE_PATHS.ld, query: {kind}};
 }
 
 /** 按公开头像 ID 解析名单目标；空值或过期链接返回 undefined。 */
@@ -174,11 +179,7 @@ export function normalizeQuery(
   }
   if (tab === 'nu') {
     // 路由只标识工具子页；计算输入和本局记录由工具维护，不进入导航历史。
-    // 兼容旧链接：economy / recruit 归一到默认的对局速查（layers）；bounty 由路由守卫重定向到 /leaders?kind=bounty。
-    const requested = read('tool');
-    if (requested !== 'economy' && requested !== 'recruit') {
-      keep('tool', ['advisor', 'credit', 'dealer', 'excuse']);
-    }
+    keep('tool', ['advisor', 'credit', 'dealer', 'excuse']);
   }
   if (tab === 'bd') {
     keep(

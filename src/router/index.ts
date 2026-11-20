@@ -49,60 +49,61 @@ const routes: RouteRecordRaw[] = [
     },
   },
   {
-    path: '/overview',
+    path: PAGE_PATHS.fx,
     name: 'overview',
     meta: {tab: 'fx'},
     component: () => import('../quickref/views/EffectsView.vue'),
   },
-  {path: '/builds/:id?', name: 'builds', meta: {tab: 'bd'}, component: builds},
   {
-    path: '/builds/:id/edit',
+    path: `${PAGE_PATHS.bd}/:id?`,
+    name: 'builds',
+    meta: {tab: 'bd'},
+    component: builds,
+  },
+  {
+    path: `${PAGE_PATHS.bd}/:id/edit`,
     name: 'build-edit',
     meta: {tab: 'bd'},
     component: builds,
   },
   {
-    path: '/covenants/:id?',
+    path: `${PAGE_PATHS.cv}/:id?`,
     name: 'covenants',
     meta: {tab: 'cv'},
     component: () => import('../quickref/views/CovenantsView.vue'),
   },
   {
-    path: '/operators',
+    path: PAGE_PATHS.op,
     name: 'operators',
     meta: {tab: 'op'},
     component: catalog,
     props: {kind: 'op'},
   },
   {
-    path: '/equipment',
+    path: PAGE_PATHS.eq,
     name: 'equipment',
     meta: {tab: 'eq'},
     component: catalog,
     props: {kind: 'eq'},
   },
   {
-    path: '/strategies',
+    path: PAGE_PATHS.st,
     name: 'strategies',
     meta: {tab: 'st'},
     component: catalog,
     props: {kind: 'st'},
   },
   {
-    path: '/leaders/:id?',
-    name: 'leaders',
+    path: `${PAGE_PATHS.ld}/:id?`,
+    name: 'enemies',
     meta: {tab: 'ld'},
-    component: () => import('../quickref/views/LeadersView.vue'),
+    component: () => import('../quickref/views/EnemiesView.vue'),
   },
   {
-    path: '/tools',
+    path: PAGE_PATHS.nu,
     name: 'tools',
     meta: {tab: 'nu'},
-    component: () => import('../quickref/views/NumbersView.vue'),
-  },
-  {
-    path: '/numbers',
-    redirect: (to) => ({path: '/tools', query: to.query, hash: to.hash}),
+    component: () => import('../quickref/views/ToolsView.vue'),
   },
   {
     path: '/box',
@@ -110,7 +111,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../quickref/numbers/BoxTools.vue'),
   },
   {
-    path: '/settings',
+    path: PAGE_PATHS.se,
     name: 'settings',
     meta: {tab: 'se'},
     component: () => import('../quickref/views/SettingsView.vue'),
@@ -124,7 +125,7 @@ const routes: RouteRecordRaw[] = [
 
 /** Only the legacy entry restores a preference; explicit URLs always use deterministic defaults. */
 function entryPath(hash: string): string {
-  if (hash.startsWith('#p=')) return '/builds';
+  if (hash.startsWith('#p=')) return PAGE_PATHS.bd;
   if (hash.startsWith('#b=')) return '/box';
   const visible = visibleContentTabs();
   const fallback = PAGE_PATHS[visible[0] ?? 'fx'];
@@ -135,8 +136,7 @@ function entryPath(hash: string): string {
     return PAGE_PATHS[settings.defaultTab];
   }
   try {
-    const stored = localStorage.getItem('wsq.location');
-    const saved = stored?.replace(/^\/numbers(?=[?#]|$)/, '/tools');
+    const saved = localStorage.getItem('wsq.location');
     if (
       saved &&
       visible.some(
@@ -210,35 +210,22 @@ router.beforeEach((to) => {
   }
   const tab = to.meta.tab;
   if (!tab) return;
-  if (tab === 'nu' && queryText(to.query, 'tool') === 'box') {
-    // 让目标页统一校验卡片、搜索词和导入面板，旧链接也保留同样的状态。
-    const {tool: _tool, ...query} = to.query;
-    return {path: '/box', query, hash: to.hash};
-  }
-  if (tab === 'nu' && queryText(to.query, 'tool') === 'bounty') {
-    const bountyQuery: Record<string, string> = {kind: 'bounty'};
-    if (queryText(to.query, 'q').trim())
-      bountyQuery.q = queryText(to.query, 'q').trim().slice(0, 200);
-    if (detailFromId(queryText(to.query, 'card')))
-      bountyQuery.card = queryText(to.query, 'card');
-    return {path: '/leaders', query: bountyQuery, hash: to.hash};
-  }
   const id = String(to.params.id ?? '');
   if (tab === 'cv' && (!id || !covenantName(id))) {
     if (id) routeNotice.value = '未找到这个盟约，已打开默认盟约。';
     return {
-      path: `/covenants/${DEFAULT_COVENANT_ID}`,
+      path: `${PAGE_PATHS.cv}/${DEFAULT_COVENANT_ID}`,
       query: to.query,
       hash: to.hash,
     };
   }
   if (tab === 'ld' && id && !LEADERS.some((leader) => leader.id === id)) {
     routeNotice.value = '未找到这个 Boss，已返回敌人列表。';
-    return {path: '/leaders', query: to.query, hash: to.hash};
+    return {path: PAGE_PATHS.ld, query: to.query, hash: to.hash};
   }
   if (tab === 'bd' && !id)
     return {
-      path: `/builds/${DEFAULT_BUILD_ID}`,
+      path: `${PAGE_PATHS.bd}/${DEFAULT_BUILD_ID}`,
       query: to.query,
       hash: to.hash,
     };
@@ -246,9 +233,12 @@ router.beforeEach((to) => {
     routeNotice.value = '未找到这张卡片。';
   const query = normalizeQuery(tab, to.query, id, to.name === 'build-edit');
   if (tab === 'nu') {
-    // 预览开关会把助手排在首位，此时显式选择层数工具必须能往返导航。
-    if (advisorPreviewEnabled.value && queryText(to.query, 'tool') === 'layers')
-      query.tool = 'layers';
+    // 局内抓取成为默认工具时，保留显式的对局速查选择。
+    if (
+      advisorPreviewEnabled.value &&
+      queryText(to.query, 'tool') === 'match-reference'
+    )
+      query.tool = 'match-reference';
     else if (!advisorPreviewEnabled.value && query.tool === 'advisor')
       delete query.tool;
   }

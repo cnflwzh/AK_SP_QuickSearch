@@ -33,16 +33,20 @@ export function updateQuery(changes: LocationQueryRaw, replace = false): Promise
 }
 
 export function tabLocation(tab: TabId): string {
-  return tabLocations.value[tab] ?? (tab === 'bd' ? `/builds/${DEFAULT_BUILD_ID}` : tab === 'cv' ? `/covenants/${DEFAULT_COVENANT_ID}` : PAGE_PATHS[tab]);
+  const previousLocation = tabLocations.value[tab];
+  if (previousLocation) return previousLocation;
+  if (tab === 'bd') return `${PAGE_PATHS.bd}/${DEFAULT_BUILD_ID}`;
+  if (tab === 'cv') return `${PAGE_PATHS.cv}/${DEFAULT_COVENANT_ID}`;
+  return PAGE_PATHS[tab];
 }
 export function buildLocation(key: string, edit = false): string {
-  return `/builds/${encodeURIComponent(buildId(key))}${edit ? '/edit' : ''}`;
+  return `${PAGE_PATHS.bd}/${encodeURIComponent(buildId(key))}${edit ? '/edit' : ''}`;
 }
 export function covenantLocation(name: string): string {
-  return `/covenants/${covenantId(name)}`;
+  return `${PAGE_PATHS.cv}/${covenantId(name)}`;
 }
 export function leaderLocation(name: string): string {
-  return LEADER[name] ? `/leaders/${LEADER[name].id}` : '/leaders';
+  return LEADER[name] ? `${PAGE_PATHS.ld}/${LEADER[name].id}` : PAGE_PATHS.ld;
 }
 /** Shared by real anchors and programmatic navigation so modified clicks retain the same state. */
 export function leaderDestination(name: string) {

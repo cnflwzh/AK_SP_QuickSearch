@@ -53,13 +53,9 @@
   Cache-Control: no-cache
 /strategies/*
   Cache-Control: no-cache
-/leaders
+/enemies
   Cache-Control: no-cache
-/leaders/*
-  Cache-Control: no-cache
-/numbers
-  Cache-Control: no-cache
-/numbers/*
+/enemies/*
   Cache-Control: no-cache
 
 /tools

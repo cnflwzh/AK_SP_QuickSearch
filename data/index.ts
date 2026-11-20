@@ -414,7 +414,7 @@ export function buildsUsing(field: BuildField, name: string): string[] {
 /** 小工具的查询入口；ID 用于 URL，文案不参与状态判断。 */
 export const NUMBER_TOOLS = [
   {id: 'advisor', label: '局内抓取'},
-  {id: 'layers', label: '对局速查'},
+  {id: 'match-reference', label: '对局速查'},
   {id: 'credit', label: '认证效率'},
   {id: 'dealer', label: '痛扁发牌'},
   {id: 'excuse', label: '抽象文案'},
