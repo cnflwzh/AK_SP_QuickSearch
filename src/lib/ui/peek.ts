@@ -14,13 +14,16 @@ import {
   EQUIP,
   STRATEGY,
   LEADER,
+  LEADERS,
   COVENANTS,
+  ENEMY_GLOSSARY,
   MODES,
   TIER_LABELS,
   TIER_STATS,
   covenantColor,
   isCoreCovenant,
   rosterOf,
+  type EnemyTerm,
 } from '../../../data/index.ts';
 import {esc, html, wan} from './dom.ts';
 import {
@@ -31,7 +34,12 @@ import {
   leaderSrc,
   portraitSrc,
 } from './assets.ts';
-import {abilityLabel, damageClass, leaderFx} from '../leaders/leader.ts';
+import {
+  abilityLabel,
+  damageClass,
+  leaderFx,
+  resolveEnemyTerm,
+} from '../leaders/leader.ts';
 
 const SHOW_DELAY = 280; // 停留多久后显示（毫秒）
 const SWITCH_DELAY = 60; // 已有卡片时切换到另一个目标
@@ -192,9 +200,35 @@ function leaderCard(name: string): string {
   `;
 }
 
+const TERM_KIND_LABEL: Readonly<Record<EnemyTerm['kind'], string>> = {
+  unit: '单位',
+  status: '状态',
+  mechanic: '机制',
+};
+const TERM_KIND_COLOR: Readonly<Record<EnemyTerm['kind'], string>> = {
+  unit: 'var(--teal)',
+  status: 'var(--red)',
+  mechanic: 'var(--accent)',
+};
+
+function enemyTermCard(entry: EnemyTerm): string {
+  return html`
+    <div class="pk-h pk-cvh" style="--c:${TERM_KIND_COLOR[entry.kind]}">
+      <div>
+        <div class="pk-meta">
+          <span>${TERM_KIND_LABEL[entry.kind]}解析</span>
+        </div>
+        <b class="pk-name">${esc(entry.term)}</b>
+      </div>
+    </div>
+    <div class="pk-term-desc">${esc(entry.desc)}</div>
+  `;
+}
+
 /* ---------- 识别目标 ---------- */
 
-const TARGET = '[data-op],[data-eq],[data-st],[data-ld],[data-cv],.cv,em.c';
+const TARGET =
+  '[data-op],[data-eq],[data-st],[data-ld],[data-cv],[data-term],.cv,em.c';
 
 /** 元素 → [卡片 HTML 生成函数, 名称]；不是可速览的目标时返回 null */
 type CardContent = [render: (name: string) => string, name: string];
@@ -204,6 +238,11 @@ function resolve(el: HTMLElement): CardContent | null {
   if (d.eq) return EQUIP[d.eq] ? [equipmentCard, d.eq] : null;
   if (d.st) return STRATEGY[d.st] ? [strategyCard, d.st] : null;
   if (d.ld) return LEADER[d.ld] ? [leaderCard, d.ld] : null;
+  if (d.term) {
+    const leaderName = el.closest<HTMLElement>('[data-leader]')?.dataset.leader;
+    const entry = resolveEnemyTerm(d.term, ENEMY_GLOSSARY, LEADERS, leaderName);
+    return entry ? [() => enemyTermCard(entry), entry.term] : null;
+  }
   const name = d.cv || (el.textContent || '').trim();
   return COVENANTS[name] ? [covenantCard, name] : null;
 }

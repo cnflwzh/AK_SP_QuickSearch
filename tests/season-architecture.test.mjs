@@ -39,7 +39,10 @@ import {
 } from '../data/index.ts';
 import {CURRENT_SEASON} from '../data/season.ts';
 import {diffSeasons} from '../src/lib/season/diff.ts';
-import {leaderGlossaryTerms} from '../src/lib/leaders/leader.ts';
+import {
+  leaderGlossaryTerms,
+  resolveEnemyTerm,
+} from '../src/lib/leaders/leader.ts';
 import {covenantStats, newSlot} from '../src/lib/plans/index.ts';
 import {
   advisorDeploymentLimit,
@@ -368,11 +371,15 @@ test('generic mechanics helpers obey data contracts rather than hardcoded names'
   ]);
   assert.equal(changed.operators.changed.length, 1);
   assert.equal(changed.operators.changed[0].changes[0].field, 'tier');
-  assert.deepEqual(changed.operators.changed[0].changes.find((c) => c.field === 'price'), {
-    field: 'price',
-    before: CURRENT_SEASON.meta.tierBasePrices[CURRENT_SEASON.operators[0].tier],
-    after: syntheticNext.meta.tierBasePrices[syntheticNext.operators[0].tier],
-  });
+  assert.deepEqual(
+    changed.operators.changed[0].changes.find((c) => c.field === 'price'),
+    {
+      field: 'price',
+      before:
+        CURRENT_SEASON.meta.tierBasePrices[CURRENT_SEASON.operators[0].tier],
+      after: syntheticNext.meta.tierBasePrices[syntheticNext.operators[0].tier],
+    },
+  );
 });
 
 test('enemy intel integrity: leaders, bounties, training types, and glossary stay complete and valid', () => {
@@ -415,6 +422,17 @@ test('enemy intel integrity: leaders, bounties, training types, and glossary sta
       terms.length >= 2,
       `${leader.name} should collect glossary terms`,
     );
+    for (const term of terms) {
+      const resolved = resolveEnemyTerm(
+        term.term,
+        ENEMY_GLOSSARY,
+        LEADERS,
+        leader.name,
+      );
+      assert.ok(resolved, `${leader.name} missing resolve for ${term.term}`);
+      assert.equal(resolved.term, term.term);
+      assert.equal(resolved.desc, term.desc);
+    }
   }
 
   for (const bounty of BOUNTIES) {
