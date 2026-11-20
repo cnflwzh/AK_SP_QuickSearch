@@ -9,7 +9,15 @@ import { PINYIN } from '../../../data/pinyin.ts';
 const ASCII = /^[a-z0-9]+$/;
 const SEPARATORS = /[\s·・'"“”]/g;
 
-export const normalize = (text: unknown) => String(text).toLowerCase().replace(SEPARATORS, '');
+/** 统一全半角、大小写与带调拼音；赛季拼音表用 v 表示 ü。 */
+export function normalize(text: unknown): string {
+  return String(text)
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[üǖǘǚǜ]/g, 'v')
+    .replace(/[āáǎàēéěèīíǐìōóǒòūúǔùńňǹḿ]/g, (ch) => ch.normalize('NFD')[0])
+    .replace(SEPARATORS, '');
+}
 
 interface Reading {
   full: string;
@@ -19,7 +27,17 @@ interface Reading {
 }
 
 // 只缓存赛季拼音表中的名称。用户可自由命名流派，名称也可能与 Object 原型属性同名。
+const normalizedNames = new Map<string, string>();
 const readingCache = new Map<string, Reading[]>();
+
+function normalizedName(name: string): string {
+  const cached = normalizedNames.get(name);
+  if (cached !== undefined) return cached;
+  const value = normalize(name);
+  if (Object.hasOwn(PINYIN, name)) normalizedNames.set(name, value);
+  return value;
+}
+
 function readingsOf(name: string): readonly Reading[] {
   const cached = readingCache.get(name);
   if (cached) return cached;
@@ -60,7 +78,8 @@ function pinyinScore(name: string, q: string): number {
  * query 需先经过 normalize。
  */
 export function nameScore(name: string, query: string): number {
-  const n = normalize(name);
+  if (!query) return 0;
+  const n = normalizedName(name);
   if (n === query) return 3;
   if (n.includes(query)) return 2;
   return ASCII.test(query) ? pinyinScore(name, query) : 0;

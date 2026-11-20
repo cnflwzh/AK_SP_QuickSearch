@@ -1,30 +1,13 @@
 <script setup lang="ts">
 import {computed, ref, watch} from 'vue';
-import {
-  ADDITIONAL_OPERATORS,
-  ALL_COVENANTS,
-  BOUNTIES,
-  OPERATORS,
-  EQUIPMENT,
-  STRATEGIES,
-  LEADERS,
-  TRAINING,
-  rolesForTraining,
-  type EnemyTerm,
-} from '../../../data/index.ts';
+import {rolesForTraining, type EnemyTerm} from '../../../data/index.ts';
 import {enemyIconSrc} from '../../lib/ui/assets.ts';
-import {normalize, nameScore} from '../../lib/ui/match.ts';
 import {rosterLocation} from '../../router/location.ts';
 import NavigationLink from '../components/NavigationLink.vue';
 import {
-  bountyMatchScore,
-  buildSearchDescription,
-  leaderSearchDescription,
-  leaderSearchTerms,
   matchedOnlyElite,
-  matchingCombatRoles,
-  matchingEnemyTerms,
-  trainingMatchScore,
+  prepareSearchQuery,
+  searchResults,
 } from '../searchRanking.ts';
 import {presets} from '../planStore.ts';
 import {state, useQuickrefActions} from '../state.ts';
@@ -52,147 +35,23 @@ watch(
     operatorLimit.value = 60;
   },
 );
-const normalizedDescriptions = new Map<unknown, string>();
-function descriptionOf<T>(item: T, textOf: (item: T) => string): string {
-  if (!normalizedDescriptions.has(item))
-    normalizedDescriptions.set(item, normalize(textOf(item)));
-  return normalizedDescriptions.get(item)!;
-}
-/** 各目录补充的检索条件；同分时默认保留数据表顺序。 */
-interface SearchOptions<T> {
-  descriptionOf?: (item: T) => string;
-  /** 可原地编辑的流派每次读取描述，同时保留 Vue 对成员和策略的依赖跟踪。 */
-  mutableDescription?: boolean;
-  matchesRelatedName?: (item: T) => boolean;
-  tieBreak?: (a: T, b: T) => number;
-}
-
-/** 返回排序后的匹配项，不修改原列表；名称优先，其次关联名称，最后说明文本。query 须先归一化。 */
-function rankBy<T>(
-  list: readonly T[],
-  query: string,
-  nameOf: (item: T) => string,
-  options: SearchOptions<T> = {},
-): T[] {
-  // 名称匹配的最低分为 1.5，关联盟约应排在名称之后、普通说明文本之前。
-  const relatedNameScore = 1.25;
-  return list
-    .map((item) => ({
-      item,
-      score:
-        nameScore(nameOf(item), query) ||
-        (options.matchesRelatedName?.(item) ? relatedNameScore : 0) ||
-        (options.descriptionOf &&
-        (options.mutableDescription
-          ? normalize(options.descriptionOf(item))
-          : descriptionOf(item, options.descriptionOf)
-        ).includes(query)
-          ? 1
-          : 0),
-    }))
-    .filter(({score}) => score)
-    .sort(
-      (a, b) => b.score - a.score || options.tieBreak?.(a.item, b.item) || 0,
-    )
-    .map(({item}) => item);
-}
-const normalizedQuery = computed(() => normalize(props.query));
-const results = computed(() => {
-  const q = normalizedQuery.value;
-  // Punctuation-only queries retain the original blank search pane.
-  if (!q)
-    return {
-      covenants: [],
-      builds: [],
-      operators: [],
-      additional: [],
-      equipment: [],
-      strategies: [],
-      leaders: [],
-      bounties: [],
-      trainings: [],
-      glossary: [],
-    };
-  const covenants = rankBy(ALL_COVENANTS, q, (name) => name);
-  // 复用盟约与实战职能名称的汉字、全拼和首字母匹配，搜 "反隐"/"fanyin"/"对空" 也能直达干员与装备。
-  const matchingCovenants = new Set(covenants);
-  const matchingRoles = matchingCombatRoles(q);
-  const glossary = matchingEnemyTerms(q, false);
-  const bounties = BOUNTIES.map((item) => ({
-    item,
-    score: bountyMatchScore(item, q),
-  }))
-    .filter(({score}) => score > 0)
-    .sort((a, b) => b.score - a.score)
-    .map(({item}) => item);
-  const trainings = TRAINING.map((item) => ({
-    item,
-    score: trainingMatchScore(item, q),
-  }))
-    .filter(({score}) => score > 0)
-    .sort((a, b) => b.score - a.score)
-    .map(({item}) => item);
-  return {
-    covenants,
-    builds: rankBy(presets.value, q, (preset) => preset.plan.name, {
-      mutableDescription: true,
-      matchesRelatedName: (preset) =>
-        preset.key !== preset.plan.name && nameScore(preset.key, q) > 0,
-      descriptionOf: (preset) => buildSearchDescription(preset.plan),
-    }).map((preset) => preset.key),
-    operators: rankBy(OPERATORS, q, (operator) => operator.name, {
-      matchesRelatedName: (operator) =>
-        operator.covenants.some((name) => matchingCovenants.has(name)) ||
-        Boolean(operator.roles?.some((role) => matchingRoles.has(role))),
-      descriptionOf: (operator) =>
-        operator.covenants.join('/') +
-        (operator.roles?.join('/') ?? '') +
-        operator.trait +
-        operator.elite,
-      tieBreak: (a, b) => a.tier - b.tier,
-    }),
-    additional: rankBy(ADDITIONAL_OPERATORS, q, (op) => op.name, {
-      matchesRelatedName: (op) =>
-        op.covenants.some((name) => matchingCovenants.has(name)),
-    }),
-    equipment: rankBy(EQUIPMENT, q, (item) => item.name, {
-      matchesRelatedName: (item) =>
-        Boolean(item.roles?.some((role) => matchingRoles.has(role))),
-      descriptionOf: (item) =>
-        (item.covenant || '') +
-        (item.roles?.join('/') ?? '') +
-        item.effect +
-        (item.advanced || ''),
-    }),
-    strategies: rankBy(STRATEGIES, q, (strategy) => strategy.name, {
-      descriptionOf: (strategy) =>
-        strategy.skill + '|' + strategy.effect + strategy.category,
-    }),
-    leaders: rankBy(LEADERS, q, (leader) => leader.name, {
-      matchesRelatedName: (leader) =>
-        leaderSearchTerms(leader).some((term) => nameScore(term, q) > 0),
-      descriptionOf: leaderSearchDescription,
-    }),
-    bounties,
-    trainings,
-    glossary,
-  };
-});
+const prepared = computed(() => prepareSearchQuery(props.query));
+const results = computed(() => searchResults(prepared.value, presets.value));
 const visibleOperators = computed(() =>
   results.value.operators.slice(0, operatorLimit.value).map((operator) => ({
     operator,
     eliteMatched:
-      eliteMode.value === 0 &&
-      matchedOnlyElite(operator, normalizedQuery.value),
+      eliteMode.value === 0 && matchedOnlyElite(operator, prepared.value),
   })),
 );
 const empty = computed(
   () =>
-    !!normalizedQuery.value &&
-    Object.values(results.value).every((list) => !list.length),
+    !!prepared.value.text &&
+    !results.value.order.length &&
+    !results.value.glossary.length,
 );
 const resultSummary = computed(() => {
-  if (!normalizedQuery.value) return '';
+  if (!prepared.value.text) return '';
   if (empty.value) return `没有匹配「${props.query}」的结果`;
   const counts = [
     [results.value.covenants.length, '个盟约'],
@@ -219,199 +78,201 @@ const resultSummary = computed(() => {
 </script>
 <template>
   <EmptyState v-if="empty" :message="`没有匹配「${query}」`" />
-  <template v-if="results.covenants.length">
-    <SectionHeading
-      class="sr-sec"
-      title="盟约"
-      :count="results.covenants.length"
-      :level="2"
-      data-key="heading:盟约" />
-    <div class="row" data-key="covenants">
-      <Chip
-        v-for="name in results.covenants"
-        :key="name"
-        kind="cv"
-        :name="name" />
-    </div>
-  </template>
-  <template v-if="results.builds.length">
-    <SectionHeading
-      class="sr-sec"
-      title="流派"
-      :count="results.builds.length"
-      :level="2"
-      data-key="heading:流派" />
-    <div class="row" data-key="builds">
-      <Chip
-        v-for="name in results.builds"
-        :key="name"
-        kind="build"
-        :name="name" />
-    </div>
-  </template>
-  <template v-if="results.operators.length">
-    <SectionHeading
-      class="sr-sec sr-op-sec"
-      title="干员"
-      :count="results.operators.length"
-      :level="2"
-      data-key="heading:干员">
-      <template #extra>
-        <Segmented
-          class="sr-elite-seg"
-          :labels="['自动', '初始', '精锐']"
-          :active="eliteMode"
-          attr="srel"
-          @change="eliteMode = $event as 0 | 1 | 2" />
-      </template>
-    </SectionHeading>
-    <div class="qg" data-key="operators">
-      <OperatorCard
-        v-for="{operator, eliteMatched} in visibleOperators"
-        :key="operator.name"
-        :operator="operator"
-        :show-elite="eliteMode === 2 || eliteMatched"
-        :elite-matched="eliteMatched"
-        show-wiki-link />
-    </div>
-    <button
-      v-if="operatorLimit < results.operators.length"
-      type="button"
-      class="filter-clear"
-      @click="operatorLimit += 60">
-      显示更多干员（{{ operatorLimit }} / {{ results.operators.length }}）
-    </button>
-  </template>
-  <template v-if="results.additional.length">
-    <SectionHeading
-      class="sr-sec"
-      title="自选与替补干员"
-      :count="results.additional.length"
-      :level="2"
-      data-key="heading:自选与替补干员" />
-    <div class="row" data-key="additional-operators">
-      <NavigationLink
-        v-for="op in results.additional"
-        :key="op.avatar"
-        :to="rosterLocation(op.avatar)"
-        class="sr-roster-hit">
-        {{ op.name }}
-        <small>
-          {{
-            op.source === 'reserve'
-              ? '预备替补'
-              : op.source === 'system'
-                ? '特派原型'
-                : '自选'
-          }}
-        </small>
-      </NavigationLink>
-    </div>
-  </template>
-  <template v-if="results.equipment.length">
-    <SectionHeading
-      class="sr-sec"
-      title="装备"
-      :count="results.equipment.length"
-      :level="2"
-      data-key="heading:装备" />
-    <div class="qg" data-key="equipment">
-      <EquipmentCard
-        v-for="item in results.equipment"
-        :key="item.name"
-        :item="item" />
-    </div>
-  </template>
-  <template v-if="results.strategies.length">
-    <SectionHeading
-      class="sr-sec"
-      title="策略"
-      :count="results.strategies.length"
-      :level="2"
-      data-key="heading:策略" />
-    <div class="qg" data-key="strategies">
-      <StrategyCard
-        v-for="strategy in results.strategies"
-        :key="strategy.name"
-        :strategy="strategy" />
-    </div>
-  </template>
-  <template v-if="results.leaders.length">
-    <SectionHeading
-      class="sr-sec"
-      title="Boss"
-      :count="results.leaders.length"
-      :level="2"
-      data-key="heading:Boss" />
-    <div class="lwl" data-key="leaders">
-      <LeaderRow
-        v-for="leader in results.leaders"
-        :key="leader.id"
-        :leader="leader"
-        :mode="state.mode" />
-    </div>
-  </template>
-  <template v-if="results.bounties.length">
-    <SectionHeading
-      class="sr-sec"
-      title="悬赏敌人"
-      :count="results.bounties.length"
-      :level="2"
-      data-key="heading:悬赏敌人" />
-    <div class="sr-enemy-grid" data-key="bounties">
+  <template v-for="group in results.order" :key="group">
+    <template v-if="group === 'covenants'">
+      <SectionHeading
+        class="sr-sec"
+        title="盟约"
+        :count="results.covenants.length"
+        :level="2"
+        data-key="heading:盟约" />
+      <div class="row" data-key="covenants">
+        <Chip
+          v-for="name in results.covenants"
+          :key="name"
+          kind="cv"
+          :name="name" />
+      </div>
+    </template>
+    <template v-else-if="group === 'builds'">
+      <SectionHeading
+        class="sr-sec"
+        title="流派"
+        :count="results.builds.length"
+        :level="2"
+        data-key="heading:流派" />
+      <div class="row" data-key="builds">
+        <Chip
+          v-for="name in results.builds"
+          :key="name"
+          kind="build"
+          :name="name" />
+      </div>
+    </template>
+    <template v-else-if="group === 'operators'">
+      <SectionHeading
+        class="sr-sec sr-op-sec"
+        title="干员"
+        :count="results.operators.length"
+        :level="2"
+        data-key="heading:干员">
+        <template #extra>
+          <Segmented
+            class="sr-elite-seg"
+            :labels="['自动', '初始', '精锐']"
+            :active="eliteMode"
+            attr="srel"
+            @change="eliteMode = $event as 0 | 1 | 2" />
+        </template>
+      </SectionHeading>
+      <div class="qg" data-key="operators">
+        <OperatorCard
+          v-for="{operator, eliteMatched} in visibleOperators"
+          :key="operator.name"
+          :operator="operator"
+          :show-elite="eliteMode === 2 || eliteMatched"
+          :elite-matched="eliteMatched"
+          show-wiki-link />
+      </div>
       <button
-        v-for="bounty in results.bounties"
-        :key="bounty.name"
+        v-if="operatorLimit < results.operators.length"
         type="button"
-        class="sr-bty-card"
-        @click="actions.openBounty(bounty.name)">
-        <img
-          :src="enemyIconSrc(bounty.enemyId)"
-          alt=""
-          width="38"
-          height="38"
-          loading="lazy"
-          decoding="async" />
-        <div class="sr-bty-main">
-          <div class="sr-bty-top">
-            <b>{{ bounty.name }}</b>
-            <span class="sr-bty-meta">
-              {{ bounty.when }} · {{ bounty.mobility }} · {{ bounty.range
-              }}{{ bounty.damage !== '无' ? ` · ${bounty.damage}伤` : '' }}
-            </span>
+        class="filter-clear"
+        @click="operatorLimit += 60">
+        显示更多干员（{{ operatorLimit }} / {{ results.operators.length }}）
+      </button>
+    </template>
+    <template v-else-if="group === 'additional'">
+      <SectionHeading
+        class="sr-sec"
+        title="自选与替补干员"
+        :count="results.additional.length"
+        :level="2"
+        data-key="heading:自选与替补干员" />
+      <div class="row" data-key="additional-operators">
+        <NavigationLink
+          v-for="op in results.additional"
+          :key="op.avatar"
+          :to="rosterLocation(op.avatar)"
+          class="sr-roster-hit">
+          {{ op.name }}
+          <small>
+            {{
+              op.source === 'reserve'
+                ? '预备替补'
+                : op.source === 'system'
+                  ? '特派原型'
+                  : '自选'
+            }}
+          </small>
+        </NavigationLink>
+      </div>
+    </template>
+    <template v-else-if="group === 'equipment'">
+      <SectionHeading
+        class="sr-sec"
+        title="装备"
+        :count="results.equipment.length"
+        :level="2"
+        data-key="heading:装备" />
+      <div class="qg" data-key="equipment">
+        <EquipmentCard
+          v-for="item in results.equipment"
+          :key="item.name"
+          :item="item" />
+      </div>
+    </template>
+    <template v-else-if="group === 'strategies'">
+      <SectionHeading
+        class="sr-sec"
+        title="策略"
+        :count="results.strategies.length"
+        :level="2"
+        data-key="heading:策略" />
+      <div class="qg" data-key="strategies">
+        <StrategyCard
+          v-for="strategy in results.strategies"
+          :key="strategy.name"
+          :strategy="strategy" />
+      </div>
+    </template>
+    <template v-else-if="group === 'leaders'">
+      <SectionHeading
+        class="sr-sec"
+        title="Boss"
+        :count="results.leaders.length"
+        :level="2"
+        data-key="heading:Boss" />
+      <div class="lwl" data-key="leaders">
+        <LeaderRow
+          v-for="leader in results.leaders"
+          :key="leader.id"
+          :leader="leader"
+          :mode="state.mode" />
+      </div>
+    </template>
+    <template v-else-if="group === 'bounties'">
+      <SectionHeading
+        class="sr-sec"
+        title="悬赏敌人"
+        :count="results.bounties.length"
+        :level="2"
+        data-key="heading:悬赏敌人" />
+      <div class="sr-enemy-grid" data-key="bounties">
+        <button
+          v-for="bounty in results.bounties"
+          :key="bounty.name"
+          type="button"
+          class="sr-bty-card"
+          @click="actions.openBounty(bounty.name)">
+          <img
+            :src="enemyIconSrc(bounty.enemyId)"
+            alt=""
+            width="38"
+            height="38"
+            loading="lazy"
+            decoding="async" />
+          <div class="sr-bty-main">
+            <div class="sr-bty-top">
+              <b>{{ bounty.name }}</b>
+              <span class="sr-bty-meta">
+                {{ bounty.when }} · {{ bounty.mobility }} · {{ bounty.range
+                }}{{ bounty.damage !== '无' ? ` · ${bounty.damage}伤` : '' }}
+              </span>
+            </div>
+            <p class="sr-bty-desc">{{ bounty.mechanics }}</p>
+            <p class="sr-bty-counter">{{ bounty.counter }}</p>
           </div>
-          <p class="sr-bty-desc">{{ bounty.mechanics }}</p>
-          <p class="sr-bty-counter">{{ bounty.counter }}</p>
-        </div>
-        <strong class="sr-bty-funds">+{{ bounty.funds }}</strong>
-      </button>
-    </div>
-  </template>
-  <template v-if="results.trainings.length">
-    <SectionHeading
-      class="sr-sec"
-      title="普通敌人（特训）"
-      :count="results.trainings.length"
-      :level="2"
-      data-key="heading:普通敌人" />
-    <div class="sr-enemy-grid" data-key="trainings">
-      <button
-        v-for="tr in results.trainings"
-        :key="tr.name"
-        type="button"
-        class="sr-tr-card"
-        @click="actions.openTraining(tr.name)">
-        <div class="sr-tr-top">
-          <b>{{ tr.name }}</b>
-          <span>{{ tr.desc }}</span>
-          <em v-for="role in rolesForTraining(tr.name)" :key="role">
-            {{ role }}
-          </em>
-        </div>
-        <p class="sr-bty-desc">{{ tr.attackStyle }}</p>
-        <p class="sr-bty-counter">{{ tr.strategy }}</p>
-      </button>
-    </div>
+          <strong class="sr-bty-funds">+{{ bounty.funds }}</strong>
+        </button>
+      </div>
+    </template>
+    <template v-else-if="group === 'trainings'">
+      <SectionHeading
+        class="sr-sec"
+        title="普通敌人（特训）"
+        :count="results.trainings.length"
+        :level="2"
+        data-key="heading:普通敌人" />
+      <div class="sr-enemy-grid" data-key="trainings">
+        <button
+          v-for="tr in results.trainings"
+          :key="tr.name"
+          type="button"
+          class="sr-tr-card"
+          @click="actions.openTraining(tr.name)">
+          <div class="sr-tr-top">
+            <b>{{ tr.name }}</b>
+            <span>{{ tr.desc }}</span>
+            <em v-for="role in rolesForTraining(tr.name)" :key="role">
+              {{ role }}
+            </em>
+          </div>
+          <p class="sr-bty-desc">{{ tr.attackStyle }}</p>
+          <p class="sr-bty-counter">{{ tr.strategy }}</p>
+        </button>
+      </div>
+    </template>
   </template>
   <template v-if="results.glossary.length">
     <SectionHeading

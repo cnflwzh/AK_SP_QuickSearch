@@ -2,68 +2,31 @@ import {
   ADDITIONAL_OPERATORS,
   ALL_COVENANTS,
   BOUNTIES,
-  COMBAT_ROLE_LABELS,
   ENEMY_GLOSSARY,
   EQUIPMENT,
   LEADERS,
   OPERATORS,
   STRATEGIES,
   TRAINING,
-  equipmentWithRoles,
   operatorRolesAtElite,
-  operatorsWithRoles,
   rolesForTraining,
   type Bounty,
-  type CombatRole,
   type EnemyTerm,
   type Equipment,
   type Leader,
   type Operator,
   type TrainingType,
+  type Strategy,
 } from '../../data/index.ts';
 import {leaderGlossaryTerms} from '../lib/leaders/leader.ts';
 import {nameScore, normalize} from '../lib/ui/match.ts';
 import type {Plan} from '../lib/plans/model.ts';
 
-/** 列表匹配和回车直达共用的流派正文，包括说明、策略、主力、备选和装备名称。 */
-export function buildSearchDescription(plan: Plan): string {
-  return [
-    plan.note,
-    plan.strategy,
-    plan.ops.flatMap((slot) => [slot.name, ...slot.alt, ...slot.eq]).join('/'),
-  ].join('|');
-}
-
-/** 将已归一化的查询词匹配到职能名称，供结果列表和回车直达共用。 */
-export function matchingCombatRoles(query: string): Set<CombatRole> {
-  return new Set(
-    COMBAT_ROLE_LABELS.filter((role) => nameScore(role, query) > 0),
-  );
-}
-
-/** 返回匹配的敌人词条，按名称和拼音优先排序。仅展示名称命中的列表可跳过正文。 */
-export function matchingEnemyTerms(
-  query: string,
-  includeDescription = true,
-): EnemyTerm[] {
-  if (!query) return [];
-  return Object.values(ENEMY_GLOSSARY)
-    .map((entry) => ({
-      entry,
-      score:
-        nameScore(entry.term, query) ||
-        (includeDescription && normalize(entry.desc).includes(query) ? 1 : 0),
-    }))
-    .filter(({score}) => score > 0)
-    .sort((a, b) => b.score - a.score)
-    .map(({entry}) => entry);
-}
-
-const leaderTermCache = new Map<string, readonly string[]>();
+const leaderTermCache = new WeakMap<Leader, readonly string[]>();
 
 /** 返回 Boss 关联的全部可拼音匹配词条（技能名、专属单位/机制、随行敌人、相关词典名词）。 */
 export function leaderSearchTerms(leader: Leader): readonly string[] {
-  const cached = leaderTermCache.get(leader.id);
+  const cached = leaderTermCache.get(leader);
   if (cached) return cached;
   const terms = new Set<string>();
   for (const a of [...leader.abilities, ...leader.hiddenAbilities]) {
@@ -80,7 +43,7 @@ export function leaderSearchTerms(leader: Leader): readonly string[] {
     terms.add(g.term);
   }
   const list = [...terms];
-  leaderTermCache.set(leader.id, list);
+  leaderTermCache.set(leader, list);
   return list;
 }
 
@@ -102,198 +65,362 @@ export function leaderSearchDescription(leader: Leader): string {
   ].join('|');
 }
 
-const glossaryNames = Object.keys(ENEMY_GLOSSARY).map((name) => ({
-  name,
-  normalized: normalize(name),
-}));
-
-/** 按不可变赛季条目惰性索引正文和关联名词，连续输入查询时只比较真正相关的词。 */
-function createEnemyMatcher<T extends {readonly name: string}>(
-  describe: (item: T) => {body: string; terms: string[]},
-): (item: T, query: string) => number {
-  const index = new WeakMap<T, {body: string; terms: readonly string[]}>();
-  return (item, query) => {
-    if (!query) return 0;
-    const direct = nameScore(item.name, query);
-    if (direct) return direct;
-    let entry = index.get(item);
-    if (!entry) {
-      const {body: raw, terms} = describe(item);
-      const body = normalize(raw);
-      const related = new Set(terms);
-      for (const term of glossaryNames) {
-        if (body.includes(term.normalized)) related.add(term.name);
-      }
-      entry = {body, terms: [...related]};
-      index.set(item, entry);
-    }
-    if (entry.terms.some((name) => nameScore(name, query) > 0)) return 1.25;
-    return entry.body.includes(query) ? 1 : 0;
-  };
-}
-
-/** 返回悬赏敌人对归一化查询的匹配度，名称优先，其次是标签、职能和词典名词。 */
-export const bountyMatchScore = createEnemyMatcher<Bounty>((item) => ({
-  body: `${item.mechanics}|${item.counter}`,
-  terms: [
-    item.when,
-    item.mobility,
-    item.range,
-    item.damage,
-    ...(item.tags ?? []),
-    ...(item.roles ?? []),
-  ],
-}));
-
-/** 返回普通敌人对归一化查询的匹配度，检索名称、标签、代表机制、职能与正文。 */
-export const trainingMatchScore = createEnemyMatcher<TrainingType>((item) => ({
-  body: `${item.desc}|${item.attackStyle}|${item.strategy}`,
-  terms: [...item.tags, ...item.examples, ...rolesForTraining(item.name)],
-}));
-
-/** 查询仅命中干员精锐特质（名称、盟约和初始特质未命中）时返回 true。 */
-export function matchedOnlyElite(
-  operator: Operator,
-  rawQuery: string,
-): boolean {
-  const q = normalize(rawQuery);
-  if (!q) return false;
-  if (nameScore(operator.name, q) > 0) return false;
-  if (operator.covenants.some((c) => nameScore(c, q) > 0)) return false;
-  if (normalize(operator.trait).includes(q)) return false;
-  const matchesRole = (role: CombatRole) => nameScore(role, q) > 0;
-  if (operatorRolesAtElite(operator, false).some(matchesRole)) return false;
-  return (
-    Boolean(operator.roles?.some(matchesRole)) ||
-    normalize(operator.elite).includes(q)
-  );
-}
-
-/** 查询仅命中装备进阶效果（名称、盟约和基础效果未命中）时返回 true。 */
-export function matchedOnlyAdvanced(
-  item: Equipment,
-  rawQuery: string,
-): boolean {
-  const q = normalize(rawQuery);
-  if (!q || !item.advanced) return false;
-  if (nameScore(item.name, q) > 0) return false;
-  if (item.covenant && nameScore(item.covenant, q) > 0) return false;
-  if (normalize(item.effect).includes(q)) return false;
-  return normalize(item.advanced).includes(q);
-}
-
 export type SearchQuickTarget = {
   kind:
     'op' | 'eq' | 'st' | 'cv' | 'bd' | 'ld' | 'training' | 'bounty' | 'roster';
   id: string;
 };
 
-/**
- * 选出全局搜索框按下 Enter 后最应该直达的首个条目。
- * 优先按名称匹配最高分，同分按 `干员 > 盟约 > 装备 > 策略 > 流派 > Boss > 普通敌人 > 悬赏敌人`；
- * 若无名称命中，则回退到职能、关联词条与说明文案命中的首项。
- */
+interface SearchDocument {
+  name: string;
+  /** 内置流派改名后仍能用原名直达。 */
+  alias?: string;
+  terms?: readonly string[];
+  /** 由索引构造函数归一化正文，各字段用 | 分隔，避免跨字段拼接出假命中。 */
+  body?: string;
+}
+
+function scoreTerm(
+  doc: SearchDocument,
+  text: string,
+  scoreName: (name: string) => number,
+): number {
+  const direct = scoreName(doc.name);
+  const alias = doc.alias ? scoreName(doc.alias) : 0;
+  if (direct || alias) return Math.max(direct, alias);
+  if (doc.terms?.some((term) => scoreName(term) > 0)) return 1.25;
+  return doc.body?.includes(text) ? 1 : 0;
+}
+
+function compileTerm(text: string) {
+  // 同一次输入中的「乌萨斯」等关联词只比较一次，下一次输入可释放整个映射。
+  const scores = new Map<string, number>();
+  function scoreName(name: string): number {
+    let score = scores.get(name);
+    if (score === undefined) {
+      score = nameScore(name, text);
+      // 同一查询可能伴随用户反复编辑流派名称；限制单词缓存条目数。
+      if (scores.size < 1024) scores.set(name, score);
+    }
+    return score;
+  }
+  return (doc: SearchDocument): number => scoreTerm(doc, text, scoreName);
+}
+
+/** 编译一次输入供各目录复用。先尝试连续名称与拼音，再对显式分隔的词做同一条目内的交集。 */
+export function prepareSearchQuery(raw: string) {
+  const parts = raw
+    .split(/[\s,，、]+/u)
+    .map(normalize)
+    .filter(Boolean);
+  const text = parts.join('');
+  const phrase = compileTerm(text);
+  const words = parts.length > 1 ? [...new Set(parts)].map(compileTerm) : [];
+  return {
+    text,
+    score(doc: SearchDocument): number {
+      if (!text) return 0;
+      const whole = phrase(doc);
+      if (whole === 3 || !words.length) return whole;
+      let sum = 0;
+      for (const word of words) {
+        const score = word(doc);
+        if (!score) return whole;
+        sum += score;
+      }
+      // 无序词组可以跨名称、标签、正文；连续全名、全拼或首字母精确命中始终优先。
+      return Math.max(whole, Math.min(2.75, sum / words.length));
+    },
+  };
+}
+
+type SearchQuery = ReturnType<typeof prepareSearchQuery>;
+
+/** 静态赛季条目按对象缓存。可编辑方案每次从 Vue 的当前数据构建，不在此缓存。 */
+function indexByItem<T extends object>(describe: (item: T) => SearchDocument) {
+  const index = new WeakMap<T, SearchDocument>();
+  return (item: T): SearchDocument => {
+    let doc = index.get(item);
+    if (!doc) {
+      doc = describe(item);
+      index.set(item, doc);
+    }
+    return doc;
+  };
+}
+
+function operatorDocument(op: Operator, elite: boolean): SearchDocument {
+  const roles = elite ? (op.roles ?? []) : operatorRolesAtElite(op, false);
+  return {
+    name: op.name,
+    terms: [...op.covenants, ...roles, op.type, `${op.tier}阶`],
+    body: normalize(elite ? `${op.trait}|${op.elite}` : op.trait),
+  };
+}
+const fullOperator = indexByItem((op: Operator) => operatorDocument(op, true));
+const baseOperator = indexByItem((op: Operator) => operatorDocument(op, false));
+
+function equipmentDocument(item: Equipment, advanced: boolean): SearchDocument {
+  return {
+    name: item.name,
+    terms: [...(item.roles ?? []), item.covenant ?? '', `${item.tier}阶`],
+    body: normalize(
+      advanced ? `${item.effect}|${item.advanced ?? ''}` : item.effect,
+    ),
+  };
+}
+const fullEquipment = indexByItem((item: Equipment) =>
+  equipmentDocument(item, true),
+);
+const baseEquipment = indexByItem((item: Equipment) =>
+  equipmentDocument(item, false),
+);
+
+const glossaryNames = Object.keys(ENEMY_GLOSSARY).map((name) => ({
+  name,
+  key: normalize(name),
+}));
+
+function enemyDocument(
+  name: string,
+  terms: readonly string[],
+  rawBody: string,
+): SearchDocument {
+  const body = normalize(rawBody);
+  const related = new Set(terms);
+  for (const term of glossaryNames) {
+    if (body.includes(term.key)) related.add(term.name);
+  }
+  return {name, terms: [...related], body};
+}
+
+const bountyDocument = indexByItem((item: Bounty) =>
+  enemyDocument(
+    item.name,
+    [
+      item.when,
+      item.mobility,
+      item.range,
+      item.damage,
+      ...(item.tags ?? []),
+      ...(item.roles ?? []),
+    ],
+    `${item.mechanics}|${item.counter}`,
+  ),
+);
+const trainingDocument = indexByItem((item: TrainingType) =>
+  enemyDocument(
+    item.name,
+    [...item.tags, ...item.examples, ...rolesForTraining(item.name)],
+    `${item.desc}|${item.attackStyle}|${item.strategy}`,
+  ),
+);
+const leaderDocument = indexByItem((item: Leader) => ({
+  name: item.name,
+  terms: leaderSearchTerms(item),
+  body: normalize(leaderSearchDescription(item)),
+}));
+const strategyDocument = indexByItem((item: Strategy) => ({
+  name: item.name,
+  terms: [item.skill, item.category],
+  body: normalize(item.effect),
+}));
+const glossaryDocument = indexByItem((entry: EnemyTerm) => ({
+  name: entry.term,
+  body: normalize(entry.desc),
+}));
+
+/** 按名称、词条、正文依次给悬赏敌人评分；仅供悬赏目录逐项调用。 */
+export function bountyMatchScore(item: Bounty, query: string): number {
+  return query
+    ? scoreTerm(bountyDocument(item), query, (name) => nameScore(name, query))
+    : 0;
+}
+
+/** 返回普通敌人在给定名称、机制或职能检索中的匹配度。 */
+export function trainingMatchScore(item: TrainingType, query: string): number {
+  return query
+    ? scoreTerm(trainingDocument(item), query, (name) => nameScore(name, query))
+    : 0;
+}
+
+/** 完整干员条目命中而初始特质和职能不足以满足查询时，展示精锐特质。 */
+export function matchedOnlyElite(
+  op: Operator,
+  input: string | SearchQuery,
+): boolean {
+  const query = typeof input === 'string' ? prepareSearchQuery(input) : input;
+  return !query.score(baseOperator(op)) && query.score(fullOperator(op)) > 0;
+}
+
+/** 仅装备的进阶效果能补足查询时返回 true。 */
+export function matchedOnlyAdvanced(
+  item: Equipment,
+  rawQuery: string,
+): boolean {
+  if (!item.advanced) return false;
+  const query = prepareSearchQuery(rawQuery);
+  return (
+    !query.score(baseEquipment(item)) && query.score(fullEquipment(item)) > 0
+  );
+}
+
+function ranked<T>(
+  items: readonly T[],
+  describe: (item: T) => SearchDocument,
+  query: SearchQuery,
+  tieBreak?: (a: T, b: T) => number,
+) {
+  if (!query.text) return [];
+  return items
+    .map((item) => ({item, score: query.score(describe(item))}))
+    .filter(({score}) => score > 0)
+    .sort((a, b) => b.score - a.score || tieBreak?.(a.item, b.item) || 0);
+}
+
+/** 返回匹配的敌人词条；全局结果只在词条名称命中时展示独立的词典解释。 */
+export function matchingEnemyTerms(
+  input: string | SearchQuery,
+  includeDescription = true,
+): EnemyTerm[] {
+  const query = typeof input === 'string' ? prepareSearchQuery(input) : input;
+  const describe = includeDescription
+    ? glossaryDocument
+    : (entry: EnemyTerm) => ({name: entry.term});
+  return ranked(Object.values(ENEMY_GLOSSARY), describe, query).map(
+    ({item}) => item,
+  );
+}
+
+type SearchBuild = {key: string} & (
+  {name: string; plan?: Plan} | {name?: string; plan: Plan}
+);
+function buildDocument(build: SearchBuild): SearchDocument {
+  const {plan, key} = build;
+  const name = plan?.name ?? build.name ?? key;
+  return {
+    name,
+    alias: key !== name ? key : undefined,
+    terms:
+      plan &&
+      [
+        plan.strategy,
+        ...plan.ops.flatMap((slot) => [slot.name, ...slot.alt, ...slot.eq]),
+      ].filter(Boolean),
+    body: plan && normalize(plan.note),
+  };
+}
+
+type Section =
+  | 'operators'
+  | 'additional'
+  | 'covenants'
+  | 'equipment'
+  | 'strategies'
+  | 'builds'
+  | 'leaders'
+  | 'trainings'
+  | 'bounties';
+
+/** 返回各目录的有序条目、按最高分排列的可跳转分组和回车目标。并列时沿用原有目录优先级。 */
+export function searchResults(
+  query: SearchQuery,
+  builds: readonly SearchBuild[] = [],
+) {
+  const sections: {key: Section; score: number; target: SearchQuickTarget}[] =
+    [];
+  function group<T>(
+    key: Section,
+    kind: SearchQuickTarget['kind'],
+    items: readonly T[],
+    describe: (item: T) => SearchDocument,
+    id: (item: T) => string,
+    tieBreak?: (a: T, b: T) => number,
+  ): T[] {
+    const hits = ranked(items, describe, query, tieBreak);
+    const first = hits[0];
+    if (first)
+      sections.push({
+        key,
+        score: first.score,
+        target: {kind, id: id(first.item)},
+      });
+    return hits.map(({item}) => item);
+  }
+  const byName = (item: {name: string}) => item.name;
+  const operators = group(
+    'operators',
+    'op',
+    OPERATORS,
+    fullOperator,
+    byName,
+    (a, b) => a.tier - b.tier,
+  );
+  const additional = group(
+    'additional',
+    'roster',
+    ADDITIONAL_OPERATORS,
+    (op) => ({name: op.name, terms: op.covenants}),
+    (op) => op.avatar,
+  );
+  const covenants = group(
+    'covenants',
+    'cv',
+    ALL_COVENANTS,
+    (name) => ({name}),
+    (name) => name,
+  );
+  const equipment = group('equipment', 'eq', EQUIPMENT, fullEquipment, byName);
+  const strategies = group(
+    'strategies',
+    'st',
+    STRATEGIES,
+    strategyDocument,
+    byName,
+  );
+  const buildKeys = group(
+    'builds',
+    'bd',
+    builds,
+    buildDocument,
+    (build) => build.key,
+  ).map((build) => build.key);
+  const leaders = group('leaders', 'ld', LEADERS, leaderDocument, byName);
+  const trainings = group(
+    'trainings',
+    'training',
+    TRAINING,
+    trainingDocument,
+    byName,
+  );
+  const bounties = group(
+    'bounties',
+    'bounty',
+    BOUNTIES,
+    bountyDocument,
+    byName,
+  );
+  sections.sort((a, b) => b.score - a.score);
+  return {
+    operators,
+    additional,
+    covenants,
+    equipment,
+    strategies,
+    builds: buildKeys,
+    leaders,
+    trainings,
+    bounties,
+    glossary: matchingEnemyTerms(query, false),
+    order: sections.map((section) => section.key),
+    top: sections[0]?.target ?? null,
+  };
+}
+
+/** 全局搜索框回车打开与结果页首个可操作条目相同的目标；空查询或仅有词典释义时返回 null。 */
 export function topSearchTarget(
   rawQuery: string,
-  buildItems: readonly {key: string; name: string; plan?: Plan}[] = [],
+  builds: readonly SearchBuild[] = [],
 ): SearchQuickTarget | null {
-  const q = normalize(rawQuery);
-  if (!q) return null;
-
-  let best: (SearchQuickTarget & {score: number; priority: number}) | null =
-    null;
-  const offer = (
-    kind: SearchQuickTarget['kind'],
-    id: string,
-    score: number,
-    priority: number,
-  ): void => {
-    if (score <= 0) return;
-    if (
-      !best ||
-      score > best.score ||
-      (score === best.score && priority < best.priority)
-    ) {
-      best = {kind, id, score, priority};
-    }
-  };
-
-  for (const op of OPERATORS) {
-    offer('op', op.name, nameScore(op.name, q), 1);
-  }
-  for (const op of ADDITIONAL_OPERATORS) {
-    offer('roster', op.avatar, nameScore(op.name, q), 1);
-  }
-  for (const cov of ALL_COVENANTS) {
-    offer('cv', cov, nameScore(cov, q), 2);
-  }
-  for (const eq of EQUIPMENT) {
-    offer('eq', eq.name, nameScore(eq.name, q), 3);
-  }
-  for (const st of STRATEGIES) {
-    offer('st', st.name, nameScore(st.name, q), 4);
-  }
-  for (const b of buildItems) {
-    const score = Math.max(nameScore(b.name, q), nameScore(b.key, q));
-    offer('bd', b.key, score, 5);
-  }
-  for (const ld of LEADERS) {
-    offer('ld', ld.name, nameScore(ld.name, q), 6);
-  }
-  for (const tr of TRAINING) {
-    offer('training', tr.name, nameScore(tr.name, q), 7);
-  }
-  for (const bounty of BOUNTIES) {
-    offer('bounty', bounty.name, nameScore(bounty.name, q), 8);
-  }
-  if (best) {
-    const found: SearchQuickTarget & {score: number; priority: number} = best;
-    return {kind: found.kind, id: found.id};
-  }
-
-  const roles = [...matchingCombatRoles(q)];
-  if (roles.length) {
-    const firstOperator = operatorsWithRoles(roles).sort(
-      (a, b) => a.tier - b.tier,
-    )[0];
-    if (firstOperator) return {kind: 'op', id: firstOperator.name};
-    const firstItem = equipmentWithRoles(roles)[0];
-    if (firstItem) return {kind: 'eq', id: firstItem.name};
-  }
-
-  for (const op of OPERATORS) {
-    const hay = normalize(op.covenants.join('/') + op.trait + op.elite);
-    if (hay.includes(q)) return {kind: 'op', id: op.name};
-  }
-  for (const eq of EQUIPMENT) {
-    const hay = normalize(
-      (eq.covenant || '') + eq.effect + (eq.advanced || ''),
-    );
-    if (hay.includes(q)) return {kind: 'eq', id: eq.name};
-  }
-  for (const st of STRATEGIES) {
-    const hay = normalize(st.skill + '|' + st.effect + st.category);
-    if (hay.includes(q)) return {kind: 'st', id: st.name};
-  }
-  for (const build of buildItems) {
-    if (build.plan && normalize(buildSearchDescription(build.plan)).includes(q))
-      return {kind: 'bd', id: build.key};
-  }
-  for (const ld of LEADERS) {
-    if (
-      leaderSearchTerms(ld).some((term) => nameScore(term, q) > 0) ||
-      normalize(leaderSearchDescription(ld)).includes(q)
-    ) {
-      return {kind: 'ld', id: ld.name};
-    }
-  }
-  for (const tr of TRAINING) {
-    if (trainingMatchScore(tr, q) > 0) return {kind: 'training', id: tr.name};
-  }
-  for (const bounty of BOUNTIES) {
-    if (bountyMatchScore(bounty, q) > 0) {
-      return {kind: 'bounty', id: bounty.name};
-    }
-  }
-  return null;
+  return searchResults(prepareSearchQuery(rawQuery), builds).top;
 }
