@@ -16,7 +16,7 @@ import {settings, type CustomizableToolId} from '../../lib/settings/index.ts';
 
 const panels = {
   advisor: defineAsyncComponent(() => import('../advisor/RunAdvisor.vue')),
-  layers: LayerTools,
+  'match-reference': LayerTools,
   credit: defineAsyncComponent(() => import('../numbers/CreditTools.vue')),
   dealer: defineAsyncComponent(() => import('../numbers/DealerGame.vue')),
   excuse: defineAsyncComponent(() => import('../numbers/ExcuseTools.vue')),
@@ -28,7 +28,8 @@ const visibleTools = computed(() => {
       tool.id !== 'advisor' && !hidden.has(tool.id as CustomizableToolId),
   );
   const fallback =
-    NUMBER_TOOLS.find((tool) => tool.id === 'layers') ?? NUMBER_TOOLS[1];
+    NUMBER_TOOLS.find((tool) => tool.id === 'match-reference') ??
+    NUMBER_TOOLS[1];
   const availablePublic = publicTools.length ? publicTools : [fallback];
   return advisorPreviewEnabled.value
     ? [NUMBER_TOOLS[0], ...availablePublic]
@@ -62,7 +63,10 @@ const selectedTool = computed<NumberTool>({
   get: () => activeTool.value,
   set: (id) => {
     void updateQuery({
-      tool: id === visibleTools.value[0]?.id && id === 'layers' ? null : id,
+      tool:
+        id === visibleTools.value[0]?.id && id === 'match-reference'
+          ? null
+          : id,
     });
   },
 });

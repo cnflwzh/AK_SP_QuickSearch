@@ -60,19 +60,11 @@
       "destination": "/index.html"
     },
     {
-      "source": "/leaders",
+      "source": "/enemies",
       "destination": "/index.html"
     },
     {
-      "source": "/leaders/*",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/numbers",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/numbers/*",
+      "source": "/enemies/*",
       "destination": "/index.html"
     },
     {
@@ -322,7 +314,7 @@
       ]
     },
     {
-      "source": "/leaders",
+      "source": "/enemies",
       "headers": [
         {
           "key": "Cache-Control",
@@ -331,25 +323,7 @@
       ]
     },
     {
-      "source": "/leaders/*",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-cache"
-        }
-      ]
-    },
-    {
-      "source": "/numbers",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-cache"
-        }
-      ]
-    },
-    {
-      "source": "/numbers/*",
+      "source": "/enemies/*",
       "headers": [
         {
           "key": "Cache-Control",

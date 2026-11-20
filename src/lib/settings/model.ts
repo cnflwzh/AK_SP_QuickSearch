@@ -11,7 +11,7 @@ export const CONTENT_TAB_IDS = [
 export type ContentTabId = (typeof CONTENT_TAB_IDS)[number];
 
 export const CUSTOMIZABLE_TOOL_IDS = [
-  'layers',
+  'match-reference',
   'credit',
   'dealer',
   'excuse',
@@ -133,7 +133,9 @@ export function normalizeSettings(raw: unknown): UserSettings {
   const hiddenToolSet = new Set<CustomizableToolId>();
   if (Array.isArray(raw.hiddenTools)) {
     for (const item of raw.hiddenTools) {
-      if (isToolId(item)) hiddenToolSet.add(item);
+      // 路由改名后继续尊重已保存在设备或备份中的隐藏偏好。
+      const id = item === 'layers' ? 'match-reference' : item;
+      if (isToolId(id)) hiddenToolSet.add(id);
     }
   }
   if (hiddenToolSet.size >= CUSTOMIZABLE_TOOL_IDS.length) {

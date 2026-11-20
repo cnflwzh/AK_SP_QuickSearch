@@ -34,6 +34,7 @@ import SubTabs, {
   type SubTabDirection,
   type SubTabItem,
 } from '../components/SubTabs.vue';
+import {enemyListLocation} from '../../router/location.ts';
 import LayerCalculator from './LayerCalculator.vue';
 import {
   useNumberToolsState,
@@ -444,7 +445,7 @@ const decisions = computed(
               极速模拟第 9 回合 Boss · 悬赏收益（{{ BOUNTIES.length }}
               名）已移至敌人页
             </span>
-            <RouterLink to="/leaders?kind=bounty" class="nt-match-link">
+            <RouterLink :to="enemyListLocation('bounty')" class="nt-match-link">
               悬赏敌人 ›
             </RouterLink>
           </div>
