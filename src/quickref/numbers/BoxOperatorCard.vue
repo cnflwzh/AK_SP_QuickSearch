@@ -257,9 +257,7 @@ const title = computed(() => {
   font-size: 13px;
   line-height: 1.25;
   color: var(--ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 .bx-card.rank-unborrowed .bx-name {
   color: var(--ink3);
@@ -330,9 +328,7 @@ const title = computed(() => {
 .bx-sub-text {
   font: 500 10.5px/1.25 var(--fn);
   color: var(--ink3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 .bx-card.rank-3 .bx-sub-text {
   color: var(--bx-r3);
