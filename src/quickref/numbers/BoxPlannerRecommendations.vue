@@ -2,7 +2,7 @@
 import {computed, ref} from 'vue';
 import {BORROW_LIMIT, CORE_BUILDS, TIER_LABELS} from '../../../data/index.ts';
 import {
-  recommendBorrows,
+  recommendBorrowBatch,
   recommendTraining,
   type BoxPlanSource,
 } from '../../lib/box/insights.ts';
@@ -49,13 +49,15 @@ const planSources = computed<readonly BoxPlanSource[]>(() =>
 
 const selectedBuildSet = computed(() => new Set(selectedBuilds.value));
 
-const borrowList = computed(() =>
-  recommendBorrows(
+const borrowPlan = computed(() =>
+  recommendBorrowBatch(
     operatorBox,
     planSources.value,
     selectedBuildSet.value.size ? selectedBuildSet.value : undefined,
   ),
 );
+
+const borrowList = computed(() => borrowPlan.value.ranking);
 
 const unborrowedCount = computed(
   () => borrowList.value.filter((item) => !item.borrowed).length,
@@ -111,15 +113,16 @@ function fillRecommendedBorrows(): void {
     errorMsg.value = `已借满 ${BORROW_LIMIT}/${BORROW_LIMIT} 名助战。`;
     return;
   }
-  const picks = borrowList.value
-    .filter((item) => !item.borrowed)
-    .slice(0, slots)
-    .map((item) => item.op.name);
+  const {picks, completedLineups, completedCores} = borrowPlan.value;
   if (!picks.length) return;
   try {
     const changed = setOperatorRanks(picks, BOX_RANK_BORROWED);
     if (changed > 0) {
-      feedback.value = `已按优先级一键加入 ${changed} 名助战（当前 ${boxSeasonBorrowedCount.value}/${BORROW_LIMIT}）。`;
+      const gains: string[] = [];
+      if (completedLineups) gains.push(`${completedLineups} 套主选`);
+      if (completedCores) gains.push(`${completedCores} 套核心`);
+      const result = gains.length ? `，补齐${gains.join('、')}` : '';
+      feedback.value = `已加入 ${changed} 名助战${result}（当前 ${boxSeasonBorrowedCount.value}/${BORROW_LIMIT}）。`;
     }
   } catch (error) {
     errorMsg.value = error instanceof Error ? error.message : '助战名额不足。';
@@ -156,7 +159,7 @@ function markTrainedE1(name: string): void {
           @click="fillRecommendedBorrows">
           {{
             remainingSlots > 0
-              ? `一键补满前 ${Math.min(remainingSlots, unborrowedCount)} 名助战`
+              ? `一键借用 ${borrowPlan.picks.length} 名助战`
               : `已满 ${BORROW_LIMIT}/${BORROW_LIMIT}`
           }}
         </button>
@@ -203,7 +206,7 @@ function markTrainedE1(name: string): void {
       :data-dir="tabDir || undefined">
       <template v-if="activeTab === 'borrow'">
         <p class="bxp-hint">
-          优先推荐常用流派的核心干员、只能用预备干员补位的六星，以及能补足对策的干员。
+          清单按单人借用收益排序。一键借用会尽量用较少名额补齐流派核心或全部主选。
         </p>
         <div v-if="visibleBorrows.length" class="bxp-grid">
           <article
@@ -229,6 +232,11 @@ function markTrainedE1(name: string): void {
                   <b>{{ item.op.name }}</b>
                 </span>
                 <span class="bxp-reasons">
+                  <em
+                    v-if="borrowPlan.picks.includes(item.op.name)"
+                    class="core">
+                    一键入选
+                  </em>
                   <em
                     v-for="reason in item.reasons"
                     :key="reason"
@@ -275,7 +283,7 @@ function markTrainedE1(name: string): void {
       <template v-else>
         <p class="bxp-hint">
           这些干员已持有，练到精一后，该干员在模拟作战中的攻击力和防御力各提高
-          5%。
+          5%。主选已齐的流派会提高对应干员的养成优先级。
         </p>
         <div v-if="visibleTrains.length" class="bxp-grid">
           <article

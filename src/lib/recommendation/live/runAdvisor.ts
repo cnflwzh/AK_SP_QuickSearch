@@ -274,9 +274,10 @@ function evaluateRecruitCandidate(
     evaluationContext,
   );
   const resultingStats = action.stats;
+  const comparisonStats = action.freeDeployment?.stats ?? previousStats;
   if (goal && advice.score > 0) {
     const previous =
-      previousStats.find((stat) => stat.name === goal.covenant)?.count ?? 0;
+      comparisonStats.find((stat) => stat.name === goal.covenant)?.count ?? 0;
     const current =
       resultingStats.find((stat) => stat.name === goal.covenant)?.count ?? 0;
     if (current > previous && previous < goal.target) {
@@ -299,15 +300,14 @@ function evaluateRecruitCandidate(
   );
   if (
     covenantProduction.score >
-    covenantProductionValue(previousStats, valueContext).score
+    covenantProductionValue(comparisonStats, valueContext).score
   ) {
     advice.reasons.push(...covenantProduction.reasons);
   }
   advice.breakdown.acquisition = acquisition.score;
   advice.score += acquisition.score;
   advice.reasons.push(...acquisition.reasons);
-  const willDeploy =
-    existing?.deployed || advice.kind === 'deploy' || advice.kind === 'replace';
+  const willDeploy = action.field.some((slot) => slot.name === operator.name);
   const candidateSlot: PlanOp = {
     name: operator.name,
     elite: promotes,
@@ -317,17 +317,33 @@ function evaluateRecruitCandidate(
   };
   const finalField = action.field;
   const finalReserve = action.reserve;
-  const transition = explainStrategyTransition(lineup, finalField, {
-    strategy: run.strategy,
-    format: run.format,
-    inactiveCovenants: effectiveBans(run),
-  });
+  const transition = explainStrategyTransition(
+    action.freeDeployment?.field ?? lineup,
+    finalField,
+    {
+      strategy: run.strategy,
+      format: run.format,
+      inactiveCovenants: effectiveBans(run),
+    },
+  );
   advice.reasons.push(...transition.reasons);
   advice.losses.push(...transition.losses);
   const preferred = preference(finalField, finalReserve);
-  advice.preferenceScore = preferred.preference;
-  advice.reasons.push(...preferred.reasons);
-  advice.losses.push(...preferred.losses);
+  advice.preferenceScore =
+    preferred.preference - (action.freeDeployment?.preferenceScore ?? 0);
+  if (advice.preferenceScore > 0) {
+    advice.reasons.push(
+      ...(preferred.reasons.length
+        ? preferred.reasons
+        : ['较当前可执行的调阵更接近已保存方案']),
+    );
+  } else if (advice.preferenceScore < 0) {
+    advice.losses.push(
+      ...(preferred.losses.length
+        ? preferred.losses
+        : ['较当前可执行的调阵偏离已保存方案']),
+    );
+  }
   const milestones = purchaseMilestoneAdjustment(
     acquisition,
     previousStats,

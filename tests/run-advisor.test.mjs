@@ -885,3 +885,61 @@ test('all saved routes guide equal-value choices without replacing rules, funds 
     0,
   );
 });
+
+test('an acquisition milestone can favor a swap while the same free deployment favors the empty slot', async () => {
+  const {recommendDeployments} =
+    await import('../src/lib/recommendation/live/runAdvisor.ts');
+  const run = runWith(['淬羽赫默', '霜叶', '云迹', '拜松', '乌有'], {
+    mode: 'full',
+    round: 14,
+    mainCovenant: '炎',
+    mainTarget: 3,
+    layers: {灵巧: 33},
+    shop: ['仇白'],
+  });
+  const snapshot = structuredClone(run);
+  const free = recommendDeployments({
+    ...run,
+    operators: [...run.operators, owned('仇白', false)],
+  })[0];
+  assert.equal(free.replace, '');
+  const purchase = recommendRecruits(run)[0];
+  assert.equal(purchase.kind, 'replace');
+  assert.equal(purchase.replace, '霜叶');
+  assert.match(
+    purchase.reasons.join(' '),
+    /获得时灵巧\+6层，加本次休整结束\+1层，合计可跨过40/,
+  );
+  assert.equal(
+    recommendRecruits({...run, layers: {灵巧: 32}})[0].kind,
+    'deploy',
+  );
+  assert.deepEqual(run, snapshot);
+});
+
+test('bench promotion explains production on the selected field and deducts an already available route step', () => {
+  const run = runWith(['凯瑟琳', '渡桥'], {
+    mode: 'full',
+    round: 14,
+    mainCovenant: 'mixed',
+    layers: {远见: 50},
+    shop: ['寒檀'],
+  });
+  run.operators.push({...owned('寒檀', false), copies: 2});
+  const route = {
+    id: '远见',
+    name: '远见路线',
+    ops: ['渡桥', '寒檀'].map(newSlot),
+    strategy: '',
+    note: '',
+    layers: {},
+    updated: 0,
+  };
+  const promotion = recommendRecruits(run, 1, [route])[0];
+  assert.equal(promotion.label, '晋升后上场');
+  assert.equal(promotion.preferenceScore, 0);
+  assert.ok(
+    !promotion.reasons.some((reason) => reason.includes('更接近已保存方案')),
+  );
+  assert.match(promotion.reasons.join(' '), /休整开始\/结束远见\+6层/);
+});

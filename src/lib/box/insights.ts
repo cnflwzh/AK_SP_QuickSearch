@@ -1,5 +1,6 @@
 import {
   ADDITIONAL_OPERATORS,
+  BORROW_LIMIT,
   OPERATOR,
   type CombatRole,
   type Operator,
@@ -272,24 +273,44 @@ interface PlanUsage {
   alt: number;
   names: string[];
   custom: number;
+  completesMain: number;
+  completesCore: number;
+  readyMain: number;
 }
 
 function emptyUsage(): PlanUsage {
-  return {core: 0, main: 0, alt: 0, names: [], custom: 0};
+  return {
+    core: 0,
+    main: 0,
+    alt: 0,
+    names: [],
+    custom: 0,
+    completesMain: 0,
+    completesCore: 0,
+    readyMain: 0,
+  };
 }
 
-/** 一个流派对同一干员只记一次主选或一次备选，主选优先且与站位顺序无关。 */
+/** 只统计所选方案。同一流派内主选优先于备选，只有主选缺本体才产生借用目标。 */
 function planUsage(
+  box: Readonly<OperatorBox>,
   plans: readonly BoxPlanSource[],
   selectedKeys?: ReadonlySet<string>,
 ) {
   const usage = new Map<string, PlanUsage>();
+  const gaps: {names: string[]; core: boolean}[] = [];
   for (const source of plans) {
     if (selectedKeys?.size && !selectedKeys.has(source.key)) continue;
     const main = new Set(source.ops.map((slot) => slot.name));
     const core = new Set(
       source.ops.filter((slot) => slot.core).map((slot) => slot.name),
     );
+    const missing = [...main].filter(
+      (name) => OPERATOR[name] && isBoxSubstitute(OPERATOR[name], box),
+    );
+    const missingCores = missing.filter((name) => core.has(name));
+    if (missing.length) gaps.push({names: missing, core: false});
+    if (missingCores.length) gaps.push({names: missingCores, core: true});
     const names = new Set([...main, ...source.ops.flatMap((slot) => slot.alt)]);
     for (const name of names) {
       const rec = usage.get(name) ?? emptyUsage();
@@ -297,6 +318,10 @@ function planUsage(
         rec.main++;
         if (core.has(name)) rec.core++;
         if (!source.builtin) rec.custom++;
+        if (!missing.length) rec.readyMain++;
+        if (missing.length === 1 && missing[0] === name) rec.completesMain++;
+        if (missingCores.length === 1 && missingCores[0] === name)
+          rec.completesCore++;
       } else {
         rec.alt++;
       }
@@ -304,7 +329,7 @@ function planUsage(
       usage.set(name, rec);
     }
   }
-  return usage;
+  return {usage, gaps};
 }
 
 /** 计算当前账号未持有的非特许 6★ 的助战借用优先级，支持只围绕所选流派重算。 */
@@ -313,14 +338,22 @@ export function recommendBorrows(
   plans: readonly BoxPlanSource[],
   selectedKeys?: ReadonlySet<string>,
 ): BorrowRecommendation[] {
-  const usage = planUsage(plans, selectedKeys);
+  const {usage} = planUsage(box, plans, selectedKeys);
+  return rankBorrows(box, usage, Boolean(selectedKeys?.size));
+}
+
+function rankBorrows(
+  box: Readonly<OperatorBox>,
+  usage: ReadonlyMap<string, PlanUsage>,
+  focused: boolean,
+): BorrowRecommendation[] {
   const results: BorrowRecommendation[] = [];
   for (const op of BORROWABLE_SIX_STARS) {
     const rank = boxRankOf(box, op.avatar);
     if (rank >= 0) continue; // 已持有，无需助战
     const borrowed = rank === BOX_RANK_BORROWED;
     const referenced = usage.get(op.name);
-    if (selectedKeys?.size && !referenced) continue;
+    if (focused && !referenced) continue;
     const u = referenced ?? emptyUsage();
     const reserveBackup =
       Boolean(op.backupOperator) && RESERVE_BACKUPS.has(op.backupOperator!);
@@ -332,11 +365,15 @@ export function recommendBorrows(
       u.main * 22 +
       u.custom * 14 +
       u.alt * 6 +
+      u.completesMain * 22 +
+      u.completesCore * 22 +
       (reserveBackup ? 16 : 6) +
       scarceRoles.length * 7 +
       op.tier * 2;
 
     const reasons: string[] = [];
+    if (u.completesMain) reasons.push(`借后补齐 ${u.completesMain} 套主选`);
+    if (u.completesCore) reasons.push(`借后补齐 ${u.completesCore} 套核心`);
     if (u.core > 0) reasons.push(`核心×${u.core}`);
     if (u.names.length > 0) {
       const preview = u.names.slice(0, 2).join(' / ');
@@ -379,13 +416,150 @@ export function recommendBorrows(
   );
 }
 
+/** 单借顺序与一键借用的组合。两个计数分别是本次新增全主选本体和全核心本体的流派数。 */
+export interface BorrowBatchPlan {
+  readonly ranking: readonly BorrowRecommendation[];
+  readonly picks: readonly string[];
+  readonly completedLineups: number;
+  readonly completedCores: number;
+}
+
+interface BorrowPick {
+  bit: bigint;
+  item: BorrowRecommendation;
+}
+
+/**
+ * 最后两位一起选。只需查“单借任一人”和“两人都借”这三类剩余目标，
+ * 避免先借单项高分的人后，最后一个名额再也凑不齐收益更高的一对。
+ */
+function bestBorrowPair(
+  available: readonly BorrowPick[],
+  pending: ReadonlyMap<bigint, number>,
+): BorrowPick[] {
+  let best: BorrowPick[] = [];
+  let bestGoals = -1;
+  let bestScore = -Infinity;
+  for (const [i, first] of available.entries()) {
+    const singleGoals = pending.get(first.bit) ?? 0;
+    for (let j = i + 1; j < available.length; j++) {
+      const second = available[j];
+      const goals =
+        singleGoals +
+        (pending.get(second.bit) ?? 0) +
+        (pending.get(first.bit | second.bit) ?? 0);
+      const score = first.item.score + second.item.score;
+      if (goals > bestGoals || (goals === bestGoals && score > bestScore)) {
+        best = [first, second];
+        bestGoals = goals;
+        bestScore = score;
+      }
+    }
+  }
+  return best;
+}
+
+/** 比较能完整借齐的缺口组合。共享的子集目标只在第一次补齐时计入。 */
+function bestBorrowGroup(
+  candidates: readonly BorrowPick[],
+  pending: ReadonlyMap<bigint, number>,
+  slots: number,
+): BorrowPick[] {
+  let best: BorrowPick[] = [];
+  let bestGain = 0;
+  let bestScore = 0;
+  for (const mask of pending.keys()) {
+    const group = candidates.filter(({bit}) => (bit & mask) !== 0n);
+    if (group.length > slots) continue;
+    let gain = 0;
+    // 目标少时直接查包含关系；方案多时只枚举本组的非空子集（每套最多八个主选）。
+    if (pending.size < 2 ** group.length) {
+      for (const [other, count] of pending) {
+        if ((mask & other) === other) gain += count;
+      }
+    } else {
+      for (let subset = mask; subset; subset = (subset - 1n) & mask) {
+        gain += pending.get(subset) ?? 0;
+      }
+    }
+    const score = group.reduce((sum, {item}) => sum + item.score, 0);
+    // 优先每个名额补齐的目标数，平手比较组内平均单借优先级。
+    const gainLead = gain * best.length - bestGain * group.length;
+    if (
+      !best.length ||
+      gainLead > 0 ||
+      (gainLead === 0 && score * best.length > bestScore * group.length)
+    ) {
+      best = group;
+      bestGain = gain;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+/** 给当前账号与所选流派生成借用组合。保留已有借用，从剩余名额内选人，不修改 Box。 */
+export function recommendBorrowBatch(
+  box: Readonly<OperatorBox>,
+  plans: readonly BoxPlanSource[],
+  selectedKeys?: ReadonlySet<string>,
+): BorrowBatchPlan {
+  const {usage, gaps} = planUsage(box, plans, selectedKeys);
+  const ranking = rankBorrows(box, usage, Boolean(selectedKeys?.size));
+  const candidates = ranking
+    .filter((item) => !item.borrowed)
+    .map((item, index) => ({item, bit: 1n << BigInt(index)}));
+  const bits = new Map(candidates.map(({item, bit}) => [item.op.name, bit]));
+  const goals = gaps.map(({names, core}) => ({
+    mask: names.reduce((mask, name) => mask | bits.get(name)!, 0n),
+    core,
+  }));
+  const borrowed = BORROWABLE_SIX_STARS.filter(
+    (op) => boxRankOf(box, op.avatar) === BOX_RANK_BORROWED,
+  ).length;
+  const limit = Math.max(
+    0,
+    Math.min(candidates.length, BORROW_LIMIT - borrowed),
+  );
+  const picks: string[] = [];
+  let selected = 0n;
+  while (picks.length < limit) {
+    const pending = new Map<bigint, number>();
+    for (const goal of goals) {
+      const remaining = goal.mask & ~selected;
+      if (remaining) pending.set(remaining, (pending.get(remaining) ?? 0) + 1);
+    }
+    const slots = limit - picks.length;
+    const available = candidates.filter(({bit}) => !(selected & bit));
+    const group =
+      slots === 2 && pending.size
+        ? bestBorrowPair(available, pending)
+        : bestBorrowGroup(available, pending, slots);
+    if (!group.length) {
+      // 剩余名额无法完整补齐任何目标时，按单借顺序补位。
+      group.push(...available.slice(0, slots));
+    }
+    for (const {bit, item} of group) {
+      selected |= bit;
+      picks.push(item.op.name);
+    }
+  }
+  const completed = goals.filter(({mask}) => (mask & ~selected) === 0n);
+  return {
+    ranking,
+    picks,
+    completedLineups: completed.filter((goal) => !goal.core).length,
+    completedCores: completed.filter((goal) => goal.core).length,
+  };
+}
+
 /** 找出已持有但精 0 未练、且在主流或自定义流派中出场的高性价比养成干员。 */
 export function recommendTraining(
   box: Readonly<OperatorBox>,
   plans: readonly BoxPlanSource[],
   selectedKeys?: ReadonlySet<string>,
 ): TrainingRecommendation[] {
-  const usage = planUsage(plans, selectedKeys);
+  const {usage} = planUsage(box, plans, selectedKeys);
   const results: TrainingRecommendation[] = [];
   for (const op of BOX_OPERATORS) {
     if (boxRankOf(box, op.avatar) !== 0) continue;
@@ -397,9 +571,11 @@ export function recommendTraining(
       u.main * 22 +
       u.custom * 14 +
       u.alt * 8 +
+      u.readyMain * 22 +
       (op.stars === 4 ? 14 : op.stars === 5 ? 9 : 4);
 
     const reasons: string[] = [];
+    if (u.readyMain) reasons.push(`${u.readyMain} 套主选已齐`);
     if (u.core > 0) reasons.push(`核心×${u.core}`);
     if (u.names.length > 0) {
       const preview = u.names.slice(0, 2).join(' / ');

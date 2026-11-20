@@ -12,7 +12,7 @@ import {
 import {hasBoxEntries, isBoxSubstitute} from '../box/insights.ts';
 import type {OperatorBox} from '../box/model.ts';
 import {covenantStats, type CovenantStat} from './covenants.ts';
-import type {PlanOp} from './model.ts';
+import {MAX_OPS, type PlanOp} from './model.ts';
 
 export interface RoleCoverageEntry {
   readonly role: CombatRole;
@@ -39,6 +39,7 @@ export interface LineupDiagnostics {
   /** 已有来源，且至少有一项不依赖待确认的替补能力。 */
   readonly coveredCount: number;
   readonly substituteRisks: readonly SubstituteRoleRisk[];
+  readonly borrowPlan: BorrowPlan;
 }
 
 const ESSENTIAL_ROLES: ReadonlySet<CombatRole> = new Set([
@@ -73,42 +74,106 @@ function canTrigger(
   }
 }
 
-// 缺键表示未覆盖；空集合表示有独立来源；非空集合记录可通过借用恢复的本体。
+// 每个掩码是一条可独立成立的来源，掩码中的本体必须同时可用。0 表示无需借用。
+// 若借 A 已能覆盖某项职能，就丢弃同一职能下“还要借 A 和 B”的冗余条件。
 function recordSource<K>(
-  dependencies: Map<K, Set<string>>,
+  dependencies: Map<K, number[]>,
   key: K,
-  required: readonly string[],
+  required: number,
 ): void {
-  const current = dependencies.get(key);
-  if (!current) dependencies.set(key, new Set(required));
-  else if (!required.length) current.clear();
-  else if (current.size) for (const name of required) current.add(name);
+  const options = dependencies.get(key) ?? [];
+  if (options.some((known) => (known & required) === known)) return;
+  const minimal = options.filter((known) => (known & required) !== required);
+  minimal.push(required);
+  dependencies.set(key, minimal);
+}
+
+interface BorrowPlan {
+  readonly names: readonly string[];
+  readonly roles: readonly CombatRole[];
+}
+
+/** 只搜索本阵容的缺口，八人满编最多 256 种组合。依次比较基础职能、总职能、
+ * 占用名额、核心人数。仍相同时沿用阵容次序，避免一键借入仅提供重复职能的人。 */
+function bestRoleBorrowPlan(
+  candidates: readonly PlanOp[],
+  risks: readonly SubstituteRoleRisk[],
+  dependencies: ReadonlyMap<CombatRole, readonly number[]>,
+  limit: number,
+): BorrowPlan {
+  if (!risks.length || limit < 1) return {names: [], roles: []};
+  const maskCount = 1 << candidates.length;
+  const sizes = new Uint8Array(maskCount);
+  const coreMask = candidates.reduce(
+    (mask, slot, i) => (slot.core ? mask | (1 << i) : mask),
+    0,
+  );
+  const goals = risks.map(({role, essential}) => ({
+    options: dependencies.get(role)!,
+    // 一个基础职能优先于所有非基础职能之和。
+    value: essential ? risks.length + 1 : 1,
+  }));
+  let bestMask = 0;
+  let bestScore = 0;
+  for (let mask = 1; mask < maskCount; mask++) {
+    sizes[mask] = sizes[mask >>> 1] + (mask & 1);
+    if (sizes[mask] > limit) continue;
+    let score = 0;
+    for (const {options, value} of goals) {
+      if (options.some((required) => (mask & required) === required))
+        score += value;
+    }
+    const sameSize = sizes[mask] === sizes[bestMask];
+    if (
+      score > bestScore ||
+      (score === bestScore &&
+        (sizes[mask] < sizes[bestMask] ||
+          (sameSize && sizes[mask & coreMask] > sizes[bestMask & coreMask])))
+    ) {
+      bestMask = mask;
+      bestScore = score;
+    }
+  }
+  return {
+    names: candidates
+      .filter((_, i) => bestMask & (1 << i))
+      .map((slot) => slot.name),
+    roles: risks
+      .filter((_, i) =>
+        goals[i].options.some((required) => (bestMask & required) === required),
+      )
+      .map((risk) => risk.role),
+  };
 }
 
 /**
  * 返回已部署阵容的职能及来源。stats 可传入已按实际层数和人数计算的盟约状态。
  * 有当前赛季 Box 时，标记依赖未借本体的来源。替补继承盟约与特质，原型的技能和
  * 部署/攻击条件未在赛季职能表中收录，所以这类来源需确认。无条件装备仍然生效。
+ * borrowLimit 是本次可用的助战名额，缺省只诊断；输入使用游戏的八人部署上限。
  */
 export function diagnoseLineup(
   ops: readonly PlanOp[],
   stats: readonly CovenantStat[] = covenantStats(ops),
   box?: Readonly<OperatorBox>,
+  borrowLimit = 0,
 ): LineupDiagnostics {
   const providers = new Map<CombatRole, Set<string>>();
-  const roleDependencies = new Map<CombatRole, Set<string>>();
-  const elementDependencies = new Map<ElementalCondition, Set<string>>();
+  const roleDependencies = new Map<CombatRole, number[]>();
+  const elementDependencies = new Map<ElementalCondition, number[]>();
   const artsMembers = new Set<string>();
   const conditionalElements: Operator[] = [];
   const activeBox = hasBoxEntries(box) ? box : undefined;
-  const requiredBody = (op: Operator): string[] =>
-    activeBox && isBoxSubstitute(op, activeBox) ? [op.name] : [];
+  const candidates = activeBox
+    ? ops.slice(0, MAX_OPS).filter((slot) => {
+        const op = OPERATOR[slot.name];
+        return op && isBoxSubstitute(op, activeBox);
+      })
+    : [];
+  const bodyBits = new Map(candidates.map((slot, i) => [slot.name, 1 << i]));
+  const requiredBody = (op: Operator): number => bodyBits.get(op.name) ?? 0;
 
-  function add(
-    role: CombatRole,
-    source: string,
-    required: string[] = [],
-  ): void {
+  function add(role: CombatRole, source: string, required = 0): void {
     const list = providers.get(role) ?? new Set<string>();
     list.add(source);
     providers.set(role, list);
@@ -125,7 +190,7 @@ export function diagnoseLineup(
     if (stat.bonusActive) {
       for (const role of covenant.bonusRoles ?? []) add(role, stat.name);
       for (const element of covenant.bonusElements ?? [])
-        recordSource(elementDependencies, element, []);
+        recordSource(elementDependencies, element, 0);
     }
   }
 
@@ -163,30 +228,26 @@ export function diagnoseLineup(
         add(
           role,
           `${op.name}·${eq.name}`,
-          eq.roleTrigger || role === '阻挡' ? body : [],
+          eq.roleTrigger || role === '阻挡' ? body : 0,
         );
       }
       for (const element of eq.inflictsElements ?? [])
-        recordSource(elementDependencies, element, eq.roleTrigger ? body : []);
+        recordSource(elementDependencies, element, eq.roleTrigger ? body : 0);
     }
   }
 
   for (const op of conditionalElements) {
-    const sources = (op.elementalPrerequisites ?? [])
-      .map((element) => elementDependencies.get(element))
-      .filter((source): source is Set<string> => source !== undefined);
-    if (!sources.length) continue;
-    // 可以任选一种前置元素；有一个可靠来源就不必为前置干员借用。
-    const required = requiredBody(op);
-    if (sources.every((source) => source.size > 0)) {
-      for (const source of sources) required.push(...source);
+    for (const element of op.elementalPrerequisites ?? []) {
+      for (const prerequisite of elementDependencies.get(element) ?? []) {
+        add('元素输出', op.name, requiredBody(op) | prerequisite);
+      }
     }
-    add('元素输出', op.name, required);
   }
 
   const entries: RoleCoverageEntry[] = COMBAT_ROLES.map((meta) => {
     const list = [...(providers.get(meta.label) ?? [])];
-    const substituteOnly = !!roleDependencies.get(meta.label)?.size;
+    const sources = roleDependencies.get(meta.label);
+    const substituteOnly = !!sources?.length && !sources.includes(0);
     return {
       role: meta.label,
       id: meta.id,
@@ -201,10 +262,14 @@ export function diagnoseLineup(
     .map((entry) => ({
       role: entry.role,
       essential: entry.essential,
-      operators: [...(roleDependencies.get(entry.role) ?? [])].map((name) => ({
-        name,
-        backupOperator: OPERATOR[name]?.backupOperator,
-      })),
+      operators: candidates
+        .filter((_, i) =>
+          roleDependencies.get(entry.role)!.some((mask) => mask & (1 << i)),
+        )
+        .map(({name}) => ({
+          name,
+          backupOperator: OPERATOR[name]?.backupOperator,
+        })),
     }));
   return {
     entries,
@@ -215,5 +280,11 @@ export function diagnoseLineup(
       (entry) => entry.providers.length && !entry.substituteOnly,
     ).length,
     substituteRisks,
+    borrowPlan: bestRoleBorrowPlan(
+      candidates,
+      substituteRisks,
+      roleDependencies,
+      borrowLimit,
+    ),
   };
 }

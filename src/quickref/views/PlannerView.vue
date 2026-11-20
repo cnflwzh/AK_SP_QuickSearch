@@ -402,8 +402,16 @@ function setLayers(name: string, value: number): void {
 }
 const active = computed(() => stats.value.filter((s) => s.active));
 const cost = computed(() => planCost(ops.value));
+const remainingBorrows = computed(() =>
+  Math.max(0, BORROW_LIMIT - boxSeasonBorrowedCount.value),
+);
 const diagnostics = computed(() =>
-  diagnoseLineup(ops.value, stats.value, activeBox.value),
+  diagnoseLineup(
+    ops.value,
+    stats.value,
+    activeBox.value,
+    remainingBorrows.value,
+  ),
 );
 // 同一名干员可能关联多个职能，只展示和占用一个助战名额。
 const riskBorrowTargets = computed(() => {
@@ -421,14 +429,11 @@ const riskBorrowTargets = computed(() => {
     roles,
   }));
 });
-const remainingBorrows = computed(() =>
-  Math.max(0, BORROW_LIMIT - boxSeasonBorrowedCount.value),
-);
 const riskBorrowError = ref('');
 watch(riskBorrowTargets, () => {
   riskBorrowError.value = '';
 });
-function borrowRiskOperators(names: string[]): void {
+function borrowRiskOperators(names: readonly string[]): void {
   riskBorrowError.value = '';
   try {
     setOperatorRanks(names, BOX_RANK_BORROWED);
@@ -1202,18 +1207,19 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
                 </div>
               </div>
               <button
-                v-if="remainingBorrows >= riskBorrowTargets.length"
+                v-if="diagnostics.borrowPlan.names.length"
                 type="button"
                 class="pl-diag-borrow"
-                @click="
-                  borrowRiskOperators(
-                    riskBorrowTargets.map((target) => target.name),
-                  )
-                ">
-                标记借用 {{ riskBorrowTargets.length }} 名 · 余
-                {{ remainingBorrows }} 位
+                :title="`可补足：${diagnostics.borrowPlan.roles.join('、')}`"
+                @click="borrowRiskOperators(diagnostics.borrowPlan.names)">
+                借用{{ diagnostics.borrowPlan.names.join('、') }} · 补
+                {{ diagnostics.borrowPlan.roles.length }} 项职能
               </button>
-              <template v-else-if="remainingBorrows">
+              <template
+                v-if="
+                  remainingBorrows &&
+                  riskBorrowTargets.length > diagnostics.borrowPlan.names.length
+                ">
                 <span>还可借 {{ remainingBorrows }} 名</span>
                 <button
                   v-for="target in riskBorrowTargets"
@@ -1224,7 +1230,7 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
                   借用{{ target.name }}
                 </button>
               </template>
-              <span v-else>
+              <span v-if="!remainingBorrows">
                 助战名额已满（{{ boxSeasonBorrowedCount }}/{{ BORROW_LIMIT }}）
               </span>
             </div>
@@ -1825,7 +1831,8 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
   font: inherit;
   font-size: 12px;
   font-weight: 700;
-  white-space: nowrap;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   cursor: pointer;
 }
 .pl-sub-note {
