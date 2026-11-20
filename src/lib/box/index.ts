@@ -22,7 +22,37 @@ export {
   type OwnedBoxRank,
   type StoredBoxRank,
 } from './model.ts';
-export {parseExternalBox, readYituliuWorkbook, type BoxImportResult} from './import.ts';
+export {
+  parseExternalBox,
+  readYituliuWorkbook,
+  type BoxImportResult,
+} from './import.ts';
+export {
+  BOX_CODE_PREFIX,
+  boxShareUrl,
+  decodeBox,
+  encodeBox,
+  renderBoxQrDataUrl,
+  renderBoxQrSvg,
+} from './share.ts';
+export {
+  boxAffinityScore,
+  evaluateLineupBox,
+  hasBoxEntries,
+  isBoxAvailable,
+  isBoxSubstitute,
+  operatorBoxStatus,
+  recommendBorrows,
+  recommendTraining,
+  type BorrowRecommendation,
+  type BoxPlanSource,
+  type LineupBoxAssessment,
+  type LineupBoxSubstitute,
+  type LineupBoxUntrained,
+  type OperatorBoxStatus,
+  type OperatorBoxStatusKind,
+  type TrainingRecommendation,
+} from './insights.ts';
 export {
   BOX_STORAGE_KEY,
   applyBoxBatch,

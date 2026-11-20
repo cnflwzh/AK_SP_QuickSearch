@@ -1,4 +1,4 @@
-import {computed, reactive} from 'vue';
+import {computed, reactive, shallowRef} from 'vue';
 import {BORROW_LIMIT} from '../../../data/index.ts';
 import {
   BORROWABLE_SIX_STARS,
@@ -25,11 +25,15 @@ function readStoredBox(): OperatorBox {
   }
 }
 
+/** 最近一次写盘失败时仍保留本页练度，供玩家重试或导出。 */
+export const boxStorageWriteFailed = shallowRef(false);
+
 function writeStoredBox(box: Readonly<OperatorBox>): void {
   try {
     localStorage.setItem(BOX_STORAGE_KEY, JSON.stringify(box));
+    boxStorageWriteFailed.value = false;
   } catch {
-    /* 隐私模式或存储受限时保持当前会话有效。 */
+    boxStorageWriteFailed.value = true;
   }
 }
 
@@ -116,20 +120,27 @@ export function setOperatorRanks(
   namesOrAvatars: readonly string[],
   rank: BoxRank,
 ): number {
-  const next: OperatorBox = {...operatorBox};
-  let changed = 0;
+  const changed = new Set<string>();
   for (const nameOrAvatar of namesOrAvatars) {
     const key = resolveBoxKey(nameOrAvatar);
-    if (!key || boxRankOf(next, key) === rank) continue;
+    if (!key || boxRankOf(operatorBox, key) === rank) continue;
     if (rank === BOX_RANK_BORROWED && !isBorrowableAvatar(key)) continue;
-    if (rank === -1) delete next[key];
-    else next[key] = rank;
-    changed++;
+    changed.add(key);
   }
-  if (!changed) return 0;
-  validateBorrowLimit(next);
-  replaceBoxState(next);
-  return changed;
+  if (!changed.size) return 0;
+  if (rank === BOX_RANK_BORROWED) {
+    const count = boxSeasonBorrowedCount.value + changed.size;
+    if (count > BORROW_LIMIT) {
+      throw new Error(`本次操作会选入 ${count} 名助战，上限为 ${BORROW_LIMIT} 名。请缩小选择范围或先取消部分借用。`);
+    }
+  }
+  // 整批验证完再提交；单人标注只触发该干员的响应式订阅，并只持久化一次。
+  for (const key of changed) {
+    if (rank === -1) delete operatorBox[key];
+    else operatorBox[key] = rank;
+  }
+  writeStoredBox(operatorBox);
+  return changed.size;
 }
 
 /** 设置一名本季干员，返回是否改变。超出助战名额会抛出可展示的错误。 */

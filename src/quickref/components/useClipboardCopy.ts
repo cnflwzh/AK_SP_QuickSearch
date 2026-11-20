@@ -1,6 +1,6 @@
-import {onBeforeUnmount, ref} from 'vue';
+import {onBeforeUnmount, onDeactivated, ref} from 'vue';
 
-export type ClipboardCopyOutcome = 'copied' | 'fallback';
+export type ClipboardCopyOutcome = 'copied' | 'fallback' | 'superseded';
 
 export interface ClipboardCopyOptions {
   /** 复制成功提示持续时长（毫秒）。 */
@@ -18,10 +18,12 @@ export function useClipboardCopy(defaultResetMs = 1600) {
   let requestId = 0;
 
   function reset(): void {
+    requestId++;
     clearTimeout(timer);
     copiedKey.value = '';
   }
 
+  /** 复制文本并短暂标记 key。若期间已重置或发起另一请求，返回 superseded 以跳过过期反馈。 */
   async function copyText(
     text: string,
     key = 'default',
@@ -33,28 +35,22 @@ export function useClipboardCopy(defaultResetMs = 1600) {
     clearTimeout(timer);
     try {
       await navigator.clipboard.writeText(text);
-      if (current === requestId) {
-        copiedKey.value = key;
-        timer = setTimeout(() => {
-          if (current === requestId) copiedKey.value = '';
-        }, duration);
-      }
+      if (current !== requestId) return 'superseded';
+      copiedKey.value = key;
+      timer = setTimeout(() => {
+        if (current === requestId) copiedKey.value = '';
+      }, duration);
       return 'copied';
     } catch {
-      if (current === requestId) {
-        copiedKey.value = '';
-        if (options.promptTitle) {
-          window.prompt(options.promptTitle, text);
-        }
-      }
+      if (current !== requestId) return 'superseded';
+      copiedKey.value = '';
+      if (options.promptTitle) window.prompt(options.promptTitle, text);
       return 'fallback';
     }
   }
 
-  onBeforeUnmount(() => {
-    clearTimeout(timer);
-    requestId++;
-  });
+  onBeforeUnmount(reset);
+  onDeactivated(reset);
 
   return {
     copiedKey,

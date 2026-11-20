@@ -104,7 +104,7 @@ test('numbers links retain navigation destinations without calculator inputs or 
     bountyQuery: '假想敌',
   };
   assert.deepEqual(normalizeQuery('nu', transient), {});
-  for (const tool of ['recruit', 'bounty', 'credit', 'box', 'dealer', 'excuse']) {
+  for (const tool of ['credit', 'dealer', 'excuse']) {
     const query = {
       ...transient,
       tool,
@@ -117,11 +117,19 @@ test('numbers links retain navigation destinations without calculator inputs or 
     assert.deepEqual(normalizeQuery('nu', destination), destination);
     assert.deepEqual(query, original);
   }
+  assert.deepEqual(normalizeQuery('nu', {tool: 'recruit'}), {});
+  assert.deepEqual(normalizeQuery('nu', {tool: 'economy'}), {});
+  assert.deepEqual(normalizeQuery('nu', {tool: 'bounty'}), {});
   assert.deepEqual(normalizeQuery('nu', {tool: 'layers'}), {});
   assert.deepEqual(
     normalizeQuery('nu', {tool: 'missing', layers: 'NaN', card: 'missing'}),
     {},
   );
+  assert.deepEqual(normalizeQuery('ld', {kind: 'bounty'}), {kind: 'bounty'});
+  assert.deepEqual(normalizeQuery('ld', {kind: 'normal'}), {kind: 'normal'});
+  assert.deepEqual(normalizeQuery('ld', {kind: 'boss'}), {});
+  assert.deepEqual(normalizeQuery('ld', {kind: 'bounty'}, LEADERS[0].id), {});
+  assert.deepEqual(normalizeQuery('ld', {kind: 'normal'}, LEADERS[0].id), {});
 });
 
 test('secondary pages keep only their own controls and normalization is idempotent', () => {

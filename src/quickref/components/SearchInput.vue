@@ -178,7 +178,6 @@ defineExpose({focus, inputRef});
     min-height: 36px;
     padding-block: 5px;
     padding-right: 38px;
-    font-size: 13px;
   }
   .q-search-clear {
     width: 34px;

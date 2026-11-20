@@ -42,6 +42,7 @@ import SelectInput, {
   type SelectOption,
 } from '../components/SelectInput.vue';
 import SubTabs, {type SubTabItem} from '../components/SubTabs.vue';
+import ConfirmButton from '../components/ConfirmButton.vue';
 import CopyButton from '../components/CopyButton.vue';
 import {color} from '../format.ts';
 import {useQuickrefActions} from '../state.ts';
@@ -454,20 +455,16 @@ function inspectCardDetail(
             @click="launchMistakeDrill">
             🎯 专攻错题
           </button>
-          <button
+          <ConfirmButton
             v-if="masteredMistakes > 0"
-            type="button"
-            class="btn"
-            @click="game.clearMasteredMistakes">
-            清已掌握
-          </button>
-          <button
+            label="清已掌握"
+            confirm-label="确认移除已掌握错题"
+            @confirm="game.clearMasteredMistakes" />
+          <ConfirmButton
             v-if="state.mistakes.length"
-            type="button"
-            class="btn"
-            @click="game.clearAllMistakes">
-            清空
-          </button>
+            label="清空"
+            confirm-label="确认清空错题本"
+            @confirm="game.clearAllMistakes" />
           <button type="button" class="btn" @click="showMistakes = false">
             收起
           </button>
@@ -487,7 +484,7 @@ function inspectCardDetail(
 
       <ul v-if="activeMistakeList.length" class="nt-dealer-mistake-list">
         <li
-          v-for="item in activeMistakeList.slice(0, 24)"
+          v-for="item in activeMistakeList"
           :key="item.key"
           class="nt-dealer-mistake-row">
           <button
@@ -579,13 +576,11 @@ function inspectCardDetail(
                 : '继续痛扁'
             }}
           </button>
-          <button
+          <ConfirmButton
             v-if="state.mode === 'daily'"
-            type="button"
-            class="btn"
-            @click="game.replayDaily">
-            重刷今日同题
-          </button>
+            label="重刷今日同题"
+            confirm-label="确认重置今日战绩"
+            @confirm="game.replayDaily" />
           <button
             v-if="state.mode === 'daily' && session.dailyCompleted"
             type="button"
@@ -957,13 +952,11 @@ function inspectCardDetail(
           </template>
         </span>
         <div class="nt-dealer-footer-btns">
-          <button
+          <ConfirmButton
             v-if="state.mode === 'free' && session.stats.roundsCleared > 0"
-            type="button"
-            class="btn"
-            @click="game.resetFree">
-            重置战绩
-          </button>
+            label="重置战绩"
+            confirm-label="确认重置战绩"
+            @confirm="game.resetFree" />
           <button
             type="button"
             class="btn"

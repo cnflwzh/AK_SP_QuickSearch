@@ -54,7 +54,6 @@ const {pill, animated, pillStyle} = useSlidingPill({
   border-radius: 5px;
   background: var(--accent);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.14);
-  will-change: transform, width, height;
 }
 .seg-pill.animated {
   transition:

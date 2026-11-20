@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import {computed, nextTick, onBeforeUnmount, ref, shallowRef, watch} from 'vue';
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  ref,
+  shallowRef,
+  watch,
+} from 'vue';
 import {
   ALL_COVENANTS,
   BORROW_LIMIT,
@@ -15,29 +22,32 @@ import {
   BOX_RANK_BORROWED,
   BOX_RANK_META,
   PRESET_SIX_STARS,
-  applyBoxBatch,
   boxRankOf,
+  isBorrowableSixStar,
+  type BoxRank,
+  type OwnedBoxRank,
+} from '../../lib/box/model.ts';
+import {
+  applyBoxBatch,
   boxSeasonBorrowedCount,
   boxSeasonCount,
+  boxStorageWriteFailed,
   clearOperatorBox,
-  isBorrowableSixStar,
+  hasAnyBox,
   operatorBox,
-  parseExternalBox,
-  readYituliuWorkbook,
   rankOfOperator,
   setOperatorRank,
   setOperatorRanks,
-  type BoxImportResult,
-  type BoxRank,
-  type OwnedBoxRank,
-} from '../../lib/box/index.ts';
-import {avatarSrc} from '../../lib/ui/assets.ts';
+} from '../../lib/box/store.ts';
+import type {BoxImportResult} from '../../lib/box/import.ts';
+import {lazyView} from '../../lib/ui/lazyView.ts';
 import {nameScore, normalize} from '../../lib/ui/match.ts';
 import OperatorRosterSources, {
   type RosterSource,
 } from '../components/OperatorRosterSources.vue';
 import type {SubTabDirection} from '../components/SubTabs.vue';
-import BoxImportGuide from './BoxImportGuide.vue';
+import BoxOperatorCard from './BoxOperatorCard.vue';
+import BoxPlannerPanel from './BoxPlannerPanel.vue';
 import CovenantIcon from '../components/CovenantIcon.vue';
 import Segmented from '../components/Segmented.vue';
 import SearchInput from '../components/SearchInput.vue';
@@ -63,6 +73,14 @@ import SectionHeading from '../components/SectionHeading.vue';
 import EmptyState from '../components/EmptyState.vue';
 import {color} from '../format.ts';
 import {useQuickrefActions} from '../state.ts';
+import {
+  currentRoute,
+  navigate,
+  routeQuery,
+  updateQuery,
+} from '../../router/navigation.ts';
+import './numbers.css';
+import '../workbench.css';
 
 type CategoryFilter =
   | 'all'
@@ -77,13 +95,7 @@ type CategoryFilter =
   | 'preset';
 
 type StatusBucketId =
-  | 'e260'
-  | 'e2'
-  | 'e1'
-  | 'e0'
-  | 'borrowed'
-  | 'unborrowed'
-  | 'preset';
+  'e260' | 'e2' | 'e1' | 'e0' | 'borrowed' | 'unborrowed' | 'preset';
 
 interface StatusBucketMeta {
   readonly id: StatusBucketId;
@@ -203,9 +215,11 @@ const tierFilter = ref(0);
 const editMode = ref(false);
 const rosterSource = ref<RosterSource>('fixed');
 const roster = ref<InstanceType<typeof OperatorRosterSources>>();
-const brushes = computed(() => rosterSource.value === 'selectable'
-  ? BRUSHES.filter((brush) => brush.rank !== BOX_RANK_BORROWED)
-  : BRUSHES);
+const brushes = computed(() =>
+  rosterSource.value === 'selectable'
+    ? BRUSHES.filter((brush) => brush.rank !== BOX_RANK_BORROWED)
+    : BRUSHES,
+);
 const rosterDir = ref<SubTabDirection>('');
 const brushIndex = ref(0);
 watch(rosterSource, (source) => {
@@ -220,11 +234,68 @@ const importPreview = shallowRef<BoxImportResult | null>(null);
 const importError = ref('');
 const notice = ref('');
 const fileInput = ref<HTMLInputElement | null>(null);
-const importGuide = ref<InstanceType<typeof BoxImportGuide>>();
+const BoxImportGuide = lazyView(() => import('./BoxImportGuide.vue'));
+const BoxSyncPanel = lazyView(() => import('./BoxSyncPanel.vue'));
+const guideOpen = ref(false);
+const syncOpen = ref(false);
+const syncIncoming = shallowRef<BoxImportResult | null>(null);
+const syncIncomingError = ref('');
 const pasteField = ref<HTMLTextAreaElement>();
 const fileButton = ref<HTMLButtonElement>();
 
+watch(
+  () => currentRoute.value.hash,
+  async (hash, _, onCleanup) => {
+    syncIncoming.value = null;
+    syncIncomingError.value = '';
+    if (!hash.startsWith('#b=')) return;
+    let current = true;
+    onCleanup(() => {
+      current = false;
+    });
+    try {
+      const {parseExternalBox} = await import('../../lib/box/import.ts');
+      if (current) syncIncoming.value = parseExternalBox(hash);
+    } catch (error) {
+      if (!current) return;
+      syncIncomingError.value =
+        error instanceof Error
+          ? error.message
+          : '跨端同步链接不完整或已损坏，请重新扫码。';
+    }
+  },
+  {immediate: true},
+);
+
+function clearSyncHash(): void {
+  syncIncoming.value = null;
+  syncIncomingError.value = '';
+  if (currentRoute.value.hash.startsWith('#b=')) {
+    void navigate({path: '/box', query: routeQuery.value, hash: ''}, true);
+  }
+}
+
+function commitIncomingSync(mode: 'merge' | 'replace'): void {
+  const preview = syncIncoming.value;
+  if (!preview || (mode === 'replace' && !preview.matchedCount)) return;
+  syncIncomingError.value = '';
+  try {
+    applyBoxBatch(preview.entries, mode);
+  } catch (cause) {
+    syncIncomingError.value =
+      cause instanceof Error ? cause.message : '同步导入失败。';
+    return;
+  }
+  // 只有写盘成功才消费链接，存储受限时可保留来源并重试。
+  if (boxStorageWriteFailed.value) return;
+  const b = preview.breakdown;
+  const extraBorrowed = b.borrowed ? ` / 已借用 ${b.borrowed}` : '';
+  notice.value = `已通过跨端同步${mode === 'replace' ? '覆盖' : '合并'}导入 ${preview.matchedCount} 名本赛季干员（精二60 ${b.e260} / 精二 ${b.e2} / 精一 ${b.e1} / 未练精0 ${b.e0}${extraBorrowed}）。`;
+  clearSyncHash();
+}
+
 async function startGuidedImport(method: 'file' | 'paste'): Promise<void> {
+  syncOpen.value = false;
   importOpen.value = true;
   // 手机选择文件需要用户手势。文件输入常驻，在等待 Vue 渲染面板前打开它。
   if (method === 'file') fileInput.value?.click();
@@ -235,6 +306,18 @@ async function startGuidedImport(method: 'file' | 'paste'): Promise<void> {
   target?.focus({preventScroll: true});
 }
 
+watch(
+  () => routeQuery.value.import,
+  (flag) => {
+    if (flag !== '1') return;
+    syncOpen.value = false;
+    importOpen.value = true;
+    void updateQuery({import: null}, true);
+    guideOpen.value = true;
+  },
+  {immediate: true},
+);
+
 let importRevision = 0;
 
 // 输入、档位或面板变化立即作废旧预览和在途读取，覆盖按钮只能提交当前内容。
@@ -244,10 +327,14 @@ function invalidateImportPreview(): void {
   importPreview.value = null;
   importError.value = '';
 }
-watch([importText, fallbackRank, importOpen], invalidateImportPreview, {flush: 'sync'});
+watch([importText, fallbackRank, importOpen], invalidateImportPreview, {
+  flush: 'sync',
+});
 onBeforeUnmount(invalidateImportPreview);
 
-const currentBrush = computed<BoxRank>(() => brushes.value[brushIndex.value].rank);
+const currentBrush = computed<BoxRank>(
+  () => brushes.value[brushIndex.value].rank,
+);
 const isBorrowBrush = computed(
   () => editMode.value && currentBrush.value === BOX_RANK_BORROWED,
 );
@@ -462,20 +549,28 @@ const rosterGroups = computed(() => {
       items: rosterOf(name).filter((op) => visible.has(op.avatar)),
     }));
   }
-  return groups.filter((group) => group.items.length > 0).map((group) => {
-    let activeCount = 0;
-    let ownedCount = 0;
-    let borrowedCount = 0;
-    let unborrowedCount = 0;
-    for (const op of group.items) {
-      const rank = opRank(op);
-      if (rank >= 0) ownedCount++;
-      if (rank >= 1) activeCount++;
-      if (rank === BOX_RANK_BORROWED) borrowedCount++;
-      if (rank === -1 && isBorrowableSixStar(op)) unborrowedCount++;
-    }
-    return {...group, activeCount, ownedCount, borrowedCount, unborrowedCount};
-  });
+  return groups
+    .filter((group) => group.items.length > 0)
+    .map((group) => {
+      let activeCount = 0;
+      let ownedCount = 0;
+      let borrowedCount = 0;
+      let unborrowedCount = 0;
+      for (const op of group.items) {
+        const rank = opRank(op);
+        if (rank >= 0) ownedCount++;
+        if (rank >= 1) activeCount++;
+        if (rank === BOX_RANK_BORROWED) borrowedCount++;
+        if (rank === -1 && isBorrowableSixStar(op)) unborrowedCount++;
+      }
+      return {
+        ...group,
+        activeCount,
+        ownedCount,
+        borrowedCount,
+        unborrowedCount,
+      };
+    });
 });
 
 const activeFilters = computed(() => {
@@ -533,55 +628,6 @@ function toggleEditMode(): void {
   editMode.value = !editMode.value;
 }
 
-function opPrimaryTag(op: Operator): string {
-  const rank = opRank(op);
-  if (rank === 3) return '精二 60 · 满加成';
-  if (rank === 2) return '精英二 · 已激活';
-  if (rank === 1) return '精英一 · 已激活';
-  if (rank === 0) return '已持未练 · 精0';
-  if (rank === BOX_RANK_BORROWED) return '已借用 · 助战 6★';
-  if (isBorrowableSixStar(op)) return '未借用 · 可借 6★';
-  if (op.stars === 6) return '特许 6★ · 系统预设';
-  return `系统预设 · ${op.stars}★`;
-}
-
-function opSubText(op: Operator): string {
-  const rank = opRank(op);
-  if (rank >= 0) return BOX_RANK_META[rank].bonusText;
-  if (rank === BOX_RANK_BORROWED) return '本体出战 · 无加成(等效精0)';
-  if (isBorrowableSixStar(op)) {
-    return op.backupOperator
-      ? `可借助战 · 不借替为 ${op.backupOperator}`
-      : '可借同名助战补位';
-  }
-  if (op.stars === 6) return '自带本体 · 无需借用';
-  return '自带本体 · 无自持加成';
-}
-
-function opCardTitle(op: Operator): string {
-  let actionHint = '点击查看干员详情';
-  if (editMode.value) {
-    actionHint =
-      currentBrush.value === BOX_RANK_BORROWED && !isBorrowableSixStar(op)
-        ? '系统预设干员无需借用'
-        : `点击标为「${brushes.value[brushIndex.value].label}」`;
-  }
-  return `${op.name}（${TIER_LABELS[op.tier]}阶 ${op.stars}★）：${opPrimaryTag(op)} · ${opSubText(op)}｜${actionHint}`;
-}
-
-function opToneClass(op: Operator): string {
-  const rank = opRank(op);
-  if (rank >= 0) return `rank-${rank}`;
-  if (rank === BOX_RANK_BORROWED) return 'rank-borrowed';
-  if (isBorrowableSixStar(op)) return 'rank-unborrowed';
-  if (op.stars === 6) return 'rank-preset6';
-  return 'rank-preset';
-}
-
-function isBrushInapplicable(op: Operator): boolean {
-  return isBorrowBrush.value && !isBorrowableSixStar(op);
-}
-
 function onCardClick(op: Operator): void {
   if (!editMode.value) {
     actions.openDetail('op', op.name);
@@ -590,6 +636,10 @@ function onCardClick(op: Operator): void {
   notice.value = '';
   if (currentBrush.value === BOX_RANK_BORROWED && !isBorrowableSixStar(op)) {
     notice.value = `「${op.name}」属于系统预设干员，局内自带本体出战，无需占用助战名额。`;
+    return;
+  }
+  if (isBorrowBrush.value && opRank(op) >= 0) {
+    notice.value = `「${op.name}」已持有，会以自有干员出战。`;
     return;
   }
   paintOperator(op.avatar);
@@ -606,10 +656,13 @@ function paintOperator(avatar: string): void {
 }
 
 const brushTargets = computed(() => {
-  if (rosterSource.value === 'selectable') return roster.value?.visibleOwnable ?? [];
+  if (rosterSource.value === 'selectable')
+    return roster.value?.visibleOwnable ?? [];
   if (rosterSource.value === 'substitute') return [];
   return isBorrowBrush.value
-    ? filteredOperators.value.filter((op) => isBorrowableSixStar(op) && opRank(op) < 0)
+    ? filteredOperators.value.filter(
+        (op) => isBorrowableSixStar(op) && opRank(op) < 0,
+      )
     : filteredOperators.value;
 });
 
@@ -621,7 +674,10 @@ function applyBrushToVisible(): void {
     return;
   }
   try {
-    const changed = setOperatorRanks(brushTargets.value.map((op) => op.avatar), target);
+    const changed = setOperatorRanks(
+      brushTargets.value.map((op) => op.avatar),
+      target,
+    );
     notice.value = `已更新 ${changed} 名干员为「${BOX_RANK_META[target].label}」。`;
   } catch (cause) {
     notice.value = cause instanceof Error ? cause.message : '批量编辑失败。';
@@ -633,15 +689,16 @@ function confirmClearAll(): void {
   notice.value = '已清空全部干员练度与助战借用标记。';
 }
 
-function parseInput(): void {
+async function parseInput(): Promise<void> {
   invalidateImportPreview();
+  const request = importRevision;
   notice.value = '';
   try {
-    importPreview.value = parseExternalBox(
-      importText.value,
-      fallbackRank.value,
-    );
+    const {parseExternalBox} = await import('../../lib/box/import.ts');
+    if (request !== importRevision) return;
+    importPreview.value = parseExternalBox(importText.value, fallbackRank.value);
   } catch (cause) {
+    if (request !== importRevision) return;
     importError.value =
       cause instanceof Error ? cause.message : '导入解析失败，请重试。';
   }
@@ -660,9 +717,14 @@ async function onSelectFile(event: Event): Promise<void> {
     if (file.size > 5 * 1024 * 1024) {
       throw new Error('文件超过 5 MB，请检查是否选中了干员练度文件。');
     }
-    if (/\.xlsx$/i.test(file.name) ||
-        file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+    if (
+      /\.xlsx$/i.test(file.name) ||
+      file.type ===
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ) {
       workbookName.value = file.name;
+      const {readYituliuWorkbook} = await import('../../lib/box/import.ts');
+      if (request !== importRevision) return;
       const preview = await readYituliuWorkbook(file);
       if (request === importRevision) importPreview.value = preview;
       return;
@@ -670,7 +732,7 @@ async function onSelectFile(event: Event): Promise<void> {
     const text = await file.text();
     if (request !== importRevision) return;
     importText.value = text;
-    parseInput();
+    await parseInput();
   } catch (cause) {
     if (request !== importRevision) return;
     workbookName.value = '';
@@ -707,7 +769,50 @@ function resetFilters(): void {
 </script>
 
 <template>
-  <div :class="['bx-tool', {'is-edit': editMode}]">
+  <div :class="['bx-tool', 'workbench-controls', {'is-edit': editMode}]">
+    <section
+      v-if="syncIncoming || syncIncomingError"
+      class="nc bx-sync-incoming panel-reveal"
+      aria-label="跨端同步导入确认">
+      <template v-if="syncIncoming">
+        <div class="bx-sync-in-head">
+          <b>收到跨端同步的干员 Box</b>
+          <span>
+            共 {{ syncIncoming.matchedCount }} 名（精二60
+            {{ syncIncoming.breakdown.e260 }} / 精二
+            {{ syncIncoming.breakdown.e2 }} / 精一
+            {{ syncIncoming.breakdown.e1 }} / 精0
+            {{ syncIncoming.breakdown.e0 }}
+            <template v-if="syncIncoming.breakdown.borrowed">
+              / 已借用 {{ syncIncoming.breakdown.borrowed }}
+            </template>
+            ）
+          </span>
+        </div>
+        <div class="bx-actions">
+          <button
+            type="button"
+            class="btn p"
+            @click="commitIncomingSync('merge')">
+            合并导入（保留较高练度）
+          </button>
+          <ConfirmButton
+            label="覆盖本季练度"
+            confirm-label="确认覆盖当前 Box"
+            :disabled="!syncIncoming.matchedCount"
+            :reset-key="syncIncoming"
+            @confirm="commitIncomingSync('replace')" />
+          <button type="button" class="btn" @click="clearSyncHash">忽略</button>
+        </div>
+      </template>
+      <StatusNotice
+        v-if="syncIncomingError"
+        tone="warning"
+        :message="syncIncomingError"
+        dismissible
+        @dismiss="clearSyncHash" />
+    </section>
+
     <section class="nc bx-hero" aria-label="干员练度与助战总览">
       <div class="bx-overview">
         <div class="bx-hero-top">
@@ -719,12 +824,20 @@ function resetFilters(): void {
               <span class="bx-pct">{{ rankCounts.activatedPct }}%</span>
             </div>
             <p class="bx-subline">
-              已持有 <b>{{ rankCounts.owned }}</b> · 未持有
-              <b>{{ rankCounts.missing }}</b>（已借
-              <b :class="['borrow-num', {over: rankCounts.borrowed > BORROW_LIMIT}]">
+              已持有
+              <b>{{ rankCounts.owned }}</b>
+              · 未持有
+              <b>{{ rankCounts.missing }}</b>
+              （已借
+              <b
+                :class="[
+                  'borrow-num',
+                  {over: rankCounts.borrowed > BORROW_LIMIT},
+                ]">
                 {{ rankCounts.borrowed }}/{{ BORROW_LIMIT }}
               </b>
-              · 可借 {{ rankCounts.unborrowed }} · 预设 {{ rankCounts.preset }}）
+              · 可借 {{ rankCounts.unborrowed }} · 预设
+              {{ rankCounts.preset }}）
             </p>
           </div>
           <div class="bx-top-actions">
@@ -732,8 +845,22 @@ function resetFilters(): void {
               type="button"
               :class="['btn', {p: importOpen}]"
               :aria-expanded="importOpen"
-              @click="importOpen = !importOpen">
+              @click="
+                importOpen = !importOpen;
+                if (importOpen) syncOpen = false;
+              ">
               导入 MAA / 名单
+            </button>
+            <button
+              v-if="hasAnyBox"
+              type="button"
+              :class="['btn', {p: syncOpen}]"
+              :aria-expanded="syncOpen"
+              @click="
+                syncOpen = !syncOpen;
+                if (syncOpen) importOpen = false;
+              ">
+              跨端同步
             </button>
             <button
               type="button"
@@ -779,7 +906,10 @@ function resetFilters(): void {
             :style="{width: `${rankCounts.wPreset}%`}"></i>
         </div>
 
-        <div class="bx-pillars" role="group" aria-label="按持有状态与练度分类筛选">
+        <div
+          class="bx-pillars"
+          role="group"
+          aria-label="按持有状态与练度分类筛选">
           <div class="bx-pillar">
             <div class="bx-pillar-head">
               <span class="bx-pillar-title">
@@ -823,9 +953,7 @@ function resetFilters(): void {
               <span class="bx-pillar-title">
                 二、未持有
                 <b>{{ rankCounts.missing }}</b>
-                <small>
-                  含 {{ BORROWABLE_SIX_STARS.length }} 名可借池 6★
-                </small>
+                <small>含 {{ BORROWABLE_SIX_STARS.length }} 名可借池 6★</small>
               </span>
               <span class="bx-pillar-actions">
                 <span
@@ -939,7 +1067,11 @@ function resetFilters(): void {
         </div>
       </div>
 
-      <BoxImportGuide ref="importGuide" @start="startGuidedImport" />
+      <BoxSyncPanel v-if="syncOpen && hasAnyBox" @close="syncOpen = false" />
+      <BoxImportGuide
+        v-if="guideOpen"
+        @start="startGuidedImport"
+        @close="guideOpen = false" />
       <input
         ref="fileInput"
         type="file"
@@ -949,7 +1081,10 @@ function resetFilters(): void {
       <div v-if="importOpen" class="bx-import panel-reveal">
         <div class="bx-import-head">
           <b>批量导入干员持有与练度</b>
-          <button type="button" class="btn bx-guide-link" @click="importGuide?.show()">
+          <button
+            type="button"
+            class="btn bx-guide-link"
+            @click="guideOpen = true">
             导入指南
           </button>
         </div>
@@ -961,8 +1096,8 @@ function resetFilters(): void {
           ref="pasteField"
           v-model="importText"
           class="bx-textarea"
-          aria-label="粘贴干员练度 JSON、一图流练度表或干员名单"
-          placeholder="粘贴练度 JSON、带列名的一图流表格，或干员名，如：鸿雪、仇白"></textarea>
+          aria-label="粘贴干员练度 JSON、一图流练度表、同步短码或干员名单"
+          placeholder="粘贴 MAA JSON、带列名的一图流表格、WB 跨端同步码，或干员名（如：鸿雪、仇白）"></textarea>
         <div class="bx-import-controls">
           <label v-if="!workbookName" class="bx-fallback-rank">
             纯名单默认状态
@@ -971,53 +1106,63 @@ function resetFilters(): void {
               :options="FALLBACK_RANK_OPTIONS"
               aria-label="纯名单默认状态" />
           </label>
-          <button v-if="!workbookName" type="button" class="btn p" @click="parseInput">
+          <button
+            v-if="!workbookName"
+            type="button"
+            class="btn p"
+            @click="parseInput">
             解析预览
           </button>
-          <button v-else type="button" class="btn" @click="startGuidedImport('paste')">
+          <button
+            v-else
+            type="button"
+            class="btn"
+            @click="startGuidedImport('paste')">
             改用粘贴
           </button>
-          <button ref="fileButton" type="button" class="btn" @click="fileInput?.click()">
+          <button
+            ref="fileButton"
+            type="button"
+            class="btn"
+            @click="fileInput?.click()">
             选择练度文件
           </button>
           <button type="button" class="btn" @click="importOpen = false">
             收起
           </button>
         </div>
-        <StatusNotice
-          v-if="importError"
-          tone="danger"
-          :message="importError" />
+        <StatusNotice v-if="importError" tone="danger" :message="importError" />
         <div v-if="importPreview" class="bx-preview panel-reveal">
           <p>
-            识别格式：<b>{{ importPreview.formatLabel }}</b> · 匹配本赛季干员
-            <b>{{ importPreview.matchedCount }}</b> 名（精二60
-            {{ importPreview.breakdown.e260 }} / 精二
+            识别格式：
+            <b>{{ importPreview.formatLabel }}</b>
+            · 匹配本赛季干员
+            <b>{{ importPreview.matchedCount }}</b>
+            名（精二60 {{ importPreview.breakdown.e260 }} / 精二
             {{ importPreview.breakdown.e2 }} / 精一
             {{ importPreview.breakdown.e1 }} / 未练精0
-            {{ importPreview.breakdown.e0 }}<template
-              v-if="importPreview.breakdown.borrowed">
+            {{ importPreview.breakdown.e0 }}
+            <template v-if="importPreview.breakdown.borrowed">
               / 已借用 {{ importPreview.breakdown.borrowed }}
-            </template>）<template v-if="importPreview.otherSeasonCount">
+            </template>
+            ）
+            <template v-if="importPreview.otherSeasonCount">
               · 其他赛季记录 {{ importPreview.otherSeasonCount }} 条
-            </template><template v-if="importPreview.ignoredCount">
+            </template>
+            <template v-if="importPreview.ignoredCount">
               · 跳过未入池/未识别 {{ importPreview.ignoredCount }} 项
             </template>
           </p>
           <div class="bx-actions">
-            <button
-              type="button"
-              class="btn p"
-              @click="commitImport('merge')">
+            <button type="button" class="btn p" @click="commitImport('merge')">
               合并导入（保留较高练度）
             </button>
-            <button
-              type="button"
-              class="btn"
+            <ConfirmButton
+              label="覆盖本季练度"
+              confirm-label="确认替换（清除名单外标记）"
               :disabled="!importPreview.matchedCount"
-              @click="commitImport('replace')">
-              覆盖本季练度
-            </button>
+              :reset-key="importPreview"
+              @confirm="commitImport('replace')" />
             <button type="button" class="btn" @click="invalidateImportPreview">
               取消
             </button>
@@ -1040,7 +1185,15 @@ function resetFilters(): void {
             @change="brushIndex = $event" />
         </div>
         <div class="bx-actions">
+          <ConfirmButton
+            v-if="currentBrush === -1"
+            label="当前列表全标「未持有」"
+            :confirm-label="`清除筛选内 ${brushTargets.length} 人的标记`"
+            :disabled="!brushTargets.length"
+            :reset-key="brushTargets"
+            @confirm="applyBrushToVisible" />
           <button
+            v-else
             type="button"
             class="btn"
             :disabled="!brushTargets.length"
@@ -1060,11 +1213,16 @@ function resetFilters(): void {
       </div>
       <p class="bx-editor-hint">
         <template v-if="isBorrowBrush">
-          「已借用」画笔适用于 {{ BORROWABLE_SIX_STARS.length }} 名非特许六星，批量标记会跳过已持有干员（当前已借
-          <b>{{ rankCounts.borrowed }} / {{ BORROW_LIMIT }}</b> 名）；借用干员在局内无自持加成，属性等效精0。
+          「已借用」画笔适用于
+          {{ BORROWABLE_SIX_STARS.length }}
+          名非特许六星，批量标记会跳过已持有干员（当前已借
+          <b>{{ rankCounts.borrowed }} / {{ BORROW_LIMIT }}</b>
+          名）；借用干员在局内无自持加成，属性等效精0。
         </template>
         <template v-else>
-          点干员卡片标为「{{ brushes[brushIndex].label }}」，再点一次退回未持有。
+          点干员卡片标为「{{
+            brushes[brushIndex].label
+          }}」，再点一次退回未持有。
         </template>
       </p>
     </section>
@@ -1072,7 +1230,7 @@ function resetFilters(): void {
     <OperatorRosterSources
       ref="roster"
       v-model="rosterSource"
-      :tab-level="3"
+      :tab-level="2"
       show-ranks
       :brush="editMode ? currentBrush : undefined"
       @paint="paintOperator"
@@ -1087,231 +1245,152 @@ function resetFilters(): void {
       v-if="rosterSource === 'fixed'"
       :class="['bx-fixed-pane', {'subtab-panel': !!rosterDir}]"
       :data-dir="rosterDir || undefined">
-    <section class="nc bx-toolbar" aria-label="列表筛选与分组">
-      <div class="bx-filter-row">
-        <SearchInput
-          v-model="search"
-          class="bx-search"
-          placeholder="搜干员名 / 拼音 / 盟约 / 替补干员…"
-          aria-label="搜索干员" />
-        <SelectInput
-          v-model="tierFilter"
-          :options="TIER_FILTER_OPTIONS"
-          highlight-active
-          aria-label="按等阶筛选" />
-        <SelectInput
-          v-model="covenant"
-          :options="COVENANT_FILTER_OPTIONS"
-          highlight-active
-          aria-label="按盟约筛选" />
-        <Segmented
-          :labels="GROUP_MODE_LABELS"
-          :active="groupModeIndex"
-          attr="box-group-mode"
-          aria-label="干员分组方式"
-          @change="groupModeIndex = $event" />
-        <span class="bx-count">
-          共 <b>{{ filteredOperators.length }}</b> 名
-        </span>
+      <BoxPlannerPanel v-if="hasAnyBox" />
+      <section class="nc bx-toolbar" aria-label="列表筛选与分组">
+        <div class="bx-filter-row">
+          <SearchInput
+            v-model="search"
+            class="bx-search"
+            placeholder="搜干员名 / 拼音 / 盟约 / 替补干员…"
+            aria-label="搜索干员" />
+          <SelectInput
+            v-model="tierFilter"
+            :options="TIER_FILTER_OPTIONS"
+            highlight-active
+            aria-label="按等阶筛选" />
+          <SelectInput
+            v-model="covenant"
+            :options="COVENANT_FILTER_OPTIONS"
+            highlight-active
+            aria-label="按盟约筛选" />
+          <Segmented
+            :labels="GROUP_MODE_LABELS"
+            :active="groupModeIndex"
+            attr="box-group-mode"
+            aria-label="干员分组方式"
+            @change="groupModeIndex = $event" />
+          <span class="bx-count">
+            共
+            <b>{{ filteredOperators.length }}</b>
+            名
+          </span>
+        </div>
+
+        <div v-if="activeFilters.length" class="bx-active-filters">
+          <span class="bx-kicker">当前筛选</span>
+          <button
+            v-for="item in activeFilters"
+            :key="item.key"
+            type="button"
+            class="bx-filter-chip"
+            :title="`清除${item.label}`"
+            @click="item.clear()">
+            <span>{{ item.label }}</span>
+            <i aria-hidden="true">×</i>
+          </button>
+          <button type="button" class="bx-clear-all" @click="resetFilters">
+            重置全部
+          </button>
+        </div>
+      </section>
+
+      <div class="bx-groups">
+        <template v-if="groupMode === 'status'">
+          <section
+            v-for="group in statusGroups"
+            :key="group.id"
+            class="bx-group">
+            <SectionHeading
+              variant="dot"
+              :accent="BUCKET_ACCENT[group.id]"
+              :title="group.title"
+              :count="
+                group.id === 'borrowed'
+                  ? `${group.items.length} / ${BORROW_LIMIT} 名`
+                  : `${group.items.length} 名`
+              "
+              :count-tone="
+                group.id === 'borrowed' && rankCounts.borrowed > BORROW_LIMIT
+                  ? 'danger'
+                  : 'default'
+              "
+              :desc="group.desc"
+              :level="3" />
+
+            <div class="bx-grid">
+              <BoxOperatorCard
+                v-for="op in group.items"
+                :key="op.avatar"
+                :op="op"
+                :rank="opRank(op)"
+                :brush="editMode ? currentBrush : undefined"
+                @activate="onCardClick" />
+            </div>
+          </section>
+        </template>
+
+        <template v-else>
+          <section
+            v-for="group in rosterGroups"
+            :key="group.title"
+            class="bx-group">
+            <header class="bx-group-head" :data-t="group.tier">
+              <i v-if="group.tier" class="bx-tier-badge">{{ group.title }}</i>
+              <h3
+                v-else
+                class="bx-group-title bx-covenant-title"
+                :style="{color: color(group.title)}">
+                <CovenantIcon :name="group.title" />
+                {{ group.title }}
+              </h3>
+              <span class="bx-group-desc">
+                已激活
+                <b>{{ group.activeCount }}</b>
+                · 自持 {{ group.ownedCount }} / {{ group.items.length }} 名
+                <template v-if="group.borrowedCount > 0">
+                  ·
+                  <em class="bx-tier-borrowed">
+                    已借 {{ group.borrowedCount }} 名
+                  </em>
+                </template>
+                <template v-if="group.unborrowedCount > 0">
+                  ·
+                  <em class="bx-tier-unborrowed">
+                    可借 6★ {{ group.unborrowedCount }} 名
+                  </em>
+                </template>
+              </span>
+              <span class="bx-group-line" aria-hidden="true"></span>
+            </header>
+
+            <div class="bx-grid">
+              <BoxOperatorCard
+                v-for="op in group.items"
+                :key="op.avatar"
+                :op="op"
+                :rank="opRank(op)"
+                :brush="editMode ? currentBrush : undefined"
+                :hide-tier="!!group.tier"
+                @activate="onCardClick" />
+            </div>
+          </section>
+        </template>
+
+        <EmptyState
+          v-if="!filteredOperators.length"
+          card
+          message="当前筛选下没有匹配的干员"
+          action-label="重置筛选条件"
+          @action="resetFilters" />
       </div>
 
-      <div v-if="activeFilters.length" class="bx-active-filters">
-        <span class="bx-kicker">当前筛选</span>
-        <button
-          v-for="item in activeFilters"
-          :key="item.key"
-          type="button"
-          class="bx-filter-chip"
-          :title="`清除${item.label}`"
-          @click="item.clear()">
-          <span>{{ item.label }}</span>
-          <i aria-hidden="true">×</i>
-        </button>
-        <button type="button" class="bx-clear-all" @click="resetFilters">
-          重置全部
-        </button>
-      </div>
-
-    </section>
-
-    <div class="bx-groups">
-      <template v-if="groupMode === 'status'">
-        <section
-          v-for="group in statusGroups"
-          :key="group.id"
-          class="bx-group">
-          <SectionHeading
-            variant="dot"
-            :accent="BUCKET_ACCENT[group.id]"
-            :title="group.title"
-            :count="
-              group.id === 'borrowed'
-                ? `${group.items.length} / ${BORROW_LIMIT} 名`
-                : `${group.items.length} 名`
-            "
-            :count-tone="
-              group.id === 'borrowed' && rankCounts.borrowed > BORROW_LIMIT
-                ? 'danger'
-                : 'default'
-            "
-            :desc="group.desc"
-            :level="3" />
-
-          <div class="bx-grid">
-            <article
-              v-for="op in group.items"
-              :key="op.avatar"
-              :class="[
-                'bx-card',
-                opToneClass(op),
-                {dimmed: isBrushInapplicable(op)},
-              ]"
-              :data-t="op.tier">
-              <button
-                type="button"
-                class="bx-card-main"
-                :aria-pressed="editMode ? opRank(op) !== -1 : undefined"
-                :title="opCardTitle(op)"
-                @click="onCardClick(op)">
-                <span class="bx-av">
-                  <img
-                    :src="avatarSrc(op.name)"
-                    alt=""
-                    width="44"
-                    height="44"
-                    loading="lazy"
-                    decoding="async" />
-                  <b class="bx-av-tier">{{ TIER_LABELS[op.tier] }}</b>
-                </span>
-                <span class="bx-meta">
-                  <span class="bx-name-row">
-                    <strong class="bx-name">{{ op.name }}</strong>
-                    <span class="bx-dots" aria-hidden="true">
-                      <u
-                        v-for="cov in op.covenants"
-                        :key="cov"
-                        :style="{'--c': color(cov)}"></u>
-                    </span>
-                  </span>
-                  <span class="bx-status-row">
-                    <span class="bx-tag">{{ opPrimaryTag(op) }}</span>
-                  </span>
-                  <small class="bx-sub-text">{{ opSubText(op) }}</small>
-                </span>
-              </button>
-              <button
-                v-if="editMode"
-                type="button"
-                class="bx-detail-btn"
-                :aria-label="`查看${op.name}干员详情`"
-                title="查看干员详情"
-                @click="actions.openDetail('op', op.name)">
-                i
-              </button>
-            </article>
-          </div>
-        </section>
-      </template>
-
-      <template v-else>
-        <section
-          v-for="group in rosterGroups"
-          :key="group.title"
-          class="bx-group">
-          <header class="bx-group-head" :data-t="group.tier">
-            <i v-if="group.tier" class="bx-tier-badge">{{ group.title }}</i>
-            <h3
-              v-else
-              class="bx-group-title bx-covenant-title"
-              :style="{color: color(group.title)}">
-              <CovenantIcon :name="group.title" />
-              {{ group.title }}
-            </h3>
-            <span class="bx-group-desc">
-              已激活 <b>{{ group.activeCount }}</b> · 自持
-              {{ group.ownedCount }} / {{ group.items.length }} 名<template
-                v-if="group.borrowedCount > 0">
-                ·
-                <em class="bx-tier-borrowed">
-                  已借 {{ group.borrowedCount }} 名
-                </em>
-              </template><template v-if="group.unborrowedCount > 0">
-                ·
-                <em class="bx-tier-unborrowed">
-                  可借 6★ {{ group.unborrowedCount }} 名
-                </em>
-              </template>
-            </span>
-            <span class="bx-group-line" aria-hidden="true"></span>
-          </header>
-
-          <div class="bx-grid">
-            <article
-              v-for="op in group.items"
-              :key="op.avatar"
-              :class="[
-                'bx-card',
-                opToneClass(op),
-                {dimmed: isBrushInapplicable(op)},
-              ]"
-              :data-t="op.tier">
-              <button
-                type="button"
-                class="bx-card-main"
-                :aria-pressed="editMode ? opRank(op) !== -1 : undefined"
-                :title="opCardTitle(op)"
-                @click="onCardClick(op)">
-                <span class="bx-av">
-                  <img
-                    :src="avatarSrc(op.name)"
-                    alt=""
-                    width="44"
-                    height="44"
-                    loading="lazy"
-                    decoding="async" />
-                  <b v-if="!group.tier" class="bx-av-tier">{{ TIER_LABELS[op.tier] }}</b>
-                </span>
-                <span class="bx-meta">
-                  <span class="bx-name-row">
-                    <strong class="bx-name">{{ op.name }}</strong>
-                    <span class="bx-dots" aria-hidden="true">
-                      <u
-                        v-for="cov in op.covenants"
-                        :key="cov"
-                        :style="{'--c': color(cov)}"></u>
-                    </span>
-                  </span>
-                  <span class="bx-status-row">
-                    <span class="bx-tag">{{ opPrimaryTag(op) }}</span>
-                  </span>
-                  <small class="bx-sub-text">{{ opSubText(op) }}</small>
-                </span>
-              </button>
-              <button
-                v-if="editMode"
-                type="button"
-                class="bx-detail-btn"
-                :aria-label="`查看${op.name}干员详情`"
-                title="查看干员详情"
-                @click="actions.openDetail('op', op.name)">
-                i
-              </button>
-            </article>
-          </div>
-        </section>
-      </template>
-
-      <EmptyState
-        v-if="!filteredOperators.length"
-        card
-        message="当前筛选下没有匹配的干员"
-        action-label="重置筛选条件"
-        @action="resetFilters" />
-    </div>
-
-    <p class="nt-footnote">
-      固定名单共 {{ rankCounts.total }} 名可持有干员。默认处于安全浏览模式，点干员卡片看详情；点击「✎ 编辑练度」可标记自持等级或助战借用。数据仅存本机浏览器，可在「设置 → 配置备份」随配置迁移。
-    </p>
+      <p class="nt-footnote">
+        固定名单共
+        {{ rankCounts.total }}
+        名可持有干员。默认处于安全浏览模式，点干员卡片看详情；点击「✎
+        编辑练度」可标记自持等级或助战借用。数据仅存本机浏览器，可在「设置 →
+        配置备份」随配置迁移。
+      </p>
     </div>
   </div>
 </template>
@@ -1334,6 +1413,7 @@ function resetFilters(): void {
   --bx-preset: #0891b2;
   --bx-preset-ink: #ffffff;
   --bx-unborrowed: #64748b;
+  container: box-tools / inline-size;
   display: grid;
   gap: 12px;
   min-width: 0;
@@ -1779,7 +1859,10 @@ function resetFilters(): void {
 }
 .bx-rules-row {
   display: grid;
-  grid-template-columns: minmax(94px, 1.35fr) 58px repeat(3, minmax(36px, 0.65fr));
+  grid-template-columns: minmax(94px, 1.35fr) 58px repeat(
+      3,
+      minmax(36px, 0.65fr)
+    );
   align-items: center;
   gap: 5px;
   padding: 4px 8px;
@@ -2224,264 +2307,6 @@ function resetFilters(): void {
   grid-template-columns: repeat(auto-fill, minmax(198px, 1fr));
   gap: 8px;
 }
-.bx-card {
-  position: relative;
-  display: flex;
-  align-items: stretch;
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--line2);
-  border-radius: 8px;
-  background: var(--surface);
-  overflow: hidden;
-  transition:
-    border-color 0.14s,
-    background-color 0.14s,
-    opacity 0.14s,
-    transform 0.12s;
-}
-.bx-card.dimmed {
-  opacity: 0.42;
-}
-@media (hover: hover) {
-  .bx-card:hover {
-    border-color: var(--teal);
-    transform: translateY(-1px);
-  }
-  .bx-tool.is-edit .bx-card:not(.dimmed):hover {
-    border-color: var(--accent);
-  }
-}
-
-/* 所有局内可用本体的类别均为彩色卡片+彩色头像；仅未借用 6★（局内无法用本体）置灰 */
-.bx-card.rank-3 {
-  border-color: color-mix(in srgb, var(--bx-r3) 56%, var(--line));
-  border-left-color: var(--bx-r3);
-  background: color-mix(in srgb, var(--bx-r3) 10%, var(--surface));
-}
-.bx-card.rank-2 {
-  border-color: color-mix(in srgb, var(--bx-r2) 52%, var(--line));
-  border-left-color: var(--bx-r2);
-  background: color-mix(in srgb, var(--bx-r2) 9%, var(--surface));
-}
-.bx-card.rank-1 {
-  border-color: color-mix(in srgb, var(--bx-r1) 50%, var(--line));
-  border-left-color: var(--bx-r1);
-  background: color-mix(in srgb, var(--bx-r1) 8%, var(--surface));
-}
-.bx-card.rank-0 {
-  border-color: color-mix(in srgb, var(--bx-r0) 50%, var(--line));
-  border-left-color: var(--bx-r0);
-  background: color-mix(in srgb, var(--bx-r0) 8%, var(--surface));
-}
-.bx-card.rank-borrowed {
-  border-color: color-mix(in srgb, var(--bx-borrowed) 58%, var(--line));
-  border-left-color: var(--bx-borrowed);
-  background: color-mix(in srgb, var(--bx-borrowed) 10%, var(--surface));
-}
-.bx-card.rank-preset6 {
-  border-color: color-mix(in srgb, var(--bx-preset) 56%, var(--line));
-  border-left-color: var(--bx-preset);
-  background: color-mix(in srgb, var(--bx-preset) 10%, var(--surface));
-}
-.bx-card.rank-preset {
-  border-color: color-mix(in srgb, var(--bx-preset) 42%, var(--line));
-  border-left-color: var(--bx-preset);
-  background: color-mix(in srgb, var(--bx-preset) 6%, var(--surface));
-}
-/* 唯一灰色状态：未持有且未借用的 6★，局内无法使用本体，会被替换为原型/预备干员 */
-.bx-card.rank-unborrowed {
-  border-style: dashed;
-  border-left-style: dashed;
-  border-color: color-mix(in srgb, var(--bx-unborrowed) 55%, var(--line));
-  border-left-color: var(--bx-unborrowed);
-  background: color-mix(in srgb, var(--surface2) 82%, var(--surface));
-}
-
-.bx-card-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 7px 9px 7px 8px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  text-align: left;
-  font: inherit;
-}
-.bx-av {
-  position: relative;
-  flex: 0 0 42px;
-  width: 42px;
-  height: 42px;
-  border-radius: 6px;
-  overflow: hidden;
-  border: 1.5px solid var(--tc, var(--line));
-  background: var(--surface2);
-}
-.bx-av img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.bx-av-tier {
-  position: absolute;
-  left: 0;
-  top: 0;
-  padding: 0 4px;
-  border-bottom-right-radius: 4px;
-  background: rgba(10, 18, 20, 0.78);
-  color: #f0f4f3;
-  font: 700 10px/1.35 var(--fn);
-}
-.bx-card.rank-borrowed .bx-av {
-  border-color: var(--bx-borrowed);
-}
-.bx-card.rank-preset .bx-av,
-.bx-card.rank-preset6 .bx-av {
-  border-color: color-mix(in srgb, var(--bx-preset) 72%, var(--line));
-}
-.bx-card.rank-unborrowed .bx-av {
-  border-color: var(--bx-unborrowed);
-}
-.bx-card.rank-unborrowed .bx-av img {
-  filter: grayscale(0.92);
-  opacity: 0.48;
-}
-
-.bx-meta {
-  flex: 1;
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-.bx-name-row {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-}
-.bx-name {
-  font-size: 13px;
-  line-height: 1.25;
-  color: var(--ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.bx-card.rank-unborrowed .bx-name {
-  color: var(--ink3);
-}
-.bx-dots {
-  display: inline-flex;
-  gap: 3px;
-  flex: none;
-}
-.bx-dots u {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--c, var(--teal));
-}
-.bx-card.rank-unborrowed .bx-dots {
-  opacity: 0.42;
-}
-.bx-status-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.bx-tag {
-  display: inline-block;
-  width: fit-content;
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 10.5px;
-  font-weight: 700;
-  line-height: 1.35;
-  background: var(--surface2);
-  color: var(--ink3);
-}
-.bx-card.rank-3 .bx-tag {
-  background: var(--bx-r3);
-  color: var(--bx-r3-ink);
-}
-.bx-card.rank-2 .bx-tag {
-  background: color-mix(in srgb, var(--bx-r2) 18%, var(--surface));
-  color: var(--bx-r2);
-}
-.bx-card.rank-1 .bx-tag {
-  background: color-mix(in srgb, var(--bx-r1) 18%, var(--surface));
-  color: var(--bx-r1);
-}
-.bx-card.rank-0 .bx-tag {
-  background: color-mix(in srgb, var(--bx-r0) 18%, var(--surface));
-  color: var(--bx-r0);
-}
-.bx-card.rank-borrowed .bx-tag {
-  background: var(--bx-borrowed);
-  color: var(--bx-borrowed-ink);
-}
-.bx-card.rank-preset6 .bx-tag {
-  background: var(--bx-preset);
-  color: var(--bx-preset-ink);
-}
-.bx-card.rank-preset .bx-tag {
-  background: color-mix(in srgb, var(--bx-preset) 18%, var(--surface));
-  color: var(--bx-preset);
-}
-.bx-card.rank-unborrowed .bx-tag {
-  background: color-mix(in srgb, var(--bx-unborrowed) 16%, var(--surface));
-  color: var(--bx-unborrowed);
-  border: 1px dashed color-mix(in srgb, var(--bx-unborrowed) 48%, transparent);
-}
-.bx-sub-text {
-  font: 500 10.5px/1.25 var(--fn);
-  color: var(--ink3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.bx-card.rank-3 .bx-sub-text {
-  color: var(--bx-r3);
-}
-.bx-card.rank-2 .bx-sub-text {
-  color: var(--bx-r2);
-}
-.bx-card.rank-1 .bx-sub-text {
-  color: var(--bx-r1);
-}
-.bx-card.rank-0 .bx-sub-text {
-  color: var(--bx-r0);
-}
-.bx-card.rank-borrowed .bx-sub-text {
-  color: var(--bx-borrowed);
-}
-.bx-card.rank-preset .bx-sub-text,
-.bx-card.rank-preset6 .bx-sub-text {
-  color: var(--bx-preset);
-}
-.bx-card.rank-unborrowed .bx-sub-text {
-  color: var(--bx-unborrowed);
-}
-
-.bx-detail-btn {
-  flex: 0 0 34px;
-  width: 34px;
-  border: 0;
-  border-left: 1px solid var(--line);
-  background: transparent;
-  color: var(--ink3);
-  font: 700 12px var(--fb);
-  display: grid;
-  place-items: center;
-}
-.bx-detail-btn:hover {
-  background: var(--surface2);
-  color: var(--accent);
-}
 .bx-empty {
   padding: 20px;
   text-align: center;
@@ -2493,7 +2318,7 @@ function resetFilters(): void {
 }
 
 /* ---------- 容器查询与横屏小窗适配 ---------- */
-@container number-tools (max-width: 820px) {
+@container box-tools (max-width: 820px) {
   .bx-hero {
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
@@ -2505,7 +2330,7 @@ function resetFilters(): void {
     border-top: 1px solid var(--line);
   }
 }
-@container number-tools (max-width: 600px) {
+@container box-tools (max-width: 600px) {
   .bx-owned-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2516,7 +2341,7 @@ function resetFilters(): void {
     grid-column: 1 / -1;
   }
 }
-@container number-tools (max-width: 520px) {
+@container box-tools (max-width: 520px) {
   .bx-editor-bar {
     padding: 8px;
   }
@@ -2586,14 +2411,24 @@ function resetFilters(): void {
     grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
     gap: 6px;
   }
-  .bx-card-main {
-    padding: 5px 7px 5px 6px;
-    gap: 7px;
-  }
-  .bx-av {
-    flex-basis: 36px;
-    width: 36px;
-    height: 36px;
-  }
+}
+.bx-sync-incoming {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-color: color-mix(in srgb, var(--teal) 45%, var(--line));
+  background: color-mix(in srgb, var(--teal) 6%, var(--surface));
+}
+.bx-sync-in-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  font-size: 12.5px;
+  color: var(--ink2);
+}
+.bx-sync-in-head b {
+  font-size: 13.5px;
+  color: var(--teal);
 }
 </style>

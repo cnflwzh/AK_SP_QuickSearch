@@ -9,7 +9,6 @@ import SubTabs, {
   type SubTabItem,
 } from '../components/SubTabs.vue';
 import LayerTools from '../numbers/LayerTools.vue';
-import ExtraRules from '../numbers/ExtraRules.vue';
 import '../numbers/numbers.css';
 import '../workbench.css';
 import {advisorPreviewEnabled} from '../experimentalFeatures.ts';
@@ -18,10 +17,7 @@ import {settings, type CustomizableToolId} from '../../lib/settings/index.ts';
 const panels = {
   advisor: defineAsyncComponent(() => import('../advisor/RunAdvisor.vue')),
   layers: LayerTools,
-  recruit: defineAsyncComponent(() => import('../numbers/RecruitTools.vue')),
-  bounty: defineAsyncComponent(() => import('../numbers/BountyTools.vue')),
   credit: defineAsyncComponent(() => import('../numbers/CreditTools.vue')),
-  box: defineAsyncComponent(() => import('../numbers/BoxTools.vue')),
   dealer: defineAsyncComponent(() => import('../numbers/DealerGame.vue')),
   excuse: defineAsyncComponent(() => import('../numbers/ExcuseTools.vue')),
 };
@@ -84,7 +80,6 @@ watch(advisorPreviewEnabled, (enabled) => {
   <RunBanner
     v-if="
       activeTool !== 'advisor' &&
-      activeTool !== 'box' &&
       activeTool !== 'dealer' &&
       activeTool !== 'excuse'
     " />
@@ -101,16 +96,9 @@ watch(advisorPreviewEnabled, (enabled) => {
     </nav>
     <!-- 仅工具切换产生过渡；临时输入和详情弹窗更新不重建面板。 -->
     <Transition :name="panelTransition" mode="out-in">
-      <KeepAlive :max="9">
+      <KeepAlive :max="6">
         <component :is="panels[activeTool]" :key="activeTool" />
       </KeepAlive>
     </Transition>
-    <ExtraRules
-      v-if="
-        activeTool !== 'advisor' &&
-        activeTool !== 'box' &&
-        activeTool !== 'dealer' &&
-        activeTool !== 'excuse'
-      " />
   </div>
 </template>

@@ -64,6 +64,10 @@
 
 /tools
   Cache-Control: no-cache
+/box
+  Cache-Control: no-cache
+/box/
+  Cache-Control: no-cache
 /settings
   Cache-Control: no-cache
 /settings/*

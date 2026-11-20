@@ -9,6 +9,8 @@ import {
   isCoreCovenant,
   type Operator,
 } from '../../../data/index.ts';
+import {createBoxAffinityScorer} from '../box/insights.ts';
+import type {OperatorBox} from '../box/model.ts';
 import {
   bonusLayersOf,
   bonusNeedOf,
@@ -352,21 +354,24 @@ export function createLineupEvaluator(
   };
 }
 
-/** 返回加入后改善整队盟约的干员；layers 使用当前方案层数，函数不修改阵容。 */
+/** 返回加入后改善整队盟约的干员；layers 使用当前方案层数，传入 box 时同分优推可用/已练干员。 */
 export function suggestions(
   ops: readonly PlanOp[],
   limit = 8,
   layers: Layers = {},
+  box?: Readonly<OperatorBox>,
 ): Suggestion[] {
   if (ops.length >= MAX_OPS) return [];
   const taken = new Set(ops.map((slot) => slot.name));
   const evaluate = createLineupEvaluator(ops, layers);
+  const boxAffinity = createBoxAffinityScorer(box);
   return OPERATORS.filter((op) => !taken.has(op.name))
     .map((op) => ({op, evaluation: evaluate([...ops, newSlot(op.name)])}))
     .filter(({evaluation}) => evaluation.improves)
     .map(({op, evaluation}) => ({
       op,
       score: evaluation.score,
+      boxScore: boxAffinity(op),
       gains: evaluation.changes.map(({covenant, kind}) => ({
         covenant,
         kind,
@@ -375,22 +380,26 @@ export function suggestions(
     .sort(
       (a, b) =>
         b.score - a.score ||
+        b.boxScore - a.boxScore ||
         a.op.tier - b.op.tier ||
         OP_INDEX.get(a.op.name)! - OP_INDEX.get(b.op.name)!,
     )
-    .slice(0, limit);
+    .slice(0, limit)
+    .map(({op, score, gains}) => ({op, score, gains}));
 }
 
-/** 在原位置实际换人后评价整队，计入该位置装备；优先保住成型盟约，再比较备选、特质类型和等阶。 */
+/** 在原位置实际换人后评价整队，计入该位置装备；优先保住成型盟约，再比较备选、特质类型、账号可用性与等阶。 */
 export function alternatesFor(
   slot: PlanOp,
   ops: readonly PlanOp[],
   limit = 8,
   layers: Layers = {},
+  box?: Readonly<OperatorBox>,
 ): Operator[] {
   if (!OPERATOR[slot.name]) return [];
   const taken = new Set([...ops.map((op) => op.name), ...slot.alt]);
   const evaluate = createCountScorer(ops, layers);
+  const boxAffinity = createBoxAffinityScorer(box);
   return OPERATORS.filter((op) => !taken.has(op.name))
     .map((op) => {
       const lineup = ops.map((current) =>
@@ -399,11 +408,13 @@ export function alternatesFor(
       return {
         op,
         score: evaluate(lineupCounts(lineup)) + slotAffinity(slot, op),
+        boxScore: boxAffinity(op),
       };
     })
     .sort(
       (a, b) =>
         b.score - a.score ||
+        b.boxScore - a.boxScore ||
         OP_INDEX.get(a.op.name)! - OP_INDEX.get(b.op.name)!,
     )
     .slice(0, limit)
@@ -441,12 +452,14 @@ type ReplacementCandidate = {
   bit: bigint;
   covenants: number[];
   affinity: number;
+  boxScore: number;
 };
 type ReplacementSearch = {
   choices: string[];
   counts: Uint8Array;
   used: bigint;
   affinity: number;
+  boxScore: number;
   score: number;
 };
 const REPLACEMENT_BEAM = 24;
@@ -462,6 +475,7 @@ export function banReplace(
   bans: readonly string[],
   forced: Readonly<Record<string, string>> = {},
   layers: Layers = {},
+  box?: Readonly<OperatorBox>,
 ): BanResult {
   const banned = new Set(bans);
   const removed = ops.filter((slot) => isBanned(slot.name, banned));
@@ -478,6 +492,7 @@ export function banReplace(
     };
   const kept = ops.filter((slot) => !isBanned(slot.name, banned));
   const evaluate = createCountScorer(ops, layers, banned);
+  const boxAffinity = createBoxAffinityScorer(box);
   const taken = new Set(kept.map((slot) => slot.name));
   const assignments = new Map<string, string>();
   // 先处理全部有效手选；同名冲突按原站位顺序保留一个，UI 会把最新选择设为唯一锁定。
@@ -506,7 +521,14 @@ export function banReplace(
   );
   const counts = lineupCounts(seeded);
   let beam: ReplacementSearch[] = [
-    {choices: [], counts, used: 0n, affinity: 0, score: evaluate(counts)},
+    {
+      choices: [],
+      counts,
+      used: 0n,
+      affinity: 0,
+      boxScore: 0,
+      score: evaluate(counts),
+    },
   ];
   for (const slot of pending) {
     const candidates: ReplacementCandidate[] = available.map((op) => ({
@@ -514,6 +536,7 @@ export function banReplace(
       bit: OP_BITS[OP_INDEX.get(op.name)!],
       covenants: slotCovenants(replacement(slot, op.name)),
       affinity: slotAffinity(slot, op),
+      boxScore: boxAffinity(op),
     }));
     const expanded: ReplacementSearch[] = [];
     for (const state of beam) {
@@ -528,6 +551,7 @@ export function banReplace(
           counts: next,
           used: state.used | candidate.bit,
           affinity,
+          boxScore: state.boxScore + candidate.boxScore,
           score: evaluate(next) + affinity,
         });
         added = true;
@@ -535,7 +559,7 @@ export function banReplace(
       // 候选全部耗尽时保留未填空位，不能重用干员或偷偷引入被 ban 的干员。
       if (!added) expanded.push({...state, choices: [...state.choices, '']});
     }
-    expanded.sort((a, b) => b.score - a.score);
+    expanded.sort((a, b) => b.score - a.score || b.boxScore - a.boxScore);
     const seen = new Map<bigint, Set<string>>();
     beam = [];
     for (const state of expanded) {
@@ -578,7 +602,10 @@ export function banReplace(
     if (!name) return [];
     const without = result.filter((op) => op.name !== name);
     const withoutStats = new Map(
-      covenantStats(without, layers, [], banned).map((stat) => [stat.name, stat]),
+      covenantStats(without, layers, [], banned).map((stat) => [
+        stat.name,
+        stat,
+      ]),
     );
     const gains = finalStats
       .filter(
@@ -596,8 +623,9 @@ export function banReplace(
         score:
           evaluate(lineupCounts([...without, replacement(slot, op.name)])) +
           slotAffinity(slot, op),
+        boxScore: boxAffinity(op),
       }))
-      .sort((a, b) => b.score - a.score)
+      .sort((a, b) => b.score - a.score || b.boxScore - a.boxScore)
       .slice(0, MAX_ALT)
       .map((candidate) => candidate.name);
     return [{name, replaces: slot.name, alts: alternatives, gains}];

@@ -102,9 +102,12 @@ export const OWNABLE_OPERATORS = [
   ...ADDITIONAL_OPERATORS.filter((op) => op.source === 'operator'),
 ];
 const boxKeys = new Map<string, string>();
-for (const {name, avatar} of OWNABLE_OPERATORS) {
-  boxKeys.set(name, avatar);
-  boxKeys.set(avatar, avatar);
+for (const op of OWNABLE_OPERATORS) {
+  boxKeys.set(op.name, op.avatar);
+  boxKeys.set(op.avatar, op.avatar);
+  if ('formAvatars' in op) {
+    for (const form of op.formAvatars ?? []) boxKeys.set(form, op.avatar);
+  }
 }
 const systemAvatars = new Set([
   ...ADDITIONAL_OPERATORS.filter((op) => op.source !== 'operator').map((op) => op.avatar),

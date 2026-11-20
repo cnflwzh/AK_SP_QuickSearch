@@ -8,7 +8,9 @@ const chosen = ref<number[]>([]),
 const waves = ref<{name: string; color: string}[]>([]);
 const colors = ['var(--teal)', 'var(--t4)', 'var(--t5)'];
 function shuffle() {
-  const candidates = TRAINING.map((_, index) => index);
+  const candidates = TRAINING.flatMap((entry, index) =>
+    entry.randomCandidate ? [index] : [],
+  );
   chosen.value = Array.from({length: 3}, () => {
     const index = Math.floor(Math.random() * candidates.length);
     return candidates.splice(index, 1)[0];
@@ -33,8 +35,8 @@ onBeforeUnmount(() => dispose?.());
 <template>
   <div class="row" style="justify-content: space-between; margin-bottom: 10px">
     <div class="row">
-      <span class="tag a">每局：1 名领袖 + 3 类特训</span>
-      <span class="tag">每波只含 1 类</span>
+      <span class="tag a">联合模拟示例 · 1 名领袖、3 类随机特训</span>
+      <span class="tag">色块示意特训类型</span>
     </div>
     <span class="cnt" id="trLeader">领袖：{{ leader }}</span>
   </div>

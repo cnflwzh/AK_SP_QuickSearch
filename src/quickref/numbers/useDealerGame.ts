@@ -275,7 +275,7 @@ function isValidMatrix(
     Array.isArray(matrix) &&
     matrix.length === round.cards.length &&
     matrix.every((cell, cardIdx) => {
-      if (typeof cell !== 'string' || !(cell in MATRIX_TO_STATUS)) {
+      if (typeof cell !== 'string' || !Object.hasOwn(MATRIX_TO_STATUS, cell)) {
         return false;
       }
       const isImpostor = round.cards[cardIdx]?.isImpostor;
@@ -709,6 +709,16 @@ export function useDealerGame() {
     state.announcement = `查阅「${card.title}」详情，已计入场中提示`;
   }
 
+  function announceFreeRound(message: string): void {
+    const current = state.free.rounds[state.free.roundIndex];
+    if (state.focusCovenant === 'mistakes' && !current.isMistakeReview) {
+      state.focusCovenant = '';
+      state.announcement = '现有错题已不适用于当前题库，已切换到综合特训';
+    } else {
+      state.announcement = message;
+    }
+  }
+
   function nextRound(): void {
     if (ensureCurrentDate() && state.mode === 'daily') return;
     const s = session.value;
@@ -739,7 +749,7 @@ export function useDealerGame() {
     recordVisibleAssistance();
     s.lastEvent = 'deal';
     s.dealerLine = next.introLine;
-    state.announcement = `刷新自由拷打第 ${next.roundNumber} 轮：${next.targetLabel}`;
+    announceFreeRound(`刷新自由拷打第 ${next.roundNumber} 轮：${next.targetLabel}`);
   }
 
   function setMode(mode: DealerMode): void {
@@ -770,6 +780,11 @@ export function useDealerGame() {
     recordVisibleAssistance();
     s.lastEvent = 'deal';
     s.dealerLine = fresh.introLine;
+    announceFreeRound(
+      focus === 'mistakes'
+        ? `已开启错题专攻（待复习 ${activeMistakeList.value.length} 项）`
+        : `已切换到${fresh.targetLabel}`,
+    );
   }
 
   function startMistakeDrill(): void {
@@ -777,7 +792,6 @@ export function useDealerGame() {
     state.mode = 'free';
     state.free.showReport = false;
     setFocusCovenant('mistakes');
-    state.announcement = `已开启错题专攻（待复习 ${activeMistakeList.value.length} 项）`;
   }
 
   function removeMistake(key: string): void {
@@ -834,7 +848,7 @@ export function useDealerGame() {
   function resetFree(): void {
     state.free = createFreeSession(state.focusCovenant, state.mistakes);
     recordVisibleAssistance();
-    state.announcement = '已重置自由拷打战绩';
+    announceFreeRound('已重置自由拷打战绩');
   }
 
   function buildShareText(shareUrl: string): string {

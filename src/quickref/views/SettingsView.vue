@@ -32,16 +32,16 @@ import {
   type SettingsBackup,
   type ThemePreference,
 } from '../../lib/settings/index.ts';
+import {OWNABLE_OPERATORS} from '../../lib/box/model.ts';
 import {
-  OWNABLE_OPERATORS,
   prepareBoxImport,
   boxSeasonActivatedCount,
   boxSeasonBorrowedCount,
   boxSeasonCount,
   boxSeasonMaxedCount,
   exportOperatorBox,
-} from '../../lib/box/index.ts';
-import {PAGE_LABELS, PAGE_PATHS} from '../../router/location.ts';
+} from '../../lib/box/store.ts';
+import {PAGE_LABELS} from '../../router/location.ts';
 import {navigate} from '../../router/navigation.ts';
 import {plans, restorePlanBackup} from '../planStore.ts';
 import Segmented from '../components/Segmented.vue';
@@ -85,10 +85,6 @@ const MODULE_TOGGLES = [
   {
     key: 'showRequestButtons',
     title: '联机求牌快捷短语按钮',
-  },
-  {
-    key: 'showBoxBadges',
-    title: '在流派与卡片上显示自持练度角标',
   },
   {
     key: 'showFooter',
@@ -475,10 +471,7 @@ const fileInput = ref<HTMLInputElement>();
 const includePlansInExport = ref(plans.length > 0);
 
 function openBoxTool(): void {
-  if (settings.hiddenTools.includes('box')) {
-    toggleToolHidden('box');
-  }
-  void navigate({path: PAGE_PATHS.nu, query: {tool: 'box'}});
+  void navigate({path: '/box'});
 }
 // 空 Box 会由序列化器省略，恢复备份后也能立即携带新练度导出。
 const includeBoxInExport = ref(true);
@@ -664,7 +657,9 @@ function confirmImportBackup(): void {
   clearNotices();
   try {
     const incomingPlans = pendingBackup.value.plans;
-    const incomingBox = importBoxFromBackup.value ? pendingBackup.value.box : undefined;
+    const incomingBox = importBoxFromBackup.value
+      ? pendingBackup.value.box
+      : undefined;
     const commitBox = incomingBox ? prepareBoxImport(incomingBox) : undefined;
     const messages = ['已导入并应用页面设置'];
     if (importPlansFromBackup.value && incomingPlans?.length) {
@@ -676,9 +671,7 @@ function confirmImportBackup(): void {
     }
     if (commitBox && incomingBox) {
       commitBox();
-      messages.push(
-        `合并 ${Object.keys(incomingBox).length} 名干员练度`,
-      );
+      messages.push(`合并 ${Object.keys(incomingBox).length} 名干员练度`);
     }
     // 流派落盘可能因空间或权限失败，先完成它，避免报错后界面设置已部分应用。
     applySettings(pendingBackup.value.settings);
@@ -864,7 +857,9 @@ function handleResetAll(): void {
             <span class="settings-kicker">TOOLS</span>
             <h2 id="set-tools">小工具栏目与练度</h2>
           </div>
-          <span class="tag">已开 {{ visibleToolCount }}/{{ CUSTOMIZABLE_TOOL_IDS.length }}</span>
+          <span class="tag">
+            已开 {{ visibleToolCount }}/{{ CUSTOMIZABLE_TOOL_IDS.length }}
+          </span>
         </header>
 
         <div class="settings-rows">
@@ -904,10 +899,10 @@ function handleResetAll(): void {
             <div class="settings-row-info">
               <b>干员练度与自持加成</b>
               <small>
-                自持 {{ boxSeasonCount }}/{{ OWNABLE_OPERATORS.length }} 名 · 已激活
-                {{ boxSeasonActivatedCount }} 名 · 满加成
-                {{ boxSeasonMaxedCount }} 名<template
-                  v-if="boxSeasonBorrowedCount">
+                自持 {{ boxSeasonCount }}/{{ OWNABLE_OPERATORS.length }} 名 ·
+                已激活 {{ boxSeasonActivatedCount }} 名 · 满加成
+                {{ boxSeasonMaxedCount }} 名
+                <template v-if="boxSeasonBorrowedCount">
                   · 助战已借 {{ boxSeasonBorrowedCount }} 名
                 </template>
               </small>
@@ -1035,10 +1030,11 @@ function handleResetAll(): void {
               <label class="settings-inline-check">
                 <input v-model="includeBoxInExport" type="checkbox" />
                 <span>
-                  导出时附带「干员练度 Box」（自持 {{ boxSeasonCount }} 名<template
-                    v-if="boxSeasonBorrowedCount">
+                  导出时附带「干员练度 Box」（自持 {{ boxSeasonCount }} 名
+                  <template v-if="boxSeasonBorrowedCount">
                     · 已借 {{ boxSeasonBorrowedCount }} 名
-                  </template>）
+                  </template>
+                  ）
                 </span>
               </label>
             </div>
@@ -1127,7 +1123,8 @@ function handleResetAll(): void {
                 <input v-model="importBoxFromBackup" type="checkbox" />
                 <span>
                   同时合并附带的
-                  {{ Object.keys(pendingBackup.box).length }} 名干员练度 Box（同一干员保留较高自持练度）
+                  {{ Object.keys(pendingBackup.box).length }} 名干员练度
+                  Box（同一干员保留较高自持练度）
                 </span>
               </label>
               <div class="settings-btn-group">

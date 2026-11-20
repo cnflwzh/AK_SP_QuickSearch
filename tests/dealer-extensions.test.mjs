@@ -181,6 +181,26 @@ test('buildMistakeRound constructs valid 5-card review rounds containing the mis
   }
 });
 
+test('reviewing a removed card or a different transmutation cannot advance the original mistake', () => {
+  const rng = createSeededRandom('removed-review');
+  const round = buildDealerRound({
+    roundNumber: 1,
+    kind: 'transmute',
+    targetCovenant: '谢拉格',
+    rng,
+  });
+  const original = round.cards.find((card) => card.attachedEquip && !card.isImpostor);
+  assert.ok(original);
+  const records = recordMistake([], round, original);
+  const differentEquip = {
+    ...round,
+    cards: [{...original, isImpostor: true, status: 'punched'}],
+  };
+  assert.equal(recordRoundMastery(records, differentEquip)[0].correctStreak, 0);
+  const obsolete = {...records[0], title: '已移出的干员'};
+  assert.equal(buildMistakeRound([obsolete], {roundNumber: 2, rng}), null);
+});
+
 test('buildScenarioRound produces unambiguous, advisor-verified best-pick rounds across all archetypes', () => {
   for (const archetype of SCENARIO_ARCHETYPES) {
     const seeds = Array.from(

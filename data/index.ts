@@ -16,6 +16,7 @@ import type {
   CycleReward,
   Difficulty,
   DispatchLevel,
+  EnemyTerm,
   Equipment,
   EquipmentCombo,
   HeadcountBreakpoint,
@@ -267,6 +268,8 @@ export const SOLO_LEVELS: readonly SoloLevel[] =
   CURRENT_SEASON.rules.soloLevels;
 export const TRAINING: readonly TrainingType[] = CURRENT_SEASON.rules.training;
 export const BOUNTIES: readonly Bounty[] = CURRENT_SEASON.rules.bounties;
+export const ENEMY_GLOSSARY: Readonly<Record<string, EnemyTerm>> =
+  CURRENT_SEASON.rules.enemyGlossary;
 
 export const LEADER_BATTLEFIELDS: readonly LeaderBattlefield[] =
   CURRENT_SEASON.leaderBattlefields;
@@ -411,11 +414,8 @@ export function buildsUsing(field: BuildField, name: string): string[] {
 /** 小工具的查询入口；ID 用于 URL，文案不参与状态判断。 */
 export const NUMBER_TOOLS = [
   {id: 'advisor', label: '局内抓取'},
-  {id: 'layers', label: '层数门槛'},
-  {id: 'recruit', label: '找牌升本'},
-  {id: 'bounty', label: '悬赏收益'},
+  {id: 'layers', label: '对局速查'},
   {id: 'credit', label: '认证效率'},
-  {id: 'box', label: '干员练度'},
   {id: 'dealer', label: '痛扁发牌'},
   {id: 'excuse', label: '抽象文案'},
 ] as const;

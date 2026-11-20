@@ -203,7 +203,8 @@ export function recordRoundMastery(
 
   const cleanKeys = new Set<string>();
   for (const card of round.cards) {
-    if (card.status === 'kept' || card.status === 'punched') {
+    // 错题只记录被误击的正常牌。同一干员换装后可能成为串场牌，不应据此计为掌握。
+    if (card.status === 'kept' && !card.isImpostor) {
       cleanKeys.add(mistakeKey(round.kind, targetKey, card.title));
     }
   }
@@ -336,7 +337,15 @@ function buildRoundForMistake(
     });
   }
 
-  if (!round) return null;
+  // 旧版曾将召唤单位列入商店验阶题，换季也可能移除条目。
+  if (
+    !round?.cards.some(
+      (card) =>
+        card.title === record.title &&
+        card.cardKind === record.cardKind &&
+        !card.isImpostor,
+    )
+  ) return null;
   return {
     ...round,
     isMistakeReview: true,

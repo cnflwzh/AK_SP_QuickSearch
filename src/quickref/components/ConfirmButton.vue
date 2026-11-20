@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {onBeforeUnmount, ref, watch} from 'vue';
+import {onBeforeUnmount, onDeactivated, ref, watch} from 'vue';
 
 const props = withDefaults(
   defineProps<{
@@ -23,17 +23,30 @@ const emit = defineEmits<{confirm: []}>();
 
 const armed = ref(false);
 const rootRef = ref<HTMLElement | null>(null);
+const triggerRef = ref<HTMLButtonElement | null>(null);
 
-function disarm(): void {
+function cancel(): void {
   armed.value = false;
+  triggerRef.value?.focus({preventScroll: true});
+}
+
+function onFocusout(event: FocusEvent): void {
+  if (
+    !(event.relatedTarget instanceof Node) ||
+    !rootRef.value?.contains(event.relatedTarget)
+  ) {
+    armed.value = false;
+  }
 }
 
 function arm(): void {
   if (props.disabled) return;
   armed.value = true;
+  triggerRef.value?.focus({preventScroll: true});
 }
 
 function submit(): void {
+  if (!armed.value || props.disabled) return;
   armed.value = false;
   emit('confirm');
 }
@@ -50,13 +63,14 @@ function onDocumentClick(event: MouseEvent): void {
 
 function onKeydown(event: KeyboardEvent): void {
   if (event.key === 'Escape' && armed.value) {
+    event.preventDefault();
     event.stopPropagation();
-    armed.value = false;
+    cancel();
   }
 }
 
 watch(
-  () => props.resetKey,
+  [() => props.resetKey, () => props.disabled],
   () => {
     armed.value = false;
   },
@@ -65,52 +79,50 @@ watch(
 watch(armed, (active) => {
   if (active) {
     document.addEventListener('click', onDocumentClick, true);
-    document.addEventListener('keydown', onKeydown);
   } else {
     document.removeEventListener('click', onDocumentClick, true);
-    document.removeEventListener('keydown', onKeydown);
   }
+});
+
+onDeactivated(() => {
+  armed.value = false;
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocumentClick, true);
-  document.removeEventListener('keydown', onKeydown);
 });
 </script>
 
 <template>
-  <span ref="rootRef" class="q-confirm">
-    <Transition name="q-confirm-swap" mode="out-in">
+  <span
+    ref="rootRef"
+    class="q-confirm"
+    @keydown="onKeydown"
+    @focusout="onFocusout">
+    <!-- 同一个按钮保留键盘焦点，确认或取消后也能从原处继续 Tab 导航。 -->
+    <button
+      ref="triggerRef"
+      type="button"
+      :disabled="disabled"
+      :class="[armed ? 'q-confirm-ok' : 'q-confirm-trigger', 'is-' + tone]"
+      @keydown.enter="if ($event.repeat) $event.preventDefault();"
+      @click="armed ? submit() : arm()">
+      {{ armed ? confirmLabel : label }}
+    </button>
+    <Transition name="q-confirm-swap">
       <button
-        v-if="!armed"
-        key="idle"
+        v-if="armed"
         type="button"
-        :disabled="disabled"
-        :class="['q-confirm-trigger', `is-${tone}`]"
-        @click="arm">
-        {{ label }}
+        class="q-confirm-cancel"
+        @click="cancel">
+        {{ cancelLabel }}
       </button>
-      <span v-else key="armed" class="q-confirm-pair">
-        <button
-          type="button"
-          :class="['q-confirm-ok', `is-${tone}`]"
-          @click="submit">
-          {{ confirmLabel }}
-        </button>
-        <button type="button" class="q-confirm-cancel" @click="disarm">
-          {{ cancelLabel }}
-        </button>
-      </span>
     </Transition>
   </span>
 </template>
 
 <style scoped>
 .q-confirm {
-  display: inline-flex;
-  align-items: center;
-}
-.q-confirm-pair {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -162,7 +174,7 @@ onBeforeUnmount(() => {
 .q-confirm-ok.is-danger {
   border: 1px solid var(--red);
   background: var(--red);
-  color: #fff;
+  color: var(--accent-ink);
 }
 .q-confirm-ok.is-neutral {
   border: 1px solid var(--accent);

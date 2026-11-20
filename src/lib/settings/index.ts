@@ -2,21 +2,23 @@ export {
   CONTENT_TAB_IDS,
   CUSTOMIZABLE_TOOL_IDS,
   DEFAULT_SETTINGS,
+  createDefaultSettings,
+  normalizeSettings,
+} from './model.ts';
+export {
   MAX_SETTINGS_BACKUP_BYTES,
   SETTINGS_BACKUP_FORMAT,
   SETTINGS_BACKUP_VERSION,
-  createDefaultSettings,
-  normalizeSettings,
   parseSettingsBackup,
   serializeSettingsBackup,
-} from './model.ts';
+  type SettingsBackup,
+} from './backup.ts';
 export type {
   CardDensity,
   ContentTabId,
   CustomizableToolId,
   DefaultTabSetting,
   FontScale,
-  SettingsBackup,
   ThemePreference,
   UserSettings,
 } from './model.ts';
