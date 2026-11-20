@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {ref} from 'vue';
 import {BORROW_LIMIT} from '../../../data/index.ts';
-import {boxSeasonBorrowedCount} from '../../lib/box/store.ts';
+import {boxSeasonBorrowedCount, hasAnyBox} from '../../lib/box/store.ts';
 import {lazyView} from '../../lib/ui/lazyView.ts';
 
 const Recommendations = lazyView(
@@ -18,7 +18,10 @@ function toggle(): void {
 </script>
 
 <template>
-  <section class="nc bxp" aria-label="助战与养成规划建议">
+  <section
+    v-if="hasAnyBox || open"
+    class="nc bxp"
+    aria-label="助战与养成规划建议">
     <button
       type="button"
       class="bxp-summary"

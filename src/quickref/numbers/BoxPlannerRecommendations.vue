@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed, ref} from 'vue';
+import {computed, nextTick, ref, shallowRef, watch} from 'vue';
 import {BORROW_LIMIT, CORE_BUILDS, TIER_LABELS} from '../../../data/index.ts';
 import {
   recommendBorrowBatch,
@@ -27,7 +27,7 @@ import SubTabs, {
 type PlannerTab = 'borrow' | 'train';
 
 const actions = useQuickrefActions();
-defineProps<{expanded: boolean}>();
+const props = defineProps<{expanded: boolean}>();
 const activeTab = ref<PlannerTab>('borrow');
 const tabDir = ref<SubTabDirection>('');
 const selectedBuilds = ref<string[]>([]);
@@ -57,7 +57,28 @@ const borrowPlan = computed(() =>
   ),
 );
 
-const borrowList = computed(() => borrowPlan.value.ranking);
+// 进入清单或更换流派时按最新收益排一次；借用只更新卡片数据，保留玩家正在看的位置。
+const borrowPositions = shallowRef(new Map<string, number>());
+watch(
+  [() => props.expanded, activeTab, selectedBuilds, planSources],
+  ([expanded, tab]) => {
+    if (expanded && tab === 'borrow') {
+      borrowPositions.value = new Map(
+        borrowPlan.value.ranking.map(({op}, index) => [op.avatar, index]),
+      );
+    }
+  },
+  {immediate: true},
+);
+
+const borrowList = computed(() => {
+  const positions = borrowPositions.value;
+  return [...borrowPlan.value.ranking].sort(
+    (a, b) =>
+      (positions.get(a.op.avatar) ?? positions.size) -
+      (positions.get(b.op.avatar) ?? positions.size),
+  );
+});
 
 const unborrowedCount = computed(
   () => borrowList.value.filter((item) => !item.borrowed).length,
@@ -95,11 +116,24 @@ function toggleBuildFilter(key: string): void {
   else selectedBuilds.value = [...selectedBuilds.value, key];
 }
 
-function toggleBorrow(name: string, currentlyBorrowed: boolean): void {
+async function toggleBorrow(
+  name: string,
+  currentlyBorrowed: boolean,
+  event: MouseEvent,
+): Promise<void> {
+  const button = event.currentTarget as HTMLButtonElement;
+  const previousTop = button.getBoundingClientRect().top;
   feedback.value = '';
   errorMsg.value = '';
   try {
     setOperatorRank(name, currentlyBorrowed ? -1 : BOX_RANK_BORROWED);
+    // 其他行的实时推荐理由可能换行；等布局稳定后保持当前按钮在视口内的原位置。
+    await nextTick();
+    if (button.isConnected) {
+      const offset = button.getBoundingClientRect().top - previousTop;
+      if (Math.abs(offset) >= 1)
+        window.scrollBy({top: offset, behavior: 'instant'});
+    }
   } catch (error) {
     errorMsg.value = error instanceof Error ? error.message : '助战名额已满。';
   }
@@ -150,17 +184,19 @@ function markTrainedE1(name: string): void {
         attr="bxp-tab"
         @change="(_, dir) => (tabDir = dir)" />
       <div
-        v-if="activeTab === 'borrow' && unborrowedCount > 0"
+        v-if="activeTab === 'borrow' && borrowList.length"
         class="bxp-head-act">
         <button
           type="button"
           class="btn p"
-          :disabled="!remainingSlots"
+          :disabled="!remainingSlots || !borrowPlan.picks.length"
           @click="fillRecommendedBorrows">
           {{
-            remainingSlots > 0
-              ? `一键借用 ${borrowPlan.picks.length} 名助战`
-              : `已满 ${BORROW_LIMIT}/${BORROW_LIMIT}`
+            !remainingSlots
+              ? `已满 ${BORROW_LIMIT}/${BORROW_LIMIT}`
+              : borrowPlan.picks.length
+                ? `一键借用 ${borrowPlan.picks.length} 名助战`
+                : '已全部借用'
           }}
         </button>
       </div>
@@ -206,7 +242,7 @@ function markTrainedE1(name: string): void {
       :data-dir="tabDir || undefined">
       <template v-if="activeTab === 'borrow'">
         <p class="bxp-hint">
-          清单按单人借用收益排序。一键借用会尽量用较少名额补齐流派核心或全部主选。
+          展开清单或切换流派时，按单人借用收益排序。一键借用会尽量用较少名额补齐流派核心或全部主选。
         </p>
         <div v-if="visibleBorrows.length" class="bxp-grid">
           <article
@@ -253,7 +289,8 @@ function markTrainedE1(name: string): void {
               type="button"
               :class="['bxp-act', {on: item.borrowed}]"
               :aria-pressed="item.borrowed"
-              @click="toggleBorrow(item.op.name, item.borrowed)">
+              :disabled="!item.borrowed && !remainingSlots"
+              @click="toggleBorrow(item.op.name, item.borrowed, $event)">
               {{ item.borrowed ? '✓ 已借用' : '＋ 借用' }}
             </button>
           </article>
@@ -528,7 +565,10 @@ function markTrainedE1(name: string): void {
   white-space: nowrap;
   cursor: pointer;
 }
-.bxp-act:hover {
+.bxp-act[aria-pressed] {
+  min-inline-size: calc(4em + 22px);
+}
+.bxp-act:enabled:hover {
   border-color: var(--accent);
   color: var(--accent);
 }
