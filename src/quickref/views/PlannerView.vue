@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {computed, nextTick, ref, watch} from 'vue';
 import {
+  BORROW_LIMIT,
   OPERATORS,
   OPERATOR,
   OPERATOR_TYPES,
@@ -18,6 +19,14 @@ import {
   isCoreCovenant,
   type CombatRole,
 } from '../../../data/index.ts';
+import {isBoxSubstitute} from '../../lib/box/insights.ts';
+import {BOX_RANK_BORROWED} from '../../lib/box/model.ts';
+import {
+  boxSeasonBorrowedCount,
+  hasAnyBox,
+  operatorBox,
+  setOperatorRanks,
+} from '../../lib/box/store.ts';
 import {avatarSrc, equipIconSrc, portraitSrc} from '../../lib/ui/assets.ts';
 import {nameScore, normalize} from '../../lib/ui/match.ts';
 import {
@@ -54,6 +63,7 @@ import Segmented from '../components/Segmented.vue';
 import SearchInput from '../components/SearchInput.vue';
 import SelectInput, {type SelectOption} from '../components/SelectInput.vue';
 import EmptyState from '../components/EmptyState.vue';
+import StatusNotice from '../components/StatusNotice.vue';
 import CovenantIcon from '../components/CovenantIcon.vue';
 import PlanCovenants from '../components/PlanCovenants.vue';
 import PlanSummary from '../components/PlanSummary.vue';
@@ -307,8 +317,17 @@ function dropEquip(i: number): void {
   touch();
 }
 /* 备选：主选抓不到时的次级选择。点备选 = 和主选互换（看换人后的盟约），× = 移除 */
+const activeBox = computed(() => (hasAnyBox.value ? operatorBox : undefined));
 const altSuggest = computed(() =>
-  slot.value ? alternatesFor(slot.value, ops.value, 8, plan.value.layers) : [],
+  slot.value
+    ? alternatesFor(
+        slot.value,
+        ops.value,
+        8,
+        plan.value.layers,
+        activeBox.value,
+      )
+    : [],
 );
 const earlyTransitionSuggest = computed(() => {
   const s = slot.value;
@@ -383,8 +402,44 @@ function setLayers(name: string, value: number): void {
 }
 const active = computed(() => stats.value.filter((s) => s.active));
 const cost = computed(() => planCost(ops.value));
-const diagnostics = computed(() => diagnoseLineup(ops.value, stats.value));
-const recs = computed(() => suggestions(ops.value, 8, plan.value.layers));
+const diagnostics = computed(() =>
+  diagnoseLineup(ops.value, stats.value, activeBox.value),
+);
+// 同一名干员可能关联多个职能，只展示和占用一个助战名额。
+const riskBorrowTargets = computed(() => {
+  const rolesByOperator = new Map<string, CombatRole[]>();
+  for (const risk of diagnostics.value.substituteRisks) {
+    for (const {name} of risk.operators) {
+      const roles = rolesByOperator.get(name) ?? [];
+      roles.push(risk.role);
+      rolesByOperator.set(name, roles);
+    }
+  }
+  return [...rolesByOperator].map(([name, roles]) => ({
+    name,
+    backup: OPERATOR[name].backupOperator,
+    roles,
+  }));
+});
+const remainingBorrows = computed(() =>
+  Math.max(0, BORROW_LIMIT - boxSeasonBorrowedCount.value),
+);
+const riskBorrowError = ref('');
+watch(riskBorrowTargets, () => {
+  riskBorrowError.value = '';
+});
+function borrowRiskOperators(names: string[]): void {
+  riskBorrowError.value = '';
+  try {
+    setOperatorRanks(names, BOX_RANK_BORROWED);
+  } catch (error) {
+    riskBorrowError.value =
+      error instanceof Error ? error.message : '助战名额已满。';
+  }
+}
+const recs = computed(() =>
+  suggestions(ops.value, 8, plan.value.layers, activeBox.value),
+);
 const notes = computed(() => equipNotes(ops.value));
 const strategy = computed(() => STRATEGY[plan.value.strategy]);
 /** 阵容里已有的盟约：干员池里能推进它们的干员加星 */
@@ -423,6 +478,7 @@ const poolQuery = computed({
 });
 const poolType = ref('');
 const poolRole = ref<CombatRole | ''>('');
+const poolAvailableOnly = ref(false);
 const hasPoolFilter = computed(
   () =>
     !!(
@@ -430,12 +486,14 @@ const hasPoolFilter = computed(
       poolCovenant.value ||
       poolType.value ||
       poolRole.value ||
-      poolTier.value
+      poolTier.value ||
+      (hasAnyBox.value && poolAvailableOnly.value)
     ),
 );
 function resetPoolFilters(): void {
   poolType.value = '';
   poolRole.value = '';
+  poolAvailableOnly.value = false;
   void updateQuery({
     poolQuery: null,
     poolCovenant: null,
@@ -446,11 +504,18 @@ function filterPoolByRole(role: CombatRole): void {
   poolRole.value = poolRole.value === role ? '' : role;
   if (compact.value && poolRole.value) void openOperators();
 }
+function isOpSub(name: string): boolean {
+  if (!hasAnyBox.value) return false;
+  const op = OPERATOR[name];
+  return !!op && isBoxSubstitute(op, operatorBox);
+}
 const pool = computed(() => {
   const raw = poolQuery.value.trim();
   const q = normalize(poolQuery.value);
+  const filterSub = hasAnyBox.value && poolAvailableOnly.value;
   return OPERATORS.filter(
     (o) =>
+      (!filterSub || !isBoxSubstitute(o, operatorBox)) &&
       (!poolTier.value || o.tier === poolTier.value) &&
       (!poolCovenant.value || o.covenants.includes(poolCovenant.value)) &&
       (!poolType.value || o.type === poolType.value) &&
@@ -974,7 +1039,12 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
                           width="34"
                           height="34"
                           loading="lazy" />
-                        <small>{{ o.name }}</small>
+                        <small>
+                          {{ o.name }}
+                          <em v-if="isOpSub(o.name)" class="pl-sub-note">
+                            需借
+                          </em>
+                        </small>
                         <span class="dots">
                           <u
                             v-for="c in o.covenants"
@@ -1083,6 +1153,13 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
                   diagnostics.missingEssential.map((e) => e.role).join(' / ')
                 }}
               </small>
+              <small
+                v-else-if="
+                  diagnostics.substituteRisks.some((risk) => risk.essential)
+                "
+                class="warn">
+                基础职能待确认
+              </small>
               <small v-else class="ok">基础完备</small>
             </span>
             <div class="pl-diag-chips">
@@ -1093,23 +1170,70 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
                 :class="[
                   'pl-diag-chip',
                   {
-                    ok: entry.providers.length > 0,
+                    ok: entry.providers.length > 0 && !entry.substituteOnly,
+                    risk: !!entry.substituteOnly,
                     miss: entry.essential && entry.providers.length === 0,
                     on: poolRole === entry.role,
                   },
                 ]"
                 :aria-pressed="poolRole === entry.role"
                 :title="
-                  entry.providers.length
-                    ? `${entry.role}：${entry.providers.join('、')}（点击在干员池中筛选）`
-                    : `${entry.role}：${entry.desc}（当前未覆盖，点击筛选补位）`
+                  entry.substituteOnly
+                    ? `${entry.role}：原方案来源为${entry.providers.join('、')}，替补上场后的覆盖需确认（点击筛选补位）`
+                    : entry.providers.length
+                      ? `${entry.role}：${entry.providers.join('、')}（点击在干员池中筛选）`
+                      : `${entry.role}：${entry.desc}（当前未覆盖，点击筛选补位）`
                 "
                 @click="filterPoolByRole(entry.role)">
                 <span>{{ entry.role }}</span>
-                <b v-if="entry.providers.length">{{ entry.providers.length }}</b>
+                <b v-if="entry.substituteOnly">替</b>
+                <b v-else-if="entry.providers.length">
+                  {{ entry.providers.length }}
+                </b>
                 <b v-else-if="entry.essential">缺</b>
               </button>
             </div>
+            <div v-if="riskBorrowTargets.length" class="pl-diag-risk">
+              <div class="pl-diag-risk-text">
+                <b>替补上场后需确认的职能</b>
+                <div v-for="target in riskBorrowTargets" :key="target.name">
+                  {{ target.name }} → {{ target.backup || '替补' }} ·
+                  {{ target.roles.join(' / ') }}
+                </div>
+              </div>
+              <button
+                v-if="remainingBorrows >= riskBorrowTargets.length"
+                type="button"
+                class="pl-diag-borrow"
+                @click="
+                  borrowRiskOperators(
+                    riskBorrowTargets.map((target) => target.name),
+                  )
+                ">
+                标记借用 {{ riskBorrowTargets.length }} 名 · 余
+                {{ remainingBorrows }} 位
+              </button>
+              <template v-else-if="remainingBorrows">
+                <span>还可借 {{ remainingBorrows }} 名</span>
+                <button
+                  v-for="target in riskBorrowTargets"
+                  :key="target.name"
+                  type="button"
+                  class="pl-diag-borrow"
+                  @click="borrowRiskOperators([target.name])">
+                  借用{{ target.name }}
+                </button>
+              </template>
+              <span v-else>
+                助战名额已满（{{ boxSeasonBorrowedCount }}/{{ BORROW_LIMIT }}）
+              </span>
+            </div>
+            <StatusNotice
+              v-if="riskBorrowError"
+              tone="danger"
+              :message="riskBorrowError"
+              dismissible
+              @dismiss="riskBorrowError = ''" />
           </div>
 
           <div class="pl-st">
@@ -1258,7 +1382,10 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
                 height="40"
                 loading="lazy" />
               <span>
-                <b>{{ r.op.name }}</b>
+                <b>
+                  {{ r.op.name }}
+                  <em v-if="isOpSub(r.op.name)" class="pl-sub-note">需借</em>
+                </b>
                 <span class="g">
                   <i
                     v-for="g in r.gains"
@@ -1422,6 +1549,15 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
               attr="plt"
               @change="poolTier = $event" />
             <button
+              v-if="hasAnyBox"
+              type="button"
+              :class="['pl-box-filter', {on: poolAvailableOnly}]"
+              :aria-pressed="poolAvailableOnly"
+              title="隐藏未持有且未借用（将变替补）的非特许 6★"
+              @click="poolAvailableOnly = !poolAvailableOnly">
+              {{ poolAvailableOnly ? '✓ 仅看本体可用' : '仅看本体可用' }}
+            </button>
+            <button
               v-if="hasPoolFilter"
               type="button"
               class="filter-clear"
@@ -1434,11 +1570,7 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
               compact &&
               picking === 'alt' &&
               (earlyTransitionSuggest.length || altSuggest.length) &&
-              !poolQuery &&
-              !poolCovenant &&
-              !poolType &&
-              !poolRole &&
-              !poolTier
+              !hasPoolFilter
             "
             class="pl-pick pl-altpick">
             <h4>推荐过渡 / 备选</h4>
@@ -1482,7 +1614,10 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
                     width="34"
                     height="34"
                     loading="lazy" />
-                  <small>{{ o.name }}</small>
+                  <small>
+                    {{ o.name }}
+                    <em v-if="isOpSub(o.name)" class="pl-sub-note">需借</em>
+                  </small>
                 </button>
               </div>
             </template>
@@ -1505,10 +1640,16 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
                     rec:
                       !inPlan.has(o.name) &&
                       o.covenants.some((c) => present.has(c)),
+                    'is-sub': isOpSub(o.name),
                   },
                 ]"
                 :data-t="o.tier"
                 :data-op="o.name"
+                :title="
+                  isOpSub(o.name)
+                    ? `${o.name}：未持有且未借用${o.backupOperator ? `，将替补为「${o.backupOperator}」` : ''}`
+                    : undefined
+                "
                 :aria-pressed="
                   picking === 'alt'
                     ? !!slot?.alt.includes(o.name)
@@ -1647,6 +1788,80 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
   border-color: color-mix(in srgb, var(--red) 55%, var(--line2));
   background: color-mix(in srgb, var(--red) 5%, var(--surface));
   color: var(--red);
+}
+.pl-diag-chip.risk {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--accent) 65%, var(--line2));
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  color: var(--accent);
+}
+.pl-diag-risk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 55%, var(--line2));
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  font-size: 12px;
+  color: var(--ink2);
+}
+.pl-diag-risk-text {
+  line-height: 1.45;
+  flex: 1 1 240px;
+}
+.pl-diag-risk-text b {
+  color: var(--accent);
+}
+.pl-diag-borrow {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.pl-sub-note {
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 0 4px;
+  margin-left: 4px;
+  border-radius: 4px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 55%, var(--line2));
+  color: var(--accent);
+}
+.pl-box-filter {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line2);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.pl-box-filter.on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.pl-tiles .tile.is-sub {
+  opacity: 0.62;
+  border-style: dashed;
+}
+.pl-tiles .tile.is-sub:hover {
+  opacity: 1;
 }
 .pl-diag-chip.on {
   border-style: solid;

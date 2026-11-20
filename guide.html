@@ -16,29 +16,33 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="卫戍速查">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<script>try{var s=JSON.parse(localStorage.getItem('wsq.settings.v1')||'{}');if(s.theme==='dark'||s.theme==='light')document.documentElement.dataset.theme=s.theme;if(s.reducedMotion)document.documentElement.dataset.motion='reduce';}catch{}</script>
+<script>try{var s=JSON.parse(localStorage.getItem('wsq.settings.v1')||'{}');if(s.theme==='dark'||s.theme==='light')document.documentElement.dataset.theme=s.theme;if(s.fontScale==='large')document.documentElement.dataset.font='large';if(s.reducedMotion===true)document.documentElement.dataset.motion='reduce';}catch{}</script>
 <link rel="stylesheet" href="/assets/css/base.css">
 <link rel="stylesheet" href="/assets/css/guide.css">
 <!-- Discover fonts early; boot settles the current faces before revealing the mounted page. -->
 <link rel="stylesheet" href="/assets/css/fonts.css" fetchpriority="low">
 </head>
-<body class="is-loading" data-page="guide" aria-busy="true">
+<body class="is-loading" data-page="guide">
 
 <section id="load-screen" role="status" aria-live="polite">
   <div class="load-stage">
     <div class="load-core" aria-hidden="true">
-      <svg class="load-orbit" viewBox="0 0 88 88" fill="none">
-        <circle class="load-track" cx="44" cy="44" r="39"/>
-        <circle class="load-arc" cx="44" cy="44" r="39"/>
-        <g transform="translate(22 22) scale(0.6875)">
+      <svg class="load-squad" viewBox="0 0 64 64" fill="none">
+        <g class="load-shield-group">
           <path class="load-shield" fill-rule="evenodd" d="M12 10h8v6h8v-6h8v6h8v-6h8v28l-8 9-12 7-12-7-8-9V10Zm10 12v8h8v-8h-8Zm12 0v8h8v-8h-8ZM22 34v8h8v-8h-8Zm12 0v8h8v-8h-8Z"/>
-          <rect class="load-node" x="34" y="34" width="8" height="8"/>
+          <rect class="load-slot" x="22" y="22" width="8" height="8" rx="1"/>
+          <rect class="load-slot" x="34" y="22" width="8" height="8" rx="1"/>
+          <rect class="load-slot" x="22" y="34" width="8" height="8" rx="1"/>
+          <rect class="load-mate m1" x="22" y="22" width="8" height="8" rx="1"/>
+          <rect class="load-mate m2" x="34" y="22" width="8" height="8" rx="1"/>
+          <rect class="load-mate m3" x="22" y="34" width="8" height="8" rx="1"/>
+          <rect class="load-self" x="34" y="34" width="8" height="8" rx="1"/>
         </g>
       </svg>
     </div>
     <strong class="load-title">规程图解教程</strong>
     <div class="load-status">
-      <p class="load-pending">正在加载图解教程</p>
+      <p class="load-pending">正在准备图解教程…</p>
       <p class="load-slow">连接较慢，仍在加载</p>
       <p class="load-error">加载失败，请重试</p>
       <button type="button" class="load-retry" onclick="location.reload()">重新加载</button>
@@ -47,7 +51,7 @@
   </div>
 </section>
 
-<div id="app" style="display:contents"></div>
+<div id="app" style="display:contents" aria-busy="true"></div>
 <footer class="wrap"><span class="foot-content">数据：PRTS · 可露希尔 Wiki · BWIKI · 流派参考 B 站 UP 主小鬼卡比、白樱iridescent　<button type="button" class="foot-about" data-about>关于本项目 · 数据来源 · 许可 ▸</button></span><code class="build-version" data-build-version hidden></code></footer>
 
 <script type="module" src="/src/boot.ts" onerror="document.getElementById('load-screen').dataset.state='error'"></script>

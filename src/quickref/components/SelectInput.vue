@@ -3,6 +3,7 @@ import {
   computed,
   nextTick,
   onBeforeUnmount,
+  onDeactivated,
   onMounted,
   ref,
   useAttrs,
@@ -81,9 +82,11 @@ const menuRef = ref<HTMLDivElement | null>(null);
 const open = ref(false);
 const menuMounted = ref(false);
 const menuShown = ref(false);
-const highlightedIndex = ref(-1);
+let highlightedOption: HTMLButtonElement | null = null;
 const teleportTarget = ref<HTMLElement | string>('body');
-const isCoarse = ref(false);
+const coarseMedia =
+  typeof window !== 'undefined' ? window.matchMedia?.('(pointer: coarse)') : null;
+const isCoarse = ref(coarseMedia?.matches ?? false);
 const supportsPopover =
   typeof HTMLElement !== 'undefined' &&
   typeof HTMLElement.prototype.showPopover === 'function';
@@ -146,12 +149,6 @@ const isActiveFilter = computed(() => {
     ? model.value !== 0
     : model.value !== '';
 });
-
-const activeOptionId = computed(() =>
-  highlightedIndex.value >= 0
-    ? `${uid}-opt-${highlightedIndex.value}`
-    : undefined,
-);
 
 function clearPendingTimers(): void {
   if (openFrame) {
@@ -216,13 +213,40 @@ function lastEnabledIndex(): number {
   return -1;
 }
 
-function scrollHighlightedIntoView(): void {
-  const menu = menuRef.value;
-  if (!menu || highlightedIndex.value < 0) return;
-  const item = menu.querySelector<HTMLElement>(
-    `[data-opt-index="${highlightedIndex.value}"]`,
+// 游标不是选中值。只更新前后两行及读屏指向，避免悬停和方向键操作重复渲染长列表。
+function highlight(option: HTMLButtonElement | null): void {
+  if (option === highlightedOption) return;
+  highlightedOption?.removeAttribute('data-highlighted');
+  highlightedOption = option;
+  if (option) {
+    option.setAttribute('data-highlighted', '');
+    triggerRef.value?.setAttribute('aria-activedescendant', option.id);
+  } else {
+    triggerRef.value?.removeAttribute('aria-activedescendant');
+  }
+}
+
+function highlightIndex(index: number): void {
+  const option =
+    index < 0 ? null : document.getElementById(uid + '-opt-' + index);
+  highlight(option instanceof HTMLButtonElement ? option : null);
+  highlightedOption?.scrollIntoView({block: 'nearest'});
+}
+
+function highlightSelection(): void {
+  highlightIndex(
+    selectedOption.value && !selectedOption.value.disabled
+      ? selectedIndex.value
+      : firstEnabledIndex(),
   );
-  item?.scrollIntoView({block: 'nearest'});
+}
+
+// 键盘滚动会让静止指针下的选项变化，只有移动指针时才切换到鼠标下的项。
+function highlightUnderPointer(event: PointerEvent): void {
+  if (!open.value || !(event.target instanceof Element)) return;
+  const option =
+    event.target.closest<HTMLButtonElement>('button[data-opt-index]');
+  if (option && !option.disabled) highlight(option);
 }
 
 function positionMenu(menu: HTMLElement): void {
@@ -271,22 +295,11 @@ function positionMenu(menu: HTMLElement): void {
   menu.style.right = 'auto';
 }
 
-function openMenu(initialIndex?: number): void {
+function openMenu(): void {
   if (props.disabled || isCoarse.value || !flatOptions.value.length) return;
   clearPendingTimers();
   const dialog = triggerRef.value?.closest('dialog');
   teleportTarget.value = dialog ?? 'body';
-  if (
-    initialIndex !== undefined &&
-    initialIndex >= 0 &&
-    !flatOptions.value[initialIndex]?.disabled
-  ) {
-    highlightedIndex.value = initialIndex;
-  } else if (selectedOption.value && !selectedOption.value.disabled) {
-    highlightedIndex.value = selectedOption.value.index;
-  } else {
-    highlightedIndex.value = firstEnabledIndex();
-  }
   menuMounted.value = true;
   menuShown.value = false;
   open.value = true;
@@ -304,7 +317,7 @@ function openMenu(initialIndex?: number): void {
       }
     }
     positionMenu(menu);
-    scrollHighlightedIntoView();
+    highlightSelection();
     if (prefersReducedMotion()) {
       menuShown.value = true;
     } else {
@@ -321,7 +334,7 @@ function closeMenu(restoreFocus = false): void {
   clearPendingTimers();
   open.value = false;
   menuShown.value = false;
-  highlightedIndex.value = -1;
+  highlight(null);
   if (restoreFocus) {
     triggerRef.value?.focus({preventScroll: true});
   }
@@ -345,7 +358,7 @@ function toggleMenu(): void {
 }
 
 function pickOption(option: FlatOption<T>): void {
-  if (option.disabled) return;
+  if (!open.value || props.disabled || option.disabled) return;
   model.value = option.value;
   emit('change', option.value);
   closeMenu(true);
@@ -368,30 +381,23 @@ function handleTriggerKeydown(event: KeyboardEvent): void {
     return;
   }
 
+  const index = Number(highlightedOption?.dataset.optIndex ?? -1);
   if (event.key === 'ArrowDown' || event.key === 'Down') {
     event.preventDefault();
-    const start = highlightedIndex.value >= 0 ? highlightedIndex.value + 1 : 0;
-    highlightedIndex.value = findEnabledIndex(start, 1);
-    void nextTick(scrollHighlightedIntoView);
+    highlightIndex(findEnabledIndex(index + 1, 1));
   } else if (event.key === 'ArrowUp' || event.key === 'Up') {
     event.preventDefault();
-    const start =
-      highlightedIndex.value >= 0
-        ? highlightedIndex.value - 1
-        : flatOptions.value.length - 1;
-    highlightedIndex.value = findEnabledIndex(start, -1);
-    void nextTick(scrollHighlightedIntoView);
+    const start = index >= 0 ? index - 1 : flatOptions.value.length - 1;
+    highlightIndex(findEnabledIndex(start, -1));
   } else if (event.key === 'Home') {
     event.preventDefault();
-    highlightedIndex.value = firstEnabledIndex();
-    void nextTick(scrollHighlightedIntoView);
+    highlightIndex(firstEnabledIndex());
   } else if (event.key === 'End') {
     event.preventDefault();
-    highlightedIndex.value = lastEnabledIndex();
-    void nextTick(scrollHighlightedIntoView);
+    highlightIndex(lastEnabledIndex());
   } else if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault();
-    const current = flatOptions.value[highlightedIndex.value];
+    const current = flatOptions.value[index];
     if (current && !current.disabled) pickOption(current);
   } else if (event.key === 'Escape') {
     event.preventDefault();
@@ -429,7 +435,7 @@ function handleDocumentKeydown(event: KeyboardEvent): void {
 function handleWindowScroll(event: Event): void {
   if (!open.value) return;
   const target = event.target as Node | null;
-  if (target && menuRef.value?.contains(target)) return;
+  if (target instanceof Node && menuRef.value?.contains(target)) return;
   closeMenu(false);
 }
 
@@ -464,6 +470,16 @@ watch(
   {immediate: true},
 );
 
+watch(
+  flatOptions,
+  () => {
+    if (!open.value) return;
+    if (!flatOptions.value.length) closeMenu(false);
+    else highlightSelection();
+  },
+  {flush: 'post'},
+);
+
 watch(isCoarse, (coarse) => {
   if (coarse && (open.value || menuMounted.value)) closeMenu(false);
 });
@@ -475,18 +491,24 @@ watch(
   },
 );
 
-let coarseMedia: MediaQueryList | null = null;
 function syncPointerMode(): void {
   isCoarse.value = coarseMedia?.matches ?? false;
 }
 
 onMounted(() => {
-  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
-    coarseMedia = window.matchMedia('(pointer: coarse)');
-    syncPointerMode();
-    coarseMedia.addEventListener('change', syncPointerMode);
-  }
+  coarseMedia?.addEventListener('change', syncPointerMode);
   syncNativeValue();
+});
+
+// KeepAlive 切换工具不会卸载组件；离开时须收起传送到 body 或 dialog 的菜单。
+onDeactivated(() => {
+  clearPendingTimers();
+  removeGlobalListeners();
+  open.value = false;
+  menuShown.value = false;
+  highlight(null);
+  hideMenuPopover(menuRef.value);
+  menuMounted.value = false;
 });
 
 onBeforeUnmount(() => {
@@ -578,7 +600,6 @@ defineExpose({focus});
         aria-haspopup="listbox"
         :aria-expanded="open"
         :aria-controls="open ? menuId : undefined"
-        :aria-activedescendant="open ? activeOptionId : undefined"
         :aria-label="resolvedLabel"
         :disabled="disabled"
         @click="toggleMenu"
@@ -606,7 +627,9 @@ defineExpose({focus});
           ref="menuRef"
           :class="['q-select-menu', {'is-shown': menuShown}]"
           role="listbox"
-          :aria-label="resolvedLabel">
+          :inert="!open"
+          :aria-label="resolvedLabel"
+          @pointermove="highlightUnderPointer">
           <template v-for="(entry, eIdx) in renderEntries" :key="eIdx">
             <div
               v-if="entry.kind === 'group'"
@@ -622,6 +645,7 @@ defineExpose({focus});
                 :key="opt.index"
                 type="button"
                 role="option"
+                tabindex="-1"
                 :data-opt-index="opt.index"
                 :aria-selected="opt.index === selectedIndex"
                 :aria-disabled="opt.disabled || undefined"
@@ -630,14 +654,10 @@ defineExpose({focus});
                   'q-select-opt',
                   {
                     'is-sel': opt.index === selectedIndex,
-                    'is-hi': opt.index === highlightedIndex,
                     'is-dis': opt.disabled,
                   },
                 ]"
                 @mousedown.prevent
-                @mouseenter="
-                  if (!opt.disabled) highlightedIndex = opt.index;
-                "
                 @click="pickOption(opt)">
                 <span class="q-select-opt-label">{{ opt.label }}</span>
                 <svg
@@ -661,6 +681,7 @@ defineExpose({focus});
               :id="`${uid}-opt-${entry.option.index}`"
               type="button"
               role="option"
+              tabindex="-1"
               :data-opt-index="entry.option.index"
               :aria-selected="entry.option.index === selectedIndex"
               :aria-disabled="entry.option.disabled || undefined"
@@ -669,15 +690,10 @@ defineExpose({focus});
                 'q-select-opt',
                 {
                   'is-sel': entry.option.index === selectedIndex,
-                  'is-hi': entry.option.index === highlightedIndex,
                   'is-dis': entry.option.disabled,
                 },
               ]"
               @mousedown.prevent
-              @mouseenter="
-                if (!entry.option.disabled)
-                  highlightedIndex = entry.option.index;
-              "
               @click="pickOption(entry.option)">
               <span class="q-select-opt-label">{{ entry.option.label }}</span>
               <svg
@@ -923,7 +939,7 @@ defineExpose({focus});
   color: var(--accent);
 }
 
-.q-select-opt.is-hi:not(.is-dis):not(.is-sel) {
+.q-select-opt[data-highlighted]:not(.is-dis):not(.is-sel) {
   background: color-mix(in srgb, var(--ink) 6%, transparent);
 }
 
@@ -933,7 +949,7 @@ defineExpose({focus});
   font-weight: 600;
 }
 
-.q-select-opt.is-sel.is-hi:not(.is-dis) {
+.q-select-opt.is-sel[data-highlighted]:not(.is-dis) {
   background: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
@@ -954,7 +970,7 @@ defineExpose({focus});
 :global(:root[data-theme='dark'] .q-select-trigger) {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.24);
 }
-:global(:root[data-theme='dark'] .q-select-opt.is-hi:not(.is-dis):not(.is-sel)) {
+:global(:root[data-theme='dark'] .q-select-opt[data-highlighted]:not(.is-dis):not(.is-sel)) {
   background: rgba(255, 255, 255, 0.07);
 }
 @media (prefers-color-scheme: dark) {
@@ -969,7 +985,7 @@ defineExpose({focus});
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.24);
   }
   :global(
-    :root:not([data-theme='light']) .q-select-opt.is-hi:not(.is-dis):not(.is-sel)
+    :root:not([data-theme='light']) .q-select-opt[data-highlighted]:not(.is-dis):not(.is-sel)
   ) {
     background: rgba(255, 255, 255, 0.07);
   }

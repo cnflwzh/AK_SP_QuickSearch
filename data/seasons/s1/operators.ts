@@ -1694,6 +1694,7 @@ export const S1_OPERATORS: readonly Operator[] = [
     covenants: ['奇迹'],
     type: '持续叠加',
     avatar: 'char_002_amiya',
+    formAvatars: ['char_1001_amiya2', 'char_1037_amiya3'],
     trait: '<战斗中>身前一格干员提升盟约层数时，每次额外+1（无视叠层上限）',
     elite: '<战斗中>身前一格干员提升盟约层数时，每次额外+2（无视叠层上限）',
     roles: ['对空', '治疗', '群攻', '真伤', '控制'],

@@ -245,7 +245,7 @@ function selectTarget(target: CreditMilestone): void {
               <NumberInput
                 :value="creditState.limitedSpend"
                 label="限时兑换累计已消费"
-                :max="99999"
+                :max="CREDIT_CAPS.limitedSpend"
                 @change="creditState.limitedSpend = $event ?? 0" />
             </label>
             <label class="panel-reveal">

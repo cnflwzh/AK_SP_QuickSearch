@@ -5,12 +5,6 @@ import PrtsLink from './PrtsLink.vue';
 import {cardLocation} from '../../router/navigation.ts';
 import {TIER_LABELS, type Operator} from '../../../data/index.ts';
 import {avatarSrc} from '../../lib/ui/assets.ts';
-import {
-  BOX_RANK_BORROWED,
-  BOX_RANK_META,
-  hasAnyBox,
-  rankOfOperator,
-} from '../../lib/box/index.ts';
 import {settings} from '../../lib/settings/index.ts';
 import {fx} from '../format.ts';
 import {useQuickrefActions} from '../state.ts';
@@ -31,11 +25,6 @@ const altTargets = computed(
   () => runAltTargets.value.get(props.operator.name) ?? [],
 );
 const banned = computed(() => isRunBannedOp(props.operator.name));
-const boxRank = computed(() =>
-  hasAnyBox.value && settings.showBoxBadges && props.operator.stars > 0
-    ? rankOfOperator(props.operator.avatar)
-    : -1,
-);
 const wikiVisible = computed(
   () => !!props.showWikiLink && settings.showWikiLinks,
 );
@@ -81,19 +70,6 @@ const wikiSelected = computed(
         <div class="op-meta">
           <div class="op-title-row">
             <b class="op-name">{{ operator.name }}</b>
-            <span
-              v-if="boxRank > 0 || boxRank === BOX_RANK_BORROWED"
-              :class="[
-                'op-box-tag',
-                boxRank === BOX_RANK_BORROWED ? 'borrowed' : `r${boxRank}`,
-              ]"
-              :title="
-                boxRank === BOX_RANK_BORROWED
-                  ? '助战已借用 · 本体出战（无自持加成，等效精0）'
-                  : `自持练度加成：${BOX_RANK_META[boxRank].bonusText}`
-              ">
-              {{ BOX_RANK_META[boxRank].shortLabel }}
-            </span>
             <span v-if="banned" class="inp ban">禁池</span>
             <span v-if="runSlot" :class="['inp', {core: runSlot.core}]">
               {{ runSlot.core ? '★ 核心' : '✓ 本局' }}
@@ -259,52 +235,5 @@ const wikiSelected = computed(
 }
 .operator-card-wiki:hover {
   opacity: 1;
-}
-.op-box-tag {
-  --op-r1: #2563eb;
-  --op-r2: #059669;
-  --op-borrowed: #db2777;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 6px;
-  border-radius: 4px;
-  border: 1px solid var(--line);
-  font-family: var(--fn);
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.45;
-  white-space: nowrap;
-}
-:global(:root[data-theme='dark'] .op-box-tag) {
-  --op-r1: #60a5fa;
-  --op-r2: #34d399;
-  --op-borrowed: #f472b6;
-}
-@media (prefers-color-scheme: dark) {
-  :global(:root:not([data-theme='light']) .op-box-tag) {
-    --op-r1: #60a5fa;
-    --op-r2: #34d399;
-    --op-borrowed: #f472b6;
-  }
-}
-.op-box-tag.r1 {
-  border-color: color-mix(in srgb, var(--op-r1) 50%, var(--line));
-  color: var(--op-r1);
-  background: color-mix(in srgb, var(--op-r1) 12%, var(--surface));
-}
-.op-box-tag.r2 {
-  border-color: color-mix(in srgb, var(--op-r2) 50%, var(--line));
-  color: var(--op-r2);
-  background: color-mix(in srgb, var(--op-r2) 12%, var(--surface));
-}
-.op-box-tag.r3 {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-.op-box-tag.borrowed {
-  border-color: color-mix(in srgb, var(--op-borrowed) 52%, var(--line));
-  color: var(--op-borrowed);
-  background: color-mix(in srgb, var(--op-borrowed) 12%, var(--surface));
 }
 </style>

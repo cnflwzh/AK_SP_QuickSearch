@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import {computed, ref} from 'vue';
-import {LEADER, LEADERS, MODES} from '../../../data/index.ts';
+import {
+  BOUNTIES,
+  LEADER,
+  LEADERS,
+  MODES,
+  TRAINING,
+} from '../../../data/index.ts';
 import {patrols} from '../../lib/leaders/leader.ts';
+import {queryText} from '../../router/location.ts';
+import {routeQuery, updateQuery} from '../../router/navigation.ts';
 import {state} from '../state.ts';
 import RunBanner from '../components/RunBanner.vue';
 import SubTabs, {
@@ -10,9 +18,34 @@ import SubTabs, {
 } from '../components/SubTabs.vue';
 import EmptyState from '../components/EmptyState.vue';
 import LeaderRow from '../components/LeaderRow.vue';
-import LeaderDetail from '../components/LeaderDetail.vue';
-/** 领袖列表 → 详情。一局只有一个领袖，选中后记住，再进来直接是详情 */
+import {lazyView} from '../../lib/ui/lazyView.ts';
+
+const BountyEnemiesPanel = lazyView(() => import('../components/BountyEnemiesPanel.vue'));
+const TrainingEnemiesPanel = lazyView(() => import('../components/TrainingEnemiesPanel.vue'));
+const LeaderDetail = lazyView(() => import('../components/LeaderDetail.vue'));
+
+type EnemyKind = 'boss' | 'bounty' | 'normal';
+
+/** 敌人页：分「Boss」「悬赏敌人」「普通敌人」三个二级页签 */
 const current = computed(() => LEADER[state.leader]);
+const enemyKind = computed<EnemyKind>({
+  get: () => {
+    if (current.value) return 'boss';
+    const kind = queryText(routeQuery.value, 'kind');
+    if (kind === 'bounty') return 'bounty';
+    if (kind === 'normal') return 'normal';
+    return 'boss';
+  },
+  set: (kind) => {
+    void updateQuery({kind: kind === 'boss' ? null : kind});
+  },
+});
+const kindTabs: readonly SubTabItem<EnemyKind>[] = [
+  {id: 'boss', label: 'Boss', count: LEADERS.length},
+  {id: 'bounty', label: '悬赏敌人', count: BOUNTIES.length},
+  {id: 'normal', label: '普通敌人', count: TRAINING.length},
+];
+const kindDir = ref<SubTabDirection>('');
 const traitFilter = ref(0);
 const listDir = ref<SubTabDirection>('');
 const modeTabs: readonly SubTabItem<number>[] = MODES.map((label, id) => ({
@@ -41,47 +74,66 @@ const filteredLeaders = computed(() =>
 </script>
 <template>
   <RunBanner />
-  <div class="bar" data-key="filters">
+  <div v-if="!current" class="bar enemy-kind-bar" data-key="enemy-kind">
     <SubTabs
-      v-model="state.mode"
-      :items="modeTabs"
+      v-model="enemyKind"
+      :items="kindTabs"
       :level="2"
-      inline
-      aria-label="领袖难度"
-      attr="nud" />
-    <SubTabs
-      v-if="!current"
-      v-model="traitFilter"
-      :items="traitTabs"
-      :level="3"
-      inline
-      aria-label="领袖特性筛选"
-      attr="ldf"
-      @change="(_, dir) => (listDir = dir)" />
-    <span class="cnt">
-      <template v-if="!current && traitFilter">
-        {{ filteredLeaders.length }}/{{ LEADERS.length }} ·
-      </template>
-      第 14 回合 · 极速第 9 回合
-    </span>
+      aria-label="敌人分类"
+      attr="enemy-kind"
+      @change="(_, dir) => (kindDir = dir)" />
   </div>
-  <LeaderDetail v-if="current" :key="current.id" :leader="current" />
+
   <div
-    v-else
-    :key="traitFilter"
-    :class="['lwl', {'subtab-panel': !!listDir}]"
-    :data-dir="listDir || undefined"
-    data-key="list">
-    <LeaderRow
-      v-for="(leader, index) in filteredLeaders"
-      :key="leader.id"
-      :leader="leader"
-      :mode="state.mode"
-      :index="index" />
-    <EmptyState
-      v-if="!filteredLeaders.length"
-      message="没有符合该筛选条件的领袖"
-      action-label="显示全部领袖"
-      @action="traitFilter = 0" />
+    :key="current ? `boss:${current.id}` : enemyKind"
+    :class="{'subtab-panel': !current && !!kindDir}"
+    :data-dir="!current ? kindDir || undefined : undefined">
+    <template v-if="enemyKind === 'boss'">
+      <div class="bar" data-key="filters">
+        <SubTabs
+          v-model="state.mode"
+          :items="modeTabs"
+          :level="3"
+          inline
+          aria-label="Boss 难度"
+          attr="nud" />
+        <SubTabs
+          v-if="!current"
+          v-model="traitFilter"
+          :items="traitTabs"
+          :level="3"
+          inline
+          aria-label="Boss 特性筛选"
+          attr="ldf"
+          @change="(_, dir) => (listDir = dir)" />
+        <span class="cnt">
+          <template v-if="!current && traitFilter">
+            {{ filteredLeaders.length }}/{{ LEADERS.length }} ·
+          </template>
+          第 14 回合 · 极速第 9 回合
+        </span>
+      </div>
+      <LeaderDetail v-if="current" :key="current.id" :leader="current" />
+      <div
+        v-else
+        :key="traitFilter"
+        :class="['lwl', {'subtab-panel': !!listDir}]"
+        :data-dir="listDir || undefined"
+        data-key="list">
+        <LeaderRow
+          v-for="(leader, index) in filteredLeaders"
+          :key="leader.id"
+          :leader="leader"
+          :mode="state.mode"
+          :index="index" />
+        <EmptyState
+          v-if="!filteredLeaders.length"
+          message="没有符合该筛选条件的 Boss"
+          action-label="显示全部 Boss"
+          @action="traitFilter = 0" />
+      </div>
+    </template>
+    <BountyEnemiesPanel v-else-if="enemyKind === 'bounty'" />
+    <TrainingEnemiesPanel v-else />
   </div>
 </template>

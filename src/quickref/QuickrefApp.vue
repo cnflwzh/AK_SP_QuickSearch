@@ -12,13 +12,16 @@ import {
 import {
   ADDITIONAL_OPERATORS,
   ALL_COVENANTS,
+  BOUNTIES,
   OPERATORS,
   EQUIPMENT,
   STRATEGIES,
   LEADERS,
+  TRAINING,
   SEASON_META,
 } from '../../data/index.ts';
-import {initBoxStorageSync} from '../lib/box/index.ts';
+import {OWNABLE_OPERATORS} from '../lib/box/model.ts';
+import {boxSeasonCount, boxStorageWriteFailed, initBoxStorageSync} from '../lib/box/store.ts';
 import {prefersReducedMotion} from '../lib/ui/dom.ts';
 import {
   isSmallWindow,
@@ -37,7 +40,7 @@ import {
 } from './state.ts';
 import {navigationError, routeNotice, PAGE_LABELS} from '../router/index.ts';
 import {detailFromId} from '../router/entities.ts';
-import {queryText} from '../router/location.ts';
+import {queryText, rosterLocation} from '../router/location.ts';
 import {
   closeCard,
   currentRoute,
@@ -46,7 +49,6 @@ import {
   tabLocation,
   updateQuery,
 } from '../router/navigation.ts';
-import {topSearchTarget} from './searchRanking.ts';
 import {flushSave, presetOf, presets} from './planStore.ts';
 import {
   clearRecent,
@@ -62,12 +64,13 @@ import {
 } from '../lib/ui/assets.ts';
 import {lazyView} from '../lib/ui/lazyView.ts';
 import CovenantIcon from './components/CovenantIcon.vue';
-import DetailSheet from './components/DetailSheet.vue';
 import PrtsPanel from './components/PrtsPanel.vue';
+import BoxOnboardingDialog from './components/BoxOnboardingDialog.vue';
 import {provideWikiPanel} from './wikiPanel.ts';
 import SkipLink from '../lib/ui/SkipLink.vue';
 
 const wikiPanel = provideWikiPanel();
+const DetailSheet = lazyView(() => import('./components/DetailSheet.vue'));
 const SearchView = lazyView(() => import('./views/SearchView.vue'));
 const TAB_META: Record<TabId, {label: string; count: number | ''}> = {
   // 速览：全部盟约效果平铺；盟约详情：单个盟约的成员、叠层、装备策略
@@ -77,7 +80,10 @@ const TAB_META: Record<TabId, {label: string; count: number | ''}> = {
   bd: {label: '流派', count: ''},
   eq: {label: '装备', count: EQUIPMENT.length},
   st: {label: '策略', count: STRATEGIES.length},
-  ld: {label: '领袖', count: LEADERS.length},
+  ld: {
+    label: '敌人',
+    count: LEADERS.length + BOUNTIES.length + TRAINING.length,
+  },
   nu: {label: '小工具', count: ''},
   se: {label: '设置', count: ''},
 };
@@ -109,7 +115,7 @@ const RECENT_KIND_LABEL: Readonly<Record<RecentItem['kind'], string>> = {
   eq: '装备',
   st: '策略',
   cv: '盟约',
-  ld: '领袖',
+  ld: 'Boss',
 };
 function recentThumb(item: RecentItem): string {
   if (item.kind === 'op') return avatarSrc(item.name);
@@ -120,7 +126,9 @@ function recentThumb(item: RecentItem): string {
 }
 function onSearchFocusOut(event: FocusEvent): void {
   const nextFocus = event.relatedTarget;
-  if (!(nextFocus instanceof Element && nextFocus.closest('#sbox, #recent-tray'))) {
+  if (!(
+    nextFocus instanceof Element && nextFocus.closest('#sbox, #recent-tray')
+  )) {
     searchFocused.value = false;
   }
 }
@@ -154,11 +162,11 @@ let navigationResizeObserver: ResizeObserver | undefined;
 const detail = computed(
   () => detailFromId(queryText(currentRoute.value.query, 'card')) ?? null,
 );
+// 首次打开详情才加载弹层；之后保留实例，让原生 dialog 关闭时还原焦点。
+const mountDetail = ref(!!detail.value);
 watch(detail, (next, prev) => {
-  if (
-    next &&
-    (next.kind !== prev?.kind || next.name !== prev?.name)
-  ) {
+  if (next) mountDetail.value = true;
+  if (next && (next.kind !== prev?.kind || next.name !== prev?.name)) {
     recordRecent(next.kind, next.name);
   }
 });
@@ -169,15 +177,12 @@ const topOf = (element: Element): number =>
   element.getBoundingClientRect().top +
   window.scrollY -
   (searchBar.value?.offsetHeight ?? 0);
-watch(
-  currentRoute,
-  (route, previous) => {
-    clearTimeout(searchTimer);
-    query.value = renderedQuery.value;
-    if (!renderedQuery.value || route.path !== previous.path)
-      mountBackground.value = !renderedQuery.value;
-  },
-);
+watch(currentRoute, (route, previous) => {
+  clearTimeout(searchTimer);
+  query.value = renderedQuery.value;
+  if (!renderedQuery.value || route.path !== previous.path)
+    mountBackground.value = !renderedQuery.value;
+});
 watchEffect(() => {
   const tab = currentRoute.value.meta.tab;
   const entity =
@@ -189,9 +194,13 @@ watchEffect(() => {
         : tab === 'bd'
           ? presetOf(state.build)?.plan.name
           : '');
-  document.title = [entity, tab ? PAGE_LABELS[tab] : '页面未找到', '卫戍速查']
-    .filter(Boolean)
-    .join(' · ');
+  const pageLabel =
+    currentRoute.value.name === 'box'
+      ? '我的 Box'
+      : tab
+        ? PAGE_LABELS[tab]
+        : '页面未找到';
+  document.title = [entity, pageLabel, '卫戍速查'].filter(Boolean).join(' · ');
 });
 function clearSearch(): void {
   clearTimeout(searchTimer);
@@ -326,6 +335,14 @@ async function openLeader(name: string): Promise<void> {
   if (name) recordRecent('ld', name);
   await setLeader(name);
 }
+async function openBounty(name: string): Promise<void> {
+  state.focusBounty = name;
+  await navigate({path: '/leaders', query: {kind: 'bounty'}});
+}
+async function openTraining(name: string): Promise<void> {
+  state.focusTraining = name;
+  await navigate({path: '/leaders', query: {kind: 'normal'}});
+}
 async function pickCovenant(name: string): Promise<void> {
   recordRecent('cv', name);
   await setCovenant(name);
@@ -342,6 +359,8 @@ provide(quickrefActionsKey, {
   openCovenant,
   openBuild,
   openLeader,
+  openBounty,
+  openTraining,
   pickCovenant,
 });
 /** ✕：清空并留在搜索框；矮窗口下搜索框平时只是一个图标，✕ 直接清空并收起 */
@@ -403,7 +422,12 @@ function touchCancel(): void {
 function touchEnd(event: TouchEvent): void {
   const start = swipeStart;
   swipeStart = null;
-  if (!start || event.changedTouches.length !== 1) return;
+  if (
+    !start ||
+    !currentRoute.value.meta.tab ||
+    event.changedTouches.length !== 1
+  )
+    return;
   const dx = event.changedTouches[0].clientX - start.x,
     dy = event.changedTouches[0].clientY - start.y;
   if (
@@ -466,9 +490,34 @@ function outsidePicker(event: MouseEvent): void {
     state.pickerOpen = false;
 }
 async function onSearchEnter(event: KeyboardEvent): Promise<void> {
-  if (composing.value || event.isComposing || !query.value.trim()) return;
-  const hit = topSearchTarget(
-    query.value,
+  const submittedQuery = query.value.trim();
+  if (composing.value || event.isComposing || !submittedQuery) return;
+  event.preventDefault();
+  clearTimeout(searchTimer);
+  // Enter 可能早于输入防抖完成。先保留结果页，所有跳转都能通过后退回到同一次搜索。
+  const submittedPath = currentRoute.value.path;
+  if (renderedQuery.value !== submittedQuery) {
+    await updateQuery({q: submittedQuery}, !!renderedQuery.value);
+  }
+  if (
+    currentRoute.value.path !== submittedPath ||
+    renderedQuery.value !== submittedQuery ||
+    query.value.trim() !== submittedQuery
+  ) return;
+
+  const submittedRoute = currentRoute.value;
+  const ranking = await import('./searchRanking.ts').catch(() => undefined);
+  if (
+    composing.value ||
+    currentRoute.value !== submittedRoute ||
+    query.value.trim() !== submittedQuery
+  ) return;
+  if (!ranking) {
+    routeNotice.value = '搜索暂时无法加载，请检查网络后重试。';
+    return;
+  }
+  const hit = ranking.topSearchTarget(
+    submittedQuery,
     presets.value.map((preset) => ({
       key: preset.key,
       name: preset.plan.name,
@@ -476,24 +525,13 @@ async function onSearchEnter(event: KeyboardEvent): Promise<void> {
     })),
   );
   if (!hit) return;
-  event.preventDefault();
-  clearTimeout(searchTimer);
-  if (hit.kind === 'op' || hit.kind === 'eq' || hit.kind === 'st') {
-    // Enter 可以早于搜索防抖结束；先保存搜索背景，关闭详情时才能回到结果。
-    const submittedQuery = query.value.trim();
-    const submittedPath = currentRoute.value.path;
-    await updateQuery({q: submittedQuery}, !!renderedQuery.value);
-    if (
-      currentRoute.value.path !== submittedPath ||
-      renderedQuery.value !== submittedQuery
-    )
-      return;
+  if (hit.kind === 'op' || hit.kind === 'eq' || hit.kind === 'st')
     openDetail(hit.kind, hit.id);
-    return;
-  }
-  clearSearch();
-  if (hit.kind === 'cv') void openCovenant(hit.id);
+  else if (hit.kind === 'roster') void navigate(rosterLocation(hit.id));
+  else if (hit.kind === 'cv') void openCovenant(hit.id);
   else if (hit.kind === 'bd') void openBuild(hit.id);
+  else if (hit.kind === 'bounty') void openBounty(hit.id);
+  else if (hit.kind === 'training') void openTraining(hit.id);
   else void openLeader(hit.id);
 }
 onMounted(() => {
@@ -504,7 +542,8 @@ onMounted(() => {
       for (const entry of entries) {
         if (entry.target === searchBar.value) {
           // 搜索框在小窗里可以展开，页内吸顶工具栏要跟随整条导航的实际高度。
-          const height = entry.borderBoxSize?.[0]?.blockSize ?? searchBar.value.offsetHeight;
+          const height =
+            entry.borderBoxSize?.[0]?.blockSize ?? searchBar.value.offsetHeight;
           view.value?.style.setProperty('--qbar-height', `${height}px`);
         } else if (entry.target === tabBar.value) {
           updateTabOverflow();
@@ -512,7 +551,8 @@ onMounted(() => {
         }
       }
     });
-    if (searchBar.value) navigationResizeObserver.observe(searchBar.value, {box: 'border-box'});
+    if (searchBar.value)
+      navigationResizeObserver.observe(searchBar.value, {box: 'border-box'});
     if (tabBar.value) navigationResizeObserver.observe(tabBar.value);
   }
   document.addEventListener('keydown', keydown);
@@ -535,7 +575,26 @@ onUnmounted(() => {
           卫戍速查
           <small>{{ SEASON_META.title }}</small>
         </h1>
-        <a class="guide-mini" href="/guide.html">图解教程 ▸</a>
+        <div class="qhead-actions">
+          <RouterLink
+            to="/box"
+            :class="[
+              'box-mini',
+              {
+                on: currentRoute.name === 'box',
+                filled: boxSeasonCount > 0,
+              },
+            ]"
+            :aria-current="currentRoute.name === 'box' ? 'page' : undefined"
+            title="管理个人干员练度与自持加成 Box">
+            <template v-if="boxSeasonCount">
+              我的 Box
+              <b>{{ boxSeasonCount }}/{{ OWNABLE_OPERATORS.length }}</b>
+            </template>
+            <template v-else>导入 Box</template>
+          </RouterLink>
+          <a class="guide-mini" href="/guide.html">图解教程 ▸</a>
+        </div>
       </header>
       <div
         id="qbar"
@@ -543,78 +602,100 @@ onUnmounted(() => {
         :class="['qbar', {searching}]"
         @focusout="onSearchFocusOut">
         <div class="wrap">
-          <label id="sbox" :class="['search', {has: searching}]">
-            <svg
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-              focusable="false"
-              fill="none"
-              stroke-width="2"
-              stroke-linecap="round">
-              <circle cx="11" cy="11" r="7" />
-              <path d="M20 20l-3.5-3.5" />
-            </svg>
-            <input
-              id="q"
-              ref="searchInput"
-              type="search"
-              :value="query"
-              placeholder="干员 / 装备 / 策略 / 盟约 / 特质，支持拼音（Enter 直开首项）"
-              autocomplete="off"
-              aria-label="搜索"
-              :aria-controls="showRecentTray ? 'recent-tray' : undefined"
-              @focus="searchFocused = true"
-              @input="search"
-              @keydown.enter="onSearchEnter"
-              @compositionstart="composing = true"
-              @compositionend="compositionEnd" />
-            <kbd>/</kbd>
-            <button
-              id="qx"
-              type="button"
-              class="x"
-              aria-label="清空或收起搜索"
-              @click.prevent="clearAndFocus">
-              ✕
-            </button>
-          </label>
-          <div
-            v-if="showRecentTray"
-            id="recent-tray"
-            class="recent-tray"
-            data-noswipe
-            role="region"
-            aria-label="最近查看"
-            @mousedown.prevent>
-            <div class="wrap recent-tray-inner">
-              <span class="recent-label">最近</span>
-              <div class="recent-list">
-                <button
-                  v-for="item in recentItems"
-                  :key="`${item.kind}:${item.name}`"
-                  type="button"
-                  class="recent-chip"
-                  :title="`${RECENT_KIND_LABEL[item.kind]} · ${item.name}`"
-                  @click="openRecent(item)">
-                  <CovenantIcon v-if="item.kind === 'cv'" :name="item.name" />
-                  <img
-                    v-else-if="recentThumb(item)"
-                    :src="recentThumb(item)"
-                    alt=""
-                    width="20"
-                    height="20"
-                    decoding="async" />
-                  <span>{{ item.name }}</span>
-                </button>
-              </div>
+          <div class="search-anchor">
+            <label id="sbox" :class="['search', {has: searching}]">
+              <svg
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                focusable="false"
+                fill="none"
+                stroke-width="2"
+                stroke-linecap="round">
+                <circle cx="11" cy="11" r="7" />
+                <path d="M20 20l-3.5-3.5" />
+              </svg>
+              <input
+                id="q"
+                ref="searchInput"
+                type="search"
+                :value="query"
+                placeholder="干员 / 装备 / 策略 / 盟约 / 敌人 / 机制，支持拼音（Enter 直开首项）"
+                autocomplete="off"
+                aria-label="搜索"
+                :aria-controls="showRecentTray ? 'recent-tray' : undefined"
+                @focus="searchFocused = true"
+                @input="search"
+                @keydown.enter="onSearchEnter"
+                @compositionstart="composing = true"
+                @compositionend="compositionEnd" />
+              <kbd>/</kbd>
               <button
+                id="qx"
                 type="button"
-                class="recent-clear"
-                aria-label="清空最近查看"
-                @click="clearSearchHistory">
-                清空
+                class="x"
+                aria-label="清空或收起搜索"
+                @click.prevent="clearAndFocus">
+                ✕
               </button>
-            </div>
+            </label>
+            <Transition name="recent-pop">
+              <div
+                v-if="showRecentTray"
+                id="recent-tray"
+                class="recent-tray"
+                data-noswipe
+                role="region"
+                aria-label="最近查看"
+                @mousedown.prevent>
+                <div class="recent-head">
+                  <span class="recent-label">
+                    <svg
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                      focusable="false">
+                      <circle cx="8" cy="8" r="6" />
+                      <path d="M8 4.8V8l2.2 1.4" />
+                    </svg>
+                    最近查看
+                    <i>{{ recentItems.length }}</i>
+                  </span>
+                  <button
+                    type="button"
+                    class="recent-clear"
+                    aria-label="清空最近查看"
+                    @click="clearSearchHistory">
+                    清空
+                  </button>
+                </div>
+                <div class="recent-list">
+                  <button
+                    v-for="item in recentItems"
+                    :key="`${item.kind}:${item.name}`"
+                    type="button"
+                    class="recent-chip"
+                    :title="`${RECENT_KIND_LABEL[item.kind]} · ${item.name}`"
+                    @click="openRecent(item)">
+                    <CovenantIcon v-if="item.kind === 'cv'" :name="item.name" />
+                    <img
+                      v-else-if="recentThumb(item)"
+                      :src="recentThumb(item)"
+                      alt=""
+                      width="22"
+                      height="22"
+                      decoding="async" />
+                    <span class="recent-name">{{ item.name }}</span>
+                    <em class="recent-kind">
+                      {{ RECENT_KIND_LABEL[item.kind] }}
+                    </em>
+                  </button>
+                </div>
+              </div>
+            </Transition>
           </div>
           <div
             :class="[
@@ -663,6 +744,9 @@ onUnmounted(() => {
           <button type="button" @click="retryNavigation">重试</button>
           <button type="button" @click="reloadPage">刷新页面</button>
         </div>
+        <div v-if="boxStorageWriteFailed" class="route-message" role="alert">
+          练度仅保存在当前页面。请在关闭前通过练度箱的「跨端同步」或设置备份保留记录。
+        </div>
         <div v-if="routeNotice" class="route-message" role="status">
           {{ routeNotice }}
           <button type="button" @click="routeNotice = ''">关闭</button>
@@ -684,7 +768,11 @@ onUnmounted(() => {
       v-if="wikiPanel.isOpen.value"
       :operator-name="wikiPanel.operatorName.value"
       @close="wikiPanel.close()" />
-    <DetailSheet :selection="detail" :split-view="wikiPanel.isOpen.value" />
+    <DetailSheet
+      v-if="mountDetail"
+      :selection="detail"
+      :split-view="wikiPanel.isOpen.value" />
+    <BoxOnboardingDialog />
   </div>
 </template>
 
@@ -747,76 +835,127 @@ onUnmounted(() => {
   margin-left: 0;
   margin-right: min(50vw, 880px);
 }
+.search-anchor {
+  position: relative;
+}
 .recent-tray {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 6px);
   left: 0;
   right: 0;
   z-index: 60;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line2);
-  background: color-mix(in srgb, var(--surface) 96%, transparent);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14);
+  padding: 10px 12px 11px;
+  border: 1px solid var(--line2);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow:
+    0 14px 34px -10px rgba(14, 30, 28, 0.24),
+    0 2px 8px -2px rgba(14, 30, 28, 0.08);
+  display: grid;
+  gap: 8px;
 }
-.recent-tray-inner {
+.recent-head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  padding-top: 6px;
   padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
 }
 .recent-label {
-  flex: none;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--ink3);
-  white-space: nowrap;
-}
-.recent-list {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.recent-list::-webkit-scrollbar {
-  display: none;
-}
-.recent-chip {
-  flex: none;
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink2);
+  white-space: nowrap;
+}
+.recent-label svg {
+  width: 14px;
+  height: 14px;
+  color: var(--teal);
+  flex: none;
+}
+.recent-label i {
+  font-style: normal;
+  font-family: var(--fn);
+  font-size: 11px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--surface2);
+  color: var(--ink3);
+}
+.recent-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  max-height: 176px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line2) transparent;
+}
+.recent-chip {
+  flex: 0 1 auto;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   min-height: 34px;
   padding: 3px 9px 3px 5px;
-  border: 1px solid var(--line2);
-  border-radius: 6px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
   background: var(--surface2);
   color: var(--ink);
   font: inherit;
   font-size: 12.5px;
+  font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
+  transition:
+    border-color 0.14s ease,
+    background-color 0.14s ease,
+    color 0.14s ease;
 }
 .recent-chip:hover {
   border-color: var(--accent);
+  background: var(--accent-soft);
   color: var(--accent);
 }
 .recent-chip img {
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
   object-fit: cover;
   background: var(--surface);
+  border: 1px solid var(--line);
+}
+.recent-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.recent-kind {
+  font-style: normal;
+  font-size: 10.5px;
+  line-height: 1.3;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  color: var(--ink3);
+}
+.recent-chip:hover .recent-kind {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
 }
 .recent-clear {
   flex: none;
-  min-height: 34px;
-  padding: 0 8px;
-  border: 0;
+  min-height: 28px;
+  padding: 2px 9px;
+  border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
   color: var(--ink3);
@@ -824,15 +963,74 @@ onUnmounted(() => {
   font-size: 12px;
   white-space: nowrap;
   cursor: pointer;
+  transition:
+    color 0.14s ease,
+    background-color 0.14s ease,
+    border-color 0.14s ease;
 }
 .recent-clear:hover {
-  color: var(--accent);
-  background: var(--surface2);
+  color: var(--red);
+  background: color-mix(in srgb, var(--red) 8%, transparent);
+  border-color: color-mix(in srgb, var(--red) 28%, transparent);
+}
+.recent-pop-enter-active {
+  transition:
+    opacity 0.14s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.14s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.recent-pop-leave-active {
+  transition:
+    opacity 0.11s ease-in,
+    transform 0.11s ease-in;
+}
+.recent-pop-enter-from,
+.recent-pop-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.99);
+}
+:global(:root[data-theme='dark'] .recent-tray) {
+  background: #142429;
+  box-shadow:
+    0 18px 42px -10px rgba(0, 0, 0, 0.72),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+@media (prefers-color-scheme: dark) {
+  :global(:root:not([data-theme='light']) .recent-tray) {
+    background: #142429;
+    box-shadow:
+      0 18px 42px -10px rgba(0, 0, 0, 0.72),
+      0 0 0 1px rgba(255, 255, 255, 0.04);
+  }
+}
+@media (max-width: 640px) {
+  .recent-clear {
+    min-height: 34px;
+  }
 }
 @media (max-height: 600px) {
-  .recent-tray-inner {
-    padding-top: 4px;
-    padding-bottom: 4px;
+  .recent-tray {
+    padding: 7px 9px 8px;
+    gap: 6px;
   }
+  .recent-list {
+    max-height: 112px;
+  }
+  .recent-clear {
+    min-height: 34px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .recent-chip,
+  .recent-clear,
+  .recent-pop-enter-active,
+  .recent-pop-leave-active {
+    transition: none !important;
+  }
+}
+:global(:root[data-motion='reduce'] .recent-chip),
+:global(:root[data-motion='reduce'] .recent-clear),
+:global(:root[data-motion='reduce'] .recent-pop-enter-active),
+:global(:root[data-motion='reduce'] .recent-pop-leave-active) {
+  transition: none !important;
 }
 </style>

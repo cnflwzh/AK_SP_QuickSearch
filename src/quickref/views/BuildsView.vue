@@ -2,6 +2,7 @@
 import {computed, onUnmounted, ref, watch} from 'vue';
 import {
   BANNABLE_COVENANTS,
+  BORROW_LIMIT,
   CORE_BUILDS,
   COVENANTS,
   DEFAULT_BUILD_ID,
@@ -13,13 +14,19 @@ import {
   isBannableCovenant,
   type Operator,
 } from '../../../data/index.ts';
+import {
+  evaluateLineupBox,
+  type LineupBoxAssessment,
+} from '../../lib/box/insights.ts';
+import {BOX_RANK_BORROWED} from '../../lib/box/model.ts';
+import {
+  boxSeasonBorrowedCount,
+  hasAnyBox,
+  operatorBox,
+  setOperatorRanks,
+} from '../../lib/box/store.ts';
 import {round1} from '../../lib/ui/dom.ts';
 import {avatarSrc} from '../../lib/ui/assets.ts';
-import {
-  hasAnyBox,
-  lineupBoxCoverage,
-  operatorBox,
-} from '../../lib/box/index.ts';
 import {banReplace} from '../../lib/recommendation/index.ts';
 import {
   atLayers,
@@ -31,7 +38,11 @@ import {
   type Decoded,
   type PlanOp,
 } from '../../lib/plans/index.ts';
-import {settings, updateSetting} from '../../lib/settings/index.ts';
+import {
+  isSmallWindow,
+  settings,
+  updateSetting,
+} from '../../lib/settings/store.ts';
 import {useQuickrefActions} from '../state.ts';
 import {
   presetOf,
@@ -106,7 +117,14 @@ watch(
     );
     if (!presetOf(key)) {
       routeNotice.value = '本机没有这套流派，请使用分享链接导入。';
-      void navigate(buildLocation(presets.value[0].key), true);
+      void navigate(
+        {
+          path: buildLocation(presets.value[0].key),
+          query: currentRoute.value.query,
+          hash: currentRoute.value.hash,
+        },
+        true,
+      );
       return;
     }
     selectPreset(key);
@@ -135,13 +153,78 @@ function completeEdit(): void {
 const actions = useQuickrefActions();
 
 /* ---------- 列表 ---------- */
+const sortByBox = ref(false);
+const presetBoxMap = computed(() => {
+  const map = new Map<string, LineupBoxAssessment>();
+  if (!hasAnyBox.value) return map;
+  for (const item of presets.value) {
+    // 收起抽屉时只有当前流派、本局流派和自建流派仍展示体检结果。
+    if (
+      item.builtin &&
+      settings.collapsePresetBuilds &&
+      item.key !== current.value.key &&
+      item.key !== runKey.value
+    )
+      continue;
+    if (!item.plan.ops.length) continue;
+    const assessment = evaluateLineupBox(item.plan.ops, operatorBox);
+    if (assessment.coverage.total) map.set(item.key, assessment);
+  }
+  return map;
+});
+function sortPresetList<T extends {key: string}>(list: T[]): T[] {
+  if (!sortByBox.value || !hasAnyBox.value) return list;
+  const map = presetBoxMap.value;
+  return list
+    .slice()
+    .sort(
+      (a, b) =>
+        (map.get(b.key)?.fitScore ?? Number.MIN_SAFE_INTEGER) -
+        (map.get(a.key)?.fitScore ?? Number.MIN_SAFE_INTEGER),
+    );
+}
+function presetBoxSummary(key: string): {
+  text: string;
+  tone: 'warn' | 'ok';
+  title: string;
+} | null {
+  if (!hasAnyBox.value) return null;
+  const assess = presetBoxMap.value.get(key);
+  if (!assess || !assess.coverage.total) return null;
+  if (assess.substitutes.length > 0) {
+    const names = assess.substitutes.map((s) => s.op.name).join('、');
+    return {
+      text: `借${assess.substitutes.length}`,
+      tone: 'warn',
+      title: `未借用 6★ ${assess.substitutes.length} 名（${names}），自持激活 ${assess.coverage.activated}/${assess.coverage.total}`,
+    };
+  }
+  if (!sortByBox.value) return null;
+  return {
+    text: `${assess.coverage.activated}/${assess.coverage.total}`,
+    tone: 'ok',
+    title: `全员本体可用 · 自持激活 ${assess.coverage.activated}/${assess.coverage.total}`,
+  };
+}
+const listedPresets = computed(() =>
+  presets.value.map((item) => ({
+    ...item,
+    boxBadge: presetBoxSummary(item.key),
+  })),
+);
 const coreList = computed(() =>
-  presets.value.filter((x) => x.builtin && CORE_BUILDS[x.key]),
+  sortPresetList(
+    listedPresets.value.filter((x) => x.builtin && CORE_BUILDS[x.key]),
+  ),
 );
 const mixedList = computed(() =>
-  presets.value.filter((x) => x.builtin && !CORE_BUILDS[x.key]),
+  sortPresetList(
+    listedPresets.value.filter((x) => x.builtin && !CORE_BUILDS[x.key]),
+  ),
 );
-const mine = computed(() => presets.value.filter((x) => !x.builtin));
+const mine = computed(() =>
+  sortPresetList(listedPresets.value.filter((x) => !x.builtin)),
+);
 const builtinCount = computed(
   () => coreList.value.length + mixedList.value.length,
 );
@@ -151,7 +234,7 @@ const drawerGroups = computed(() => [
 ]);
 const pinnedPresets = computed(() =>
   settings.collapsePresetBuilds
-    ? presets.value.filter(
+    ? listedPresets.value.filter(
         (x) =>
           x.builtin && (x.key === current.value.key || x.key === runKey.value),
       )
@@ -191,9 +274,6 @@ const withAlts = computed(() =>
   slotEntries.value.filter((entry) => entry.slot.alt.length > 0),
 );
 const lineupMode = ref<0 | 1>(0);
-const shortViewport =
-  typeof window !== 'undefined' &&
-  window.matchMedia('(max-height: 600px)').matches;
 interface GrabItem {
   operator: Operator;
   slot?: PlanOp;
@@ -282,14 +362,6 @@ const strategies = computed(() =>
 const primaryStrategy = computed(() => STRATEGY[p.value.plan.strategy]);
 const planEquipNotes = computed(() => equipNotes(p.value.plan.ops));
 const cost = computed(() => planCost(p.value.plan.ops));
-const boxCoverage = computed(() =>
-  hasAnyBox.value && settings.showBoxBadges
-    ? lineupBoxCoverage(
-        slotEntries.value.map((e) => e.operator.name),
-        operatorBox,
-      )
-    : null,
-);
 const coreNames = computed(() =>
   p.value.plan.ops.filter((s) => s.core).map((s) => s.name),
 );
@@ -348,6 +420,49 @@ watch(
     if (key !== previousKey) manualBanOpen.value = null;
   },
 );
+const currentBoxAssessment = computed(() =>
+  presetBoxMap.value.get(p.value.key),
+);
+const boxCheckOpen = ref(false);
+const hasBoxDetails = computed(() => {
+  const assess = currentBoxAssessment.value;
+  return Boolean(
+    assess &&
+    (assess.substitutes.length > 0 ||
+      assess.untrained.length > 0 ||
+      boxActionNotice.value ||
+      boxActionError.value),
+  );
+});
+const boxActionNotice = ref('');
+const boxActionError = ref('');
+watch(
+  () => p.value.key,
+  () => {
+    boxCheckOpen.value = false;
+    boxActionNotice.value = '';
+    boxActionError.value = '';
+  },
+);
+function borrowMissingFromBuild(): void {
+  const missing = currentBoxAssessment.value?.substitutes ?? [];
+  if (!missing.length) return;
+  boxActionNotice.value = '';
+  boxActionError.value = '';
+  try {
+    const changed = setOperatorRanks(
+      missing.map((item) => item.op.name),
+      BOX_RANK_BORROWED,
+    );
+    if (changed > 0) {
+      boxActionNotice.value = `已将 ${missing.map((m) => m.op.name).join('、')} 加入助战（当前 ${boxSeasonBorrowedCount.value}/${BORROW_LIMIT}）。`;
+    }
+  } catch (error) {
+    boxActionError.value =
+      error instanceof Error ? error.message : '助战名额已满。';
+  }
+}
+
 const ban = computed(() =>
   hasRelevantBan.value
     ? banReplace(
@@ -355,6 +470,7 @@ const ban = computed(() =>
         runBans.value,
         forced.value,
         p.value.plan.layers,
+        hasAnyBox.value ? operatorBox : undefined,
       )
     : null,
 );
@@ -378,7 +494,7 @@ function pickAlt(replaces: string, name: string): void {
 }
 function saveBan(): void {
   const result = ban.value;
-  if (!result) return;
+  if (!result?.ops.length) return;
   const source = p.value.plan,
     st = STRATEGY[source.strategy];
   const key = addPlan({
@@ -427,7 +543,7 @@ async function pasteImport(): Promise<void> {
 }
 function acceptImport(andRun = false): void {
   const d = imported.value;
-  if (!d) return;
+  if (!d || (andRun && !d.plan.ops.length)) return;
   const key = addPlan({
     ...blankPlan(d.plan.name || '导入的流派'),
     ops: d.plan.ops,
@@ -476,6 +592,12 @@ watch(
               {{ x.plan.name }}
               <i v-if="x.modified" class="md" title="已修改">✎</i>
               <i
+                v-if="x.boxBadge"
+                :class="['box-fit-pill', x.boxBadge.tone]"
+                :title="x.boxBadge.title">
+                {{ x.boxBadge.text }}
+              </i>
+              <i
                 v-if="banImpact.get(x.key)"
                 class="ban-hit"
                 :title="`本局禁池缺 ${banImpact.get(x.key)} 人`">
@@ -510,6 +632,15 @@ watch(
           <path d="M2.5 7.5 6 4l3.5 3.5" />
         </svg>
       </button>
+      <button
+        v-if="hasAnyBox"
+        type="button"
+        :class="['add', 'box-sort-btn', {on: sortByBox}]"
+        :aria-pressed="sortByBox"
+        title="按当前账号 Box 完整度与自持激活率排序流派"
+        @click="sortByBox = !sortByBox">
+        {{ sortByBox ? '✓ 按 Box 适配度' : '按 Box 适配度' }}
+      </button>
       <TransitionGroup
         name="bsel-pin"
         @before-leave="pinBeforeLeave"
@@ -526,6 +657,12 @@ watch(
           <CovenantIcon v-if="CORE_BUILDS[x.key]" :name="x.key" />
           {{ x.plan.name }}
           <i v-if="x.modified" class="md" title="已修改">✎</i>
+          <i
+            v-if="x.boxBadge"
+            :class="['box-fit-pill', x.boxBadge.tone]"
+            :title="x.boxBadge.title">
+            {{ x.boxBadge.text }}
+          </i>
           <i
             v-if="banImpact.get(x.key)"
             class="ban-hit"
@@ -545,6 +682,12 @@ watch(
           :aria-pressed="x.key === p.key"
           @click="selectBuild(x.key)">
           {{ x.plan.name }}
+          <i
+            v-if="x.boxBadge"
+            :class="['box-fit-pill', x.boxBadge.tone]"
+            :title="x.boxBadge.title">
+            {{ x.boxBadge.text }}
+          </i>
           <i
             v-if="banImpact.get(x.key)"
             class="ban-hit"
@@ -605,7 +748,11 @@ watch(
         :title="imported.plan.name || '导入的流派'" />
       <div class="pl-row">
         <button type="button" @click="acceptImport(false)">存为我的流派</button>
-        <button type="button" class="pri" @click="acceptImport(true)">
+        <button
+          type="button"
+          class="pri"
+          :disabled="!imported.plan.ops.length"
+          @click="acceptImport(true)">
           导入并设为本局
         </button>
       </div>
@@ -806,7 +953,11 @@ watch(
             {{ l }}
             <small>失效</small>
           </span>
-          <button type="button" class="pri" @click="saveBan">
+          <button
+            type="button"
+            class="pri"
+            :disabled="!ban.ops.length"
+            @click="saveBan">
             存为新流派 · 本局打它
           </button>
         </div>
@@ -827,18 +978,6 @@ watch(
           <span v-if="slotEntries.length" class="cnt">
             · {{ slotEntries.length }} 人 · 招募 {{ cost.recruit }}
             <template v-if="cost.elites">· {{ cost.elites }} 精锐</template>
-            <template v-if="boxCoverage && boxCoverage.total > 0">
-              · 自持激活 {{ boxCoverage.activated }}/{{ boxCoverage.total
-              }}<template v-if="boxCoverage.maxed">
-                （满练 {{ boxCoverage.maxed }}）
-              </template><template v-if="boxCoverage.untrained">
-                · 未练 {{ boxCoverage.untrained }}
-              </template><template v-if="boxCoverage.borrowed">
-                · 已借 {{ boxCoverage.borrowed }}
-              </template><template v-if="boxCoverage.borrowableMissing">
-                · 可借 6★ {{ boxCoverage.borrowableMissing }}
-              </template>
-            </template>
           </span>
         </h5>
         <SubTabs
@@ -850,6 +989,146 @@ watch(
           aria-label="阵容视图"
           attr="bdl"
           @change="(_, dir) => (lineupDir = dir)" />
+      </div>
+      <div
+        v-if="currentBoxAssessment && slotEntries.length"
+        :class="[
+          'b-box-strip',
+          {
+            warn: currentBoxAssessment.substitutes.length > 0,
+            open: boxCheckOpen && hasBoxDetails,
+          },
+        ]"
+        role="group"
+        aria-label="当前流派账号 Box 体检">
+        <button
+          v-if="hasBoxDetails"
+          type="button"
+          class="b-box-head"
+          :aria-expanded="boxCheckOpen"
+          :aria-controls="boxCheckOpen ? 'build-box-details' : undefined"
+          @click="boxCheckOpen = !boxCheckOpen">
+          <span class="b-box-main">
+            <span class="b-box-k">Box 体检</span>
+            <span class="b-box-stat">
+              自持激活
+              <b>
+                {{ currentBoxAssessment.coverage.activated }}/{{
+                  currentBoxAssessment.coverage.total
+                }}
+              </b>
+              <template v-if="currentBoxAssessment.coverage.maxed">
+                （满练 {{ currentBoxAssessment.coverage.maxed }}）
+              </template>
+              <template v-if="currentBoxAssessment.coverage.borrowed">
+                · 已借 {{ currentBoxAssessment.coverage.borrowed }}
+              </template>
+            </span>
+            <span
+              v-if="currentBoxAssessment.substitutes.length"
+              class="b-box-warn-tag">
+              缺 {{ currentBoxAssessment.substitutes.length }} 名未借 6★
+            </span>
+            <span v-else class="b-box-ready">✓ 全员本体出战</span>
+            <span
+              v-if="currentBoxAssessment.untrained.length"
+              class="b-box-e0-tag">
+              精 0 待练 {{ currentBoxAssessment.untrained.length }}
+            </span>
+          </span>
+          <span class="b-box-toggle">
+            {{
+              boxCheckOpen
+                ? '收起'
+                : currentBoxAssessment.substitutes.length
+                  ? '查看 / 借用'
+                  : '详情'
+            }}
+            <i
+              :class="['b-box-arrow', {open: boxCheckOpen}]"
+              aria-hidden="true">
+              ▾
+            </i>
+          </span>
+        </button>
+        <div v-else class="b-box-head static">
+          <span class="b-box-main">
+            <span class="b-box-k">Box 体检</span>
+            <span class="b-box-stat">
+              自持激活
+              <b>
+                {{ currentBoxAssessment.coverage.activated }}/{{
+                  currentBoxAssessment.coverage.total
+                }}
+              </b>
+              <template v-if="currentBoxAssessment.coverage.maxed">
+                （满练 {{ currentBoxAssessment.coverage.maxed }}）
+              </template>
+              <template v-if="currentBoxAssessment.coverage.borrowed">
+                · 已借 {{ currentBoxAssessment.coverage.borrowed }}
+              </template>
+            </span>
+            <span class="b-box-ready">✓ 全员本体出战</span>
+          </span>
+        </div>
+        <div
+          v-if="boxCheckOpen && hasBoxDetails"
+          id="build-box-details"
+          class="b-box-body">
+          <div
+            v-if="currentBoxAssessment.substitutes.length"
+            class="b-box-gaps">
+            <span class="b-box-gap-label">未借 6★（不借将变替补）：</span>
+            <button
+              v-for="item in currentBoxAssessment.substitutes"
+              :key="item.op.name"
+              type="button"
+              :class="['b-box-gap-chip', {core: item.core}]"
+              :title="`${item.op.name} 未持有且未借用${item.backupOperator ? `，将替补为「${item.backupOperator}」` : ''}，点此查看详情`"
+              @click="actions.openDetail('op', item.op.name)">
+              <b>{{ item.core ? '★ ' : '' }}{{ item.op.name }}</b>
+              <small v-if="item.backupOperator">
+                → {{ item.backupOperator }}
+              </small>
+            </button>
+            <button
+              type="button"
+              class="b-box-borrow-btn"
+              @click="borrowMissingFromBuild">
+              {{
+                currentBoxAssessment.substitutes.length > 1
+                  ? `全部加入助战 (+${currentBoxAssessment.substitutes.length} · ${boxSeasonBorrowedCount}/${BORROW_LIMIT})`
+                  : `加入助战 (${boxSeasonBorrowedCount}/${BORROW_LIMIT})`
+              }}
+            </button>
+          </div>
+          <p
+            v-if="currentBoxAssessment.untrained.length"
+            class="b-box-untrained">
+            已持有但精 0 未激活：
+            <button
+              v-for="item in currentBoxAssessment.untrained"
+              :key="item.op.name"
+              type="button"
+              class="b-box-e0-link"
+              @click="actions.openDetail('op', item.op.name)">
+              {{ item.op.name }}
+            </button>
+            <small>（拉至精一即享攻防 +5%）</small>
+          </p>
+          <StatusNotice
+            v-if="boxActionNotice"
+            tone="success"
+            :message="boxActionNotice"
+            dismissible
+            @dismiss="boxActionNotice = ''" />
+          <StatusNotice
+            v-if="boxActionError"
+            tone="danger"
+            :message="boxActionError"
+            dismissible
+            @dismiss="boxActionError = ''" />
+        </div>
       </div>
       <div
         v-if="slotEntries.length"
@@ -1030,7 +1309,7 @@ watch(
         </div>
       </div>
     </div>
-    <details v-if="effects.length" class="bfx bfx-fold" :open="!shortViewport">
+    <details v-if="effects.length" class="bfx bfx-fold" :open="!isSmallWindow">
       <summary>
         盟约效果详情
         <span class="hint">已成型 {{ effects.length }} 个</span>
@@ -1081,3 +1360,226 @@ watch(
     </div>
   </div>
 </template>
+
+<style scoped>
+.box-fit-pill {
+  font-style: normal;
+  font-family: var(--fn);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.35;
+  padding: 0 5px;
+  border-radius: 999px;
+  margin-left: 2px;
+}
+.box-fit-pill.warn {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+.box-fit-pill.ok {
+  background: color-mix(in srgb, var(--teal) 14%, transparent);
+  color: var(--teal);
+}
+.bsel button.on .box-fit-pill {
+  background: color-mix(in srgb, currentColor 18%, transparent);
+  color: inherit;
+}
+.b-box-strip {
+  display: grid;
+  margin: 0 0 8px;
+  border: 1px solid color-mix(in srgb, var(--teal) 28%, var(--line));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--teal) 5%, var(--surface2));
+  font-size: 12px;
+  overflow: hidden;
+}
+.b-box-strip.warn {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface2));
+}
+.b-box-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+  width: 100%;
+  min-height: 36px;
+  padding: 5px 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.b-box-head.static {
+  cursor: default;
+}
+.b-box-head:not(.static):hover {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+.b-box-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 8px;
+}
+.b-box-k {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink2);
+}
+.b-box-stat {
+  color: var(--ink2);
+}
+.b-box-stat b {
+  font-family: var(--fn);
+  color: var(--ink);
+}
+.b-box-ready {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--teal);
+}
+.b-box-warn-tag {
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+.b-box-e0-tag {
+  font-size: 11.5px;
+  color: var(--ink3);
+}
+.b-box-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.b-box-arrow {
+  display: inline-block;
+  font-style: normal;
+  transition: transform 0.16s ease;
+}
+.b-box-arrow.open {
+  transform: rotate(180deg);
+}
+.b-box-body {
+  display: grid;
+  gap: 7px;
+  padding: 8px 10px 9px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+}
+.b-box-gaps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.b-box-gap-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.b-box-gap-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 34px;
+  padding: 2px 8px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 55%, var(--line2));
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.b-box-gap-chip.core {
+  border-style: solid;
+  border-color: var(--accent);
+}
+.b-box-gap-chip small {
+  font-size: 11px;
+  color: var(--ink3);
+}
+.b-box-borrow-btn {
+  margin-left: auto;
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.b-box-borrow-btn:hover {
+  filter: brightness(1.06);
+}
+.b-box-untrained {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  font-size: 12px;
+  color: var(--ink2);
+}
+.b-box-untrained small {
+  color: var(--ink3);
+}
+.b-box-e0-link {
+  min-height: 34px;
+  padding: 1px 6px;
+  border: 1px solid var(--line2);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.b-box-e0-link:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+@media (max-height: 600px) {
+  .b-box-head {
+    min-height: 34px;
+    padding: 4px 9px;
+  }
+  .b-box-body {
+    padding: 6px 9px 7px;
+    gap: 5px;
+  }
+}
+@container quickref-view (max-width: 560px) {
+  .b-box-borrow-btn {
+    margin-left: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .b-box-arrow {
+    transition: none;
+  }
+}
+:global(:root[data-motion='reduce'] .b-box-arrow) {
+  transition: none !important;
+}
+</style>

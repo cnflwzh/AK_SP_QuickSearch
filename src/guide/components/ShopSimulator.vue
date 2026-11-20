@@ -230,6 +230,7 @@ reset();
         规程 1–4（固定缺席盟约）
       </label>
       <span class="tag">切换模式重置练习</span>
+      <small>演示从符合条件的固定干员中等概率抽取。</small>
     </div>
     <div class="sim">
       <div class="lvl">
@@ -305,8 +306,11 @@ reset();
       </div>
       <div>
         <div class="slots" id="sShop" :class="{frozen: sim.frozen}">
-          <div
+          <button
             v-for="(name, i) in sim.slots"
+            type="button"
+            :disabled="!name || !!sim.reward || sim.bench.length >= BENCH_SIZE"
+            :aria-label="name ? `招募${name}，${priceOf(name)} 资金` : '空栏位'"
             :key="shopRoll + ':' + i"
             class="slot"
             :class="{empty: !name, flip: !!name && flip}"
@@ -321,7 +325,7 @@ reset();
               <span>{{ name }}</span>
               <span class="pr">{{ priceOf(name) }} 资金</span>
             </template>
-          </div>
+          </button>
           <div class="slot eqs" data-key="equipment">
             <span class="pr">装备栏 ×{{ info.equipmentSlots }}</span>
           </div>
@@ -333,8 +337,11 @@ reset();
             <span class="tag">不可刷新 / 冻结 / 保留</span>
           </div>
           <div class="slots" id="sRewardSlots">
-            <div
+            <button
               v-for="(name, i) in sim.reward"
+              type="button"
+              :disabled="sim.bench.length >= BENCH_SIZE"
+              :aria-label="`领取精锐奖励${name}`"
               :key="name"
               class="slot"
               :data-key="name"
@@ -345,7 +352,7 @@ reset();
               <span class="ti">{{ TIER_LABELS[tierOf(name)] }}</span>
               <span>{{ name }}</span>
               <span class="pr">0 资金</span>
-            </div>
+            </button>
           </div>
         </div>
         <div
@@ -354,11 +361,15 @@ reset();
           <span class="lab" style="margin: 0">干员整备区（含召唤物）</span>
           <span class="cnt" id="sBenchN">
             {{ sim.bench.length }} / {{ BENCH_SIZE }}
+            <template v-if="sim.bench.length >= BENCH_SIZE"> · 出售干员后可继续招募</template>
           </span>
         </div>
         <div class="bench" id="sBench">
-          <div
+          <button
             v-for="(card, i) in benchCells"
+            type="button"
+            :disabled="!card"
+            :aria-label="card ? `出售${card.name}，回收 ${card.sale} 资金` : '空整备位'"
             :key="card ? 'card:' + card.id : 'empty:' + i"
             class="b"
             :class="{
@@ -380,7 +391,7 @@ reset();
                 精锐
               </template>
             </template>
-          </div>
+          </button>
         </div>
       </div>
     </div>

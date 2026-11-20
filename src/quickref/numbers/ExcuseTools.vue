@@ -61,6 +61,7 @@ async function writeClipboard(id: string, text: string): Promise<void> {
   lastCopiedText.value = text;
   copyFallback.value = '';
   const outcome = await copyText(text, id);
+  if (outcome === 'superseded') return;
   if (outcome === 'copied') {
     liveMessage.value = '已复制文案';
   } else {

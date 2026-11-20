@@ -13,12 +13,8 @@ import {
   type AdditionalOperator,
   type Operator,
 } from '../../../data/index.ts';
-import {
-  BOX_OPERATORS,
-  BOX_RANK_META,
-  rankOfOperator,
-  type BoxRank,
-} from '../../lib/box/index.ts';
+import {BOX_OPERATORS, BOX_RANK_META, type BoxRank} from '../../lib/box/model.ts';
+import {rankOfOperator} from '../../lib/box/store.ts';
 import {avatarSrc} from '../../lib/ui/assets.ts';
 import {nameScore, normalize} from '../../lib/ui/match.ts';
 import {cardLocation} from '../../router/navigation.ts';
@@ -35,7 +31,12 @@ import EmptyState from './EmptyState.vue';
 
 const source = defineModel<RosterSource>({required: true});
 const props = withDefaults(
-  defineProps<{showRanks?: boolean; brush?: BoxRank; tabLevel?: 2 | 3}>(),
+  defineProps<{
+    showRanks?: boolean;
+    brush?: BoxRank;
+    tabLevel?: 2 | 3;
+    focusName?: string;
+  }>(),
   {tabLevel: 2},
 );
 const emit = defineEmits<{
@@ -62,7 +63,7 @@ const query = ref('');
 const covenant = ref('');
 const selectableScope = ref<SelectableScope>('all');
 const substituteScope = ref<SubstituteScope>('all');
-const expandAllSubstitutes = ref(false);
+const expandedSubstitutes = ref(new Set<string>());
 const panelDir = ref<SubTabDirection>('');
 const search = computed(() => normalize(query.value));
 
@@ -71,13 +72,16 @@ function onSourceChange(_id: RosterSource, dir: SubTabDirection): void {
   emit('switch', dir);
 }
 
-watch(source, () => {
-  query.value = '';
-  covenant.value = '';
-  selectableScope.value = 'all';
-  substituteScope.value = 'all';
-  expandAllSubstitutes.value = false;
-});
+// 同一次路由导航可能同时更新来源和目标，合并监听以免来源切换抹掉定位词。
+watch(
+  [source, () => props.focusName],
+  ([, name], [, previousName]) => {
+    resetLocalFilters();
+    expandedSubstitutes.value = new Set();
+    if (name && name !== previousName) query.value = name;
+  },
+  {immediate: true},
+);
 
 const choices = ADDITIONAL_OPERATORS.filter((op) => op.source !== 'reserve');
 const ownable = choices.filter((op) => op.source === 'operator');
@@ -150,9 +154,15 @@ const matchesName = (name: string) =>
 const matchesCovenants = (names: readonly string[]) =>
   !covenant.value || names.includes(covenant.value);
 
+const focusedName = computed(() =>
+  props.focusName && normalize(props.focusName) === search.value
+    ? props.focusName
+    : '',
+);
 const filteredChoices = computed(() =>
   choices.filter(
     (op) =>
+      (!focusedName.value || op.name === focusedName.value) &&
       (selectableScope.value === 'all' ||
         op.source === selectableScope.value) &&
       matchesCovenants(op.covenants) &&
@@ -189,7 +199,9 @@ const filteredSubstitutes = computed(() =>
   substitutes
     .filter(
       (op) =>
-        substituteScope.value === 'all' || op.source === substituteScope.value,
+        (!focusedName.value || op.name === focusedName.value) &&
+        (substituteScope.value === 'all' ||
+          op.source === substituteScope.value),
     )
     .map((op) => ({
       ...op,
@@ -203,6 +215,41 @@ const filteredSubstitutes = computed(() =>
     }))
     .filter((op) => op.slots.length > 0),
 );
+
+// 闭合的替补卡只渲染摘要。搜索命中时直接展开对应关系，手动收起仍然有效。
+watch(
+  [search, covenant, substituteScope, source],
+  () => {
+    expandedSubstitutes.value = new Set(
+      source.value === 'substitute' && (search.value || covenant.value)
+        ? filteredSubstitutes.value.map((op) => op.avatar)
+        : [],
+    );
+  },
+  {immediate: true},
+);
+
+const allSubstitutesExpanded = computed(
+  () =>
+    filteredSubstitutes.value.length > 0 &&
+    filteredSubstitutes.value.every((op) =>
+      expandedSubstitutes.value.has(op.avatar),
+    ),
+);
+
+function toggleAllSubstitutes(): void {
+  expandedSubstitutes.value = new Set(
+    allSubstitutesExpanded.value
+      ? []
+      : filteredSubstitutes.value.map((op) => op.avatar),
+  );
+}
+
+function toggleSubstitute(avatar: string): void {
+  if (expandedSubstitutes.value.has(avatar))
+    expandedSubstitutes.value.delete(avatar);
+  else expandedSubstitutes.value.add(avatar);
+}
 
 const substituteGroups = computed(() => {
   const eliteItems = filteredSubstitutes.value.filter(
@@ -308,16 +355,24 @@ defineExpose({visibleOwnable});
             <span
               v-if="showRanks && source === 'selectable'"
               class="rs-stat-pill own">
-              已持有自有六星 <b>{{ ownedCount }}</b> / {{ ownable.length }}
+              已持有自有六星
+              <b>{{ ownedCount }}</b>
+              / {{ ownable.length }}
             </span>
             <span v-else-if="source === 'selectable'" class="rs-stat-pill">
-              自有六星 <b>{{ ownable.length }}</b> · 系统原型
+              自有六星
+              <b>{{ ownable.length }}</b>
+              · 系统原型
               <b>{{ systemChoices.length }}</b>
             </span>
             <span v-else class="rs-stat-pill">
-              特派原型 <b>{{ eliteSubstitutesCount }}</b> · 预备干员
-              <b>{{ reserveSubstitutesCount }}</b> · 覆盖
-              <b>{{ totalCoveredSlots }}</b> 位 6★
+              特派原型
+              <b>{{ eliteSubstitutesCount }}</b>
+              · 预备干员
+              <b>{{ reserveSubstitutesCount }}</b>
+              · 覆盖
+              <b>{{ totalCoveredSlots }}</b>
+              位 6★
             </span>
           </div>
 
@@ -333,7 +388,8 @@ defineExpose({visibleOwnable});
             <span class="rs-rule-note">仅带所属盟约，无棋子特质</span>
           </div>
           <p v-else class="rs-hero-desc">
-            未持有且未借用非特许 6★ 时，局内由对应原型替补上场，继承原干员的等阶、盟约与特质；点击任意原干员可查看完整详情。
+            未持有且未借用非特许 6★
+            时，局内由对应原型替补上场，继承原干员的等阶、盟约与特质；点击任意原干员可查看完整详情。
           </p>
         </div>
 
@@ -374,9 +430,9 @@ defineExpose({visibleOwnable});
             v-if="source === 'substitute' && filteredSubstitutes.length"
             type="button"
             class="rs-btn"
-            :aria-pressed="expandAllSubstitutes"
-            @click="expandAllSubstitutes = !expandAllSubstitutes">
-            {{ expandAllSubstitutes ? '全部收起' : '全部展开' }}
+            :aria-pressed="allSubstitutesExpanded"
+            @click="toggleAllSubstitutes">
+            {{ allSubstitutesExpanded ? '全部收起' : '全部展开' }}
           </button>
           <button
             v-if="hasActiveFilter"
@@ -410,7 +466,9 @@ defineExpose({visibleOwnable});
             :title="group.title"
             :count="`${group.items.length} 名`"
             :desc="group.desc"
-            :accent="group.tone === 'system' ? 'var(--rs-system)' : 'var(--accent)'"
+            :accent="
+              group.tone === 'system' ? 'var(--rs-system)' : 'var(--accent)'
+            "
             :level="4" />
 
           <div class="rs-choice-grid">
@@ -460,9 +518,7 @@ defineExpose({visibleOwnable});
                 <span class="rs-choice-body">
                   <span class="rs-choice-top">
                     <strong class="rs-choice-name">{{ op.name }}</strong>
-                    <span
-                      v-if="op.source === 'system'"
-                      class="rs-badge system">
+                    <span v-if="op.source === 'system'" class="rs-badge system">
                       系统提供
                     </span>
                     <span
@@ -506,7 +562,9 @@ defineExpose({visibleOwnable});
             :title="group.title"
             :count="`${group.items.length} 名`"
             :desc="group.desc"
-            :accent="group.tone === 'system' ? 'var(--rs-system)' : 'var(--rs-r1)'"
+            :accent="
+              group.tone === 'system' ? 'var(--rs-system)' : 'var(--rs-r1)'
+            "
             :level="4" />
 
           <div class="rs-sub-list">
@@ -514,8 +572,10 @@ defineExpose({visibleOwnable});
               v-for="op in group.items"
               :key="op.avatar"
               :class="['rs-sub-card', op.source]"
-              :open="expandAllSubstitutes || !!search || !!covenant">
-              <summary class="rs-sub-summary">
+              :open="expandedSubstitutes.has(op.avatar)">
+              <summary
+                class="rs-sub-summary"
+                @click.prevent="toggleSubstitute(op.avatar)">
                 <span class="rs-av sm">
                   <img
                     :src="`/assets/img/avatars/${op.avatar}.webp`"
@@ -529,7 +589,9 @@ defineExpose({visibleOwnable});
                   <span class="rs-sub-name-row">
                     <strong>{{ op.name }}</strong>
                     <span :class="['rs-badge', op.source]">
-                      {{ op.source === 'system' ? '6★ 特派原型' : '4★ 预备干员' }}
+                      {{
+                        op.source === 'system' ? '6★ 特派原型' : '4★ 预备干员'
+                      }}
                     </span>
                     <span class="rs-sub-tiers">{{ op.tierSpan }}</span>
                   </span>
@@ -539,12 +601,15 @@ defineExpose({visibleOwnable});
                         .slice(0, 5)
                         .map((s) => s.name)
                         .join('、')
-                    }}{{ op.slots.length > 5 ? ` 等 ${op.slots.length} 名` : '' }}
+                    }}{{
+                      op.slots.length > 5 ? ` 等 ${op.slots.length} 名` : ''
+                    }}
                   </small>
                 </span>
                 <span class="rs-sub-right">
                   <span class="rs-slot-count">
-                    <b>{{ op.slots.length }}</b> 个替补位
+                    <b>{{ op.slots.length }}</b>
+                    个替补位
                   </span>
                   <svg
                     class="rs-chevron"
@@ -562,7 +627,9 @@ defineExpose({visibleOwnable});
                 </span>
               </summary>
 
-              <div class="rs-sub-slots">
+              <div
+                v-if="expandedSubstitutes.has(op.avatar)"
+                class="rs-sub-slots">
                 <NavigationLink
                   v-for="slot in op.slots"
                   :key="slot.avatar"
@@ -746,18 +813,6 @@ defineExpose({visibleOwnable});
 .rs-search {
   flex: 1 1 170px;
   min-width: 120px;
-  min-height: 34px;
-  padding: 5px 10px;
-  border: 1px solid var(--line2);
-  border-radius: 6px;
-  background: var(--surface2);
-  color: var(--ink);
-  font: inherit;
-  font-size: 13px;
-}
-.rs-search:focus {
-  outline: none;
-  border-color: var(--accent);
 }
 .rs-bar :deep(.q-select) {
   min-width: 112px;

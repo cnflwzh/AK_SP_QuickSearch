@@ -2,11 +2,17 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   COMBAT_ROLE_LABELS,
+  OPERATOR,
   equipmentWithRoles,
   operatorsWithRoles,
   rolesForTraining,
 } from '../data/index.ts';
-import {diagnoseLineup, newSlot} from '../src/lib/plans/index.ts';
+import {BOX_RANK_BORROWED} from '../src/lib/box/model.ts';
+import {
+  covenantStats,
+  diagnoseLineup,
+  newSlot,
+} from '../src/lib/plans/index.ts';
 
 test('combat role lookup connects trainings, operators, and equipment', () => {
   assert.ok(COMBAT_ROLE_LABELS.includes('反隐'));
@@ -91,4 +97,74 @@ test('coverage requires an independent source and an eligible equipment holder',
   assert.deepEqual(providers(['莎草', '波登可'].map(newSlot), '元素回复'), [
     '聚合',
   ]);
+});
+
+test('diagnoseLineup reports substituteRisks when a role depends solely on unborrowed 6★ operators', () => {
+  const slots = [newSlot('拜松'), newSlot('荒芜拉普兰德')];
+  const stats = covenantStats(slots);
+
+  // Without Box, no substitute risks are reported
+  assert.deepEqual(diagnoseLineup(slots, stats).substituteRisks, []);
+
+  // With a non-empty Box that does not own/borrow 荒芜拉普兰德, 沉默 is at risk
+  const box = {[OPERATOR['拜松'].avatar]: 3};
+  const risky = diagnoseLineup(slots, stats, box);
+  assert.ok(risky.substituteRisks.some((r) => r.role === '沉默'));
+  assert.equal(
+    risky.entries.find((e) => e.role === '沉默')?.substituteOnly,
+    true,
+  );
+  // 阻挡 is provided by 拜松 (owned), so it is not a substitute risk
+  assert.ok(!risky.substituteRisks.some((r) => r.role === '阻挡'));
+
+  // Once 荒芜拉普兰德 is borrowed, the risk disappears
+  const borrowed = diagnoseLineup(slots, stats, {
+    ...box,
+    [OPERATOR['荒芜拉普兰德'].avatar]: BOX_RANK_BORROWED,
+  });
+  assert.deepEqual(borrowed.substituteRisks, []);
+});
+
+test('substitute equipment risks depend on the trigger and report a borrowable operator', () => {
+  const box = {[OPERATOR['拜松'].avatar]: 0};
+  const equipped = {...newSlot('斯卡蒂'), eq: ['聚合急救箱', '奥术法阵']};
+  const report = diagnoseLineup([equipped], undefined, box);
+  assert.deepEqual(report.entries.find((r) => r.role === '治疗').providers, [
+    '斯卡蒂·聚合急救箱',
+  ]);
+  assert.equal(
+    report.entries.find((r) => r.role === '治疗').substituteOnly,
+    undefined,
+  );
+  assert.deepEqual(
+    report.substituteRisks.find((r) => r.role === '沉默').operators,
+    [{name: '斯卡蒂', backupOperator: OPERATOR['斯卡蒂'].backupOperator}],
+  );
+
+  const withCaster = diagnoseLineup(
+    [equipped, newSlot('拉普兰德')],
+    undefined,
+    box,
+  );
+  assert.ok(!withCaster.substituteRisks.some((risk) => risk.role === '沉默'));
+});
+
+test('conditional elemental output tracks the missing source of elemental damage', () => {
+  const slots = ['折光', '妮芙'].map(newSlot);
+  const box = {[OPERATOR['折光'].avatar]: 1};
+  const report = diagnoseLineup(slots, undefined, box);
+  assert.deepEqual(
+    report.entries.find((r) => r.role === '元素输出').providers,
+    ['妮芙', '折光'],
+  );
+  assert.deepEqual(
+    report.substituteRisks.find((r) => r.role === '元素输出').operators,
+    [{name: '妮芙', backupOperator: OPERATOR['妮芙'].backupOperator}],
+  );
+  const borrowed = {...box, [OPERATOR['妮芙'].avatar]: BOX_RANK_BORROWED};
+  assert.ok(
+    !diagnoseLineup(slots, undefined, borrowed).substituteRisks.some(
+      (r) => r.role === '元素输出',
+    ),
+  );
 });

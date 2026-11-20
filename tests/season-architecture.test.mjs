@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   ADDON_COVENANTS,
   ALL_COVENANTS,
+  BOUNTIES,
   COMBAT_ROLE_LABELS,
   CORE_BUILDS,
   CORE_COVENANTS,
@@ -11,9 +12,11 @@ import {
   DEFAULT_BUILD_ID,
   DEFAULT_COVENANT_ID,
   DEPLOYMENT_BONUS_EQUIP,
+  ENEMY_GLOSSARY,
   EQUIP,
   EQUIPMENT,
   EQUIPMENT_COMBOS,
+  LEADERS,
   MIXED_BUILDS,
   MIXED_BUILD_IDS,
   OPERATOR,
@@ -25,6 +28,7 @@ import {
   STRATEGIES,
   STRATEGY,
   STRATEGY_CATEGORIES,
+  TRAINING,
   getSeason,
   isBannableCovenant,
   operatorEliteCopies,
@@ -35,6 +39,7 @@ import {
 } from '../data/index.ts';
 import {CURRENT_SEASON} from '../data/season.ts';
 import {diffSeasons} from '../src/lib/season/diff.ts';
+import {leaderGlossaryTerms} from '../src/lib/leaders/leader.ts';
 import {covenantStats, newSlot} from '../src/lib/plans/index.ts';
 import {
   advisorDeploymentLimit,
@@ -172,7 +177,6 @@ test('season bundle integrity: references, covenants, IDs, share IDs, and defaul
       shareSet.has(charId),
       `${op.name} (${charId}) missing from SHARE_OPERATOR_IDS`,
     );
-
   }
 
   assert.ok(DEFAULT_COVENANT_ID.length > 0);
@@ -349,14 +353,109 @@ test('generic mechanics helpers obey data contracts rather than hardcoded names'
     ...CURRENT_SEASON,
     meta: {...CURRENT_SEASON.meta, id: 's2'},
     operators: [
-      {...CURRENT_SEASON.operators[0], tier: CURRENT_SEASON.operators[0].tier + 1},
+      {
+        ...CURRENT_SEASON.operators[0],
+        tier: CURRENT_SEASON.operators[0].tier + 1,
+      },
       ...CURRENT_SEASON.operators.slice(2),
       {...CURRENT_SEASON.operators[0], name: '测试新干员'},
     ],
   };
   const changed = diffSeasons(CURRENT_SEASON, syntheticNext);
   assert.deepEqual(changed.operators.added, ['测试新干员']);
-  assert.deepEqual(changed.operators.removed, [CURRENT_SEASON.operators[1].name]);
+  assert.deepEqual(changed.operators.removed, [
+    CURRENT_SEASON.operators[1].name,
+  ]);
   assert.equal(changed.operators.changed.length, 1);
   assert.equal(changed.operators.changed[0].changes[0].field, 'tier');
+  assert.deepEqual(changed.operators.changed[0].changes.find((c) => c.field === 'price'), {
+    field: 'price',
+    before: CURRENT_SEASON.meta.tierBasePrices[CURRENT_SEASON.operators[0].tier],
+    after: syntheticNext.meta.tierBasePrices[syntheticNext.operators[0].tier],
+  });
+});
+
+test('enemy intel integrity: leaders, bounties, training types, and glossary stay complete and valid', () => {
+  const roleSet = new Set(COMBAT_ROLE_LABELS);
+  const validMobility = new Set(['地面', '飞行']);
+  const validRange = new Set(['近战', '远程', '近远', '不攻击']);
+  const validDamage = new Set(['物理', '法术', '混伤', '元素', '无']);
+
+  assert.ok(Object.keys(ENEMY_GLOSSARY).length >= 12);
+
+  for (const leader of LEADERS) {
+    assert.ok(
+      leader.profile.attackMode.length > 0,
+      `${leader.name} missing attackMode`,
+    );
+    assert.ok(
+      leader.profile.defense.length > 0,
+      `${leader.name} missing defense`,
+    );
+    assert.ok(
+      leader.profile.targeting.length > 0,
+      `${leader.name} missing targeting`,
+    );
+    assert.ok(
+      leader.profile.blocking.length > 0,
+      `${leader.name} missing blocking`,
+    );
+    assert.ok(
+      leader.profile.summary.length > 0,
+      `${leader.name} missing summary`,
+    );
+    if (leader.hiddenCore) {
+      assert.ok(
+        (leader.profile.hiddenSummary ?? '').length > 0,
+        `${leader.name} missing hiddenSummary`,
+      );
+    }
+    const terms = leaderGlossaryTerms(leader, ENEMY_GLOSSARY);
+    assert.ok(
+      terms.length >= 2,
+      `${leader.name} should collect glossary terms`,
+    );
+  }
+
+  for (const bounty of BOUNTIES) {
+    assert.ok(
+      validMobility.has(bounty.mobility),
+      `Invalid mobility on ${bounty.name}`,
+    );
+    assert.ok(validRange.has(bounty.range), `Invalid range on ${bounty.name}`);
+    assert.ok(
+      validDamage.has(bounty.damage),
+      `Invalid damage on ${bounty.name}`,
+    );
+    assert.ok(
+      bounty.mechanics.length >= 8,
+      `Too short mechanics on ${bounty.name}`,
+    );
+    assert.ok(
+      bounty.counter.length >= 8,
+      `Too short counter on ${bounty.name}`,
+    );
+    for (const role of bounty.roles ?? []) {
+      assert.ok(
+        roleSet.has(role),
+        `Unknown role ${role} on bounty ${bounty.name}`,
+      );
+    }
+  }
+
+  for (const training of TRAINING) {
+    assert.ok(
+      training.attackStyle.length >= 10,
+      `Missing attackStyle on ${training.name}`,
+    );
+    assert.ok(
+      training.strategy.length >= 10,
+      `Missing strategy on ${training.name}`,
+    );
+    assert.ok(
+      training.examples.length >= 2,
+      `Missing examples on ${training.name}`,
+    );
+    assert.ok(training.tags.length >= 2, `Missing tags on ${training.name}`);
+  }
 });

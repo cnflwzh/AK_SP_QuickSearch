@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed, ref} from 'vue';
+import {computed, ref, watch} from 'vue';
 import LiveStatus from '../../lib/ui/LiveStatus.vue';
 import {
   OPERATORS,
@@ -20,7 +20,8 @@ import {
   isCoreCovenant,
 } from '../../../data/index.ts';
 import {equipIconSrc} from '../../lib/ui/assets.ts';
-import {updateQuery} from '../../router/navigation.ts';
+import {queryText, rosterOperator} from '../../router/location.ts';
+import {routeQuery, updateQuery} from '../../router/navigation.ts';
 import {state, useQuickrefActions} from '../state.ts';
 import {
   inRunAny,
@@ -46,11 +47,22 @@ import StrategyCard from '../components/StrategyCard.vue';
 import OperatorRosterSources, {
   type RosterSource,
 } from '../components/OperatorRosterSources.vue';
+const props = defineProps<{kind: 'op' | 'eq' | 'st'}>();
 const rosterSource = ref<RosterSource>('fixed');
 const rosterDir = ref<SubTabDirection>('');
+const rosterTarget = computed(() => {
+  if (props.kind !== 'op' || routeQuery.value.q) return;
+  return rosterOperator(queryText(routeQuery.value, 'roster'));
+});
+watch(rosterTarget, (target) => {
+  if (target) rosterSource.value = target.source === 'reserve' ? 'substitute' : 'selectable';
+}, {immediate: true});
+function switchRoster(direction: SubTabDirection): void {
+  rosterDir.value = direction;
+  if (rosterTarget.value) void updateQuery({roster: null}, true);
+}
 const stDir = ref<SubTabDirection>('');
 const vEnter = useCatalogEntrance();
-defineProps<{kind: 'op' | 'eq' | 'st'}>();
 const actions = useQuickrefActions();
 
 const opTierTabs: readonly SubTabItem<number>[] = [
@@ -255,7 +267,8 @@ const equipmentGroups = computed(() =>
   <OperatorRosterSources
     v-if="kind === 'op'"
     v-model="rosterSource"
-    @switch="rosterDir = $event" />
+    :focus-name="rosterTarget?.name"
+    @switch="switchRoster" />
   <div
     v-if="kind === 'op' && rosterSource === 'fixed'"
     :class="{'subtab-panel': !!rosterDir}"
@@ -510,6 +523,7 @@ const equipmentGroups = computed(() =>
       " />
   </template>
   <LiveStatus
+    v-if="kind !== 'op' || rosterSource === 'fixed'"
     :message="
       kind === 'op'
         ? `筛选结果：${operators.length} 名干员`

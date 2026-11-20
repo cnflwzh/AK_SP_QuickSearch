@@ -60,7 +60,9 @@ let returnFocus: HTMLElement | null = null;
 const operator = computed(() =>
   props.selection?.kind === 'op' ? OPERATOR[props.selection.name] : undefined,
 );
-const roleDescMap = new Map(COMBAT_ROLES.map((item) => [item.label, item.desc]));
+const roleDescMap = new Map(
+  COMBAT_ROLES.map((item) => [item.label, item.desc]),
+);
 
 interface RoleEntry {
   readonly role: CombatRole;
@@ -742,8 +744,8 @@ onBeforeUnmount(() => dialog.value?.close());
     font-size: 20px;
   }
   .sh-b {
-    padding: 12px;
-    gap: 10px;
+    padding: 10px 12px;
+    gap: 8px;
   }
   .operator-quick-build,
   .operator-detail-actions :deep(.operator-request),
@@ -759,9 +761,7 @@ onBeforeUnmount(() => dialog.value?.close());
 /* ---------- 详情页主体区块统一排版 ---------- */
 .sh-sec {
   display: grid;
-  gap: 7px;
-  padding-top: 10px;
-  border-top: 1px solid color-mix(in srgb, var(--line) 65%, transparent);
+  gap: 6px;
 }
 .sh-roles-list {
   display: flex;

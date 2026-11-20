@@ -111,6 +111,8 @@ export const state = reactive({
   }),
   leaderMapSide: indexControl('side', ['left', 'all', 'right']),
   leaderMapMode: indexControl('view', ['layout', 'routes']),
+  focusBounty: '',
+  focusTraining: '',
   pickerOpen: false,
 });
 
@@ -135,6 +137,8 @@ export interface QuickrefActions {
   openCovenant(name: string): Promise<void>;
   openBuild(name: string): Promise<void>;
   openLeader(name: string): Promise<void>;
+  openBounty(name: string): Promise<void>;
+  openTraining(name: string): Promise<void>;
   pickCovenant(name: string): Promise<void>;
   closeDetail(): void;
 }

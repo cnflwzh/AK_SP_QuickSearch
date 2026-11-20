@@ -43,6 +43,9 @@ const isRunLeader = computed(() => runLeaderKey.value === props.leader.name);
         <i v-if="patrols(leader)" class="lwb pt">巡逻</i>
         <i v-if="leader.hiddenCore" class="lwb hc">隐秘核心</i>
       </span>
+      <span class="lwr-sub">
+        {{ leader.profile.attackMode }} · {{ leader.profile.targeting }}
+      </span>
     </span>
     <span class="lwr-hp">
       <b>{{ wan(hp) }}</b>

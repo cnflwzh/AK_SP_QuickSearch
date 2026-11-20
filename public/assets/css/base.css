@@ -153,10 +153,9 @@ body.is-loading > :not(#load-screen):not(script) {
   padding: 20px;
   background-color: var(--bg);
   background-image:
-    radial-gradient(circle at 50% 46%, color-mix(in srgb, var(--teal) 9%, transparent), transparent 48%),
     linear-gradient(var(--grid) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-  background-size: 100% 100%, 32px 32px, 32px 32px;
+  background-size: 32px 32px;
   font: 500 14px/1.6 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--ink2);
   transition: opacity .2s cubic-bezier(.22, 1, .36, 1);
@@ -178,38 +177,53 @@ body.is-loading > :not(#load-screen):not(script) {
   opacity: 0;
 }
 .load-core {
-  width: 78px;
-  height: 78px;
+  width: 74px;
+  height: 74px;
 }
-.load-orbit {
+.load-squad {
   width: 100%;
   height: 100%;
   display: block;
+  overflow: visible;
 }
-.load-track {
-  stroke: color-mix(in srgb, var(--line2) 70%, transparent);
-  stroke-width: 1.5;
-}
-.load-arc {
-  stroke: var(--teal);
-  stroke-width: 2.2;
-  stroke-dasharray: 64 182;
-  stroke-linecap: round;
-  transform-origin: 44px 44px;
-  animation: load-spin 1.35s cubic-bezier(.45, .08, .55, .92) infinite;
+/* 卫戍 4 人小队盾牌动画：绿色代表自己常驻就位，三位队友依次入位集结 */
+.load-shield-group {
+  transform-origin: 32px 32px;
+  animation: load-shield-ready 2.4s cubic-bezier(.22, 1, .36, 1) infinite;
 }
 .load-shield {
   fill: var(--accent);
 }
-.load-node {
-  fill: var(--teal);
+.load-slot {
+  fill: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+.load-self {
+  fill: color-mix(in srgb, var(--green) 58%, var(--teal));
+  transform-origin: 38px 38px;
+  animation: load-self-sync 2.4s cubic-bezier(.22, 1, .36, 1) infinite;
+}
+.load-mate {
+  fill: color-mix(in srgb, var(--accent) 28%, var(--ink2));
+  opacity: 0;
+}
+.load-mate.m1 {
+  transform-origin: 26px 26px;
+  animation: load-mate-1 2.4s cubic-bezier(.22, 1, .36, 1) infinite;
+}
+.load-mate.m2 {
+  transform-origin: 38px 26px;
+  animation: load-mate-2 2.4s cubic-bezier(.22, 1, .36, 1) infinite;
+}
+.load-mate.m3 {
+  transform-origin: 26px 38px;
+  animation: load-mate-3 2.4s cubic-bezier(.22, 1, .36, 1) infinite;
 }
 .load-title {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
   line-height: 1.25;
-  letter-spacing: .16em;
-  padding-left: .16em;
+  letter-spacing: .14em;
+  padding-left: .14em;
   color: var(--ink);
 }
 .load-status {
@@ -222,16 +236,37 @@ body.is-loading > :not(#load-screen):not(script) {
 #load-screen p {
   margin: 0;
   font-size: 12.5px;
-  letter-spacing: .12em;
-  padding-left: .12em;
+  letter-spacing: .08em;
   color: var(--ink3);
 }
 #load-screen noscript {
   font-size: 13px;
   color: var(--ink2);
 }
-@keyframes load-spin {
-  to { transform: rotate(360deg); }
+@keyframes load-mate-1 {
+  0%, 6% { opacity: 0; transform: translate(-4px, -4px) scale(.5); }
+  19%, 76% { opacity: 1; transform: translate(0, 0) scale(1); }
+  90%, 100% { opacity: 0; transform: scale(.65); }
+}
+@keyframes load-mate-2 {
+  0%, 20% { opacity: 0; transform: translate(4px, -4px) scale(.5); }
+  33%, 76% { opacity: 1; transform: translate(0, 0) scale(1); }
+  90%, 100% { opacity: 0; transform: scale(.65); }
+}
+@keyframes load-mate-3 {
+  0%, 34% { opacity: 0; transform: translate(-4px, 4px) scale(.5); }
+  47%, 76% { opacity: 1; transform: translate(0, 0) scale(1); }
+  90%, 100% { opacity: 0; transform: scale(.65); }
+}
+@keyframes load-self-sync {
+  0%, 49% { transform: scale(1); }
+  57% { transform: scale(1.18); }
+  66%, 100% { transform: scale(1); }
+}
+@keyframes load-shield-ready {
+  0%, 50% { transform: translateY(0); }
+  58% { transform: translateY(-2.5px); }
+  68%, 100% { transform: translateY(0); }
 }
 @keyframes load-pulse {
   0%, 100% { opacity: .3; transform: translateY(0) rotate(45deg); }
@@ -244,19 +279,19 @@ body.is-loading > :not(#load-screen):not(script) {
 #load-screen[data-state="slow"] .load-slow,
 #load-screen[data-state="error"] .load-error,
 #load-screen[data-state] .load-retry { display: inline-flex; }
-#load-screen[data-state="slow"] .load-arc {
-  stroke: var(--accent);
-}
 #load-screen[data-state="slow"] .load-slow {
   color: var(--accent);
 }
-#load-screen[data-state="error"] .load-arc {
+#load-screen[data-state="error"] .load-shield-group,
+#load-screen[data-state="error"] .load-self,
+#load-screen[data-state="error"] .load-mate {
   animation: none;
-  stroke: var(--red);
-  stroke-dasharray: none;
+}
+#load-screen[data-state="error"] .load-mate {
+  opacity: 0;
 }
 #load-screen[data-state="error"] .load-shield,
-#load-screen[data-state="error"] .load-node {
+#load-screen[data-state="error"] .load-self {
   fill: var(--red);
 }
 #load-screen[data-state="error"] .load-error {
@@ -283,8 +318,8 @@ body.is-loading > :not(#load-screen):not(script) {
 }
 @media (max-height: 600px) {
   .load-stage { gap: 10px; }
-  .load-core { width: 62px; height: 62px; }
-  .load-title { font-size: 16px; }
+  .load-core { width: 58px; height: 58px; }
+  .load-title { font-size: 15.5px; }
 }
 .chap[aria-busy="true"] .chap-h::after {
   content: '';
@@ -300,8 +335,14 @@ body.is-loading > :not(#load-screen):not(script) {
   #load-screen,
   .load-stage,
   .load-retry { transition: none; }
-  .load-arc,
+  .load-shield-group,
+  .load-self,
+  .load-mate,
   .chap[aria-busy="true"] .chap-h::after { animation: none; }
+  .load-mate { opacity: 1; }
+}
+:root[data-motion="reduce"] .load-mate {
+  opacity: 1;
 }
 
 .wrap {
@@ -682,7 +723,7 @@ svg text {
   font-family: var(--fn);
 }
 
-select:not(.q-select-native), input[type=search] {
+:where(select:not(.q-select-native), input[type=search]:not(.q-search-input)) {
   background: var(--surface);
   border: 1px solid var(--line2);
   border-radius: 7px;
@@ -1407,10 +1448,111 @@ em.ls {
 
 /* 自定义全局显示设置（由 settings store 同步到 <html>） */
 :root[data-font="large"] body {
+  font-size: 17px;
+  line-height: 1.65;
+}
+:root[data-font="large"] :is(table, th, td) {
+  font-size: 15px;
+}
+:root[data-font="large"] :is(.btn, .tag, .cv, .tier) {
+  font-size: 13.5px;
+}
+:root[data-font="large"] .tabs a {
+  font-size: 15.5px;
+}
+:root[data-font="large"] .tabs a i {
+  font-size: 12px;
+}
+:root[data-font="large"] .search input {
   font-size: 16px;
 }
-:root[data-font="large"] :is(.oc, .ef, .sr, .nt-excuse-text) {
+:root[data-font="large"] :is(.q-search-input, .q-select-trigger, .q-select-opt) {
+  font-size: 15px;
+}
+:root[data-font="large"] .subtab {
+  font-size: 15px;
+}
+:root[data-font="large"] .subtabs-l3 .subtab {
   font-size: 14px;
+}
+:root[data-font="large"] .seg button {
+  font-size: 14px;
+}
+:root[data-font="large"] :is(
+  .oc,
+  .ef,
+  .sr,
+  .nt-excuse-text,
+  .cv-fx,
+  .bfx,
+  .bnote,
+  .lws,
+  .lwc,
+  .lwe,
+  .pl-trait,
+  .ra-trait-preview,
+  .bo-lead
+) {
+  font-size: 15px;
+  line-height: 1.65;
+}
+:root[data-font="large"] :is(
+  .oc .h b,
+  .op-name,
+  .cvc h3,
+  .lwr-name,
+  .lwd-h h3,
+  .bc-name,
+  .settings-row-info b,
+  .bx-name,
+  .rs-name,
+  .tr-item-main b,
+  .tr-detail-desc,
+  .bty-name-row b,
+  .bo-points b
+) {
+  font-size: 16px;
+}
+:root[data-font="large"] :is(
+  .oc .op-tx,
+  .dt-box,
+  .dt-tx,
+  .st-tx,
+  .eq-tx,
+  .cv-desc,
+  .lwd-desc,
+  .lwd-pf-cell span,
+  .lwd-pf-note,
+  .lwd-gloss-item dd,
+  .nt-muted,
+  .nt-footnote,
+  .nt-match-note,
+  .nt-match-foot,
+  .settings-row-info small,
+  .settings-note,
+  .rs-desc,
+  .rs-sub,
+  .bx-summary-note,
+  .tr-intel-box p,
+  .tr-role-notes,
+  .ccg-chip,
+  .bty-line,
+  .sr-bty-desc,
+  .sr-bty-counter,
+  .sr-gloss-item dd,
+  .recent-chip,
+  .bo-points span
+) {
+  font-size: 14px;
+}
+:root[data-font="large"] :is(.settings-card h2, .sec-h, .nt-section-title) {
+  font-size: 17px;
+}
+:root[data-font="large"] :is(.tr-role-btn, .bty-role-btn, .bty-expand-btn, .bty-when) {
+  font-size: 13px;
+}
+:root[data-font="large"] .bty-funds {
+  font-size: 21px;
 }
 :root[data-motion="reduce"] *,
 :root[data-motion="reduce"] *::before,

@@ -10,6 +10,7 @@ import {
   type OperatorBox,
   type OwnedBoxRank,
 } from './model.ts';
+import {decodeBox, isBoxShareInput} from './share.ts';
 
 export interface BoxImportResult {
   readonly entries: OperatorBox;
@@ -171,20 +172,28 @@ function parseJsonValue(
 }
 
 /** 文件和粘贴路径共用列名、持有状态与练度校验。未识别的表头返回 null。 */
-function parseYituliuRows([header = [], ...rows]: string[][]): BoxImportResult | null {
+function parseYituliuRows([
+  header = [],
+  ...rows
+]: string[][]): BoxImportResult | null {
   const name = header.indexOf('干员名称');
   const owned = header.indexOf('是否已招募');
   const elite = header.indexOf('精英化等级');
   const level = header.indexOf('等级');
   if ([name, owned, elite, level].every((column) => column < 0)) {
     // 漏选表头时不能按纯名单解析，否则未招募干员也会被当作已持有。
-    if (header.some((cell) => cell === '是' || cell === '否') && header.some((cell) => /^\d+$/.test(cell))) {
+    if (
+      header.some((cell) => cell === '是' || cell === '否') &&
+      header.some((cell) => /^\d+$/.test(cell))
+    ) {
       throw new Error('缺少列名，请选择一图流导出的原表，或从第一行开始复制。');
     }
     return null;
   }
   if ([name, owned, elite, level].includes(-1)) {
-    throw new Error('练度表需要包含「干员名称」「是否已招募」「精英化等级」「等级」四列。');
+    throw new Error(
+      '练度表需要包含「干员名称」「是否已招募」「精英化等级」「等级」四列。',
+    );
   }
 
   const id = header.indexOf('干员 ID');
@@ -193,24 +202,40 @@ function parseYituliuRows([header = [], ...rows]: string[][]): BoxImportResult |
   for (const [index, cells] of rows.entries()) {
     if (cells.every((cell) => !cell)) continue;
     if (cells[owned] === '否') continue;
-    const key = resolveBoxKey(cells[id] ?? '') || resolveBoxKey(cells[name] ?? '');
+    const key =
+      resolveBoxKey(cells[id] ?? '') || resolveBoxKey(cells[name] ?? '');
     if (!key) {
       ignoredCount++;
       continue;
     }
-    if (cells[owned] !== '是' || !/^[012]$/.test(cells[elite] ?? '') ||
-        !/^[1-9]\d?$/.test(cells[level] ?? '') || Number(cells[level]) > 90) {
-      throw new Error(`表格第 ${index + 2} 行的招募状态或练度有误，请核对一图流原表。`);
+    if (
+      cells[owned] !== '是' ||
+      !/^[012]$/.test(cells[elite] ?? '') ||
+      !/^[1-9]\d?$/.test(cells[level] ?? '') ||
+      Number(cells[level]) > 90
+    ) {
+      throw new Error(
+        `表格第 ${index + 2} 行的招募状态或练度有误，请核对一图流原表。`,
+      );
     }
-    mergeBoxRank(entries, key, rankFromEliteLevel(Number(cells[elite]), Number(cells[level])));
+    mergeBoxRank(
+      entries,
+      key,
+      rankFromEliteLevel(Number(cells[elite]), Number(cells[level])),
+    );
   }
   const result = summarizeEntries(entries, ignoredCount, '一图流练度表');
-  if (!result.matchedCount) throw new Error('表格中没有匹配到本赛季已招募的干员，请检查一图流的账号和导出范围。');
+  if (!result.matchedCount)
+    throw new Error(
+      '表格中没有匹配到本赛季已招募的干员，请检查一图流的账号和导出范围。',
+    );
   return result;
 }
 
 /** 从一图流导出的 .xlsx 首张工作表生成预览；读取失败或表头不符时抛出提示，不写入练度箱。 */
-export async function readYituliuWorkbook(file: File): Promise<BoxImportResult> {
+export async function readYituliuWorkbook(
+  file: File,
+): Promise<BoxImportResult> {
   const {readSheet} = await import('read-excel-file/browser').catch(() => {
     throw new Error('Excel 读取工具加载失败，请联网后重新选择文件。');
   });
@@ -219,7 +244,10 @@ export async function readYituliuWorkbook(file: File): Promise<BoxImportResult> 
   });
   const rows = sheet.map((row) => row.map((cell) => String(cell ?? '').trim()));
   const preview = parseYituliuRows(rows);
-  if (!preview) throw new Error('没有找到一图流的练度表头，请从「我的干员」导出 Excel 后重试。');
+  if (!preview)
+    throw new Error(
+      '没有找到一图流的练度表头，请从「我的干员」导出 Excel 后重试。',
+    );
   return preview;
 }
 
@@ -230,7 +258,7 @@ export function parseExternalBox(
 ): BoxImportResult {
   const cleaned = input.replace(/^\uFEFF/, '').trim();
   if (!cleaned) {
-    throw new Error('请先粘贴导出的 JSON 或干员名单。');
+    throw new Error('请先粘贴导出的 JSON、同步短码或干员名单。');
   }
   if (cleaned.startsWith('[') || cleaned.startsWith('{')) {
     let parsed: unknown;
@@ -249,9 +277,36 @@ export function parseExternalBox(
   }
 
   if (cleaned.includes('\t')) {
-    const rows = cleaned.split(/\r\n?|\n/).map((row) => row.split('\t').map((cell) => cell.trim()));
+    const rows = cleaned
+      .split(/\r\n?|\n/)
+      .map((row) => row.split('\t').map((cell) => cell.trim()));
     const table = parseYituliuRows(rows);
     if (table) return table;
+  }
+
+  if (isBoxShareInput(cleaned)) {
+    const synced = decodeBox(cleaned);
+    if (!synced) {
+      throw new Error('同步码无效、损坏或版本不匹配，请重新复制完整短码或扫码。');
+    }
+    const result = summarizeEntries(synced, 0, '跨端同步码');
+    if (!result.matchedCount) {
+      throw new Error('这个同步码里还没有已标记的本赛季干员。');
+    }
+    return result;
+  }
+
+  // MAA 也可导出 CSV/Markdown。含数值列的表格不能退回纯名单，否则未持有行也会被提升到默认练度。
+  const looksLikeTable = cleaned.split(/\r\n?|\n/).some((line) => {
+    const cells = line
+      .split(/[,;|\t]/)
+      .map((cell) => cell.trim().replace(/^"|"$/g, ''));
+    return cells.length > 1 && cells.some((cell) => /^\d+$/.test(cell));
+  });
+  if (looksLikeTable) {
+    throw new Error(
+      '识别到含练度列的表格。MAA 请导出 JSON，一图流请选择 .xlsx 原表或粘贴含表头的单元格。',
+    );
   }
 
   // 纯文本名单：支持换行、空格、顿号、逗号、分号、斜杠分隔

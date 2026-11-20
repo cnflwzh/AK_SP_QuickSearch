@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {BORROW_LIMIT, OPERATOR, OPERATORS} from '../data/index.ts';
+import {BORROW_LIMIT, BUILD_NAMES, OPERATOR, OPERATORS} from '../data/index.ts';
 import {
   BORROWABLE_SIX_STARS,
+  BOX_CODE_PREFIX,
   BOX_RANK_BORROWED,
+  OWNABLE_OPERATORS,
   PRESET_SIX_STARS,
   applyBoxBatch,
   boxSeasonActivatedCount,
@@ -12,17 +14,28 @@ import {
   boxSeasonCount,
   boxSeasonMaxedCount,
   boxSeasonUntrainedCount,
+  boxShareUrl,
   clearOperatorBox,
+  decodeBox,
+  encodeBox,
+  evaluateLineupBox,
   exportOperatorBox,
   isBorrowableSixStar,
+  isBoxAvailable,
+  isBoxSubstitute,
   lineupBoxCoverage,
   normalizeOperatorBox,
+  operatorBoxStatus,
   parseExternalBox,
   rankFromEliteLevel,
   rankOfOperator,
+  recommendBorrows,
+  recommendTraining,
   resolveBoxKey,
   setOperatorRank,
+  setOperatorRanks,
 } from '../src/lib/box/index.ts';
+import {builtinPlan, newSlot} from '../src/lib/plans/index.ts';
 
 test('box model distinguishes unowned (-1) from owned E0 (0) and trained ranks (1-3)', () => {
   assert.equal(rankFromEliteLevel(0, 50), 0);
@@ -56,7 +69,16 @@ test('box model distinguishes unowned (-1) from owned E0 (0) and trained ranks (
   });
 
   const cov = lineupBoxCoverage(
-    ['拜松', '鸿雪', '仇白', '角峰', '烛煌', '塔露拉', '歌蕾蒂娅', '盟约·辅助干员'],
+    [
+      '拜松',
+      '鸿雪',
+      '仇白',
+      '角峰',
+      '烛煌',
+      '塔露拉',
+      '歌蕾蒂娅',
+      '盟约·辅助干员',
+    ],
     normalized,
   );
   assert.equal(cov.total, 7);
@@ -76,7 +98,16 @@ test('borrowable six-star metadata matches official V3_1 NORMAL vs PRESET split'
   assert.equal(PRESET_SIX_STARS.length, 8);
   assert.deepEqual(
     PRESET_SIX_STARS.map((op) => op.name),
-    ['伺夜', '维伊', '流明', '淬羽赫默', '歌蕾蒂娅', '溯光星源', '魔王', '机械师'],
+    [
+      '伺夜',
+      '维伊',
+      '流明',
+      '淬羽赫默',
+      '歌蕾蒂娅',
+      '溯光星源',
+      '魔王',
+      '机械师',
+    ],
   );
 
   for (const op of OPERATORS) {
@@ -96,10 +127,34 @@ test('borrowable six-star metadata matches official V3_1 NORMAL vs PRESET split'
 test('box importer preserves owned-but-untrained E0 operators while excluding unowned entries', () => {
   const maa = parseExternalBox(
     JSON.stringify([
-      {id: OPERATOR['鸿雪'].avatar, name: '鸿雪', own: true, elite: 2, level: 90},
-      {id: OPERATOR['拜松'].avatar, name: '拜松', own: true, elite: 1, level: 55},
-      {id: OPERATOR['仇白'].avatar, name: '仇白', own: true, elite: 0, level: 1},
-      {id: OPERATOR['角峰'].avatar, name: '角峰', own: false, elite: 0, level: 1},
+      {
+        id: OPERATOR['鸿雪'].avatar,
+        name: '鸿雪',
+        own: true,
+        elite: 2,
+        level: 90,
+      },
+      {
+        id: OPERATOR['拜松'].avatar,
+        name: '拜松',
+        own: true,
+        elite: 1,
+        level: 55,
+      },
+      {
+        id: OPERATOR['仇白'].avatar,
+        name: '仇白',
+        own: true,
+        elite: 0,
+        level: 1,
+      },
+      {
+        id: OPERATOR['角峰'].avatar,
+        name: '角峰',
+        own: false,
+        elite: 0,
+        level: 1,
+      },
       {id: 'char_9999_unknown', name: '未入池', own: true, elite: 2, level: 60},
     ]),
   );
@@ -137,6 +192,88 @@ test('box importer preserves owned-but-untrained E0 operators while excluding un
 
   assert.throws(() => parseExternalBox(''), /请先粘贴/);
   assert.throws(() => parseExternalBox('{broken'), /JSON 解析失败/);
+});
+
+test('localized form IDs resolve to the same owned operator across exports and backups', () => {
+  const actual = OPERATOR['阿米娅'].avatar;
+  const forms = parseExternalBox(
+    JSON.stringify([
+      {id: 'char_1001_amiya2', name: 'Amiya', own: true, elite: 2, level: 60},
+      {id: actual, name: 'Amiya', own: false},
+    ]),
+  );
+  assert.equal(forms.matchedCount, 1);
+  assert.deepEqual(forms.entries, {[actual]: 3});
+  assert.deepEqual(normalizeOperatorBox({char_1037_amiya3: 2, [actual]: 1}), {
+    [actual]: 2,
+  });
+});
+
+test('training table imports keep ownership, precision and duplicate ranks across reordered columns', () => {
+  const rows = [
+    '职业\t等级\t是否已招募\t干员名称\t精英化等级',
+    '狙击\t59\t是\t鸿雪\t2',
+    '狙击\t60\t是\t鸿雪\t2',
+    '重装\t1\t是\t拜松\t0',
+    '近卫\t90\t否\t仇白\t2',
+    '近卫\t1\t是\t未入池的干员\t0',
+  ];
+  const result = parseExternalBox(rows.join('\n'));
+  assert.deepEqual(result.entries, {
+    [OPERATOR['鸿雪'].avatar]: 3,
+    [OPERATOR['拜松'].avatar]: 0,
+  });
+  assert.equal(result.ignoredCount, 1);
+  assert.throws(() => parseExternalBox(rows.slice(1).join('\n')), /列名/);
+  assert.throws(
+    () => parseExternalBox(rows.join('\n').replace('59', '99')),
+    /第 2 行/,
+  );
+  assert.throws(
+    () => parseExternalBox('名称,ID,等级,持有\n玛恩纳,char_4064_mlynar,1,否'),
+    /MAA 请导出 JSON/,
+  );
+  assert.throws(
+    () =>
+      parseExternalBox(
+        '| Name | ID | Level | Own |\n| 玛恩纳 | char_4064_mlynar | 1 | No |',
+      ),
+    /MAA 请导出 JSON/,
+  );
+});
+
+test('batch editing deduplicates names and prevents partial writes at the borrow limit', () => {
+  clearOperatorBox();
+  try {
+    const avatars = BORROWABLE_SIX_STARS.slice(0, BORROW_LIMIT).map(
+      (op) => op.avatar,
+    );
+    assert.equal(
+      setOperatorRanks(
+        [...avatars, BORROWABLE_SIX_STARS[0].name],
+        BOX_RANK_BORROWED,
+      ),
+      BORROW_LIMIT,
+    );
+    const before = exportOperatorBox();
+    assert.throws(
+      () =>
+        setOperatorRanks(
+          [...avatars, BORROWABLE_SIX_STARS[BORROW_LIMIT].avatar],
+          BOX_RANK_BORROWED,
+        ),
+      /上限/,
+    );
+    assert.deepEqual(exportOperatorBox(), before);
+    applyBoxBatch({char_9999_future: 2});
+    applyBoxBatch({[OPERATOR['拜松'].avatar]: 1}, 'replace');
+    assert.deepEqual(exportOperatorBox(), {
+      char_9999_future: 2,
+      [OPERATOR['拜松'].avatar]: 1,
+    });
+  } finally {
+    clearOperatorBox();
+  }
 });
 
 test('box store tracks owned, activated, untrained, borrowable, and unowned states cleanly', () => {
@@ -186,7 +323,10 @@ test('box store tracks owned, activated, untrained, borrowable, and unowned stat
   assert.equal(boxSeasonUntrainedCount.value, 0);
   assert.equal(boxSeasonMaxedCount.value, 1);
 
-  applyBoxBatch({[OPERATOR['鸿雪'].avatar]: 2, [OPERATOR['仇白'].avatar]: 0}, 'merge');
+  applyBoxBatch(
+    {[OPERATOR['鸿雪'].avatar]: 2, [OPERATOR['仇白'].avatar]: 0},
+    'merge',
+  );
   assert.equal(boxSeasonCount.value, 3);
   assert.equal(boxSeasonActivatedCount.value, 2);
   assert.equal(boxSeasonUntrainedCount.value, 1);
@@ -211,7 +351,8 @@ test('box store tracks owned, activated, untrained, borrowable, and unowned stat
 
   const overLimit = Object.fromEntries(
     BORROWABLE_SIX_STARS.slice(0, BORROW_LIMIT + 1).map((op) => [
-      op.avatar, BOX_RANK_BORROWED,
+      op.avatar,
+      BOX_RANK_BORROWED,
     ]),
   );
   assert.throws(() => applyBoxBatch(overLimit, 'replace'), /上限/);
@@ -220,4 +361,149 @@ test('box store tracks owned, activated, untrained, borrowable, and unowned stat
   clearOperatorBox();
   assert.equal(boxSeasonCount.value, 0);
   assert.equal(boxSeasonBorrowableMissingCount.value, 67);
+});
+
+test('box share codec losslessly encodes sparse and dense boxes and rejects corrupted codes', () => {
+  const sparse = {
+    [OPERATOR['拜松'].avatar]: 3,
+    [OPERATOR['鸿雪'].avatar]: 2,
+    [OPERATOR['仇白'].avatar]: 0,
+    [OPERATOR['角峰'].avatar]: 1,
+    [OPERATOR['塔露拉'].avatar]: BOX_RANK_BORROWED,
+  };
+  const sparseCode = encodeBox(sparse);
+  assert.ok(sparseCode.startsWith(BOX_CODE_PREFIX));
+  assert.ok(
+    sparseCode.length < 40,
+    `expected compact sparse code, got ${sparseCode.length}`,
+  );
+  assert.deepEqual(decodeBox(sparseCode), sparse);
+  assert.deepEqual(decodeBox(boxShareUrl(sparseCode)), sparse);
+
+  // Full realistic box across fixed + selectable 6★ + borrowed slots
+  const dense = {};
+  OWNABLE_OPERATORS.forEach((op, idx) => {
+    if (idx % 5 === 0) return;
+    dense[op.avatar] = idx % 4;
+  });
+  for (const op of BORROWABLE_SIX_STARS.slice(0, 12)) {
+    dense[op.avatar] = BOX_RANK_BORROWED;
+  }
+  const denseCode = encodeBox(dense);
+  assert.ok(
+    denseCode.length < 150,
+    `expected compact dense code (<150 chars), got ${denseCode.length}`,
+  );
+  assert.deepEqual(decodeBox(denseCode), dense);
+
+  // parseExternalBox recognizes both short code and #b= URL
+  const imported = parseExternalBox(`扫一扫同步：${boxShareUrl(sparseCode)}`);
+  assert.equal(imported.formatLabel, '跨端同步码');
+  assert.equal(imported.matchedCount, 5);
+  assert.equal(imported.breakdown.borrowed, 1);
+  assert.equal(imported.breakdown.e260, 1);
+  assert.equal(imported.breakdown.e0, 1);
+
+  // Tampered or truncated code must fail checksum/parsing
+  const last = sparseCode.slice(-1);
+  const flipped = sparseCode.slice(0, -1) + (last === 'A' ? 'B' : 'A');
+  assert.equal(decodeBox(flipped), null);
+  assert.equal(decodeBox(sparseCode.slice(0, -3)), null);
+  assert.equal(decodeBox('WBinvalid!!!'), null);
+});
+
+test('box sync keeps released slot IDs and rejects an invalid code without importing nearby names', () => {
+  // 已发行的 V1 短码。第 0 槽是阿米娅，第 206 槽是自选六星国度。
+  const legacyCode = 'WBEgEAGzoA6A';
+  const expected = {char_002_amiya: 2, char_4246_dminon: 3};
+  assert.deepEqual(decodeBox(legacyCode), expected);
+  assert.equal(decodeBox('WBEgEAGzoA6B'), null);
+  assert.throws(() => parseExternalBox('WB损坏，鸿雪'), /同步码/);
+  assert.throws(() => parseExternalBox('#b=作废/鸿雪'), /同步码/);
+
+  // 文件中的备注可以引用其他 Box，仍应导入文件本身的记录。
+  const json = JSON.stringify({[OPERATOR['鸿雪'].avatar]: 1, note: legacyCode});
+  assert.deepEqual(parseExternalBox(json).entries, {[OPERATOR['鸿雪'].avatar]: 1});
+
+  const fullRoster = Object.fromEntries(
+    OWNABLE_OPERATORS.map((op) => [op.avatar, 1]),
+  );
+  assert.deepEqual(decodeBox(encodeBox(fullRoster)), fullRoster);
+});
+
+test('box insights classify operator status, rank builds by fit, and recommend borrows & E0 training', () => {
+  const sampleBox = {
+    [OPERATOR['拜松'].avatar]: 3,
+    [OPERATOR['仇白'].avatar]: 0,
+    [OPERATOR['塔露拉'].avatar]: BOX_RANK_BORROWED,
+  };
+
+  assert.equal(
+    operatorBoxStatus(OPERATOR['拜松'], sampleBox).kind,
+    'owned-activated',
+  );
+  assert.equal(
+    operatorBoxStatus(OPERATOR['仇白'], sampleBox).kind,
+    'owned-untrained',
+  );
+  assert.equal(
+    operatorBoxStatus(OPERATOR['塔露拉'], sampleBox).kind,
+    'borrowed',
+  );
+  assert.equal(
+    operatorBoxStatus(OPERATOR['歌蕾蒂娅'], sampleBox).kind,
+    'preset',
+  );
+  const sub = operatorBoxStatus(OPERATOR['烛煌'], sampleBox);
+  assert.equal(sub.kind, 'substitute');
+  assert.equal(sub.isSubstitute, true);
+  assert.equal(sub.backupOperator, OPERATOR['烛煌'].backupOperator);
+  assert.equal(isBoxSubstitute(OPERATOR['烛煌'], sampleBox), true);
+  assert.equal(isBoxAvailable(OPERATOR['烛煌'], sampleBox), false);
+  assert.equal(isBoxAvailable(OPERATOR['塔露拉'], sampleBox), true);
+  assert.equal(isBoxAvailable(OPERATOR['歌蕾蒂娅'], sampleBox), true);
+
+  // Lineup with missing core 6★ ranks lower than lineup with all available operators
+  const ready = evaluateLineupBox(
+    [newSlot('拜松'), newSlot('歌蕾蒂娅')],
+    sampleBox,
+  );
+  const missingNonCore = evaluateLineupBox(
+    [newSlot('拜松'), newSlot('烛煌')],
+    sampleBox,
+  );
+  const missingCore = evaluateLineupBox(
+    [newSlot('拜松'), {...newSlot('烛煌'), core: true}],
+    sampleBox,
+  );
+  assert.ok(ready.fitScore > missingNonCore.fitScore);
+  assert.ok(missingNonCore.fitScore > missingCore.fitScore);
+  assert.equal(missingCore.coreSubstitutes.length, 1);
+
+  const sources = BUILD_NAMES.map((key) => {
+    const plan = builtinPlan(key);
+    return {key, name: plan.name, builtin: true, ops: plan.ops};
+  });
+  const borrows = recommendBorrows(sampleBox, sources);
+  assert.equal(borrows.length, BORROWABLE_SIX_STARS.length - 1); // 仇白已持有被排除
+  assert.ok(!borrows.some((item) => item.op.name === '仇白'));
+  assert.ok(borrows.some((item) => item.op.name === '塔露拉' && item.borrowed));
+  assert.ok(borrows[0].score >= borrows.at(-1).score);
+
+  const focused = recommendBorrows(sampleBox, sources, new Set(['炎']));
+  const yanCoreSix = builtinPlan('炎')
+    .ops.filter(
+      (s) =>
+        s.core && isBorrowableSixStar(OPERATOR[s.name]) && s.name !== '仇白',
+    )
+    .map((s) => s.name);
+  if (yanCoreSix.length) {
+    assert.ok(
+      focused.slice(0, 6).some((item) => yanCoreSix.includes(item.op.name)),
+      'focusing on 炎 should float 炎 core borrowable 6★ near the top',
+    );
+  }
+
+  const training = recommendTraining(sampleBox, sources);
+  assert.ok(training.some((item) => item.op.name === '仇白'));
 });

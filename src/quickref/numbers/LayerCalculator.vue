@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed} from 'vue';
+import {computed, ref, watch} from 'vue';
 import {
   CORE_COVENANTS,
   COVENANTS,
@@ -11,6 +11,7 @@ import {
   nextCycleReward,
   nextLayerBreakpoint,
 } from '../../lib/numbers/numberTools.ts';
+import {MAX_LAYERS} from '../../lib/plans/model.ts';
 import {round1} from '../../lib/ui/dom.ts';
 import {covenantId} from '../../router/entities.ts';
 import {covenantLocation} from '../../router/navigation.ts';
@@ -21,6 +22,15 @@ import NumberInput from './NumberInput.vue';
 const props = defineProps<{name: string}>();
 const covenant = computed(() => COVENANTS[props.name]);
 const layers = defineModel<number>('layers', {required: true});
+// 常规拖动保持细刻度；带入高层方案或手输超过常规范围后，保留扩展刻度供继续调整。
+const sliderMax = ref(LAYER_INPUT_LIMIT);
+watch(
+  layers,
+  (value) => {
+    if (value > LAYER_INPUT_LIMIT) sliderMax.value = MAX_LAYERS;
+  },
+  {immediate: true},
+);
 const breakpoints = computed(() => LAYER_BREAKPOINTS[props.name] ?? []);
 const next = computed(() => nextLayerBreakpoint(props.name, layers.value));
 const cycle = computed(() => nextCycleReward(props.name, layers.value));
@@ -80,7 +90,7 @@ function setLayers(value: number | null): void {
           <NumberInput
             class="lv"
             :value="layers"
-            :max="LAYER_INPUT_LIMIT"
+            :max="MAX_LAYERS"
             label="当前盟约层数"
             @change="setLayers" />
         </label>
@@ -96,7 +106,7 @@ function setLayers(value: number | null): void {
       <input
         type="range"
         min="0"
-        :max="LAYER_INPUT_LIMIT"
+        :max="sliderMax"
         step="1"
         :value="layers"
         aria-label="拖动调整盟约层数"

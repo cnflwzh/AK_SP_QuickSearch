@@ -8,7 +8,7 @@
 
 项目通过 [`vite.config.ts`](../vite.config.ts) 构建为两个共享基础代码与静态资源的独立 HTML 入口：
 
-- **`index.html` → `src/quickref/main.ts`**：速查应用（Vue Router History 模式），涵盖 9 个一级栏目（速览、盟约详情、干员、流派、装备、策略、领袖、小工具、设置）与全局搜索。
+- **`index.html` → `src/quickref/main.ts`**：速查应用（Vue Router History 模式），涵盖 9 个一级栏目（速览、盟约详情、干员、流派、装备、策略、敌人、小工具、设置）、独立个人档案路由 `/box` 与全局搜索。
 - **`guide.html` → `src/guide/main.ts`**：图解教程页，按章节接近视口时动态懒加载组件与交互演示。
 
 两页均通过 [`src/boot.ts`](../src/boot.ts) 统一管理首屏加载遮罩（`#load-screen`）、字体就绪窗口、Service Worker 注册与延后缓存，确保字体或网络波动时不阻塞首屏可交互。
@@ -23,15 +23,17 @@
 |---|---|
 | `src/router/index.ts` | 定义 Vue Router 路由表、导航错误与提示状态（`navigationError` / `routeNotice`） |
 | `src/router/location.ts` | 栏目路径常量（`PAGE_PATHS`）、标签文案（`PAGE_LABELS`）、职能 ID 映射与 query 读写工具 |
-| `src/router/entities.ts` | 干员 / 装备 / 策略 / 盟约 / 流派 / 领袖实体名称与 URL 短 ID 双向解析（如 `?card=op:...`） |
+| `src/router/entities.ts` | 干员 / 装备 / 策略 / 盟约 / 流派 / 领袖实体名称与 URL 短 ID 双向解析（如 `?card=op-char_4177_brigid`） |
 | `src/router/navigation.ts` | 封装 `navigate`、`updateQuery`、`openCard`、`closeCard` 与各栏目链接生成函数 |
 
 典型路由参数约定：
 - `?q=<关键词>`：全局搜索视图（挂载 `SearchView.vue`，通过 `v-show` 保留背景页状态与滚动位置）
-- `?card=<kind>:<id>`：在当前页面之上打开 `DetailSheet.vue` 详情弹窗，关闭时返回原背景视图
+- `?card=<kind>-<id>`：在当前页面之上打开 `DetailSheet.vue` 详情弹窗，关闭时返回原背景视图
+- `/operators?roster=<avatar>`：定位自选或替补干员名单中的对应条目
 - `?tool=<id>`：「小工具」页的当前二级子工具
 - `?group=core|addon`：「速览」页的盟约分类筛选
-- `?round=hidden&skill=<label>`：「领袖详情」页的隐秘核心与技能范围选中态
+- `?kind=bounty|normal`：「敌人」页切换悬赏敌人 / 普通敌人二级视图（默认 Boss）
+- `?round=hidden&skill=<label>`：「Boss 详情」页的隐秘核心与技能范围选中态
 
 ---
 
@@ -46,7 +48,7 @@
 | `src/lib/box/` | 个人干员练度与助战借用（按赛季隔离） | 区分自持练度（`0` 未练精 0、`1` 精一、`2` 精二、`3` 精二 60）、已借用（`-2`）与未持有（`-1`）；`initBoxStorageSync()` 支持多标签页 `storage` 事件实时同步 |
 | `src/lib/settings/` | 主题、卡片密度、字号、减弱动效、模块开关、栏目排序、隐藏工具 | 响应式同步至 `<html>` 属性（`data-theme`、`data-font`、`data-motion="reduce"`、`data-hide-footer`），支持完整 JSON 配置（可附带流派与练度）导出与导入 |
 | `src/quickref/recentStore.ts` | 最近查看历史 | 记录用户近期打开过的干员、装备、策略、盟约与领袖，聚焦搜索框时展示 |
-| `src/quickref/numbers/useNumberToolsState.ts` | 小工具会话输入 | 在 `KeepAlive` 与子工具切换期间保持各计算器状态，支持 `wishlist` 待找清单持久化 |
+| `src/quickref/numbers/useNumberToolsState.ts` | 小工具会话输入 | 在 `KeepAlive` 与子工具切换期间保持层数、调度等级与认证效率等计算器输入状态 |
 
 ---
 

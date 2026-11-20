@@ -1,5 +1,6 @@
 import type {LocationQuery, LocationQueryRaw} from 'vue-router';
 import {
+  ADDITIONAL_OPERATORS,
   COMBAT_ROLE_IDS,
   LEADERS,
   LEADER_BATTLEFIELDS,
@@ -39,7 +40,7 @@ export const PAGE_LABELS: Record<TabId, string> = {
   op: '干员',
   eq: '装备',
   st: '策略',
-  ld: '领袖',
+  ld: '敌人',
   nu: '小工具',
   se: '设置',
 };
@@ -86,6 +87,16 @@ export function queryText(
   const value = query[key];
   return String((Array.isArray(value) ? value[0] : value) ?? '');
 }
+/** 自选与替补详情在名单内展示，avatar 是赛季数据中稳定的干员标识。 */
+export function rosterLocation(avatar: string) {
+  return {path: PAGE_PATHS.op, query: {roster: avatar}};
+}
+
+/** 按公开头像 ID 解析名单目标；空值或过期链接返回 undefined。 */
+export function rosterOperator(avatar: string) {
+  if (avatar) return ADDITIONAL_OPERATORS.find((op) => op.avatar === avatar);
+}
+
 export function boundedInteger(
   value: string,
   fallback: number,
@@ -124,6 +135,8 @@ export function normalizeQuery(
   };
   if (tab === 'fx') keep('group', ['core', 'addon']);
   if (tab === 'op') {
+    const target = rosterOperator(read('roster'));
+    if (target) normalized.roster = target.avatar;
     tier();
     covenant();
     keep('trigger', Object.keys(TRIGGER_IDS));
@@ -138,6 +151,7 @@ export function normalizeQuery(
   if (tab === 'st')
     keep('category', CATEGORY_IDS.slice(1, STRATEGY_CATEGORIES.length));
   if (tab === 'ld') {
+    if (!entityId) keep('kind', ['bounty', 'normal']);
     keep(
       'difficulty',
       DIFFICULTIES.filter((value) => value !== 'danger'),
@@ -160,15 +174,11 @@ export function normalizeQuery(
   }
   if (tab === 'nu') {
     // 路由只标识工具子页；计算输入和本局记录由工具维护，不进入导航历史。
-    keep('tool', [
-      'advisor',
-      'recruit',
-      'bounty',
-      'credit',
-      'box',
-      'dealer',
-      'excuse',
-    ]);
+    // 兼容旧链接：economy / recruit 归一到默认的对局速查（layers）；bounty 由路由守卫重定向到 /leaders?kind=bounty。
+    const requested = read('tool');
+    if (requested !== 'economy' && requested !== 'recruit') {
+      keep('tool', ['advisor', 'credit', 'dealer', 'excuse']);
+    }
   }
   if (tab === 'bd') {
     keep(

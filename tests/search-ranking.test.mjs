@@ -2,16 +2,28 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   ALL_COVENANTS,
+  BOUNTIES,
   EQUIPMENT,
   LEADERS,
   OPERATOR,
   OPERATORS,
   STRATEGIES,
+  TRAINING,
 } from '../data/index.ts';
 import {
+  normalizeQuery,
+  rosterLocation,
+  rosterOperator,
+} from '../src/router/location.ts';
+import {nameScore, normalize} from '../src/lib/ui/match.ts';
+import {
+  bountyMatchScore,
+  leaderSearchTerms,
   matchedOnlyAdvanced,
   matchedOnlyElite,
+  matchingEnemyTerms,
   topSearchTarget,
+  trainingMatchScore,
 } from '../src/quickref/searchRanking.ts';
 
 test('matchedOnlyElite triggers only when query matches elite trait exclusively', () => {
@@ -66,4 +78,74 @@ test('topSearchTarget selects direct navigation or detail target for Enter short
 
   assert.equal(topSearchTarget(''), null);
   assert.equal(topSearchTarget('___not_found___'), null);
+});
+
+test('additional operators open a validated roster target by name, pinyin, or initials', () => {
+  for (const [query, name] of [
+    ['重岳', '重岳'],
+    ['chongyue', '重岳'],
+    ['zhongyue', '重岳'],
+    ['Sharp', 'Sharp'],
+    ['ybgyjw', '预备干员-近卫'],
+  ]) {
+    const hit = topSearchTarget(query);
+    assert.equal(hit?.kind, 'roster', query);
+    const operator = rosterOperator(hit.id);
+    assert.equal(operator?.name, name, query);
+    const target = rosterLocation(hit.id);
+    assert.equal(target.path, '/operators');
+    assert.deepEqual(normalizeQuery('op', target.query), target.query);
+  }
+  assert.deepEqual(normalizeQuery('op', {roster: 'unknown'}), {});
+});
+
+test('enemy, bounty, training, and glossary pinyin search matches names, terms, and polyphones', () => {
+  // Polyphone overrides
+  assert.ok(nameScore('刺胄之弹', normalize('cizhouzhidan')) >= 3);
+  assert.ok(nameScore('断攻重置', normalize('chongzhi')) >= 1.5);
+  assert.ok(nameScore('澪', normalize('ling')) >= 3);
+  assert.ok(nameScore('澪', normalize('miao')) >= 3);
+  assert.ok(nameScore('晕眩', normalize('xuanyun')) >= 3);
+  assert.ok(nameScore('赘生甲壳', normalize('jiake')) >= 1.5);
+
+  // Glossary pinyin lookup
+  assert.ok(matchingEnemyTerms('qs').some((e) => e.term === '侵蚀损伤'));
+  assert.ok(matchingEnemyTerms('diaowang').some((e) => e.term === '凋亡损伤'));
+  assert.ok(matchingEnemyTerms('ymhx').some((e) => e.term === '隐秘核心'));
+
+  // Boss related term pinyin matching
+  const gun = LEADERS.find((l) => l.name === '假想敌：铳');
+  assert.ok(gun);
+  assert.ok(
+    leaderSearchTerms(gun).some((t) => nameScore(t, 'suichongzhihuang') > 0),
+  );
+  assert.ok(leaderSearchTerms(gun).some((t) => nameScore(t, 'qinshi') > 0));
+
+  // Bounty pinyin matching (name, tags, roles, glossary)
+  const ratKing = BOUNTIES.find((b) => b.name === '“鼠王”');
+  const jetman = BOUNTIES.find((b) => b.name === '喷气人');
+  const boat = BOUNTIES.find((b) => b.name.includes('术师快艇'));
+  assert.ok(ratKing && jetman && boat);
+  assert.ok(bountyMatchScore(ratKing, 'shuwang') >= 3);
+  assert.ok(bountyMatchScore(ratKing, 'sw') >= 3);
+  assert.ok(bountyMatchScore(jetman, 'pqr') >= 3);
+  assert.ok(bountyMatchScore(jetman, 'duikong') > 0);
+  assert.ok(bountyMatchScore(boat, 'qs') > 0);
+  assert.ok(bountyMatchScore(boat, 'sskt') >= 1.5);
+
+  // Training pinyin matching
+  const refract = TRAINING.find((t) => t.name === '折射');
+  assert.ok(refract);
+  assert.ok(trainingMatchScore(refract, 'zheshe') >= 3);
+  assert.ok(trainingMatchScore(refract, 'zs') >= 3);
+  assert.ok(trainingMatchScore(refract, 'chenmo') > 0);
+
+  // Enter shortcut targets unique bounties & trainings while preserving operator priority
+  assert.deepEqual(topSearchTarget('shuwang'), {kind: 'bounty', id: '“鼠王”'});
+  assert.deepEqual(topSearchTarget('penqiren'), {kind: 'bounty', id: '喷气人'});
+  assert.deepEqual(topSearchTarget('zheshe'), {kind: 'training', id: '折射'});
+  assert.deepEqual(topSearchTarget('cizhouzhidan'), {
+    kind: 'ld',
+    id: '假想敌：胄',
+  });
 });

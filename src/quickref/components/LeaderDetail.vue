@@ -1,20 +1,24 @@
 <script setup lang="ts">
-import {computed, shallowRef} from 'vue';
+import {computed, nextTick, ref, shallowRef} from 'vue';
 import {
+  ENEMY_GLOSSARY,
   LEADER_MAP,
   LEADER_BATTLEFIELDS,
   MODES,
   ROUND_TIME,
+  type EnemyTerm,
   type LeaderCounter,
   type Leader,
 } from '../../../data/index.ts';
 import {leaderSrc} from '../../lib/ui/assets.ts';
-import {wan} from '../../lib/ui/dom.ts';
+import {prefersReducedMotion, wan} from '../../lib/ui/dom.ts';
 import {
   abilityLabel,
   counterClass,
   damageClass,
   leaderFx,
+  leaderGlossaryTerms,
+  normalizeTermKey,
   patrols,
 } from '../../lib/leaders/leader.ts';
 import {routeQuery, updateQuery} from '../../router/navigation.ts';
@@ -132,6 +136,49 @@ const counters = computed(() => props.leader.counters.filter((c) => !c.hidden));
 const hiddenCounters = computed(() =>
   props.leader.counters.filter((c) => c.hidden),
 );
+const glossaryItems = computed<readonly EnemyTerm[]>(() =>
+  leaderGlossaryTerms(props.leader, ENEMY_GLOSSARY),
+);
+const knownTermMap = computed(() => {
+  const map = new Map<string, string>();
+  for (const item of glossaryItems.value) {
+    map.set(normalizeTermKey(item.term), item.term);
+  }
+  return map;
+});
+const activeTerm = ref('');
+const glossaryEl = ref<HTMLElement | null>(null);
+const TERM_KIND_LABEL: Readonly<Record<EnemyTerm['kind'], string>> = {
+  unit: '单位',
+  status: '状态',
+  mechanic: '机制',
+};
+function formatFx(text: string): string {
+  return leaderFx(text, knownTermMap.value);
+}
+function focusTerm(termName: string): void {
+  const matched = knownTermMap.value.get(normalizeTermKey(termName));
+  if (!matched) return;
+  activeTerm.value = matched;
+  void nextTick(() => {
+    const target = glossaryEl.value?.querySelector<HTMLElement>(
+      `[data-glossary="${CSS.escape(matched)}"]`,
+    );
+    target?.scrollIntoView({
+      behavior: prefersReducedMotion() ? 'instant' : 'smooth',
+      block: 'nearest',
+    });
+  });
+}
+function onTermInteract(event: Event): void {
+  const el =
+    event.target instanceof Element
+      ? event.target.closest<HTMLElement>('[data-term]')
+      : null;
+  if (!el?.dataset.term) return;
+  event.preventDefault();
+  focusTerm(el.dataset.term);
+}
 const activeCounter = shallowRef<LeaderCounter | null>(null);
 function toggleCounterLookup(counter: LeaderCounter): void {
   activeCounter.value = activeCounter.value === counter ? null : counter;
@@ -147,18 +194,23 @@ function leaderBriefText(): string {
     : '';
   const summary = counters.value
     .slice(0, 3)
-    .map((c) => `[${c.tag}] ${c.text.replace(/<[^>]+>/g, '')}`)
+    .map((c) => `[${c.tag}] ${c.text.replace(/[<>{}]/g, '')}`)
     .join('；');
-  return `${props.leader.name}（${now.value.label} ${wan(now.value.hp)} · 均伤 ${dps(now.value.hp)}/秒${hiddenPart}）${summary ? `\n要点：${summary}` : ''}`;
+  return `${props.leader.name}（${now.value.label} ${wan(now.value.hp)} · 均伤 ${dps(now.value.hp)}/秒${hiddenPart}）\n档案：${props.leader.profile.attackMode}；${props.leader.profile.targeting}${summary ? `\n要点：${summary}` : ''}`;
 }
 </script>
 <template>
-  <article class="lwd" :data-key="`ldd:${leader.name}`">
+  <article
+    class="lwd"
+    :data-key="`ldd:${leader.name}`"
+    @click="onTermInteract"
+    @keydown.enter="onTermInteract"
+    @keydown.space="onTermInteract">
     <header class="lwd-h">
       <button
         type="button"
         class="lw-back"
-        aria-label="返回领袖列表"
+        aria-label="返回 Boss 列表"
         @click="setLeader('')">
         ‹
       </button>
@@ -178,8 +230,22 @@ function leaderBriefText(): string {
             :class="['ldt', damageClass(damage)]">
             {{ damage }}
           </i>
-          <i v-if="patrols(leader)" class="lwb pt">巡逻</i>
-          <i v-if="leader.hiddenCore" class="lwb hc">隐秘核心</i>
+          <button
+            v-if="patrols(leader)"
+            type="button"
+            class="lwb pt lwb-btn"
+            title="点击查看「巡逻」说明"
+            @click.stop="focusTerm('巡逻')">
+            巡逻
+          </button>
+          <button
+            v-if="leader.hiddenCore"
+            type="button"
+            class="lwb hc lwb-btn"
+            title="点击查看「隐秘核心」说明"
+            @click.stop="focusTerm('隐秘核心')">
+            隐秘核心
+          </button>
         </div>
         <div class="lwd-acts">
           <button
@@ -187,36 +253,71 @@ function leaderBriefText(): string {
             :class="['lw-act-btn', {on: isRunLeader}]"
             :aria-pressed="isRunLeader"
             @click="toggleRunLeader">
-            {{ isRunLeader ? '✓ 本局领袖' : '▶ 设为本局' }}
+            {{ isRunLeader ? '✓ 本局 Boss' : '▶ 设为本局' }}
           </button>
           <CopyButton
             :text="leaderBriefText"
             label="复制要点"
             copied-label="已复制"
             variant="compact"
-            prompt-title="复制发给好友的领袖要点"
+            prompt-title="复制发给好友的 Boss 要点"
             title="复制血量与前三条核心对策，方便发给没开语音的好友" />
         </div>
       </div>
       <div class="lwd-now">
         <b>{{ wan(now.hp) }}</b>
         <span>
-          {{ now.label }} · 120秒均伤
+          {{ now.label }} · {{ LIMIT }} 秒均伤
           <em>{{ dps(now.hp) }}</em>
           /秒
         </span>
       </div>
     </header>
 
+    <!-- 战前档案速览：攻击方式、双抗参考、索敌规律、阻挡要求与核心速记 -->
+    <section class="lws pf" aria-label="Boss 战斗档案">
+      <div class="lwd-pf-grid">
+        <div class="lwd-pf-cell">
+          <small>攻击方式</small>
+          <span>{{ leader.profile.attackMode }}</span>
+        </div>
+        <div class="lwd-pf-cell">
+          <small>双抗参考</small>
+          <span>{{ leader.profile.defense }}</span>
+        </div>
+        <div class="lwd-pf-cell">
+          <small>索敌 / 仇恨</small>
+          <span>{{ leader.profile.targeting }}</span>
+        </div>
+        <div class="lwd-pf-cell">
+          <small>阻挡要求</small>
+          <span>{{ leader.profile.blocking }}</span>
+        </div>
+      </div>
+      <div class="lwd-pf-notes">
+        <p class="lwd-pf-note">
+          <b>战前速记</b>
+          <span>{{ leader.profile.summary }}</span>
+        </p>
+        <p v-if="leader.profile.hiddenSummary" class="lwd-pf-note hc">
+          <b>隐秘核心</b>
+          <span>{{ leader.profile.hiddenSummary }}</span>
+        </p>
+      </div>
+    </section>
+
     <section class="lws ab">
-      <h4>技能</h4>
+      <h4>
+        技能与机制
+        <span class="tag">点带虚线的单位/状态词可定位下方解释</span>
+      </h4>
       <div class="lc-ab">
         <div
           v-for="(ability, i) in leader.abilities"
           :key="i"
           :class="['lr', {sk: ability.skill}]">
           <span>{{ abilityLabel(ability.skill) }}</span>
-          <div v-html="leaderFx(ability.text)"></div>
+          <div v-html="formatFx(ability.text)"></div>
         </div>
       </div>
       <template v-if="leader.hiddenAbilities.length">
@@ -227,16 +328,39 @@ function leaderBriefText(): string {
             :key="i"
             :class="['lr', {sk: ability.skill}]">
             <span>{{ abilityLabel(ability.skill, true) }}</span>
-            <div v-html="leaderFx(ability.text)"></div>
+            <div v-html="formatFx(ability.text)"></div>
           </div>
         </div>
       </template>
+
+      <div v-if="glossaryItems.length" ref="glossaryEl" class="lwd-gloss">
+        <div class="lwd-gloss-head">
+          <h5>名词与单位解析</h5>
+          <span>{{ glossaryItems.length }} 条</span>
+        </div>
+        <dl class="lwd-gloss-list">
+          <div
+            v-for="entry in glossaryItems"
+            :key="entry.term"
+            :data-glossary="entry.term"
+            :class="['lwd-gloss-item', {on: activeTerm === entry.term}]"
+            @click="activeTerm = activeTerm === entry.term ? '' : entry.term">
+            <dt>
+              <i :class="['gloss-kind', entry.kind]">
+                {{ TERM_KIND_LABEL[entry.kind] }}
+              </i>
+              <b>{{ entry.term }}</b>
+            </dt>
+            <dd>{{ entry.desc }}</dd>
+          </div>
+        </dl>
+      </div>
     </section>
 
     <section class="lws ct">
       <h4>对策</h4>
       <p class="leader-section-note">
-        对策是 AI 根据 Boss 技能推测而得出的，并不代表真实的游玩建议。
+        点击带 ▾ 的对策标签，可按盟约展开对应干员与装备。
       </p>
       <ul class="lwc">
         <li v-for="(c, i) in counters" :key="i" :style="{'--i': i}">
@@ -255,7 +379,7 @@ function leaderBriefText(): string {
             {{ c.tag }} ▾
           </button>
           <i v-else :class="['ctg', counterClass(c.tag)]">{{ c.tag }}</i>
-          <span v-html="leaderFx(c.text)"></span>
+          <span v-html="formatFx(c.text)"></span>
           <small>{{ c.by }}</small>
         </li>
       </ul>
@@ -281,7 +405,7 @@ function leaderBriefText(): string {
               {{ c.tag }} ▾
             </button>
             <i v-else :class="['ctg', counterClass(c.tag)]">{{ c.tag }}</i>
-            <span v-html="leaderFx(c.text)"></span>
+            <span v-html="formatFx(c.text)"></span>
             <small>{{ c.by }}</small>
           </li>
         </ul>
@@ -433,7 +557,7 @@ function leaderBriefText(): string {
           <b>{{ e.name }}</b>
           <span class="n">×{{ e.count }}</span>
           <i v-if="e.fly" class="lwb fl">飞行</i>
-          <span v-if="e.note" class="note" v-html="leaderFx(e.note)"></span>
+          <span v-if="e.note" class="note" v-html="formatFx(e.note)"></span>
         </li>
       </ul>
     </section>
@@ -502,5 +626,219 @@ function leaderBriefText(): string {
 .ctg-btn.on {
   border-color: currentColor;
   filter: brightness(1.06);
+}
+.lwb-btn {
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+  transition: filter 0.14s ease;
+}
+.lwb-btn:hover {
+  filter: brightness(1.08);
+}
+
+/* 战前档案速览卡 */
+.lws.pf {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--teal);
+}
+.lwd-pf-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+.lwd-pf-cell {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: var(--surface2);
+  border: 1px solid var(--line);
+}
+.lwd-pf-cell small {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--ink3);
+  letter-spacing: 0.03em;
+}
+.lwd-pf-cell span {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink);
+  font-weight: 500;
+}
+.lwd-pf-notes {
+  display: grid;
+  gap: 5px;
+}
+.lwd-pf-note {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 6px 9px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface2));
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.lwd-pf-note b {
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.lwd-pf-note.hc {
+  background: color-mix(in srgb, var(--hc) 8%, var(--surface2));
+  border-color: color-mix(in srgb, var(--hc) 30%, var(--line));
+}
+.lwd-pf-note.hc b {
+  background: var(--hc);
+  color: #fff;
+}
+
+/* 可点击名词下划线提示 */
+:deep(.has-term) {
+  cursor: help;
+  text-decoration: underline dotted currentColor;
+  text-underline-offset: 2px;
+  border-radius: 3px;
+}
+:deep(.has-term:hover) {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+
+/* 名词与单位解析 */
+.lwd-gloss {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 7px;
+}
+.lwd-gloss-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.lwd-gloss-head h5 {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.lwd-gloss-head span {
+  font-family: var(--fn);
+  font-size: 11px;
+  color: var(--ink3);
+}
+.lwd-gloss-list {
+  margin: 0;
+  display: grid;
+  gap: 5px;
+}
+.lwd-gloss-item {
+  display: grid;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: var(--surface2);
+  cursor: pointer;
+  transition:
+    border-color 0.14s ease,
+    background-color 0.14s ease,
+    box-shadow 0.14s ease;
+}
+.lwd-gloss-item:hover {
+  border-color: var(--line2);
+}
+.lwd-gloss-item.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.lwd-gloss-item dt {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.lwd-gloss-item dt b {
+  font-size: 12.5px;
+  color: var(--ink);
+}
+.lwd-gloss-item dd {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink2);
+}
+.gloss-kind {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+  padding: 0 5px;
+  border-radius: 4px;
+  flex: none;
+}
+.gloss-kind.unit {
+  background: color-mix(in srgb, var(--teal) 15%, transparent);
+  color: var(--teal);
+}
+.gloss-kind.status {
+  background: color-mix(in srgb, var(--red) 14%, transparent);
+  color: var(--red);
+}
+.gloss-kind.mechanic {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+
+@container quickref-view (max-width: 820px) {
+  .lwd-pf-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container quickref-view (max-width: 500px) {
+  .lwd-pf-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lwd-pf-note {
+    flex-direction: column;
+    gap: 3px;
+  }
+}
+@media (max-height: 600px) {
+  .lws.pf {
+    padding: 7px 9px;
+    gap: 6px;
+  }
+  .lwd-pf-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+  }
+  .lwd-pf-cell {
+    padding: 4px 7px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lwd-gloss-item,
+  .lwb-btn {
+    transition: none;
+  }
+}
+:global(:root[data-motion='reduce'] .lwd-gloss-item),
+:global(:root[data-motion='reduce'] .lwb-btn) {
+  transition: none !important;
 }
 </style>
