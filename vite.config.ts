@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { generateServiceWorker } from './scripts/build-sw.mjs';
+import { writeRouteEntries } from './scripts/build-route-entries.ts';
 
 const root = import.meta.dirname;
 const dist = resolve(root, 'dist');
@@ -32,7 +33,12 @@ export default defineConfig({
   }, {
     name: 'site-offline-output',
     apply: 'build',
-    closeBundle() { copyFileSync(resolve(root, 'LICENSE'), resolve(dist, 'LICENSE')); generateServiceWorker(dist); },
+    closeBundle() {
+      copyFileSync(resolve(root, 'LICENSE'), resolve(dist, 'LICENSE'));
+      generateServiceWorker(dist);
+      // All route entries serve the same versioned shell already in the offline manifest.
+      writeRouteEntries(dist);
+    },
   }],
   define: { __BUILD_COMMIT__: JSON.stringify(commit) },
   build: {

@@ -37,7 +37,7 @@ const eligible = computed(
   () =>
     initialNoticeComplete.value &&
     !hasAnyBox.value &&
-    currentRoute.value.path !== '/box' &&
+    currentRoute.value.name !== 'box' &&
     !routeQuery.value.q &&
     !routeQuery.value.card &&
     !routeQuery.value.roster,
