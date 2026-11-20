@@ -40,7 +40,7 @@ import {
 } from './state.ts';
 import {navigationError, routeNotice, PAGE_LABELS} from '../router/index.ts';
 import {detailFromId} from '../router/entities.ts';
-import {queryText, rosterLocation} from '../router/location.ts';
+import {enemyListLocation, queryText, rosterLocation} from '../router/location.ts';
 import {
   closeCard,
   currentRoute,
@@ -337,11 +337,11 @@ async function openLeader(name: string): Promise<void> {
 }
 async function openBounty(name: string): Promise<void> {
   state.focusBounty = name;
-  await navigate({path: '/leaders', query: {kind: 'bounty'}});
+  await navigate(enemyListLocation('bounty'));
 }
 async function openTraining(name: string): Promise<void> {
   state.focusTraining = name;
-  await navigate({path: '/leaders', query: {kind: 'normal'}});
+  await navigate(enemyListLocation('normal'));
 }
 async function pickCovenant(name: string): Promise<void> {
   recordRecent('cv', name);

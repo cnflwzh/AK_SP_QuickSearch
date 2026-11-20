@@ -17,6 +17,7 @@ import {
   detailId,
 } from '../src/router/entities.ts';
 import {
+  enemyListLocation,
   PAGE_LABELS,
   PAGE_PATHS,
   TAB_IDS,
@@ -83,7 +84,7 @@ test('external filters normalize repeated values, invalid IDs and out-of-range n
   );
 });
 
-test('numbers links retain navigation destinations without calculator inputs or local filters', () => {
+test('tool links retain navigation destinations without calculator inputs or local filters', () => {
   const target = OPERATORS.find(
     (operator) => operator.name === '凛御银灰',
   ).avatar;
@@ -117,14 +118,15 @@ test('numbers links retain navigation destinations without calculator inputs or 
     assert.deepEqual(normalizeQuery('nu', destination), destination);
     assert.deepEqual(query, original);
   }
-  assert.deepEqual(normalizeQuery('nu', {tool: 'recruit'}), {});
-  assert.deepEqual(normalizeQuery('nu', {tool: 'economy'}), {});
-  assert.deepEqual(normalizeQuery('nu', {tool: 'bounty'}), {});
-  assert.deepEqual(normalizeQuery('nu', {tool: 'layers'}), {});
+  assert.deepEqual(normalizeQuery('nu', {tool: 'match-reference'}), {});
   assert.deepEqual(
     normalizeQuery('nu', {tool: 'missing', layers: 'NaN', card: 'missing'}),
     {},
   );
+  assert.deepEqual(enemyListLocation('bounty'), {
+    path: '/enemies',
+    query: {kind: 'bounty'},
+  });
   assert.deepEqual(normalizeQuery('ld', {kind: 'bounty'}), {kind: 'bounty'});
   assert.deepEqual(normalizeQuery('ld', {kind: 'normal'}), {kind: 'normal'});
   assert.deepEqual(normalizeQuery('ld', {kind: 'boss'}), {});

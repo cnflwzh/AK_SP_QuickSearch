@@ -30,10 +30,10 @@
 - `?q=<关键词>`：全局搜索视图（挂载 `SearchView.vue`，通过 `v-show` 保留背景页状态与滚动位置）
 - `?card=<kind>-<id>`：在当前页面之上打开 `DetailSheet.vue` 详情弹窗，关闭时返回原背景视图
 - `/operators?roster=<avatar>`：定位自选或替补干员名单中的对应条目
-- `?tool=<id>`：「小工具」页的当前二级子工具
+- `/tools?tool=<id>`：「小工具」页的当前二级子工具，对局速查使用 `match-reference`
 - `?group=core|addon`：「速览」页的盟约分类筛选
-- `?kind=bounty|normal`：「敌人」页切换悬赏敌人 / 普通敌人二级视图（默认 Boss）
-- `?round=hidden&skill=<label>`：「Boss 详情」页的隐秘核心与技能范围选中态
+- `/enemies?kind=bounty|normal`：「敌人」页切换悬赏敌人 / 普通敌人二级视图（默认 Boss）
+- `/enemies/<id>?round=hidden&skill=<label>`：「Boss 详情」页的隐秘核心与技能范围选中态
 
 ---
 

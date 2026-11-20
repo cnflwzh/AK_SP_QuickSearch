@@ -53,7 +53,7 @@
   - `label?: string` 或原生 `aria-label`：透传绑定到内部 `role="tablist"` 元素
 - **配合内容区过渡**：
   - 静态/条件区块：给内容容器加 `:key="activeTab" :class="{'subtab-panel': !!panelDir}" :data-dir="panelDir || undefined"`（样式定义在 `public/assets/css/quickref.css`）
-  - `KeepAlive` 动态组件（如 `NumbersView.vue`）：使用 `<Transition :name="dir === 'prev' ? 'subtab-prev' : 'subtab-next'" mode="out-in">`
+  - `KeepAlive` 动态组件（如 `ToolsView.vue`）：使用 `<Transition :name="dir === 'prev' ? 'subtab-prev' : 'subtab-next'" mode="out-in">`
 
 ### 2.2 `Segmented.vue`（行内分段选项）
 
