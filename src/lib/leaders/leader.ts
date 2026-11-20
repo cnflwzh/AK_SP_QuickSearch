@@ -82,6 +82,37 @@ export function leaderGlossaryTerms(
   return result;
 }
 
+/** 根据词条名解析 Boss 专有词条或全局敌方词条（同名词条优先匹配当前 Boss 专属说明）。 */
+export function resolveEnemyTerm(
+  rawTerm: string,
+  glossary: Readonly<Record<string, EnemyTerm>>,
+  leaders: readonly Leader[],
+  leaderName?: string,
+): EnemyTerm | undefined {
+  const key = normalizeTermKey(rawTerm);
+  if (!key) return undefined;
+  const scoped = leaderName
+    ? leaders.find((item) => item.name === leaderName)
+    : undefined;
+  const matchTerms = (terms?: readonly EnemyTerm[]) =>
+    terms?.find((item) => normalizeTermKey(item.term) === key);
+
+  const scopedHit = matchTerms(scoped?.terms);
+  if (scopedHit) return scopedHit;
+
+  const direct = glossary[rawTerm] ?? glossary[key];
+  if (direct) return direct;
+
+  for (const entry of Object.values(glossary)) {
+    if (normalizeTermKey(entry.term) === key) return entry;
+  }
+  for (const leader of leaders) {
+    const fallbackHit = matchTerms(leader.terms);
+    if (fallbackHit) return fallbackHit;
+  }
+  return undefined;
+}
+
 /** 无名能力的标签：基础形态为「特性」，隐秘核心为「强化」 */
 export const abilityLabel = (
   skill: string | undefined,
