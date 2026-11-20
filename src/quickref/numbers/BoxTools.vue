@@ -2307,6 +2307,10 @@ function resetFilters(): void {
   grid-template-columns: repeat(auto-fill, minmax(198px, 1fr));
   gap: 8px;
 }
+/* 标注态多一个独立详情按钮，卡片按实际可用宽度排栏。 */
+.bx-tool.is-edit .bx-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 236px), 1fr));
+}
 .bx-empty {
   padding: 20px;
   text-align: center;
