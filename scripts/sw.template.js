@@ -28,6 +28,18 @@ function navigationShell(url) {
   return null;
 }
 
+// 托管平台的 SPA 回退可能给已下线的资源返回首页 HTML。按资源缺失处理，
+// 避免把 HTML 当作图片、字体或脚本写入离线缓存。
+async function fetchSiteResource(request, options) {
+  const response = await fetch(request, options);
+  if (response.ok && response.headers.get('content-type')?.includes('text/html')) {
+    const url = new URL(typeof request === 'string' ? request : request.url);
+    if (url.pathname.startsWith('/assets/') || url.pathname === '/manifest.webmanifest')
+      return new Response(null, {status: 404, statusText: 'Not Found'});
+  }
+  return response;
+}
+
 async function storeResponse(cache, url, response) {
   if (!response.ok) return;
   const shell = navigationShell(url);
@@ -89,7 +101,7 @@ self.addEventListener('message', event => {
         const cache = await caches.open(cacheName(url));
         if (await cache.match(navigationShell(url) || url.href)) continue;
         try {
-          const response = await fetch(url.href, { cache: 'force-cache', priority: 'low' });
+          const response = await fetchSiteResource(url.href, { cache: 'force-cache', priority: 'low' });
           await storeResponse(cache, url, response);
         } catch { /* 网络中断时，已保存的其他资源仍可离线使用。 */ }
       }
@@ -118,14 +130,14 @@ async function cacheFirst(event, name, searchPrevious = false) {
   const hit = await cache?.match(request, options).catch(() => undefined);
   if (hit) return hit;
   const previous = searchPrevious && await caches.match(request, options).catch(() => undefined);
-  const response = previous || await fetch(request);
+  const response = previous || await fetchSiteResource(request);
   if (cache && response.ok) event.waitUntil(cache.put(request, response.clone()).catch(() => {}));
   return response;
 }
 
 function networkFirst(event) {
   const request = event.request;
-  return fetch(request).then(async res => {
+  return fetchSiteResource(request).then(async res => {
     if (res.ok && res.type === 'basic') {
       const copy = res.clone();
       event.waitUntil(caches.open(CORE_CACHE).then(cache => storeResponse(cache, new URL(request.url), copy)).catch(() => {}));
