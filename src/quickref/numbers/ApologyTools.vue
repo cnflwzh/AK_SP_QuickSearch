@@ -4,7 +4,6 @@ import {
   onActivated,
   onBeforeUnmount,
   onDeactivated,
-  onMounted,
   ref,
   shallowRef,
   watch,
@@ -26,15 +25,17 @@ import {
   formatApologyText,
   generateDocNo,
   randomizeApologyState,
+  renderPresetOpening,
   resolveChoiceText,
   splitCustomLines,
   switchApologyTemplate,
+  type ApologyDocument,
   type ApologyFormState,
   type ApologyTemplateId,
 } from '../../lib/apology/index.ts';
 import LiveStatus from '../../lib/ui/LiveStatus.vue';
 import {downloadBlob} from '../../lib/ui/download.ts';
-import {run, runLeader} from '../planStore.ts';
+import {run, runLeader, runStats} from '../planStore.ts';
 import CopyButton from '../components/CopyButton.vue';
 import SectionHeading from '../components/SectionHeading.vue';
 import SelectInput, {type SelectEntry} from '../components/SelectInput.vue';
@@ -118,9 +119,14 @@ const BUILD_PICKER_OPTIONS: readonly SelectEntry<string>[] = [
 const form = ref<ApologyFormState>(createDefaultApologyState('apology'));
 const templateDir = ref<SubTabDirection>('');
 const active = ref(true);
-const fontReadyTick = ref(0);
 
 const templateMeta = computed(() => APOLOGY_TEMPLATES[form.value.template]);
+const openingText = computed<string>({
+  get: () => form.value.customOpening ?? renderPresetOpening(form.value),
+  set: (text) => {
+    form.value.customOpening = text;
+  },
+});
 const documentModel = computed(() => buildApologyDocument(form.value));
 const plainText = computed(() => formatApologyText(documentModel.value));
 
@@ -130,6 +136,11 @@ const selectedTemplate = computed<ApologyTemplateId>({
     form.value = switchApologyTemplate(form.value, next);
   },
 });
+
+function replaceCurrentForm(next: ApologyFormState): void {
+  // 随机换一套和恢复默认只影响正在编辑的文书。
+  form.value = {...next, savedOpenings: form.value.savedOpenings};
+}
 
 const customReasonCount = computed(
   () => splitCustomLines(form.value.customReasons).length,
@@ -147,7 +158,9 @@ const checkedPledgeCount = computed(
   () => form.value.checkedPledges.length + customPledgeCount.value,
 );
 
-const hasRunContext = computed(() => Boolean(run.value || runLeader.value));
+const hasRunContext = computed(() =>
+  Boolean(run.value || (form.value.template === 'apology' && runLeader.value)),
+);
 
 function onTemplateChange(_id: ApologyTemplateId, dir: SubTabDirection): void {
   templateDir.value = dir;
@@ -190,7 +203,7 @@ function cycleQuote(): void {
 }
 
 function applyRandomMeme(): void {
-  form.value = randomizeApologyState(form.value.template);
+  replaceCurrentForm(randomizeApologyState(form.value.template));
   liveMessage.value = `已随机生成一份「${templateMeta.value.tabLabel}」`;
 }
 
@@ -203,24 +216,27 @@ function applyCurrentRun(): void {
   const leader = runLeader.value;
   if (activeRun) {
     form.value.buildText = activeRun.plan.name;
-    if (CORE_COVENANTS.includes(activeRun.key)) {
-      form.value.covenant = activeRun.key;
-    } else if (
-      activeRun.plan.base &&
-      CORE_COVENANTS.includes(activeRun.plan.base)
-    ) {
-      form.value.covenant = activeRun.plan.base;
-    }
+    const activated = runStats.value.filter((stat) => stat.active);
+    const named = activated.find(
+      (stat) =>
+        stat.name === activeRun.plan.base || stat.name === activeRun.key,
+    );
+    const mostMembers = Math.max(0, ...activated.map((stat) => stat.count));
+    const largest = activated.filter((stat) => stat.count === mostMembers);
+    // 混搭阵容若有多个并列主轴，让玩家自行指定盟约。
+    form.value.covenant =
+      named?.name ?? (largest.length === 1 ? largest[0].name : '');
     const coreSlot =
       activeRun.plan.ops.find((slot) => slot.core) ?? activeRun.plan.ops[0];
-    if (coreSlot) {
-      form.value.operator = coreSlot.name;
-    }
+    form.value.operator = coreSlot?.name ?? '';
   }
   if (leader && form.value.template !== 'application') {
     form.value.scene = `领袖「${leader.name}」决战波`;
   }
-  liveMessage.value = '已带入当前本局流派与领袖信息';
+  liveMessage.value =
+    [activeRun && '流派', leader && form.value.template === 'apology' && '领袖']
+      .filter(Boolean)
+      .join('与') + '已带入文书';
 }
 
 function applyScenePreset(value: string): void {
@@ -232,90 +248,83 @@ function applyBuildPreset(value: string): void {
 }
 
 function resetTemplate(): void {
-  form.value = createDefaultApologyState(form.value.template);
+  replaceCurrentForm(createDefaultApologyState(form.value.template));
   liveMessage.value = '已重置为默认模板';
 }
 
-/* ---------- 实时 2× PNG 渲染与导出 ---------- */
-const poster = shallowRef<{
-  blob: Blob;
-  url: string;
-  fileName: string;
-} | null>(null);
-const posterRendering = ref(false);
-const posterFailed = ref(false);
+/* ---------- 屏幕预览与按需高清导出 ---------- */
+const poster = shallowRef<{doc: ApologyDocument; url: string}>();
+const previewAttempt = ref(0);
+const imageError = ref('');
+const exportJob = shallowRef<AbortController>();
+const previewReady = computed(() => poster.value?.doc === documentModel.value);
+const canExport = computed(
+  () => active.value && previewReady.value && !exportJob.value,
+);
 const imageStatus = ref<'idle' | 'copied' | 'saved'>('idle');
 const copyFallback = ref('');
 const liveMessage = ref('');
-
-let renderTimer: ReturnType<typeof setTimeout> | undefined;
 let statusTimer: ReturnType<typeof setTimeout> | undefined;
-let renderSeq = 0;
 
-function revokePosterUrl(url: string | undefined): void {
-  if (url) URL.revokeObjectURL(url);
+function clearPreview(): void {
+  if (poster.value) URL.revokeObjectURL(poster.value.url);
+  poster.value = undefined;
 }
 
-async function rebuildPoster(): Promise<void> {
-  if (!active.value) return;
-  const seq = ++renderSeq;
-  const snapshot = documentModel.value;
-  posterRendering.value = true;
-  posterFailed.value = false;
+async function renderPreview(
+  doc: ApologyDocument,
+  signal: AbortSignal,
+): Promise<void> {
   try {
-    const blob = await renderApologyPoster(snapshot);
-    if (seq !== renderSeq) return;
-    if (blob) {
-      const nextUrl = URL.createObjectURL(blob);
-      const prevUrl = poster.value?.url;
-      poster.value = {blob, url: nextUrl, fileName: snapshot.fileName};
-      revokePosterUrl(prevUrl);
-    } else {
-      posterFailed.value = true;
-    }
+    const blob = await renderApologyPoster(doc, 'preview', signal);
+    if (signal.aborted || !active.value || doc !== documentModel.value) return;
+    const url = URL.createObjectURL(blob);
+    clearPreview();
+    poster.value = {doc, url};
   } catch {
-    if (seq === renderSeq) posterFailed.value = true;
-  } finally {
-    if (seq === renderSeq) posterRendering.value = false;
+    if (signal.aborted || !active.value || doc !== documentModel.value) return;
+    clearPreview();
+    imageError.value = '预览生成失败，可重新生成或复制纯文本。';
   }
 }
 
-watch(
-  [documentModel, fontReadyTick],
-  () => {
-    clearTimeout(renderTimer);
-    if (!active.value) return;
-    // 首次无预览时立即绘制；后续输入做轻量防抖，避免频繁重绘卡顿。
-    const delay = poster.value ? 120 : 0;
-    renderTimer = setTimeout(() => {
-      void rebuildPoster();
-    }, delay);
+const stopPreview = watch(
+  [documentModel, active, previewAttempt],
+  ([doc, visible], _, onCleanup) => {
+    exportJob.value?.abort();
+    exportJob.value = undefined;
+    imageStatus.value = 'idle';
+    imageError.value = '';
+    copyFallback.value = '';
+    if (!visible || poster.value?.doc === doc) return;
+
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () => {
+        void renderPreview(doc, controller.signal);
+      },
+      poster.value ? 120 : 0,
+    );
+    onCleanup(() => {
+      clearTimeout(timer);
+      controller.abort();
+    });
   },
   {immediate: true},
 );
 
-onMounted(() => {
-  if (typeof document !== 'undefined' && document.fonts?.ready) {
-    void document.fonts.ready.then(() => {
-      fontReadyTick.value += 1;
-    });
-  }
-});
-
 onActivated(() => {
   active.value = true;
-  if (!poster.value) void rebuildPoster();
 });
-
 onDeactivated(() => {
   active.value = false;
-  clearTimeout(renderTimer);
 });
-
 onBeforeUnmount(() => {
-  clearTimeout(renderTimer);
+  active.value = false;
+  stopPreview();
+  exportJob.value?.abort();
   clearTimeout(statusTimer);
-  revokePosterUrl(poster.value?.url);
+  clearPreview();
 });
 
 function setImageFeedback(status: 'copied' | 'saved', message: string): void {
@@ -327,23 +336,47 @@ function setImageFeedback(status: 'copied' | 'saved', message: string): void {
   }, 2400);
 }
 
-async function copyPoster(): Promise<void> {
-  const image = poster.value;
-  if (!image) return;
-  const outcome = await copyApologyImage(image.blob);
-  if (outcome === 'copied') {
-    setImageFeedback('copied', '已复制文书图片到剪贴板，可直接粘贴发送');
-  } else {
-    downloadBlob(image.blob, image.fileName);
-    setImageFeedback('saved', '当前浏览器不支持复制图片，已为你直接保存 PNG');
+async function exportPoster(action: 'copy' | 'save'): Promise<void> {
+  if (!canExport.value) return;
+  const doc = documentModel.value;
+  const controller = new AbortController();
+  exportJob.value = controller;
+  imageError.value = '';
+  try {
+    // 写剪贴板要在点击时发起，并与下载回退共用同一份快照和编码结果。
+    const png = renderApologyPoster(doc, 'export', controller.signal);
+    const [blob, outcome] = await Promise.all([
+      png,
+      action === 'copy' ? copyApologyImage(png) : 'save',
+    ]);
+    if (
+      controller.signal.aborted ||
+      !active.value ||
+      doc !== documentModel.value
+    )
+      return;
+    if (outcome === 'copied') {
+      setImageFeedback('copied', '已复制文书图片到剪贴板，可直接粘贴发送');
+    } else {
+      downloadBlob(blob, doc.fileName);
+      setImageFeedback(
+        'saved',
+        action === 'copy'
+          ? '当前浏览器未能复制图片，已转为保存 PNG'
+          : `已保存图片 ${doc.fileName}`,
+      );
+    }
+  } catch {
+    if (
+      !controller.signal.aborted &&
+      active.value &&
+      doc === documentModel.value
+    ) {
+      imageError.value = '图片导出失败，请重试或复制纯文本。';
+    }
+  } finally {
+    if (exportJob.value === controller) exportJob.value = undefined;
   }
-}
-
-function savePoster(): void {
-  const image = poster.value;
-  if (!image) return;
-  downloadBlob(image.blob, image.fileName);
-  setImageFeedback('saved', `已保存图片 ${image.fileName}`);
 }
 </script>
 
@@ -498,6 +531,56 @@ function savePoster(): void {
 
         <section class="nc nt-apology-card">
           <SectionHeading
+            title="正文文案"
+            :desc="
+              form.customOpening !== null
+                ? '已手动改写，恢复模板可套用所选风格'
+                : '点选风格或直接修改正文'
+            "
+            :level="4"
+            accent="#b8322a">
+            <template #extra>
+              <button
+                v-if="form.customOpening !== null"
+                type="button"
+                class="btn nt-apology-mini"
+                @click="form.customOpening = null">
+                恢复模板
+              </button>
+            </template>
+          </SectionHeading>
+          <div
+            class="nt-apology-presets"
+            role="radiogroup"
+            aria-label="正文文案风格">
+            <label
+              v-for="preset in templateMeta.openingPresets"
+              :key="preset.id"
+              :class="[
+                'nt-apology-preset-btn',
+                {on: form.openingId === preset.id},
+              ]">
+              <input
+                v-model="form.openingId"
+                class="sr-only"
+                type="radio"
+                :name="`apology-opening-${form.template}`"
+                :value="preset.id" />
+              {{ preset.label }}
+            </label>
+          </div>
+          <label class="nt-apology-field">
+            <span>正文内容（可直接编辑或自行撰写）</span>
+            <textarea
+              v-model="openingText"
+              rows="4"
+              maxlength="360"
+              placeholder="可直接输入想写的正文内容…"></textarea>
+          </label>
+        </section>
+
+        <section class="nc nt-apology-card">
+          <SectionHeading
             :title="templateMeta.reasonHeading"
             :count="`已选 ${checkedReasonCount} 条`"
             :level="4"
@@ -645,8 +728,8 @@ function savePoster(): void {
             <button
               type="button"
               class="btn p nt-apology-export-btn"
-              :disabled="!poster"
-              @click="copyPoster">
+              :disabled="!canExport"
+              @click="exportPoster('copy')">
               {{
                 imageStatus === 'copied'
                   ? '✓ 已复制图片'
@@ -672,8 +755,8 @@ function savePoster(): void {
             <button
               type="button"
               class="btn p nt-apology-export-btn"
-              :disabled="!poster"
-              @click="copyPoster">
+              :disabled="!canExport"
+              @click="exportPoster('copy')">
               {{
                 imageStatus === 'copied'
                   ? '✓ 已复制图片'
@@ -685,8 +768,8 @@ function savePoster(): void {
             <button
               type="button"
               class="btn nt-apology-export-btn"
-              :disabled="!poster"
-              @click="savePoster">
+              :disabled="!canExport"
+              @click="exportPoster('save')">
               保存 PNG
             </button>
             <CopyButton
@@ -698,10 +781,16 @@ function savePoster(): void {
               @fallback="copyFallback = $event" />
           </div>
 
-          <StatusNotice
-            v-if="posterFailed"
-            tone="warning"
-            message="图片渲染失败，请重试或直接点击「复制文字」发送纯文本版。" />
+          <StatusNotice v-if="imageError" tone="warning">
+            {{ imageError }}
+            <button
+              v-if="!poster"
+              type="button"
+              class="btn nt-apology-mini"
+              @click="previewAttempt++">
+              重新生成
+            </button>
+          </StatusNotice>
 
           <div v-if="copyFallback" class="nt-apology-fallback">
             <p class="hint">
@@ -718,16 +807,21 @@ function savePoster(): void {
           </div>
 
           <div
+            v-if="poster || !imageError"
+            :aria-busy="!previewReady"
             :class="[
               'nt-apology-stage',
-              {updating: posterRendering && !!poster},
+              {updating: !previewReady && !!poster},
             ]">
             <img
               v-if="poster"
               class="nt-apology-poster"
               :src="poster.url"
-              :alt="`${documentModel.title} 预览图`" />
-            <div v-else class="nt-apology-loading">正在排版红头公文…</div>
+              :alt="`${poster.doc.title} 预览图`"
+              :aria-hidden="!previewReady" />
+            <div v-else-if="!imageError" class="nt-apology-loading">
+              正在排版红头公文…
+            </div>
           </div>
 
           <p class="nt-apology-tip">
@@ -871,6 +965,48 @@ function savePoster(): void {
   border-color: var(--accent);
 }
 
+.nt-apology-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.nt-apology-preset-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink2);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.nt-apology-preset-btn:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.nt-apology-preset-btn:hover {
+  border-color: color-mix(in srgb, #b8322a 55%, var(--line));
+  color: var(--ink);
+}
+
+.nt-apology-preset-btn.on {
+  border-color: #b8322a;
+  background: color-mix(in srgb, #b8322a 10%, var(--surface));
+  color: #b8322a;
+}
+
 .nt-apology-checks {
   display: grid;
   gap: 7px;
@@ -958,7 +1094,7 @@ function savePoster(): void {
 
 .nt-apology-preview {
   position: sticky;
-  top: 56px;
+  top: calc(var(--qbar-height, 0px) + 8px);
   min-width: 0;
 }
 
@@ -1000,6 +1136,9 @@ function savePoster(): void {
   opacity: 0.76;
 }
 
+.nt-apology-stage.updating .nt-apology-poster {
+  pointer-events: none;
+}
 .nt-apology-poster {
   display: block;
   width: 100%;
@@ -1064,9 +1203,14 @@ function savePoster(): void {
 }
 
 /* 深色主题双分支：保证手动夜间与跟随系统表现一致 */
-:global(:root[data-theme='dark'] .nt-apology-check.on) {
+:global(:root[data-theme='dark'] .nt-apology-check.on),
+:global(:root[data-theme='dark'] .nt-apology-preset-btn.on) {
   border-color: #e0645c;
   background: color-mix(in srgb, #e0645c 14%, var(--surface));
+}
+
+:global(:root[data-theme='dark'] .nt-apology-preset-btn.on) {
+  color: #f38f88;
 }
 
 :global(:root[data-theme='dark'] .nt-apology-check.on .nt-apology-box) {
@@ -1075,9 +1219,14 @@ function savePoster(): void {
 }
 
 @media (prefers-color-scheme: dark) {
-  :global(:root:not([data-theme='light']) .nt-apology-check.on) {
+  :global(:root:not([data-theme='light']) .nt-apology-check.on),
+  :global(:root:not([data-theme='light']) .nt-apology-preset-btn.on) {
     border-color: #e0645c;
     background: color-mix(in srgb, #e0645c 14%, var(--surface));
+  }
+
+  :global(:root:not([data-theme='light']) .nt-apology-preset-btn.on) {
+    color: #f38f88;
   }
 
   :global(
@@ -1163,6 +1312,7 @@ function savePoster(): void {
 @media (prefers-reduced-motion: reduce) {
   .nt-apology-field input,
   .nt-apology-field textarea,
+  .nt-apology-preset-btn,
   .nt-apology-check,
   .nt-apology-stage {
     transition: none !important;
@@ -1171,6 +1321,7 @@ function savePoster(): void {
 
 :global(:root[data-motion='reduce'] .nt-apology-field input),
 :global(:root[data-motion='reduce'] .nt-apology-field textarea),
+:global(:root[data-motion='reduce'] .nt-apology-preset-btn),
 :global(:root[data-motion='reduce'] .nt-apology-check),
 :global(:root[data-motion='reduce'] .nt-apology-stage) {
   transition: none !important;

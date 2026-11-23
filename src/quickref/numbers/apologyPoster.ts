@@ -1,12 +1,17 @@
 /**
- * 漏怪文书高清 PNG 绘制器：将《漏怪道歉书》《使用申请书》渲染为 2× 红头公文图片。
+ * 漏怪文书高清 PNG 绘制器：将《漏怪道歉书》《使用申请书》渲染为红头公文预览或高清分享图。
  * 所有头像与盟约图标均来自同源 /assets/img/，canvas 不会被污染，可直接复制或保存 PNG。
  */
-import type {ApologyDocument} from '../../lib/apology/index.ts';
+import type {
+  ApologyDocument,
+  ApologyTargetBadge,
+} from '../../lib/apology/index.ts';
 import {avatarSrc, covenantIconSrc} from '../../lib/ui/assets.ts';
 
 const POSTER_W = 680;
-const POSTER_DPR = 2;
+// 长文降低倍率，预览最多约 6 MB 像素内存，导出最多约 16 MB。
+const PIXEL_BUDGET = {preview: 1_500_000, export: 4_000_000} as const;
+const MAX_CANVAS_EDGE = 8192;
 const OUTER_PAD = 14;
 const INNER_PAD = 28;
 const CONTENT_W = POSTER_W - (OUTER_PAD + INNER_PAD) * 2;
@@ -26,7 +31,10 @@ const GRID_LINE = '#cfc6b4';
 const CELL_TINT = '#f4efe2';
 const RED_HEADER = '#b8322a';
 
-function loadImage(src: string): Promise<HTMLImageElement | null> {
+function loadImage(
+  src: string,
+  signal: AbortSignal,
+): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     if (!src) {
       resolve(null);
@@ -34,11 +42,14 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
     }
     const img = new Image();
     const finish = (value: HTMLImageElement | null): void => {
+      signal.removeEventListener('abort', cancel);
       clearTimeout(timer);
       img.onload = null;
       img.onerror = null;
       resolve(value);
     };
+    const cancel = (): void => finish(null);
+    signal.addEventListener('abort', cancel, {once: true});
     const timer = window.setTimeout(() => finish(null), 6000);
     img.onload = () => finish(img);
     img.onerror = () => finish(null);
@@ -146,7 +157,9 @@ interface PosterLayout {
     readonly lines: string[];
     readonly lineHeight: number;
   };
-  readonly hasTarget: boolean;
+  readonly badge: ReturnType<typeof measureBadge> | null;
+  readonly salutationLines: readonly string[];
+  readonly signatureLines: readonly string[];
   readonly tableRows: readonly PairedRowLayout[];
   readonly openingLines: readonly string[];
   readonly reasonRows: readonly NumberedRowLayout[];
@@ -159,6 +172,32 @@ const TABLE_LINE_H = 23;
 const OPENING_LINE_H = 28;
 const ITEM_LINE_H = 26;
 const QUOTE_LINE_H = 27;
+const SIGNATURE_WIDTH = 180;
+const SIGNATURE_LINE_H = 28;
+const BADGE_TEXT_INSET = 18 + 54 + 16;
+const BADGE_NAME_LINE_H = 27;
+
+function measureBadge(
+  ctx: CanvasRenderingContext2D,
+  badge: ApologyTargetBadge,
+) {
+  const width = CONTENT_W - BADGE_TEXT_INSET - 16;
+  ctx.font = `700 22px ${FONT_SANS}`;
+  const nameLines = wrapText(ctx, badge.name, width);
+  const detailOffset = ctx.measureText(badge.name).width + 10;
+  ctx.font = `500 14.5px ${FONT_SANS}`;
+  const inline =
+    nameLines.length === 1 &&
+    detailOffset + ctx.measureText(`·  ${badge.detail}`).width <= width;
+  return {
+    nameLines,
+    detailOffset: inline ? detailOffset : 0,
+    height: Math.max(
+      74,
+      34 + nameLines.length * BADGE_NAME_LINE_H + (inline ? 0 : 20) + 10,
+    ),
+  };
+}
 
 function measureLayout(
   ctx: CanvasRenderingContext2D,
@@ -193,7 +232,9 @@ function measureLayout(
   }
 
   ctx.font = `500 17px ${FONT_SANS}`;
-  const openingLines = wrapText(ctx, `　　${doc.opening}`, CONTENT_W - 4);
+  const openingLines = doc.opening.trim()
+    ? wrapText(ctx, `　　${doc.opening}`, CONTENT_W - 4)
+    : [];
 
   const checkedReasons = doc.reasons.filter((item) => item.checked);
   ctx.font = `500 16px ${FONT_SANS}`;
@@ -221,19 +262,26 @@ function measureLayout(
     ? wrapText(ctx, `“${doc.quoteText}”`, CONTENT_W - 38)
     : [];
 
+  const badge = doc.targetBadge ? measureBadge(ctx, doc.targetBadge) : null;
+  ctx.font = `700 17.5px ${FONT_SANS}`;
+  const salutationLines = doc.salutation
+    ? wrapText(ctx, doc.salutation, CONTENT_W - 4)
+    : [];
+  ctx.font = `700 22px ${FONT_SERIF}`;
+  const signatureLines = wrapText(ctx, doc.signature, SIGNATURE_WIDTH - 16);
+
   let y = OUTER_PAD + 28;
   // 红头机构名 + 编号行 + 双红线 + 标题 + 副标题
   y += 34 + 24 + 20 + title.lines.length * title.lineHeight + 24;
   // 关联干员 / 盟约 / 流派卡
-  const hasTarget = Boolean(doc.targetBadge);
-  if (hasTarget) y += 74 + 16;
+  if (badge) y += badge.height + 16;
   // 表格
   for (const row of tableRows) y += row.height;
   y += 18;
   // 正式称呼行
-  if (doc.salutation) y += 30;
+  y += salutationLines.length * 30;
   // 正文导语
-  y += openingLines.length * OPENING_LINE_H + 18;
+  if (openingLines.length) y += openingLines.length * OPENING_LINE_H + 18;
   // 原因区（仅显示已选）
   if (reasonRows.length) {
     y += 42 + 12;
@@ -255,12 +303,14 @@ function measureLayout(
     y += doc.closingLines.length * 28 + 10;
   }
   // 底部日期与落款 + 页脚
-  y += 74 + 38 + OUTER_PAD;
+  y += 74 + (signatureLines.length - 1) * SIGNATURE_LINE_H + 38 + OUTER_PAD;
 
   return {
     totalHeight: Math.ceil(y),
     title,
-    hasTarget,
+    badge,
+    salutationLines,
+    signatureLines,
     tableRows,
     openingLines,
     reasonRows,
@@ -323,33 +373,38 @@ function drawNumberedSection(
   return y + headerH + bodyH + 18;
 }
 
+/** 按文书快照生成 PNG。预览优先节省内存，导出最高 2 倍。取消或编码失败时拒绝。 */
 export async function renderApologyPoster(
   doc: ApologyDocument,
-): Promise<Blob | null> {
-  let targetImg: HTMLImageElement | null = null;
-  if (doc.targetBadge && doc.targetBadge.kind !== 'build') {
-    const src =
-      doc.targetBadge.kind === 'operator'
-        ? avatarSrc(doc.targetBadge.name)
-        : covenantIconSrc(doc.targetBadge.name);
-    targetImg = await loadImage(src);
-  }
+  mode: keyof typeof PIXEL_BUDGET,
+  signal: AbortSignal,
+): Promise<Blob> {
+  signal.throwIfAborted();
+  const badge = doc.targetBadge;
+  const src =
+    badge?.kind === 'operator'
+      ? avatarSrc(badge.name)
+      : badge?.kind === 'covenant'
+        ? covenantIconSrc(badge.name)
+        : '';
+  const [targetImg] = await Promise.all([
+    loadImage(src, signal),
+    document.fonts?.ready,
+  ]);
+  signal.throwIfAborted();
 
-  const measureCanvas = document.createElement('canvas');
-  measureCanvas.width = 8;
-  measureCanvas.height = 8;
-  const mctx = measureCanvas.getContext('2d');
-  if (!mctx) return null;
-
-  const layout = measureLayout(mctx, doc);
   const canvas = document.createElement('canvas');
-  canvas.width = POSTER_W * POSTER_DPR;
-  canvas.height = layout.totalHeight * POSTER_DPR;
   const ctx = canvas.getContext('2d');
-  if (!ctx) return null;
-
-  ctx.save();
-  ctx.scale(POSTER_DPR, POSTER_DPR);
+  if (!ctx) throw new Error('无法创建文书画布');
+  const layout = measureLayout(ctx, doc);
+  const scale = Math.min(
+    mode === 'preview' ? 1 : 2,
+    Math.sqrt(PIXEL_BUDGET[mode] / (POSTER_W * layout.totalHeight)),
+    MAX_CANVAS_EDGE / layout.totalHeight,
+  );
+  canvas.width = Math.floor(POSTER_W * scale);
+  canvas.height = Math.floor(layout.totalHeight * scale);
+  ctx.scale(canvas.width / POSTER_W, canvas.height / layout.totalHeight);
 
   // 背景与纸张
   ctx.fillStyle = DESK_BG;
@@ -422,8 +477,8 @@ export async function renderApologyPoster(
   ctx.textAlign = 'left';
 
   // 关联干员 / 盟约 / 流派档案条
-  if (doc.targetBadge) {
-    const badgeH = 74;
+  if (doc.targetBadge && layout.badge) {
+    const badgeH = layout.badge.height;
     fillRounded(ctx, x0, y, CONTENT_W, badgeH, 8, CELL_TINT, GRID_LINE, 1);
     ctx.fillStyle = doc.targetBadge.color;
     ctx.fillRect(x0, y + 10, 5, badgeH - 20);
@@ -490,7 +545,7 @@ export async function renderApologyPoster(
       ctx.textBaseline = 'top';
     }
 
-    const textX = iconX + iconSize + 16;
+    const textX = x0 + BADGE_TEXT_INSET;
     ctx.fillStyle = INK3;
     ctx.font = `600 13px ${FONT_SANS}`;
     const kindLabel =
@@ -505,15 +560,18 @@ export async function renderApologyPoster(
 
     ctx.fillStyle = INK;
     ctx.font = `700 22px ${FONT_SANS}`;
-    ctx.fillText(doc.targetBadge.name, textX, y + 34);
-
-    const nameW = ctx.measureText(doc.targetBadge.name).width;
-    const maxDetailW = x0 + CONTENT_W - (textX + nameW + 22);
-    if (maxDetailW > 60) {
-      ctx.fillStyle = INK2;
-      ctx.font = `500 14.5px ${FONT_SANS}`;
-      ctx.fillText(`·  ${doc.targetBadge.detail}`, textX + nameW + 10, y + 40);
+    const {nameLines, detailOffset} = layout.badge;
+    for (const [index, line] of nameLines.entries()) {
+      ctx.fillText(line, textX, y + 34 + index * BADGE_NAME_LINE_H);
     }
+    ctx.fillStyle = INK2;
+    ctx.font = `500 14.5px ${FONT_SANS}`;
+    ctx.fillText(
+      detailOffset ? `·  ${doc.targetBadge.detail}` : doc.targetBadge.detail,
+      textX + detailOffset,
+      detailOffset ? y + 40 : y + 34 + nameLines.length * BADGE_NAME_LINE_H,
+      CONTENT_W - BADGE_TEXT_INSET - detailOffset - 16,
+    );
 
     y += badgeH + 16;
   }
@@ -588,10 +646,10 @@ export async function renderApologyPoster(
 
   // 正式公函称呼行（申请书）
   ctx.textBaseline = 'top';
-  if (doc.salutation) {
-    ctx.fillStyle = INK;
-    ctx.font = `700 17.5px ${FONT_SANS}`;
-    ctx.fillText(doc.salutation, x0 + 2, y);
+  ctx.fillStyle = INK;
+  ctx.font = `700 17.5px ${FONT_SANS}`;
+  for (const line of layout.salutationLines) {
+    ctx.fillText(line, x0 + 2, y);
     y += 30;
   }
 
@@ -602,7 +660,7 @@ export async function renderApologyPoster(
     ctx.fillText(line, x0 + 2, y);
     y += OPENING_LINE_H;
   }
-  y += 18;
+  if (layout.openingLines.length) y += 18;
 
   // 一、原因区（仅显示勾选及自定义项）
   if (layout.reasonRows.length) {
@@ -661,7 +719,6 @@ export async function renderApologyPoster(
 
   // 底部签字栏：左日期，右签署人/申请人
   const footY = y + 8;
-  const lineW = 180;
 
   ctx.fillStyle = INK2;
   ctx.font = `500 16px ${FONT_SANS}`;
@@ -671,19 +728,23 @@ export async function renderApologyPoster(
   const sigLabel = `${doc.signatureLabel}：`;
   ctx.font = `600 16px ${FONT_SANS}`;
   const sigLabelW = ctx.measureText(sigLabel).width;
-  const sigLineStartX = rightEdge - lineW;
+  const sigLineStartX = rightEdge - SIGNATURE_WIDTH;
   ctx.fillStyle = INK2;
   ctx.fillText(sigLabel, sigLineStartX - sigLabelW - 2, footY + 14);
 
   ctx.fillStyle = INK;
   ctx.font = `700 22px ${FONT_SERIF}`;
-  ctx.fillText(doc.signature, sigLineStartX + 8, footY + 8);
+  for (const [index, line] of layout.signatureLines.entries()) {
+    ctx.fillText(line, sigLineStartX + 8, footY + 8 + index * SIGNATURE_LINE_H);
+  }
+  const underlineY =
+    footY + 38 + (layout.signatureLines.length - 1) * SIGNATURE_LINE_H;
 
   ctx.strokeStyle = '#9c9280';
   ctx.lineWidth = 1.1;
   ctx.beginPath();
-  ctx.moveTo(sigLineStartX, footY + 38);
-  ctx.lineTo(rightEdge, footY + 38);
+  ctx.moveTo(sigLineStartX, underlineY);
+  ctx.lineTo(rightEdge, underlineY);
   ctx.stroke();
 
   // 页脚
@@ -700,12 +761,22 @@ export async function renderApologyPoster(
   ctx.font = `500 13px ${FONT_SANS}`;
   ctx.fillText(doc.footerNote, POSTER_W / 2, footerY);
 
-  ctx.restore();
-  return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  try {
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/png'),
+    );
+    signal.throwIfAborted();
+    if (!blob) throw new Error('无法生成文书 PNG');
+    return blob;
+  } finally {
+    // 编码结束后即可释放像素缓冲，无需等待下一次垃圾回收。
+    canvas.width = canvas.height = 0;
+  }
 }
 
+/** 在点击事件内交给剪贴板待编码的 PNG，保留移动浏览器所需的用户手势。 */
 export async function copyApologyImage(
-  blob: Blob,
+  blob: Promise<Blob>,
 ): Promise<'copied' | 'unsupported'> {
   if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) {
     return 'unsupported';
