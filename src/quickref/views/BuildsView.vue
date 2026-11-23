@@ -38,11 +38,7 @@ import {
   type Decoded,
   type PlanOp,
 } from '../../lib/plans/index.ts';
-import {
-  isSmallWindow,
-  settings,
-  updateSetting,
-} from '../../lib/settings/store.ts';
+import {isSmallWindow, settings} from '../../lib/settings/store.ts';
 import {useQuickrefActions} from '../state.ts';
 import {
   presetOf,
@@ -163,7 +159,7 @@ const presetBoxMap = computed(() => {
     // 收起抽屉时只有当前流派、本局流派和自建流派仍展示体检结果。
     if (
       item.builtin &&
-      (buildMenu.value !== 'choose' || settings.collapsePresetBuilds) &&
+      buildMenu.value !== 'choose' &&
       item.key !== current.value.key &&
       item.key !== runKey.value
     )
@@ -259,9 +255,6 @@ function closeBuildMenu(event?: KeyboardEvent): void {
 watch([() => currentRoute.value.params.id, () => currentRoute.value.name], () =>
   closeBuildMenu(),
 );
-function togglePresetFold(): void {
-  updateSetting('collapsePresetBuilds', !settings.collapsePresetBuilds);
-}
 
 /* ---------- 查看 ---------- */
 const p = computed(() => current.value);
@@ -690,17 +683,8 @@ watch(
 
       <div v-if="buildMenu === 'choose'" id="build-choose" class="build-fold">
         <div class="bsel build-list">
-          <button
-            type="button"
-            class="preset-fold"
-            :class="{folded: settings.collapsePresetBuilds}"
-            :aria-expanded="!settings.collapsePresetBuilds"
-            :aria-controls="
-              !settings.collapsePresetBuilds ? 'build-presets' : undefined
-            "
-            @click="togglePresetFold">
-            预设流派 {{ builtinCount }}
-          </button>
+          <span class="bk build-list-label">预设流派</span>
+          <span class="build-list-count">{{ builtinCount }}</span>
           <button
             v-if="hasAnyBox"
             type="button"
@@ -747,9 +731,9 @@ watch(
           </button>
         </div>
         <div
-          v-if="!settings.collapsePresetBuilds"
           id="build-presets"
-          class="bsel build-list">
+          class="bsel build-list build-options"
+          :class="{'is-compact': settings.collapsePresetBuilds}">
           <template v-for="(group, gi) in drawerGroups" :key="gi">
             <span v-if="gi > 0" class="sp"></span>
             <button
@@ -762,7 +746,7 @@ watch(
               :aria-pressed="x.key === p.key"
               @click="selectBuild(x.key)">
               <CovenantIcon v-if="CORE_BUILDS[x.key]" :name="x.key" />
-              {{ x.plan.name }}
+              <span class="build-option-name">{{ x.plan.name }}</span>
               <i v-if="x.modified" class="md" title="已修改">✎</i>
               <i
                 v-if="x.boxBadge"
@@ -779,8 +763,10 @@ watch(
             </button>
           </template>
         </div>
-        <div v-if="mine.length" class="bsel build-list">
-          <span class="bk">我的流派</span>
+        <div
+          v-if="mine.length"
+          class="bsel build-list build-options build-mine">
+          <span class="bk build-list-label">我的流派</span>
           <button
             v-for="x in mine"
             :key="x.key"
@@ -790,7 +776,7 @@ watch(
             :data-bd="x.key"
             :aria-pressed="x.key === p.key"
             @click="selectBuild(x.key)">
-            {{ x.plan.name }}
+            <span class="build-option-name">{{ x.plan.name }}</span>
             <i
               v-if="x.boxBadge"
               :class="['box-fit-pill', x.boxBadge.tone]"
@@ -1514,12 +1500,14 @@ watch(
 .build-masthead {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   min-width: 0;
 }
 .build-identity {
+  flex: 1 0 auto;
   min-width: 0;
+  max-width: 100%;
 }
 .build-identity h2 {
   margin: 0;
@@ -1559,11 +1547,14 @@ watch(
   height: 20px;
 }
 .build-name {
-  overflow: hidden;
+  min-width: 0;
   color: inherit;
-  font: 400 31px / 1.1 var(--fd);
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  font: 400 31px / 1.15 var(--fd);
+  overflow-wrap: anywhere;
+}
+.build-name,
+.build-caption {
+  word-break: normal;
 }
 .build-chevron {
   flex: none;
@@ -1599,8 +1590,9 @@ watch(
   gap: 5px 6px;
 }
 .build-primary-actions {
-  flex: none;
-  max-width: 68%;
+  flex: 0 0 auto;
+  max-width: 100%;
+  margin-inline-start: auto;
   justify-content: flex-end;
 }
 .build-list .build-manage {
@@ -1676,6 +1668,37 @@ watch(
 }
 .build-list {
   margin-bottom: 0;
+}
+.build-list .build-list-label {
+  color: var(--ink2);
+  font-weight: 650;
+}
+.build-list-count {
+  color: var(--ink3);
+  font: 600 12px var(--fn);
+}
+.build-options button {
+  max-width: 100%;
+  min-height: 34px;
+  text-align: start;
+  white-space: normal;
+}
+.build-options.is-compact {
+  gap: 4px;
+}
+.build-options.is-compact button {
+  padding-inline: 7px;
+  font-size: 12px;
+}
+.build-option-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.build-options .sp {
+  flex: none;
+}
+.build-mine .build-list-label {
+  flex-basis: 100%;
 }
 .build-list + .build-list,
 .build-management + .build-list {
