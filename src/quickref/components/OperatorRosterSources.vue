@@ -33,6 +33,7 @@ import SelectInput, {type SelectOption} from './SelectInput.vue';
 import SectionHeading from './SectionHeading.vue';
 import EmptyState from './EmptyState.vue';
 
+const rosterFilters = ref<HTMLElement>();
 const source = defineModel<RosterSource>({required: true});
 const props = withDefaults(
   defineProps<{
@@ -331,7 +332,7 @@ function choiceAccentStyle(
 }
 
 // 批量画笔只作用于当前筛选可见的自有六星。
-defineExpose({visibleOwnable});
+defineExpose({visibleOwnable, rosterFilters});
 </script>
 
 <template>
@@ -350,7 +351,7 @@ defineExpose({visibleOwnable});
       class="rs-panel subtab-panel"
       :data-dir="panelDir || undefined"
       :aria-label="source === 'selectable' ? '自选干员名单' : '替补对应表'">
-      <header class="nc rs-hero">
+      <header ref="rosterFilters" class="nc rs-hero">
         <div class="rs-hero-main">
           <div class="rs-hero-title">
             <h3>

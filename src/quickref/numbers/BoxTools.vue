@@ -1,12 +1,5 @@
 <script setup lang="ts">
-import {
-  computed,
-  nextTick,
-  onBeforeUnmount,
-  ref,
-  shallowRef,
-  watch,
-} from 'vue';
+import {computed, nextTick, onBeforeUnmount, ref, shallowRef, watch} from 'vue';
 import {
   ALL_COVENANTS,
   BORROW_LIMIT,
@@ -40,6 +33,7 @@ import {
   setOperatorRanks,
 } from '../../lib/box/store.ts';
 import type {BoxImportResult} from '../../lib/box/import.ts';
+import {prefersReducedMotion} from '../../lib/ui/dom.ts';
 import {lazyView} from '../../lib/ui/lazyView.ts';
 import {nameScore, normalize} from '../../lib/ui/match.ts';
 import OperatorRosterSources, {
@@ -213,6 +207,8 @@ const covenant = ref('');
 const tierFilter = ref(0);
 
 const editMode = ref(false);
+const editorBar = ref<HTMLElement>();
+const fixedRosterFilters = ref<HTMLElement>();
 const rosterSource = ref<RosterSource>('fixed');
 const roster = ref<InstanceType<typeof OperatorRosterSources>>();
 const brushes = computed(() =>
@@ -623,9 +619,27 @@ function toggleCategory(target: CategoryFilter): void {
   categoryFilter.value = categoryFilter.value === target ? 'all' : target;
 }
 
-function toggleEditMode(): void {
+async function toggleEditMode(): Promise<void> {
   if (rosterSource.value === 'substitute') rosterSource.value = 'fixed';
   editMode.value = !editMode.value;
+  if (!editMode.value) return;
+
+  await nextTick();
+  const bar = editorBar.value;
+  const filters =
+    rosterSource.value === 'selectable'
+      ? roster.value?.rosterFilters
+      : fixedRosterFilters.value;
+  if (!bar || !filters) return;
+
+  // 两份名单都紧接各自的筛选栏。给吸顶导航和可能换行的画笔栏留出实际高度。
+  const stickyTop = parseFloat(getComputedStyle(bar).top);
+  const listTop = window.scrollY + filters.getBoundingClientRect().bottom;
+  bar.focus({preventScroll: true});
+  window.scrollTo({
+    top: listTop - stickyTop - bar.offsetHeight,
+    behavior: prefersReducedMotion() ? 'instant' : 'smooth',
+  });
 }
 
 function onCardClick(op: Operator): void {
@@ -696,7 +710,10 @@ async function parseInput(): Promise<void> {
   try {
     const {parseExternalBox} = await import('../../lib/box/import.ts');
     if (request !== importRevision) return;
-    importPreview.value = parseExternalBox(importText.value, fallbackRank.value);
+    importPreview.value = parseExternalBox(
+      importText.value,
+      fallbackRank.value,
+    );
   } catch (cause) {
     if (request !== importRevision) return;
     importError.value =
@@ -906,6 +923,108 @@ function resetFilters(): void {
             :style="{width: `${rankCounts.wPreset}%`}"></i>
         </div>
 
+        <BoxSyncPanel v-if="syncOpen && hasAnyBox" @close="syncOpen = false" />
+        <div v-if="importOpen" class="bx-import panel-reveal">
+          <div class="bx-import-head">
+            <b>批量导入干员持有与练度</b>
+            <button
+              type="button"
+              class="btn bx-guide-link"
+              @click="guideOpen = true">
+              导入指南
+            </button>
+          </div>
+          <p v-if="workbookName" class="bx-workbook" role="status">
+            {{ importPreview ? '已读取' : '正在读取' }} {{ workbookName }}
+          </p>
+          <textarea
+            v-else
+            ref="pasteField"
+            v-model="importText"
+            class="bx-textarea"
+            aria-label="粘贴干员练度 JSON、一图流练度表、同步短码或干员名单"
+            placeholder="粘贴 MAA JSON、带列名的一图流表格、WB 跨端同步码，或干员名（如：鸿雪、仇白）"></textarea>
+          <div class="bx-import-controls">
+            <label v-if="!workbookName" class="bx-fallback-rank">
+              纯名单默认状态
+              <SelectInput
+                v-model="fallbackRank"
+                :options="FALLBACK_RANK_OPTIONS"
+                aria-label="纯名单默认状态" />
+            </label>
+            <button
+              v-if="!workbookName"
+              type="button"
+              class="btn p"
+              @click="parseInput">
+              解析预览
+            </button>
+            <button
+              v-else
+              type="button"
+              class="btn"
+              @click="startGuidedImport('paste')">
+              改用粘贴
+            </button>
+            <button
+              ref="fileButton"
+              type="button"
+              class="btn"
+              @click="fileInput?.click()">
+              选择练度文件
+            </button>
+            <button type="button" class="btn" @click="importOpen = false">
+              收起
+            </button>
+          </div>
+          <StatusNotice
+            v-if="importError"
+            tone="danger"
+            :message="importError" />
+          <div v-if="importPreview" class="bx-preview panel-reveal">
+            <p>
+              识别格式：
+              <b>{{ importPreview.formatLabel }}</b>
+              · 匹配本赛季干员
+              <b>{{ importPreview.matchedCount }}</b>
+              名（精二60 {{ importPreview.breakdown.e260 }} / 精二
+              {{ importPreview.breakdown.e2 }} / 精一
+              {{ importPreview.breakdown.e1 }} / 未练精0
+              {{ importPreview.breakdown.e0 }}
+              <template v-if="importPreview.breakdown.borrowed">
+                / 已借用 {{ importPreview.breakdown.borrowed }}
+              </template>
+              ）
+              <template v-if="importPreview.otherSeasonCount">
+                · 其他赛季记录 {{ importPreview.otherSeasonCount }} 条
+              </template>
+              <template v-if="importPreview.ignoredCount">
+                · 跳过未入池/未识别 {{ importPreview.ignoredCount }} 项
+              </template>
+            </p>
+            <div class="bx-actions">
+              <button
+                type="button"
+                class="btn p"
+                @click="commitImport('merge')">
+                合并导入（保留较高练度）
+              </button>
+              <ConfirmButton
+                label="覆盖本季练度"
+                confirm-label="确认替换（清除名单外标记）"
+                :disabled="!importPreview.matchedCount"
+                :reset-key="importPreview"
+                @confirm="commitImport('replace')" />
+              <button
+                type="button"
+                class="btn"
+                @click="invalidateImportPreview">
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div
           class="bx-pillars"
           role="group"
@@ -1067,7 +1186,6 @@ function resetFilters(): void {
         </div>
       </div>
 
-      <BoxSyncPanel v-if="syncOpen && hasAnyBox" @close="syncOpen = false" />
       <BoxImportGuide
         v-if="guideOpen"
         @start="startGuidedImport"
@@ -1078,101 +1196,12 @@ function resetFilters(): void {
         accept=".xlsx,.json,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/json,text/plain"
         hidden
         @change="onSelectFile" />
-      <div v-if="importOpen" class="bx-import panel-reveal">
-        <div class="bx-import-head">
-          <b>批量导入干员持有与练度</b>
-          <button
-            type="button"
-            class="btn bx-guide-link"
-            @click="guideOpen = true">
-            导入指南
-          </button>
-        </div>
-        <p v-if="workbookName" class="bx-workbook" role="status">
-          {{ importPreview ? '已读取' : '正在读取' }} {{ workbookName }}
-        </p>
-        <textarea
-          v-else
-          ref="pasteField"
-          v-model="importText"
-          class="bx-textarea"
-          aria-label="粘贴干员练度 JSON、一图流练度表、同步短码或干员名单"
-          placeholder="粘贴 MAA JSON、带列名的一图流表格、WB 跨端同步码，或干员名（如：鸿雪、仇白）"></textarea>
-        <div class="bx-import-controls">
-          <label v-if="!workbookName" class="bx-fallback-rank">
-            纯名单默认状态
-            <SelectInput
-              v-model="fallbackRank"
-              :options="FALLBACK_RANK_OPTIONS"
-              aria-label="纯名单默认状态" />
-          </label>
-          <button
-            v-if="!workbookName"
-            type="button"
-            class="btn p"
-            @click="parseInput">
-            解析预览
-          </button>
-          <button
-            v-else
-            type="button"
-            class="btn"
-            @click="startGuidedImport('paste')">
-            改用粘贴
-          </button>
-          <button
-            ref="fileButton"
-            type="button"
-            class="btn"
-            @click="fileInput?.click()">
-            选择练度文件
-          </button>
-          <button type="button" class="btn" @click="importOpen = false">
-            收起
-          </button>
-        </div>
-        <StatusNotice v-if="importError" tone="danger" :message="importError" />
-        <div v-if="importPreview" class="bx-preview panel-reveal">
-          <p>
-            识别格式：
-            <b>{{ importPreview.formatLabel }}</b>
-            · 匹配本赛季干员
-            <b>{{ importPreview.matchedCount }}</b>
-            名（精二60 {{ importPreview.breakdown.e260 }} / 精二
-            {{ importPreview.breakdown.e2 }} / 精一
-            {{ importPreview.breakdown.e1 }} / 未练精0
-            {{ importPreview.breakdown.e0 }}
-            <template v-if="importPreview.breakdown.borrowed">
-              / 已借用 {{ importPreview.breakdown.borrowed }}
-            </template>
-            ）
-            <template v-if="importPreview.otherSeasonCount">
-              · 其他赛季记录 {{ importPreview.otherSeasonCount }} 条
-            </template>
-            <template v-if="importPreview.ignoredCount">
-              · 跳过未入池/未识别 {{ importPreview.ignoredCount }} 项
-            </template>
-          </p>
-          <div class="bx-actions">
-            <button type="button" class="btn p" @click="commitImport('merge')">
-              合并导入（保留较高练度）
-            </button>
-            <ConfirmButton
-              label="覆盖本季练度"
-              confirm-label="确认替换（清除名单外标记）"
-              :disabled="!importPreview.matchedCount"
-              :reset-key="importPreview"
-              @confirm="commitImport('replace')" />
-            <button type="button" class="btn" @click="invalidateImportPreview">
-              取消
-            </button>
-          </div>
-        </div>
-      </div>
     </section>
 
     <section
       v-if="editMode"
+      ref="editorBar"
+      tabindex="-1"
       class="nc bx-editor-bar panel-reveal"
       aria-label="画笔标注模式工具栏">
       <div class="bx-editor-row">
@@ -1246,7 +1275,10 @@ function resetFilters(): void {
       :class="['bx-fixed-pane', {'subtab-panel': !!rosterDir}]"
       :data-dir="rosterDir || undefined">
       <BoxPlannerPanel />
-      <section class="nc bx-toolbar" aria-label="列表筛选与分组">
+      <section
+        ref="fixedRosterFilters"
+        class="nc bx-toolbar"
+        aria-label="列表筛选与分组">
         <div class="bx-filter-row">
           <SearchInput
             v-model="search"
@@ -1463,6 +1495,7 @@ function resetFilters(): void {
 }
 .bx-overview {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   min-width: 0;
 }
@@ -1969,7 +2002,7 @@ function resetFilters(): void {
 
 /* ---------- 批量导入面板 ---------- */
 .bx-import {
-  grid-column: 1 / -1;
+  min-width: 0;
   display: grid;
   gap: 8px;
   padding: 10px 12px;

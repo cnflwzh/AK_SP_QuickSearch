@@ -110,7 +110,7 @@ watch(
 
 <style scoped>
 .bx-sync {
-  grid-column: 1 / -1;
+  container: box-sync / inline-size;
   display: grid;
   gap: 10px;
   padding: 12px 14px;
@@ -212,7 +212,7 @@ watch(
   font-size: 11.5px;
   color: var(--ink);
 }
-@container box-tools (max-width: 600px) {
+@container box-sync (max-width: 600px) {
   .bx-sync-body {
     grid-template-columns: minmax(0, 1fr);
     justify-items: stretch;
