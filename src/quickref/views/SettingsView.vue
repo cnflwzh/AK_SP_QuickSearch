@@ -95,7 +95,7 @@ const MODULE_TOGGLES = [
 const HABIT_TOGGLES = [
   {
     key: 'collapsePresetBuilds',
-    title: '折叠「流派」页的预设流派',
+    title: '紧凑显示流派切换列表里的预设',
   },
   {
     key: 'defaultOperatorElite',
@@ -519,7 +519,7 @@ const previewSummary = computed(() => {
     parts.push(`隐藏 ${target.hiddenTools.length} 个子工具`);
   }
   if (target.collapsePresetBuilds) {
-    parts.push('折叠预设流派');
+    parts.push('紧凑显示预设流派');
   }
   if (pendingBackup.value.plans?.length) {
     parts.push(`附带 ${pendingBackup.value.plans.length} 套流派`);
