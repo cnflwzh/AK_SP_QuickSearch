@@ -15,6 +15,7 @@ export const CUSTOMIZABLE_TOOL_IDS = [
   'credit',
   'dealer',
   'excuse',
+  'apology',
 ] as const;
 export type CustomizableToolId = (typeof CUSTOMIZABLE_TOOL_IDS)[number];
 
