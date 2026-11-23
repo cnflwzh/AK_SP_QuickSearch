@@ -230,17 +230,6 @@ const drawerGroups = computed(() => [
   {list: coreList.value, offset: 0},
   {list: mixedList.value, offset: coreList.value.length},
 ]);
-const quickBuildItems = computed<SubTabItem<string>[]>(() =>
-  presets.value.map((item) => ({
-    id: item.key,
-    label: item.plan.name,
-    count: item.key === runKey.value ? '本局' : undefined,
-  })),
-);
-const quickBuildKey = computed({
-  get: () => current.value.key,
-  set: selectBuild,
-});
 type BuildMenu = 'choose' | 'manage' | 'actions';
 const buildMenu = ref<BuildMenu | null>(null);
 const otherRun = computed(() =>
@@ -632,36 +621,79 @@ watch(
           </div>
         </div>
 
-        <div v-if="!editing" class="build-primary-actions">
+        <div class="build-primary-actions">
+          <template v-if="!editing">
+            <button
+              v-if="isRun && needs.length"
+              type="button"
+              class="build-control build-run"
+              @click="actions.openCovenant(needs[0].name)">
+              去盟约抓牌
+            </button>
+            <button
+              v-if="p.plan.ops.length"
+              type="button"
+              :class="['build-control', {'build-run': !isRun}]"
+              @click="isRun ? endRun() : setRun(p.key)">
+              <svg
+                v-if="!isRun"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+                aria-hidden="true">
+                <path d="M5 3.5v9l7-4.5z" />
+              </svg>
+              {{ isRun ? '结束本局' : '本局打这套' }}
+            </button>
+            <button
+              v-if="!p.builtin && !isRun"
+              type="button"
+              :class="[
+                'build-control build-icon-label',
+                {'build-run': !p.plan.ops.length},
+              ]"
+              @click="editBuild(p.key)">
+              <svg
+                class="build-action-icon"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.65"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true">
+                <path
+                  d="m4 13.4 8.9-8.9a1.5 1.5 0 0 1 2.1 0l.5.5a1.5 1.5 0 0 1 0 2.1l-8.9 8.9L4 16zM11.9 5.5l2.6 2.6" />
+              </svg>
+              编辑
+            </button>
+            <button
+              id="build-actions-toggle"
+              type="button"
+              class="build-control build-icon-label build-more"
+              :aria-expanded="buildMenu === 'actions'"
+              :aria-controls="
+                buildMenu === 'actions' ? 'build-actions' : undefined
+              "
+              @click="toggleBuildMenu('actions')">
+              <svg
+                class="build-action-icon"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-hidden="true">
+                <circle cx="4.5" cy="10" r="1.5" />
+                <circle cx="10" cy="10" r="1.5" />
+                <circle cx="15.5" cy="10" r="1.5" />
+              </svg>
+              更多
+            </button>
+          </template>
           <button
-            v-if="isRun && needs.length"
+            id="build-manage-toggle"
             type="button"
-            class="build-control build-run"
-            @click="actions.openCovenant(needs[0].name)">
-            去盟约抓牌
-          </button>
-          <button
-            v-if="p.plan.ops.length"
-            type="button"
-            :class="['build-control', {'build-run': !isRun}]"
-            @click="isRun ? endRun() : setRun(p.key)">
-            <svg
-              v-if="!isRun"
-              viewBox="0 0 16 16"
-              fill="currentColor"
-              aria-hidden="true">
-              <path d="M5 3.5v9l7-4.5z" />
-            </svg>
-            {{ isRun ? '结束本局' : '本局打这套' }}
-          </button>
-          <button
-            v-if="!p.builtin && !isRun"
-            type="button"
-            :class="[
-              'build-control build-icon-label',
-              {'build-run': !p.plan.ops.length},
-            ]"
-            @click="editBuild(p.key)">
+            class="build-control build-icon-label build-manage"
+            :aria-expanded="buildMenu === 'manage'"
+            :aria-controls="buildMenu === 'manage' ? 'build-manage' : undefined"
+            @click="toggleBuildMenu('manage')">
             <svg
               class="build-action-icon"
               viewBox="0 0 20 20"
@@ -671,65 +703,12 @@ watch(
               stroke-linecap="round"
               stroke-linejoin="round"
               aria-hidden="true">
-              <path
-                d="m4 13.4 8.9-8.9a1.5 1.5 0 0 1 2.1 0l.5.5a1.5 1.5 0 0 1 0 2.1l-8.9 8.9L4 16zM11.9 5.5l2.6 2.6" />
+              <rect x="3" y="4" width="14" height="12" rx="2" />
+              <path d="M7 8h6M7 12h4" />
             </svg>
-            编辑
-          </button>
-          <button
-            id="build-actions-toggle"
-            type="button"
-            class="build-control build-icon-label build-more"
-            :aria-expanded="buildMenu === 'actions'"
-            :aria-controls="
-              buildMenu === 'actions' ? 'build-actions' : undefined
-            "
-            @click="toggleBuildMenu('actions')">
-            <svg
-              class="build-action-icon"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              aria-hidden="true">
-              <circle cx="4.5" cy="10" r="1.5" />
-              <circle cx="10" cy="10" r="1.5" />
-              <circle cx="15.5" cy="10" r="1.5" />
-            </svg>
-            更多
+            管理流派
           </button>
         </div>
-      </div>
-
-      <div class="build-switchbar">
-        <div class="build-quick-switch" data-noswipe>
-          <SubTabs
-            v-model="quickBuildKey"
-            :items="quickBuildItems"
-            :level="3"
-            label="快速切换流派"
-            attr="quick-build"
-            overflow="scroll" />
-        </div>
-        <button
-          id="build-manage-toggle"
-          type="button"
-          class="build-control build-icon-label build-manage"
-          :aria-expanded="buildMenu === 'manage'"
-          :aria-controls="buildMenu === 'manage' ? 'build-manage' : undefined"
-          @click="toggleBuildMenu('manage')">
-          <svg
-            class="build-action-icon"
-            viewBox="0 0 20 20"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.65"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true">
-            <rect x="3" y="4" width="14" height="12" rx="2" />
-            <path d="M7 8h6M7 12h4" />
-          </svg>
-          管理流派
-        </button>
       </div>
 
       <button
@@ -1731,23 +1710,6 @@ watch(
   max-width: 100%;
   margin-inline-start: auto;
   justify-content: flex-end;
-}
-.build-switchbar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 6px;
-}
-.build-quick-switch {
-  min-width: 0;
-}
-.build-quick-switch :deep(.subtabs-shell),
-.build-quick-switch :deep(.subtabs-track) {
-  width: 100%;
-}
-.build-quick-switch :deep(.subtabs-btn) {
-  min-height: 34px;
-  padding-inline: 8px;
 }
 .build-manage {
   border-color: var(--line);
