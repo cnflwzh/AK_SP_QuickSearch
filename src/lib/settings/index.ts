@@ -24,11 +24,9 @@ export type {
 } from './model.ts';
 export {
   SETTINGS_STORAGE_KEY,
-  SMALL_WINDOW_MEDIA_QUERY,
   applySettings,
   applySettingsToDom,
   initSettingsDom,
-  isSmallWindow,
   moveContentTab,
   reorderContentTabs,
   resetAllSettings,

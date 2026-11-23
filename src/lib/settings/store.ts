@@ -1,4 +1,4 @@
-import {reactive, readonly, ref} from 'vue';
+import {reactive} from 'vue';
 import {
   CONTENT_TAB_IDS,
   CUSTOMIZABLE_TOOL_IDS,
@@ -10,10 +10,6 @@ import {
 } from './model.ts';
 
 export const SETTINGS_STORAGE_KEY = 'wsq.settings.v1';
-
-/** 与 quickref.css 保持同一套小窗尺寸判定：横屏矮窗（如 640×400、860×380）与方形小窗（如 625×670）。 */
-export const SMALL_WINDOW_MEDIA_QUERY =
-  '(max-height: 600px), ((max-width: 720px) and (max-height: 680px))';
 
 function readStoredSettings(): UserSettings {
   try {
@@ -172,25 +168,11 @@ export function visibleContentTabs(): ContentTabId[] {
   return settings.tabOrder.filter((id) => !hidden.has(id));
 }
 
-const smallWindowState = ref(
-  typeof window !== 'undefined' && typeof window.matchMedia === 'function'
-    ? window.matchMedia(SMALL_WINDOW_MEDIA_QUERY).matches
-    : false,
-);
-export const isSmallWindow = readonly(smallWindowState);
-
 let initialized = false;
 export function initSettingsDom(): void {
   applySettingsToDom(settings);
   if (initialized || typeof window === 'undefined') return;
   initialized = true;
-  if (typeof window.matchMedia === 'function') {
-    const media = window.matchMedia(SMALL_WINDOW_MEDIA_QUERY);
-    smallWindowState.value = media.matches;
-    media.addEventListener('change', (event) => {
-      smallWindowState.value = event.matches;
-    });
-  }
   window.addEventListener('storage', (event) => {
     if (event.key !== null && event.key !== SETTINGS_STORAGE_KEY) return;
     replaceSettings(readStoredSettings(), false);

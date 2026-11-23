@@ -20,6 +20,19 @@ import {
   visibleContentTabs,
 } from '../src/lib/settings/index.ts';
 
+import {hasFloatingWindowBounds} from '../src/lib/ui/windowMode.ts';
+
+test('only a window reduced on both screen axes has floating bounds', () => {
+  // 同一尺寸既可能是折叠屏的整个内屏，也可能是大屏上的浮窗。
+  assert.equal(hasFloatingWindowBounds(625, 670, 625, 670), false);
+  assert.equal(hasFloatingWindowBounds(625, 670, 900, 900), true);
+  assert.equal(hasFloatingWindowBounds(844, 390, 844, 390), false);
+  assert.equal(hasFloatingWindowBounds(390, 460, 390, 844), false);
+  assert.equal(hasFloatingWindowBounds(390, 844, 900, 844), false);
+  assert.equal(hasFloatingWindowBounds(640, 400, 960, 720), true);
+  assert.equal(hasFloatingWindowBounds(625, 670, 0, 0), false);
+});
+
 test('normalizeSettings deduplicates tab order, restores missing tabs, and blocks hiding all tabs or tools', () => {
   assert.deepEqual(normalizeSettings(null), createDefaultSettings());
   assert.deepEqual(normalizeSettings('invalid'), DEFAULT_SETTINGS);
