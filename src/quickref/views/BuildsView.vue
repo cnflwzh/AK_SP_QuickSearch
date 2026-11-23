@@ -230,23 +230,31 @@ const drawerGroups = computed(() => [
   {list: coreList.value, offset: 0},
   {list: mixedList.value, offset: coreList.value.length},
 ]);
-type BuildMenu = 'choose' | 'actions';
+const quickBuildItems = computed<SubTabItem<string>[]>(() =>
+  presets.value.map((item) => ({
+    id: item.key,
+    label: item.plan.name,
+    count: item.key === runKey.value ? '本局' : undefined,
+  })),
+);
+const quickBuildKey = computed({
+  get: () => current.value.key,
+  set: selectBuild,
+});
+type BuildMenu = 'choose' | 'manage' | 'actions';
 const buildMenu = ref<BuildMenu | null>(null);
-const buildManagementOpen = ref(false);
 const otherRun = computed(() =>
   runKey.value && runKey.value !== current.value.key
     ? presetOf(runKey.value)
     : undefined,
 );
 function toggleBuildMenu(menu: BuildMenu): void {
-  buildManagementOpen.value = false;
   buildMenu.value = buildMenu.value === menu ? null : menu;
 }
 function closeBuildMenu(event?: KeyboardEvent): void {
   const open = buildMenu.value;
   if (!open) return;
   buildMenu.value = null;
-  buildManagementOpen.value = false;
   if (event) {
     event.stopPropagation();
     document.getElementById(`build-${open}-toggle`)?.focus();
@@ -649,28 +657,79 @@ watch(
           <button
             v-if="!p.builtin && !isRun"
             type="button"
-            :class="['build-control', {'build-run': !p.plan.ops.length}]"
+            :class="[
+              'build-control build-icon-label',
+              {'build-run': !p.plan.ops.length},
+            ]"
             @click="editBuild(p.key)">
+            <svg
+              class="build-action-icon"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.65"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true">
+              <path
+                d="m4 13.4 8.9-8.9a1.5 1.5 0 0 1 2.1 0l.5.5a1.5 1.5 0 0 1 0 2.1l-8.9 8.9L4 16zM11.9 5.5l2.6 2.6" />
+            </svg>
             编辑
           </button>
           <button
             id="build-actions-toggle"
             type="button"
-            class="build-control build-more"
-            aria-label="更多"
-            title="更多"
+            class="build-control build-icon-label build-more"
             :aria-expanded="buildMenu === 'actions'"
             :aria-controls="
               buildMenu === 'actions' ? 'build-actions' : undefined
             "
             @click="toggleBuildMenu('actions')">
-            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <svg
+              class="build-action-icon"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              aria-hidden="true">
               <circle cx="4.5" cy="10" r="1.5" />
               <circle cx="10" cy="10" r="1.5" />
               <circle cx="15.5" cy="10" r="1.5" />
             </svg>
+            更多
           </button>
         </div>
+      </div>
+
+      <div class="build-switchbar">
+        <div class="build-quick-switch" data-noswipe>
+          <SubTabs
+            v-model="quickBuildKey"
+            :items="quickBuildItems"
+            :level="3"
+            label="快速切换流派"
+            attr="quick-build"
+            overflow="scroll" />
+        </div>
+        <button
+          id="build-manage-toggle"
+          type="button"
+          class="build-control build-icon-label build-manage"
+          :aria-expanded="buildMenu === 'manage'"
+          :aria-controls="buildMenu === 'manage' ? 'build-manage' : undefined"
+          @click="toggleBuildMenu('manage')">
+          <svg
+            class="build-action-icon"
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.65"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true">
+            <rect x="3" y="4" width="14" height="12" rx="2" />
+            <path d="M7 8h6M7 12h4" />
+          </svg>
+          管理流派
+        </button>
       </div>
 
       <button
@@ -693,41 +752,6 @@ watch(
             title="按当前账号 Box 完整度与自持激活率排序流派"
             @click="sortByBox = !sortByBox">
             按 Box 适配度
-          </button>
-          <button
-            id="build-manage-toggle"
-            type="button"
-            class="add build-manage"
-            :aria-expanded="buildManagementOpen"
-            :aria-controls="buildManagementOpen ? 'build-manage' : undefined"
-            @click="buildManagementOpen = !buildManagementOpen">
-            管理流派
-          </button>
-        </div>
-        <div
-          v-if="buildManagementOpen"
-          id="build-manage"
-          class="build-actions build-management">
-          <button type="button" class="build-control" @click="createBuild">
-            新建
-          </button>
-          <button
-            type="button"
-            class="build-control"
-            :aria-expanded="importOpen"
-            :aria-controls="importOpen ? 'build-import' : undefined"
-            @click="togglePanel('import')">
-            导入
-          </button>
-          <button
-            type="button"
-            class="build-control"
-            :aria-expanded="activePanel === 'backup'"
-            :aria-controls="
-              activePanel === 'backup' ? 'build-backup' : undefined
-            "
-            @click="togglePanel('backup')">
-            备份与恢复
           </button>
         </div>
         <div
@@ -792,6 +816,68 @@ watch(
           </button>
         </div>
       </div>
+      <div
+        v-if="buildMenu === 'manage'"
+        id="build-manage"
+        class="build-fold build-actions">
+        <button
+          type="button"
+          class="build-control build-icon-label"
+          @click="createBuild">
+          <svg
+            class="build-action-icon"
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.65"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true">
+            <path d="M10 4.5v11M4.5 10h11" />
+          </svg>
+          新建
+        </button>
+        <button
+          type="button"
+          class="build-control build-icon-label"
+          :aria-expanded="importOpen"
+          :aria-controls="importOpen ? 'build-import' : undefined"
+          @click="togglePanel('import')">
+          <svg
+            class="build-action-icon"
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.65"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true">
+            <path
+              d="M10 3.5v8m-3-3 3 3 3-3M4 11.5v4a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-4" />
+          </svg>
+          导入
+        </button>
+        <button
+          type="button"
+          class="build-control build-icon-label"
+          :aria-expanded="activePanel === 'backup'"
+          :aria-controls="activePanel === 'backup' ? 'build-backup' : undefined"
+          @click="togglePanel('backup')">
+          <svg
+            class="build-action-icon"
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.65"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true">
+            <rect x="3.5" y="5" width="13" height="11.5" rx="1.5" />
+            <path d="M3.5 8.5h13M8 12h4" />
+          </svg>
+          备份与恢复
+        </button>
+      </div>
     </header>
 
     <StatusNotice
@@ -848,36 +934,87 @@ watch(
         class="build-fold build-actions">
         <button
           type="button"
-          class="build-control"
+          class="build-control build-icon-label"
           :class="{on: activePanel === 'share'}"
           :aria-expanded="activePanel === 'share'"
           :aria-controls="activePanel === 'share' ? 'build-share' : undefined"
           @click="togglePanel('share')">
+          <svg
+            class="build-action-icon"
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.65"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true">
+            <circle cx="5" cy="10" r="1.7" />
+            <circle cx="14.5" cy="5" r="1.7" />
+            <circle cx="14.5" cy="15" r="1.7" />
+            <path d="m6.6 9.2 6.3-3.4m-6.3 5 6.3 3.4" />
+          </svg>
           分享
         </button>
         <button
           v-if="p.builtin || isRun"
           type="button"
-          class="build-control"
+          class="build-control build-icon-label"
           @click="editBuild(p.key)">
+          <svg
+            class="build-action-icon"
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.65"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true">
+            <path
+              d="m4 13.4 8.9-8.9a1.5 1.5 0 0 1 2.1 0l.5.5a1.5 1.5 0 0 1 0 2.1l-8.9 8.9L4 16zM11.9 5.5l2.6 2.6" />
+          </svg>
           编辑
         </button>
         <button
           type="button"
-          class="build-control"
+          class="build-control build-icon-label"
           @click="duplicateBuild(p.key)">
-          {{ p.builtin ? '复制为我的流派' : '复制' }}
+          <svg
+            class="build-action-icon"
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.65"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true">
+            <rect x="7" y="7" width="9" height="9" rx="1.5" />
+            <path
+              d="M12.5 7V5A1.5 1.5 0 0 0 11 3.5H5A1.5 1.5 0 0 0 3.5 5v6A1.5 1.5 0 0 0 5 12.5h2" />
+          </svg>
+          复制
         </button>
         <button
           v-if="slotEntries.length"
           type="button"
-          class="build-control"
+          class="build-control build-icon-label"
           :aria-expanded="banOpen"
           :aria-controls="banOpen ? 'build-bans' : undefined"
           @click="
             manualBanOpen = !banOpen;
             closeBuildMenu();
           ">
+          <svg
+            class="build-action-icon"
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.65"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true">
+            <circle cx="10" cy="10" r="6.2" />
+            <path d="m5.6 14.4 8.8-8.8" />
+          </svg>
           盟约禁选
         </button>
         <template
@@ -1595,8 +1732,37 @@ watch(
   margin-inline-start: auto;
   justify-content: flex-end;
 }
-.build-list .build-manage {
-  margin-inline-start: auto;
+.build-switchbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+}
+.build-quick-switch {
+  min-width: 0;
+}
+.build-quick-switch :deep(.subtabs-shell),
+.build-quick-switch :deep(.subtabs-track) {
+  width: 100%;
+}
+.build-quick-switch :deep(.subtabs-btn) {
+  min-height: 34px;
+  padding-inline: 8px;
+}
+.build-manage {
+  border-color: var(--line);
+  color: var(--ink);
+}
+.build-icon-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.build-action-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
 }
 .build-other-run {
   justify-self: start;
@@ -1643,17 +1809,9 @@ watch(
   height: 15px;
 }
 .build-more {
-  display: inline-grid;
-  width: 34px;
-  padding: 0;
-  place-items: center;
   border-color: var(--line);
   background: color-mix(in srgb, var(--surface) 72%, transparent);
   color: var(--ink2);
-}
-.build-more svg {
-  width: 20px;
-  height: 20px;
 }
 .build-title:focus-visible,
 .build-control:focus-visible {
@@ -1700,11 +1858,7 @@ watch(
 .build-mine .build-list-label {
   flex-basis: 100%;
 }
-.build-list + .build-list,
-.build-management + .build-list {
-  margin-top: 6px;
-}
-.build-management {
+.build-list + .build-list {
   margin-top: 6px;
 }
 .build-detail {
@@ -1802,9 +1956,6 @@ watch(
   }
   .build-control {
     padding-inline: 7px;
-  }
-  .build-more {
-    padding-inline: 0;
   }
   .build-caption {
     margin-left: 0;
