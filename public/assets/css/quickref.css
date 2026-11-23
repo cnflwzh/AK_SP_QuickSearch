@@ -809,7 +809,6 @@
 }
 
 .roster {
-  container: covenant-roster / inline-size;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -848,6 +847,25 @@
 
 .rc .tiles {
   justify-content: center;
+}
+
+/* 小窗内同一等阶恰有两张卡片时，允许它们缩窄并排。 */
+.rc .tiles:has(> .tile:nth-child(2):last-child) {
+  flex-wrap: var(--roster-pair-wrap, wrap);
+}
+
+.rc .tiles:has(> .tile:nth-child(2):last-child) > .tile {
+  min-width: 0;
+}
+
+.rc .tiles:has(> .tile:nth-child(2):last-child) .tile-avatar,
+.rc .tiles:has(> .tile:nth-child(2):last-child) .tile-avatar > img {
+  max-width: 100%;
+}
+
+.rc .tiles:has(> .tile:nth-child(2):last-child) .tile-avatar > img {
+  height: auto;
+  aspect-ratio: 1;
 }
 
 .rc.none {
@@ -2104,23 +2122,20 @@ mark {
     padding: 4px 7px 4px 10px;
     font-size: 13px;
   }
+  .rcols {
+    grid-template-columns: repeat(3,minmax(0,1fr));
+    --roster-pair-wrap: nowrap;
+  }
   .bgrid {
     grid-template-columns: 1fr;
   }
 }
 
-/* 六个 70px 卡位加五段 6px 间距；只有实际装不下的窄栏才折行。 */
-@container covenant-roster (width < 450px) {
-  .rcols {
-    grid-template-columns: repeat(3,minmax(0,1fr));
-  }
-}
-
-/* 矮窗优先横向扫视六个等阶；极窄时只滚动图表，不撑宽页面。 */
+/* 矮窗即使横向较宽也保持三阶一行。 */
 @media (max-height:600px) {
   .rcols {
-    grid-template-columns: repeat(6,minmax(70px,1fr));
-    overflow-x: auto;
+    grid-template-columns: repeat(3,minmax(0,1fr));
+    --roster-pair-wrap: nowrap;
   }
 }
 
