@@ -269,11 +269,17 @@ function toggleBuildMenu(menu: BuildMenu): void {
 function closeBuildMenu(event?: KeyboardEvent): void {
   const open = buildMenu.value;
   if (!open) return;
-  buildMenu.value = null;
-  if (event) {
-    event.stopPropagation();
-    document.getElementById(`build-${open}-toggle`)?.focus();
+  event?.stopPropagation();
+  // 面板折叠后会变为 inert，先让键盘焦点回到仍可操作的入口。
+  if (
+    event ||
+    document.getElementById(`build-${open}`)?.contains(document.activeElement)
+  ) {
+    document
+      .getElementById(`build-${open}-toggle`)
+      ?.focus({preventScroll: true});
   }
+  buildMenu.value = null;
 }
 watch([() => currentRoute.value.params.id, () => currentRoute.value.name], () =>
   closeBuildMenu(),
@@ -456,6 +462,17 @@ const hasBoxDetails = computed(() => {
       boxActionError.value),
   );
 });
+const hasBuildNotes = computed(
+  () =>
+    tips.value.length > 0 ||
+    Boolean(currentBoxAssessment.value && slotEntries.value.length),
+);
+const hasEquipment = computed(
+  () => equipment.value.length > 0 || planEquipNotes.value.length > 0,
+);
+const hasLoadout = computed(
+  () => strategies.value.length > 0 || hasEquipment.value,
+);
 const boxActionNotice = ref('');
 const boxActionError = ref('');
 watch(
@@ -637,6 +654,7 @@ watch(
         type="button"
         :class="['preset-fold', {folded: settings.collapsePresetBuilds}]"
         :aria-expanded="!settings.collapsePresetBuilds"
+        aria-controls="build-presets"
         @click="togglePresetFold">
         <span>
           {{ settings.collapsePresetBuilds ? '预设流派' : '收起预设' }}
@@ -1422,10 +1440,8 @@ watch(
         </div>
         <EmptyState v-else message="还没有干员，点「编辑」排阵容" />
       </div>
-      <div class="bgrid">
-        <div
-          v-if="tips.length || (currentBoxAssessment && slotEntries.length)"
-          class="bgrid-main">
+      <div v-if="hasBuildNotes || hasLoadout" class="bgrid">
+        <div v-if="hasBuildNotes" class="bgrid-main">
           <div v-if="tips.length" class="bgrid-sec">
             <SectionHeading title="打法要点" :level="5" :accent="accent" />
             <ol class="qsteps">
@@ -1586,7 +1602,7 @@ watch(
             </div>
           </div>
         </div>
-        <div class="bgrid-side">
+        <div v-if="hasLoadout" class="bgrid-side">
           <div v-if="strategies.length" class="bgrid-sec" data-key="strategies">
             <SectionHeading title="策略" :level="5" :accent="accent" />
             <div class="row">
@@ -1601,10 +1617,7 @@ watch(
               <span v-html="fx(primaryStrategy.effect)"></span>
             </p>
           </div>
-          <div
-            v-if="equipment.length || planEquipNotes.length"
-            class="bgrid-sec"
-            data-key="equipment">
+          <div v-if="hasEquipment" class="bgrid-sec" data-key="equipment">
             <SectionHeading title="装备与配装" :level="5" :accent="accent" />
             <div v-if="equipment.length" class="row">
               <Chip
@@ -1690,6 +1703,11 @@ watch(
 </template>
 
 <style scoped>
+.bsel button[data-bd] {
+  min-height: 34px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
 .bsel button.build-manage-pill {
   min-height: 34px;
   padding: 4px 11px;
@@ -2042,6 +2060,9 @@ watch(
 .build-detail .bgrid {
   padding-top: 12px;
   border-top: 1px solid var(--line);
+}
+.build-detail .bgrid > :only-child {
+  grid-column: 1 / -1;
 }
 .bgrid-main {
   display: grid;
