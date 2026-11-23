@@ -809,6 +809,7 @@
 }
 
 .roster {
+  container: covenant-roster / inline-size;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -2103,11 +2104,23 @@ mark {
     padding: 4px 7px 4px 10px;
     font-size: 13px;
   }
+  .bgrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 六个 70px 卡位加五段 6px 间距；只有实际装不下的窄栏才折行。 */
+@container covenant-roster (width < 450px) {
   .rcols {
     grid-template-columns: repeat(3,minmax(0,1fr));
   }
-  .bgrid {
-    grid-template-columns: 1fr;
+}
+
+/* 矮窗优先横向扫视六个等阶；极窄时只滚动图表，不撑宽页面。 */
+@media (max-height:600px) {
+  .rcols {
+    grid-template-columns: repeat(6,minmax(70px,1fr));
+    overflow-x: auto;
   }
 }
 
