@@ -1,8 +1,10 @@
 import {settleInitialFonts} from './lib/runtime/fonts.ts';
 import {prefersReducedMotion} from './lib/ui/dom.ts';
 import {finishInitialNotice} from './lib/ui/initialNotice.ts';
+import {initWindowMode} from './lib/ui/windowMode.ts';
 import {initSettingsDom} from './lib/settings/store.ts';
 
+initWindowMode();
 initSettingsDom();
 
 /** Mount content and controls first; visited-only offline caching starts after first paint. */

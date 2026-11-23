@@ -3537,7 +3537,7 @@ mark {
  * 局内只为速查：页头和教程入口收起，搜索框缩成一个图标，整条顶栏只占一行 Tab。
  * 点图标（或按 /）展开搜索，失焦且没有内容时自动收回。 */
 @media (max-height:520px) {
-  .qhead { display: none; }
+  :root[data-floating-window] .qhead { display: none; }
   .qbar .wrap { display: flex; align-items: center; gap: 6px; padding-top: 2px; padding-bottom: 0; }
   .tabs-wrap { order: 1; flex: 1 1 auto; min-width: 0; margin-top: 0; }
   .search-anchor { order: 2; flex: none; }
@@ -3574,34 +3574,30 @@ mark {
 .tabs a { font-family: inherit; }
 .route-message { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 
-/* ---------- 小窗隐藏设置页签 + 干员/策略紧凑卡片（单列 / 小窗 / 全局紧凑） ---------- */
-@media (max-height: 600px), ((max-width: 720px) and (max-height: 680px)) {
-  .tabs a[data-tab="se"] { display: none; }
-}
-
-:root[data-density="compact"] .qg {
+/* 干员与策略卡片：用户选择紧凑布局，或在浮窗中使用自动密度。 */
+:root:is([data-density="compact"], [data-floating-window][data-density="auto"]) .qg {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 248px), 1fr));
   gap: 5px;
 }
-:root[data-density="compact"] :is(.oc.op-card, .oc.st-card) {
+:root:is([data-density="compact"], [data-floating-window][data-density="auto"]) :is(.oc.op-card, .oc.st-card) {
   padding: 6px 9px;
   gap: 4px;
   font-size: 12px;
   line-height: 1.45;
 }
-:root[data-density="compact"] .oc.op-card .operator-card-main { gap: 5px; }
-:root[data-density="compact"] :is(.oc.op-card, .oc.st-card) .h { align-items: center; gap: 7px; min-height: 36px; }
-:root[data-density="compact"] .oc.op-card .op-av { flex-basis: 36px; width: 36px; height: 36px; }
-:root[data-density="compact"] .oc.st-card .h .sp { width: 34px; height: 34px; }
-:root[data-density="compact"] .oc.op-card .op-tx { padding-top: 5px; font-size: 12px; }
-:root[data-density="compact"] .st-meta { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 3px 5px; }
-:root[data-density="compact"] .st-title-row { display: contents; }
-:root[data-density="compact"] :is(.oc.op-card, .oc.st-card) .h b { flex: 0 1 auto; font-size: 13.5px; }
-:root[data-density="compact"] .oc.op-card .cv { font-size: 10.5px; padding: 0 5px; }
-:root[data-density="compact"] :is(.oc.op-card, .oc.st-card) .tag { font-size: 10.5px; padding: 0 5px; }
-:root[data-density="compact"] .operator-card-wiki { top: 4px; right: 5px; }
-:root[data-density="compact"] .oc.st-card .hp { width: 78px; flex: none; margin-left: auto; gap: 4px; }
-:root[data-density="compact"] .oc.st-card .hp span { font-size: 12.5px; }
+:root:is([data-density="compact"], [data-floating-window][data-density="auto"]) .oc.op-card .operator-card-main { gap: 5px; }
+:root:is([data-density="compact"], [data-floating-window][data-density="auto"]) :is(.oc.op-card, .oc.st-card) .h { align-items: center; gap: 7px; min-height: 36px; }
+:root:is([data-density="compact"], [data-floating-window][data-density="auto"]) .oc.op-card .op-av { flex-basis: 36px; width: 36px; height: 36px; }
+:root:is([data-density="compact"], [data-floating-window][data-density="auto"]) .oc.st-card .h .sp { width: 34px; height: 34px; }
+:root:is([data-density="compact"], [data-floating-window][data-density="auto"]) .oc.op-card .op-tx { padding-top: 5px; font-size: 12px; }
+:root:is([data-density="compact"], [data-floating-window][data-density="auto"]) .st-meta { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 3px 5px; }
+:root:is([data-density="compact"], [data-floating-window][data-density="auto"]) .st-title-row { display: contents; }
+:root:is([data-density="compact"], [data-floating-window][data-density="auto"]) :is(.oc.op-card, .oc.st-card) .h b { flex: 0 1 auto; font-size: 13.5px; }
+:root:is([data-density="compact"], [data-floating-window][data-density="auto"]) .oc.op-card .cv { font-size: 10.5px; padding: 0 5px; }
+:root:is([data-density="compact"], [data-floating-window][data-density="auto"]) :is(.oc.op-card, .oc.st-card) .tag { font-size: 10.5px; padding: 0 5px; }
+:root:is([data-density="compact"], [data-floating-window][data-density="auto"]) .operator-card-wiki { top: 4px; right: 5px; }
+:root:is([data-density="compact"], [data-floating-window][data-density="auto"]) .oc.st-card .hp { width: 78px; flex: none; margin-left: auto; gap: 4px; }
+:root:is([data-density="compact"], [data-floating-window][data-density="auto"]) .oc.st-card .hp span { font-size: 12.5px; }
 
 /* 窄栏只在 Wiki 分屏时自动紧凑，普通竖屏沿用标准卡片。 */
 @container quickref-view (max-width: 595px) {
@@ -3630,7 +3626,7 @@ mark {
   :root:not([data-density="comfortable"]) :where(.wiki-open) .oc.st-card .hp span { font-size: 12.5px; }
 }
 
-@media (max-height: 600px) and (orientation: landscape), (max-width: 720px) and (max-height: 680px) and (min-aspect-ratio: 4/5) {
+@media (max-height: 480px) and (min-aspect-ratio: 4/3) {
   :root:not([data-density="comfortable"]) .qg {
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 248px), 1fr));
     gap: 5px;
