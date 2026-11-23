@@ -12,8 +12,11 @@ const route = useRoute();
   <RouteStatusView
     v-if="isFloatingWindow"
     :window-page="route.meta.regularWindowTitle" />
-  <!-- 缩小窗口时保留已打开的表单；直接从小窗进入时暂缓加载页面。 -->
+  <!-- 按路由名区分 Box 与设置的缓存，缩放窗口或切换查询参数时保留当前表单。 -->
   <KeepAlive :max="1">
-    <component :is="content" v-if="!isFloatingWindow" />
+    <component
+      :is="content"
+      v-if="!isFloatingWindow"
+      :key="route.name ?? undefined" />
   </KeepAlive>
 </template>
