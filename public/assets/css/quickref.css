@@ -849,6 +849,25 @@
   justify-content: center;
 }
 
+/* 小窗内同一等阶恰有两张卡片时，允许它们缩窄并排。 */
+.rc .tiles:has(> .tile:nth-child(2):last-child) {
+  flex-wrap: var(--roster-pair-wrap, wrap);
+}
+
+.rc .tiles:has(> .tile:nth-child(2):last-child) > .tile {
+  min-width: 0;
+}
+
+.rc .tiles:has(> .tile:nth-child(2):last-child) .tile-avatar,
+.rc .tiles:has(> .tile:nth-child(2):last-child) .tile-avatar > img {
+  max-width: 100%;
+}
+
+.rc .tiles:has(> .tile:nth-child(2):last-child) .tile-avatar > img {
+  height: auto;
+  aspect-ratio: 1;
+}
+
 .rc.none {
   opacity: .45;
 }
@@ -2105,9 +2124,18 @@ mark {
   }
   .rcols {
     grid-template-columns: repeat(3,minmax(0,1fr));
+    --roster-pair-wrap: nowrap;
   }
   .bgrid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* 矮窗即使横向较宽也保持三阶一行。 */
+@media (max-height:600px) {
+  .rcols {
+    grid-template-columns: repeat(3,minmax(0,1fr));
+    --roster-pair-wrap: nowrap;
   }
 }
 

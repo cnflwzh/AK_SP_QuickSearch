@@ -25,7 +25,6 @@ import {
   operatorBox,
   setOperatorRanks,
 } from '../../lib/box/store.ts';
-import {round1} from '../../lib/ui/dom.ts';
 import {avatarSrc} from '../../lib/ui/assets.ts';
 import {banReplace} from '../../lib/recommendation/index.ts';
 import {
@@ -80,6 +79,7 @@ import SubTabs, {
 } from '../components/SubTabs.vue';
 import ConfirmButton from '../components/ConfirmButton.vue';
 import EmptyState from '../components/EmptyState.vue';
+import SectionHeading from '../components/SectionHeading.vue';
 import StatusNotice from '../components/StatusNotice.vue';
 
 const LINEUP_TABS: readonly SubTabItem<0 | 1>[] = [
@@ -135,9 +135,11 @@ watch(
 );
 onUnmounted(finishEdit);
 function selectBuild(key: string): void {
+  closeBuildMenu();
   void navigate(buildLocation(key));
 }
 function editBuild(key: string): void {
+  closeBuildMenu();
   void navigate(buildLocation(key, true));
 }
 function createBuild(): void {
@@ -243,6 +245,12 @@ const pinnedPresets = computed(() =>
 function togglePresetFold(): void {
   updateSetting('collapsePresetBuilds', !settings.collapsePresetBuilds);
 }
+function toggleSortByBox(): void {
+  sortByBox.value = !sortByBox.value;
+  if (sortByBox.value && settings.collapsePresetBuilds) {
+    updateSetting('collapsePresetBuilds', false);
+  }
+}
 function pinBeforeLeave(el: Element): void {
   const target = el as HTMLElement;
   target.style.left = `${target.offsetLeft}px`;
@@ -253,6 +261,29 @@ function clearPinStyle(el: Element): void {
   target.style.left = '';
   target.style.top = '';
 }
+type BuildMenu = 'manage' | 'actions';
+const buildMenu = ref<BuildMenu | null>(null);
+function toggleBuildMenu(menu: BuildMenu): void {
+  buildMenu.value = buildMenu.value === menu ? null : menu;
+}
+function closeBuildMenu(event?: KeyboardEvent): void {
+  const open = buildMenu.value;
+  if (!open) return;
+  event?.stopPropagation();
+  // 面板折叠后会变为 inert，先让键盘焦点回到仍可操作的入口。
+  if (
+    event ||
+    document.getElementById(`build-${open}`)?.contains(document.activeElement)
+  ) {
+    document
+      .getElementById(`build-${open}-toggle`)
+      ?.focus({preventScroll: true});
+  }
+  buildMenu.value = null;
+}
+watch([() => currentRoute.value.params.id, () => currentRoute.value.name], () =>
+  closeBuildMenu(),
+);
 
 /* ---------- 查看 ---------- */
 const p = computed(() => current.value);
@@ -376,9 +407,6 @@ const equipment = computed(() =>
     ]),
   ].filter((e) => EQUIP[e]),
 );
-const main = computed(() =>
-  coreBase.value ? COVENANTS[p.value.plan.base!].scaling[0] : undefined,
-);
 const isRun = computed(() => runKey.value === p.value.key);
 function remove(): void {
   removePreset(p.value.key);
@@ -434,6 +462,17 @@ const hasBoxDetails = computed(() => {
       boxActionError.value),
   );
 });
+const hasBuildNotes = computed(
+  () =>
+    tips.value.length > 0 ||
+    Boolean(currentBoxAssessment.value && slotEntries.value.length),
+);
+const hasEquipment = computed(
+  () => equipment.value.length > 0 || planEquipNotes.value.length > 0,
+);
+const hasLoadout = computed(
+  () => strategies.value.length > 0 || hasEquipment.value,
+);
 const boxActionNotice = ref('');
 const boxActionError = ref('');
 watch(
@@ -516,6 +555,7 @@ const activePanel = computed(
 );
 const importOpen = computed(() => activePanel.value === 'import');
 function togglePanel(name: 'import' | 'backup' | 'share'): void {
+  closeBuildMenu();
   const closedPanel = currentRoute.value.hash.startsWith('#p=')
     ? 'closed'
     : null;
@@ -570,13 +610,14 @@ watch(
     :class="[
       'bsel-wrap',
       {'is-editing': editing && !importOpen && activePanel !== 'backup'},
-    ]">
+    ]"
+    @keydown.esc="closeBuildMenu">
     <div
       :class="['bsel-drawer', {collapsed: settings.collapsePresetBuilds}]"
       :inert="settings.collapsePresetBuilds"
       :aria-hidden="settings.collapsePresetBuilds ? 'true' : undefined">
       <div class="bsel-drawer-inner">
-        <div class="bsel bsel-presets">
+        <div id="build-presets" class="bsel bsel-presets">
           <template v-for="(group, gi) in drawerGroups" :key="gi">
             <span v-if="gi > 0" class="sp"></span>
             <button
@@ -613,6 +654,7 @@ watch(
         type="button"
         :class="['preset-fold', {folded: settings.collapsePresetBuilds}]"
         :aria-expanded="!settings.collapsePresetBuilds"
+        aria-controls="build-presets"
         @click="togglePresetFold">
         <span>
           {{ settings.collapsePresetBuilds ? '预设流派' : '收起预设' }}
@@ -631,15 +673,6 @@ watch(
           aria-hidden="true">
           <path d="M2.5 7.5 6 4l3.5 3.5" />
         </svg>
-      </button>
-      <button
-        v-if="hasAnyBox"
-        type="button"
-        :class="['add', 'box-sort-btn', {on: sortByBox}]"
-        :aria-pressed="sortByBox"
-        title="按当前账号 Box 完整度与自持激活率排序流派"
-        @click="sortByBox = !sortByBox">
-        {{ sortByBox ? '✓ 按 Box 适配度' : '按 Box 适配度' }}
       </button>
       <TransitionGroup
         name="bsel-pin"
@@ -695,28 +728,137 @@ watch(
             -{{ banImpact.get(x.key) }}
           </i>
         </button>
-        <button key="act-new" type="button" class="add" @click="createBuild">
-          ＋ 新建
-        </button>
         <button
-          key="act-import"
+          id="build-manage-toggle"
+          key="act-manage"
           type="button"
-          :class="['add', {on: importOpen}]"
-          :aria-expanded="importOpen"
-          :aria-controls="importOpen ? 'build-import' : undefined"
-          @click="togglePanel('import')">
-          导入
-        </button>
-        <button
-          key="act-backup"
-          type="button"
-          :class="['add', {on: activePanel === 'backup'}]"
-          :aria-expanded="activePanel === 'backup'"
-          :aria-controls="activePanel === 'backup' ? 'build-backup' : undefined"
-          @click="togglePanel('backup')">
-          备份与恢复
+          :class="[
+            'add',
+            'build-manage-pill',
+            {
+              on:
+                buildMenu === 'manage' ||
+                importOpen ||
+                activePanel === 'backup' ||
+                sortByBox,
+            },
+          ]"
+          :aria-expanded="buildMenu === 'manage'"
+          aria-controls="build-manage"
+          @click="toggleBuildMenu('manage')">
+          <svg
+            class="build-action-icon"
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.65"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true">
+            <rect x="3" y="4" width="14" height="12" rx="2" />
+            <path d="M7 8h6M7 12h4" />
+          </svg>
+          管理流派
+          <svg
+            class="build-drawer-chevron"
+            viewBox="0 0 12 12"
+            width="11"
+            height="11"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true">
+            <path d="M2.5 4.5 6 8l3.5-3.5" />
+          </svg>
         </button>
       </TransitionGroup>
+    </div>
+
+    <div
+      id="build-manage"
+      :class="[
+        'build-drawer',
+        'bsel-manage-drawer',
+        {open: buildMenu === 'manage'},
+      ]"
+      :inert="buildMenu !== 'manage'"
+      :aria-hidden="buildMenu !== 'manage' ? 'true' : undefined">
+      <div class="build-drawer-inner">
+        <div class="build-fold build-actions bsel-manage-fold">
+          <button
+            type="button"
+            class="build-control build-icon-label"
+            @click="createBuild">
+            <svg
+              class="build-action-icon"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.65"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true">
+              <path d="M10 4.5v11M4.5 10h11" />
+            </svg>
+            新建
+          </button>
+          <button
+            type="button"
+            class="build-control build-icon-label"
+            :class="{on: importOpen}"
+            :aria-expanded="importOpen"
+            :aria-controls="importOpen ? 'build-import' : undefined"
+            @click="togglePanel('import')">
+            <svg
+              class="build-action-icon"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.65"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true">
+              <path
+                d="M10 3.5v8m-3-3 3 3 3-3M4 11.5v4a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-4" />
+            </svg>
+            导入
+          </button>
+          <button
+            type="button"
+            class="build-control build-icon-label"
+            :class="{on: activePanel === 'backup'}"
+            :aria-expanded="activePanel === 'backup'"
+            :aria-controls="
+              activePanel === 'backup' ? 'build-backup' : undefined
+            "
+            @click="togglePanel('backup')">
+            <svg
+              class="build-action-icon"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.65"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true">
+              <rect x="3.5" y="5" width="13" height="11.5" rx="1.5" />
+              <path d="M3.5 8.5h13M8 12h4" />
+            </svg>
+            备份与恢复
+          </button>
+          <button
+            v-if="hasAnyBox"
+            type="button"
+            :class="['build-control', {on: sortByBox}]"
+            :aria-pressed="sortByBox"
+            title="按当前账号 Box 完整度与自持激活率排序流派"
+            @click="toggleSortByBox">
+            {{ sortByBox ? '✓ 按 Box 适配度' : '按 Box 适配度' }}
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -725,9 +867,12 @@ watch(
     tone="warning"
     :message="saveErrorMessage" />
 
-  <PlanBackupPanel v-if="activePanel === 'backup'" id="build-backup" />
+  <PlanBackupPanel
+    v-if="activePanel === 'backup'"
+    id="build-backup"
+    class="b-panel-in" />
 
-  <section v-if="importOpen" id="build-import" class="pl-panel bimp">
+  <section v-if="importOpen" id="build-import" class="pl-panel bimp b-panel-in">
     <div class="bimp-bar">
       <input
         v-model="importText"
@@ -765,603 +910,1268 @@ watch(
 
   <PlannerView v-if="editing" @done="completeEdit" />
 
-  <div v-else class="panel" :style="{'--c': accent}">
-    <div class="ph">
-      <CovenantIcon v-if="COVENANTS[p.key]" :name="p.key" emblem />
-      <h2>{{ p.plan.name }}</h2>
-      <span v-if="base?.tagline" class="tag a">{{ base.tagline }}</span>
-      <span v-if="p.modified" class="tag">已修改</span>
-      <span class="bact">
-        <button
-          type="button"
-          :class="['pri', {in: isRun}]"
-          :disabled="!p.plan.ops.length"
-          @click="isRun ? endRun() : setRun(p.key)">
-          {{ isRun ? '✓ 本局 · 结束' : '▶ 本局打这套' }}
-        </button>
-        <button
-          v-if="isRun && needs.length"
-          type="button"
-          class="b-go-cv"
-          @click="actions.openCovenant(needs[0].name)">
-          去盟约抓牌 ▸
-        </button>
-        <button
-          type="button"
-          :class="{on: activePanel === 'share'}"
-          :aria-expanded="activePanel === 'share'"
-          :aria-controls="activePanel === 'share' ? 'build-share' : undefined"
-          @click="togglePanel('share')">
-          分享
-        </button>
-        <button type="button" @click="editBuild(p.key)">编辑</button>
-        <button type="button" @click="duplicateBuild(p.key)">复制</button>
-        <template
-          v-if="coreNames.length && coreNames.length < p.plan.ops.length">
-          <OperatorRequestButton
-            :names="coreNames"
-            :build-name="p.plan.name"
-            label="求核心" />
-          <OperatorRequestButton
-            :names="p.plan.ops.map((slot) => slot.name)"
-            :build-name="p.plan.name"
-            label="求整队" />
-        </template>
-        <OperatorRequestButton
-          v-else
-          :names="p.plan.ops.map((slot) => slot.name)"
-          :build-name="p.plan.name" />
-        <ConfirmButton
-          v-if="p.modified"
-          label="恢复默认"
-          confirm-label="确认恢复"
-          tone="neutral"
-          :reset-key="p.key"
-          @confirm="restore" />
-        <ConfirmButton
-          v-if="!p.builtin"
-          label="删除"
-          confirm-label="确认删除"
-          :reset-key="p.key"
-          @confirm="remove" />
-      </span>
-    </div>
+  <div v-else class="build-frame" :style="{'--c': accent}">
+    <header class="build-toolbar" @keydown.esc="closeBuildMenu">
+      <div class="build-masthead">
+        <div class="build-identity">
+          <div class="build-title">
+            <CovenantIcon v-if="COVENANTS[p.key]" :name="p.key" emblem />
+            <span v-else class="build-emblem" aria-hidden="true">
+              <svg
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round">
+                <rect x="4" y="4" width="12" height="12" rx="2" />
+                <path d="M7 8h6M7 12h4" />
+              </svg>
+            </span>
+            <h2 class="build-name">{{ p.plan.name }}</h2>
+          </div>
+          <div v-if="base?.tagline || p.modified" class="build-caption">
+            <span v-if="base?.tagline">{{ base.tagline }}</span>
+            <span v-if="p.modified" class="build-status">已修改</span>
+          </div>
+        </div>
 
-    <PlanSharePanel
-      v-if="activePanel === 'share'"
-      id="build-share"
-      :plan="p.plan" />
-
-    <div v-if="slotEntries.length" class="bneed">
-      <span v-if="needs.length" class="k">需要盟约</span>
-      <button
-        v-for="s in needs"
-        :key="s.name"
-        type="button"
-        :class="[
-          'c',
-          {on: s.active, max: s.bonusActive, ban: runBans.includes(s.name)},
-        ]"
-        :style="{'--c': color(s.name)}"
-        :data-cv="s.name"
-        data-peek="off"
-        @click="actions.openCovenant(s.name)">
-        <CovenantIcon :name="s.name" />
-        {{ s.name }}
-        <small>{{ s.count }}/{{ s.need }}</small>
-      </button>
-      <button
-        type="button"
-        :class="['bbtn', {on: banOpen}]"
-        :aria-expanded="banOpen"
-        @click="manualBanOpen = !banOpen">
-        有盟约被 ban？
-      </button>
-    </div>
-
-    <div v-if="slotEntries.length && banOpen" class="bban">
-      <div class="bpick">
-        <span class="k">点选被 ban 的</span>
-        <button
-          v-for="covName in visibleBanCovenants"
-          :key="covName"
-          type="button"
-          :class="['bc', {on: runBans.includes(covName)}]"
-          :aria-pressed="runBans.includes(covName)"
-          :style="{'--c': color(covName)}"
-          @click="toggleBan(covName)">
-          <CovenantIcon :name="covName" />
-          {{ covName }}
-        </button>
-        <button
-          type="button"
-          class="bc-more"
-          :aria-expanded="showAllBans"
-          @click="showAllBans = !showAllBans">
-          {{ showAllBans ? '收起其他盟约' : '其他盟约 ▾' }}
-        </button>
-      </div>
-      <template v-if="ban">
-        <div v-for="pk in ban.picks" :key="pk.replaces" class="bpk">
-          <span
-            class="av off"
-            :data-t="OPERATOR[pk.replaces].tier"
-            :data-op="pk.replaces"
-            :title="`${pk.replaces} 不会出现`">
-            <img :src="avatarSrc(pk.replaces)" alt="" width="36" height="36" />
-            <small>{{ pk.replaces }}</small>
-          </span>
-          <b class="ar">→</b>
+        <div class="build-primary-actions">
           <button
+            v-if="isRun && needs.length"
             type="button"
-            class="av to"
-            :data-t="OPERATOR[pk.name].tier"
-            :data-op="pk.name"
-            @click="actions.openDetail('op', pk.name)">
-            <img :src="avatarSrc(pk.name)" alt="" width="36" height="36" />
-            <small>{{ pk.name }}</small>
+            class="build-control build-run"
+            @click="actions.openCovenant(needs[0].name)">
+            去盟约抓牌
           </button>
-          <span class="g">
-            <i v-for="c in pk.gains" :key="c" :style="{'--c': color(c)}">
-              <CovenantIcon :name="c" />
-              {{ c }}
-            </i>
-          </span>
-          <span v-if="pk.alts.length" class="alts">
-            <span class="k">或</span>
-            <button
-              v-for="a in pk.alts"
-              :key="a"
-              type="button"
-              :data-t="OPERATOR[a].tier"
-              :data-op="a"
-              :aria-label="`换成 ${a}`"
-              @click="pickAlt(pk.replaces, a)">
-              <img :src="avatarSrc(a)" alt="" width="28" height="28" />
-            </button>
-          </span>
-        </div>
-        <div
-          v-for="n in ban.removed.filter(
-            (n) => !ban!.picks.some((pk) => pk.replaces === n),
-          )"
-          :key="n"
-          class="bpk">
-          <span class="av off" :data-t="OPERATOR[n].tier" :data-op="n">
-            <img :src="avatarSrc(n)" alt="" width="36" height="36" />
-            <small>{{ n }}</small>
-          </span>
-          <span class="hint">找不到能补回盟约的替代</span>
-        </div>
-        <div class="bres">
-          <span class="k">换人后</span>
-          <span
-            v-for="s in banAfter"
-            :key="s.name"
-            :class="['c', 'on', {max: s.bonusActive}]"
-            :style="{'--c': color(s.name)}">
-            <CovenantIcon :name="s.name" />
-            {{ s.name }}
-            <small>{{ s.count }}/{{ s.need }}</small>
-          </span>
-          <span
-            v-for="l in ban.lost"
-            :key="l"
-            class="c lost"
-            :style="{'--c': color(l)}">
-            <CovenantIcon :name="l" />
-            {{ l }}
-            <small>失效</small>
-          </span>
           <button
+            v-if="p.plan.ops.length"
             type="button"
-            class="pri"
-            :disabled="!ban.ops.length"
-            @click="saveBan">
-            存为新流派 · 本局打它
-          </button>
-        </div>
-      </template>
-      <p v-else class="hint">
-        被 ban 盟约的干员整局不会出现，点上面的盟约看替代方案
-      </p>
-    </div>
-
-    <div>
-      <div class="bsec-head">
-        <h5>
-          {{ lineupMode === 0 ? '终盘阵容' : '按等阶抓牌顺序' }}
-          <template v-if="lineupMode === 0 && coreBase">
-            ·
-            <span class="tag a" style="padding: 0 6px">核心</span>
-          </template>
-          <span v-if="slotEntries.length" class="cnt">
-            · {{ slotEntries.length }} 人 · 招募 {{ cost.recruit }}
-            <template v-if="cost.elites">· {{ cost.elites }} 精锐</template>
-          </span>
-        </h5>
-        <SubTabs
-          v-if="slotEntries.length"
-          v-model="lineupMode"
-          :items="LINEUP_TABS"
-          :level="3"
-          inline
-          aria-label="阵容视图"
-          attr="bdl"
-          @change="(_, dir) => (lineupDir = dir)" />
-      </div>
-      <div
-        v-if="currentBoxAssessment && slotEntries.length"
-        :class="[
-          'b-box-strip',
-          {
-            warn: currentBoxAssessment.substitutes.length > 0,
-            open: boxCheckOpen && hasBoxDetails,
-          },
-        ]"
-        role="group"
-        aria-label="当前流派账号 Box 体检">
-        <button
-          v-if="hasBoxDetails"
-          type="button"
-          class="b-box-head"
-          :aria-expanded="boxCheckOpen"
-          :aria-controls="boxCheckOpen ? 'build-box-details' : undefined"
-          @click="boxCheckOpen = !boxCheckOpen">
-          <span class="b-box-main">
-            <span class="b-box-k">Box 体检</span>
-            <span class="b-box-stat">
-              自持激活
-              <b>
-                {{ currentBoxAssessment.coverage.activated }}/{{
-                  currentBoxAssessment.coverage.total
-                }}
-              </b>
-              <template v-if="currentBoxAssessment.coverage.maxed">
-                （满练 {{ currentBoxAssessment.coverage.maxed }}）
-              </template>
-              <template v-if="currentBoxAssessment.coverage.borrowed">
-                · 已借 {{ currentBoxAssessment.coverage.borrowed }}
-              </template>
-            </span>
-            <span
-              v-if="currentBoxAssessment.substitutes.length"
-              class="b-box-warn-tag">
-              缺 {{ currentBoxAssessment.substitutes.length }} 名未借 6★
-            </span>
-            <span v-else class="b-box-ready">✓ 全员本体出战</span>
-            <span
-              v-if="currentBoxAssessment.untrained.length"
-              class="b-box-e0-tag">
-              精 0 待练 {{ currentBoxAssessment.untrained.length }}
-            </span>
-          </span>
-          <span class="b-box-toggle">
-            {{
-              boxCheckOpen
-                ? '收起'
-                : currentBoxAssessment.substitutes.length
-                  ? '查看 / 借用'
-                  : '详情'
-            }}
-            <i
-              :class="['b-box-arrow', {open: boxCheckOpen}]"
+            :class="['build-control', {'build-run': !isRun}]"
+            @click="isRun ? endRun() : setRun(p.key)">
+            <svg
+              v-if="!isRun"
+              viewBox="0 0 16 16"
+              fill="currentColor"
               aria-hidden="true">
-              ▾
-            </i>
-          </span>
-        </button>
-        <div v-else class="b-box-head static">
-          <span class="b-box-main">
-            <span class="b-box-k">Box 体检</span>
-            <span class="b-box-stat">
-              自持激活
-              <b>
-                {{ currentBoxAssessment.coverage.activated }}/{{
-                  currentBoxAssessment.coverage.total
-                }}
-              </b>
-              <template v-if="currentBoxAssessment.coverage.maxed">
-                （满练 {{ currentBoxAssessment.coverage.maxed }}）
-              </template>
-              <template v-if="currentBoxAssessment.coverage.borrowed">
-                · 已借 {{ currentBoxAssessment.coverage.borrowed }}
-              </template>
-            </span>
-            <span class="b-box-ready">✓ 全员本体出战</span>
-          </span>
-        </div>
-        <div
-          v-if="boxCheckOpen && hasBoxDetails"
-          id="build-box-details"
-          class="b-box-body">
-          <div
-            v-if="currentBoxAssessment.substitutes.length"
-            class="b-box-gaps">
-            <span class="b-box-gap-label">未借 6★（不借将变替补）：</span>
-            <button
-              v-for="item in currentBoxAssessment.substitutes"
-              :key="item.op.name"
-              type="button"
-              :class="['b-box-gap-chip', {core: item.core}]"
-              :title="`${item.op.name} 未持有且未借用${item.backupOperator ? `，将替补为「${item.backupOperator}」` : ''}，点此查看详情`"
-              @click="actions.openDetail('op', item.op.name)">
-              <b>{{ item.core ? '★ ' : '' }}{{ item.op.name }}</b>
-              <small v-if="item.backupOperator">
-                → {{ item.backupOperator }}
-              </small>
-            </button>
-            <button
-              type="button"
-              class="b-box-borrow-btn"
-              @click="borrowMissingFromBuild">
-              {{
-                currentBoxAssessment.substitutes.length > 1
-                  ? `全部加入助战 (+${currentBoxAssessment.substitutes.length} · ${boxSeasonBorrowedCount}/${BORROW_LIMIT})`
-                  : `加入助战 (${boxSeasonBorrowedCount}/${BORROW_LIMIT})`
-              }}
-            </button>
-          </div>
-          <p
-            v-if="currentBoxAssessment.untrained.length"
-            class="b-box-untrained">
-            已持有但精 0 未激活：
-            <button
-              v-for="item in currentBoxAssessment.untrained"
-              :key="item.op.name"
-              type="button"
-              class="b-box-e0-link"
-              @click="actions.openDetail('op', item.op.name)">
-              {{ item.op.name }}
-            </button>
-            <small>（拉至精一即享攻防 +5%）</small>
-          </p>
-          <StatusNotice
-            v-if="boxActionNotice"
-            tone="success"
-            :message="boxActionNotice"
-            dismissible
-            @dismiss="boxActionNotice = ''" />
-          <StatusNotice
-            v-if="boxActionError"
-            tone="danger"
-            :message="boxActionError"
-            dismissible
-            @dismiss="boxActionError = ''" />
+              <path d="M5 3.5v9l7-4.5z" />
+            </svg>
+            {{ isRun ? '结束本局' : '本局打这套' }}
+          </button>
+          <button
+            v-if="!p.builtin && !isRun"
+            type="button"
+            :class="[
+              'build-control build-icon-label',
+              {'build-run': !p.plan.ops.length},
+            ]"
+            @click="editBuild(p.key)">
+            <svg
+              class="build-action-icon"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.65"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true">
+              <path
+                d="m4 13.4 8.9-8.9a1.5 1.5 0 0 1 2.1 0l.5.5a1.5 1.5 0 0 1 0 2.1l-8.9 8.9L4 16zM11.9 5.5l2.6 2.6" />
+            </svg>
+            编辑
+          </button>
+          <button
+            id="build-actions-toggle"
+            type="button"
+            class="build-control build-icon-label build-more"
+            :aria-expanded="buildMenu === 'actions'"
+            aria-controls="build-actions"
+            @click="toggleBuildMenu('actions')">
+            <svg
+              class="build-action-icon"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              aria-hidden="true">
+              <circle cx="4.5" cy="10" r="1.5" />
+              <circle cx="10" cy="10" r="1.5" />
+              <circle cx="15.5" cy="10" r="1.5" />
+            </svg>
+            更多
+            <svg
+              class="build-drawer-chevron"
+              viewBox="0 0 12 12"
+              width="11"
+              height="11"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true">
+              <path d="M2.5 4.5 6 8l3.5-3.5" />
+            </svg>
+          </button>
         </div>
       </div>
-      <div
-        v-if="slotEntries.length"
-        :key="lineupMode"
-        :class="{'subtab-panel': !!lineupDir}"
-        :data-dir="lineupDir || undefined">
-        <template v-if="lineupMode === 0">
-          <div class="tiles">
-            <OperatorTile
-              v-for="entry in slotEntries"
-              :key="entry.operator.name"
-              :operator="entry.operator"
-              :slot-meta="entry.slot"
-              show-tier />
+    </header>
+
+    <div
+      id="build-actions"
+      :class="[
+        'build-drawer',
+        'build-actions-drawer',
+        {open: buildMenu === 'actions'},
+      ]"
+      :inert="buildMenu !== 'actions'"
+      :aria-hidden="buildMenu !== 'actions' ? 'true' : undefined"
+      @keydown.esc="closeBuildMenu">
+      <div class="build-drawer-inner">
+        <div class="build-fold build-actions build-actions-fold">
+          <button
+            type="button"
+            class="build-control build-icon-label"
+            :class="{on: activePanel === 'share'}"
+            :aria-expanded="activePanel === 'share'"
+            :aria-controls="activePanel === 'share' ? 'build-share' : undefined"
+            @click="togglePanel('share')">
+            <svg
+              class="build-action-icon"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.65"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true">
+              <circle cx="5" cy="10" r="1.7" />
+              <circle cx="14.5" cy="5" r="1.7" />
+              <circle cx="14.5" cy="15" r="1.7" />
+              <path d="m6.6 9.2 6.3-3.4m-6.3 5 6.3 3.4" />
+            </svg>
+            分享
+          </button>
+          <button
+            v-if="p.builtin || isRun"
+            type="button"
+            class="build-control build-icon-label"
+            @click="editBuild(p.key)">
+            <svg
+              class="build-action-icon"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.65"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true">
+              <path
+                d="m4 13.4 8.9-8.9a1.5 1.5 0 0 1 2.1 0l.5.5a1.5 1.5 0 0 1 0 2.1l-8.9 8.9L4 16zM11.9 5.5l2.6 2.6" />
+            </svg>
+            编辑
+          </button>
+          <button
+            type="button"
+            class="build-control build-icon-label"
+            @click="duplicateBuild(p.key)">
+            <svg
+              class="build-action-icon"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.65"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true">
+              <rect x="7" y="7" width="9" height="9" rx="1.5" />
+              <path
+                d="M12.5 7V5A1.5 1.5 0 0 0 11 3.5H5A1.5 1.5 0 0 0 3.5 5v6A1.5 1.5 0 0 0 5 12.5h2" />
+            </svg>
+            复制
+          </button>
+          <button
+            v-if="slotEntries.length"
+            type="button"
+            class="build-control build-icon-label"
+            :class="{on: banOpen}"
+            :aria-expanded="banOpen"
+            :aria-controls="banOpen ? 'build-bans' : undefined"
+            @click="
+              manualBanOpen = !banOpen;
+              closeBuildMenu();
+            ">
+            <svg
+              class="build-action-icon"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.65"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true">
+              <circle cx="10" cy="10" r="6.2" />
+              <path d="m5.6 14.4 8.8-8.8" />
+            </svg>
+            盟约禁选
+          </button>
+          <template
+            v-if="coreNames.length && coreNames.length < p.plan.ops.length">
+            <OperatorRequestButton
+              :names="coreNames"
+              :build-name="p.plan.name"
+              label="求核心" />
+            <OperatorRequestButton
+              :names="p.plan.ops.map((slot) => slot.name)"
+              :build-name="p.plan.name"
+              label="求整队" />
+          </template>
+          <OperatorRequestButton
+            v-else
+            :names="p.plan.ops.map((slot) => slot.name)"
+            :build-name="p.plan.name" />
+          <ConfirmButton
+            v-if="p.modified"
+            label="恢复默认"
+            confirm-label="确认恢复"
+            tone="neutral"
+            :reset-key="`${p.key}:${buildMenu === 'actions'}`"
+            @confirm="restore" />
+          <ConfirmButton
+            v-if="!p.builtin"
+            label="删除"
+            confirm-label="确认删除"
+            :reset-key="`${p.key}:${buildMenu === 'actions'}`"
+            @confirm="remove" />
+        </div>
+      </div>
+    </div>
+
+    <div class="build-detail" @keydown.esc="closeBuildMenu">
+      <PlanSharePanel
+        v-if="activePanel === 'share'"
+        id="build-share"
+        class="b-panel-in"
+        :plan="p.plan" />
+
+      <div v-if="slotEntries.length" class="bneed">
+        <span v-if="needs.length" class="k">需要盟约</span>
+        <button
+          v-for="s in needs"
+          :key="s.name"
+          type="button"
+          :class="[
+            'c',
+            {on: s.active, max: s.bonusActive, ban: runBans.includes(s.name)},
+          ]"
+          :style="{'--c': color(s.name)}"
+          :data-cv="s.name"
+          data-peek="off"
+          @click="actions.openCovenant(s.name)">
+          <CovenantIcon :name="s.name" />
+          {{ s.name }}
+          <small>{{ s.count }}/{{ s.need }}</small>
+        </button>
+        <button
+          v-if="hasRelevantBan || banOpen"
+          type="button"
+          :class="['bbtn', {on: banOpen}]"
+          :aria-expanded="banOpen"
+          :aria-controls="banOpen ? 'build-bans' : undefined"
+          @click="manualBanOpen = !banOpen">
+          盟约禁选
+        </button>
+      </div>
+
+      <div v-if="slotEntries.length && banOpen" id="build-bans" class="bban">
+        <div class="bpick">
+          <span class="k">点选被 ban 的</span>
+          <button
+            v-for="covName in visibleBanCovenants"
+            :key="covName"
+            type="button"
+            :class="['bc', {on: runBans.includes(covName)}]"
+            :aria-pressed="runBans.includes(covName)"
+            :style="{'--c': color(covName)}"
+            @click="toggleBan(covName)">
+            <CovenantIcon :name="covName" />
+            {{ covName }}
+          </button>
+          <button
+            type="button"
+            class="bc-more"
+            :aria-expanded="showAllBans"
+            @click="showAllBans = !showAllBans">
+            {{ showAllBans ? '收起其他盟约' : '其他盟约 ▾' }}
+          </button>
+        </div>
+        <template v-if="ban">
+          <div v-for="pk in ban.picks" :key="pk.replaces" class="bpk">
+            <span
+              class="av off"
+              :data-t="OPERATOR[pk.replaces].tier"
+              :data-op="pk.replaces"
+              :title="`${pk.replaces} 不会出现`">
+              <img
+                :src="avatarSrc(pk.replaces)"
+                alt=""
+                width="36"
+                height="36" />
+              <small>{{ pk.replaces }}</small>
+            </span>
+            <b class="ar">→</b>
+            <button
+              type="button"
+              class="av to"
+              :data-t="OPERATOR[pk.name].tier"
+              :data-op="pk.name"
+              @click="actions.openDetail('op', pk.name)">
+              <img :src="avatarSrc(pk.name)" alt="" width="36" height="36" />
+              <small>{{ pk.name }}</small>
+            </button>
+            <span class="g">
+              <i v-for="c in pk.gains" :key="c" :style="{'--c': color(c)}">
+                <CovenantIcon :name="c" />
+                {{ c }}
+              </i>
+            </span>
+            <span v-if="pk.alts.length" class="alts">
+              <span class="k">或</span>
+              <button
+                v-for="a in pk.alts"
+                :key="a"
+                type="button"
+                :data-t="OPERATOR[a].tier"
+                :data-op="a"
+                :aria-label="`换成 ${a}`"
+                @click="pickAlt(pk.replaces, a)">
+                <img :src="avatarSrc(a)" alt="" width="28" height="28" />
+              </button>
+            </span>
           </div>
-          <div v-if="withAlts.length" class="balt">
-            <span class="k">过渡 / 备选</span>
-            <div class="balt-list">
-              <span
-                v-for="{slot} in withAlts"
-                :key="slot.name"
-                class="balt-row">
+          <div
+            v-for="n in ban.removed.filter(
+              (n) => !ban!.picks.some((pk) => pk.replaces === n),
+            )"
+            :key="n"
+            class="bpk">
+            <span class="av off" :data-t="OPERATOR[n].tier" :data-op="n">
+              <img :src="avatarSrc(n)" alt="" width="36" height="36" />
+              <small>{{ n }}</small>
+            </span>
+            <span class="hint">找不到能补回盟约的替代</span>
+          </div>
+          <div class="bres">
+            <span class="k">换人后</span>
+            <span
+              v-for="s in banAfter"
+              :key="s.name"
+              :class="['c', 'on', {max: s.bonusActive}]"
+              :style="{'--c': color(s.name)}">
+              <CovenantIcon :name="s.name" />
+              {{ s.name }}
+              <small>{{ s.count }}/{{ s.need }}</small>
+            </span>
+            <span
+              v-for="l in ban.lost"
+              :key="l"
+              class="c lost"
+              :style="{'--c': color(l)}">
+              <CovenantIcon :name="l" />
+              {{ l }}
+              <small>失效</small>
+            </span>
+            <button
+              type="button"
+              class="pri"
+              :disabled="!ban.ops.length"
+              @click="saveBan">
+              存为新流派 · 本局打它
+            </button>
+          </div>
+        </template>
+        <p v-else class="hint">
+          被 ban 盟约的干员整局不会出现，点上面的盟约看替代方案
+        </p>
+      </div>
+
+      <div>
+        <div class="bsec-head">
+          <div v-if="slotEntries.length" class="build-summary cnt">
+            <span v-if="lineupMode === 0 && coreBase" class="build-core">
+              核心
+            </span>
+            <span>
+              <b>{{ slotEntries.length }}</b>
+              人
+            </span>
+            <span>
+              招募
+              <b>{{ cost.recruit }}</b>
+            </span>
+            <span v-if="cost.elites">
+              精锐
+              <b>{{ cost.elites }}</b>
+            </span>
+            <span
+              v-if="lineupMode === 0 && coreNames.length"
+              class="build-legend">
+              <i>★</i>
+              核心位
+            </span>
+          </div>
+          <SubTabs
+            v-if="slotEntries.length"
+            v-model="lineupMode"
+            :items="LINEUP_TABS"
+            :level="3"
+            inline
+            aria-label="阵容视图"
+            attr="bdl"
+            @change="(_, dir) => (lineupDir = dir)" />
+        </div>
+        <div
+          v-if="slotEntries.length"
+          :key="lineupMode"
+          :class="{'subtab-panel': !!lineupDir}"
+          :data-dir="lineupDir || undefined">
+          <template v-if="lineupMode === 0">
+            <div
+              class="tiles build-lineup"
+              :style="{'--build-count': slotEntries.length}">
+              <OperatorTile
+                v-for="entry in slotEntries"
+                :key="entry.operator.name"
+                :operator="entry.operator"
+                :slot-meta="entry.slot"
+                show-tier />
+            </div>
+            <div v-if="withAlts.length" class="balt">
+              <span class="k">过渡 / 备选</span>
+              <div class="balt-list">
+                <span
+                  v-for="{slot} in withAlts"
+                  :key="slot.name"
+                  class="balt-row">
+                  <button
+                    v-for="altName in slot.alt"
+                    :key="altName"
+                    type="button"
+                    class="balt-chip"
+                    :data-t="OPERATOR[altName]?.tier"
+                    :data-op="altName"
+                    @click="actions.openDetail('op', altName)">
+                    <img
+                      v-if="avatarSrc(altName)"
+                      :src="avatarSrc(altName)"
+                      alt=""
+                      width="22"
+                      height="22"
+                      loading="lazy" />
+                    <i class="tn">
+                      {{ TIER_LABELS[OPERATOR[altName]?.tier ?? 0] }}
+                    </i>
+                    <b>{{ altName }}</b>
+                  </button>
+                  <span class="balt-to">→ 替</span>
+                  <button
+                    type="button"
+                    class="balt-target"
+                    @click="actions.openDetail('op', slot.name)">
+                    {{ slot.name }}
+                  </button>
+                </span>
+              </div>
+            </div>
+          </template>
+          <div v-else class="bgrab-stages">
+            <section
+              v-for="stage in grabStages"
+              :key="stage.label"
+              class="bgrab-stage">
+              <header>
+                <b>{{ stage.label }}</b>
+                <span class="tag">{{ stage.range }}</span>
+              </header>
+              <div class="bgrab-items">
                 <button
-                  v-for="altName in slot.alt"
-                  :key="altName"
+                  v-for="item in stage.items"
+                  :key="item.operator.name"
                   type="button"
-                  class="balt-chip"
-                  :data-t="OPERATOR[altName]?.tier"
-                  :data-op="altName"
-                  @click="actions.openDetail('op', altName)">
+                  :class="[
+                    'bgrab-card',
+                    {core: item.slot?.core, alt: !item.slot},
+                  ]"
+                  :data-t="item.operator.tier"
+                  :data-op="item.operator.name"
+                  @click="actions.openDetail('op', item.operator.name)">
                   <img
-                    v-if="avatarSrc(altName)"
-                    :src="avatarSrc(altName)"
+                    v-if="avatarSrc(item.operator.name)"
+                    :src="avatarSrc(item.operator.name)"
                     alt=""
-                    width="22"
-                    height="22"
+                    width="32"
+                    height="32"
                     loading="lazy" />
-                  <i class="tn">
-                    {{ TIER_LABELS[OPERATOR[altName]?.tier ?? 0] }}
-                  </i>
-                  <b>{{ altName }}</b>
+                  <span class="bgrab-info">
+                    <span class="bgrab-nm">
+                      <i class="tn">{{ TIER_LABELS[item.operator.tier] }}</i>
+                      <b>
+                        {{ item.slot?.core ? '★ ' : ''
+                        }}{{ item.operator.name }}
+                      </b>
+                    </span>
+                    <small v-if="item.slot" class="bgrab-sub">
+                      <template v-if="item.slot.elite">精锐</template>
+                      <template v-if="item.slot.elite && item.slot.eq.length">
+                        ·
+                      </template>
+                      <template v-if="item.slot.eq.length">
+                        {{ item.slot.eq.join('/') }}
+                      </template>
+                      <template v-if="!item.slot.elite && !item.slot.eq.length">
+                        主力
+                      </template>
+                    </small>
+                    <small v-else class="bgrab-sub alt">
+                      ⇄ 过渡/替{{ item.replaces.join('·') }}
+                    </small>
+                  </span>
                 </button>
-                <span class="balt-to">→ 替</span>
+              </div>
+            </section>
+          </div>
+        </div>
+        <EmptyState v-else message="还没有干员，点「编辑」排阵容" />
+      </div>
+      <div v-if="hasBuildNotes || hasLoadout" class="bgrid">
+        <div v-if="hasBuildNotes" class="bgrid-main">
+          <div v-if="tips.length" class="bgrid-sec">
+            <SectionHeading title="打法要点" :level="5" :accent="accent" />
+            <ol class="qsteps">
+              <li
+                v-for="(tip, index) in tips"
+                :key="index"
+                :style="{animationDelay: index * 0.06 + 's'}">
+                <span>{{ tip }}</span>
+              </li>
+            </ol>
+          </div>
+          <div
+            v-if="currentBoxAssessment && slotEntries.length"
+            :class="[
+              'b-box-strip',
+              {
+                warn: currentBoxAssessment.substitutes.length > 0,
+                open: boxCheckOpen && hasBoxDetails,
+              },
+            ]"
+            role="group"
+            aria-label="当前流派账号 Box 体检">
+            <button
+              v-if="hasBoxDetails"
+              type="button"
+              class="b-box-head"
+              :aria-expanded="boxCheckOpen"
+              aria-controls="build-box-details"
+              @click="boxCheckOpen = !boxCheckOpen">
+              <span class="b-box-main">
+                <span class="b-box-k">Box 体检</span>
+                <span class="b-box-stat">
+                  自持激活
+                  <b>
+                    {{ currentBoxAssessment.coverage.activated }}/{{
+                      currentBoxAssessment.coverage.total
+                    }}
+                  </b>
+                  <template v-if="currentBoxAssessment.coverage.maxed">
+                    （满练 {{ currentBoxAssessment.coverage.maxed }}）
+                  </template>
+                  <template v-if="currentBoxAssessment.coverage.borrowed">
+                    · 已借 {{ currentBoxAssessment.coverage.borrowed }}
+                  </template>
+                </span>
+                <span
+                  v-if="currentBoxAssessment.substitutes.length"
+                  class="b-box-warn-tag">
+                  缺 {{ currentBoxAssessment.substitutes.length }} 名未借 6★
+                </span>
+                <span v-else class="b-box-ready">✓ 全员本体出战</span>
+                <span
+                  v-if="currentBoxAssessment.untrained.length"
+                  class="b-box-e0-tag">
+                  精 0 待练 {{ currentBoxAssessment.untrained.length }}
+                </span>
+              </span>
+              <span class="b-box-toggle">
+                {{
+                  boxCheckOpen
+                    ? '收起'
+                    : currentBoxAssessment.substitutes.length
+                      ? '查看 / 借用'
+                      : '详情'
+                }}
+                <i
+                  :class="['b-box-arrow', {open: boxCheckOpen}]"
+                  aria-hidden="true">
+                  ▾
+                </i>
+              </span>
+            </button>
+            <div v-else class="b-box-head static">
+              <span class="b-box-main">
+                <span class="b-box-k">Box 体检</span>
+                <span class="b-box-stat">
+                  自持激活
+                  <b>
+                    {{ currentBoxAssessment.coverage.activated }}/{{
+                      currentBoxAssessment.coverage.total
+                    }}
+                  </b>
+                  <template v-if="currentBoxAssessment.coverage.maxed">
+                    （满练 {{ currentBoxAssessment.coverage.maxed }}）
+                  </template>
+                  <template v-if="currentBoxAssessment.coverage.borrowed">
+                    · 已借 {{ currentBoxAssessment.coverage.borrowed }}
+                  </template>
+                </span>
+                <span class="b-box-ready">✓ 全员本体出战</span>
+              </span>
+            </div>
+            <div
+              v-if="hasBoxDetails"
+              id="build-box-details"
+              :class="['build-drawer', 'b-box-drawer', {open: boxCheckOpen}]"
+              :inert="!boxCheckOpen"
+              :aria-hidden="!boxCheckOpen ? 'true' : undefined">
+              <div class="build-drawer-inner">
+                <div class="b-box-body">
+                  <div
+                    v-if="currentBoxAssessment.substitutes.length"
+                    class="b-box-gaps">
+                    <span class="b-box-gap-label">
+                      未借 6★（不借将变替补）：
+                    </span>
+                    <button
+                      v-for="item in currentBoxAssessment.substitutes"
+                      :key="item.op.name"
+                      type="button"
+                      :class="['b-box-gap-chip', {core: item.core}]"
+                      :title="`${item.op.name} 未持有且未借用${item.backupOperator ? `，将替补为「${item.backupOperator}」` : ''}，点此查看详情`"
+                      @click="actions.openDetail('op', item.op.name)">
+                      <b>{{ item.core ? '★ ' : '' }}{{ item.op.name }}</b>
+                      <small v-if="item.backupOperator">
+                        → {{ item.backupOperator }}
+                      </small>
+                    </button>
+                    <button
+                      type="button"
+                      class="b-box-borrow-btn"
+                      @click="borrowMissingFromBuild">
+                      {{
+                        currentBoxAssessment.substitutes.length > 1
+                          ? `全部加入助战 (+${currentBoxAssessment.substitutes.length} · ${boxSeasonBorrowedCount}/${BORROW_LIMIT})`
+                          : `加入助战 (${boxSeasonBorrowedCount}/${BORROW_LIMIT})`
+                      }}
+                    </button>
+                  </div>
+                  <p
+                    v-if="currentBoxAssessment.untrained.length"
+                    class="b-box-untrained">
+                    已持有但精 0 未激活：
+                    <button
+                      v-for="item in currentBoxAssessment.untrained"
+                      :key="item.op.name"
+                      type="button"
+                      class="b-box-e0-link"
+                      @click="actions.openDetail('op', item.op.name)">
+                      {{ item.op.name }}
+                    </button>
+                    <small>（拉至精一即享攻防 +5%）</small>
+                  </p>
+                  <StatusNotice
+                    v-if="boxActionNotice"
+                    tone="success"
+                    :message="boxActionNotice"
+                    dismissible
+                    @dismiss="boxActionNotice = ''" />
+                  <StatusNotice
+                    v-if="boxActionError"
+                    tone="danger"
+                    :message="boxActionError"
+                    dismissible
+                    @dismiss="boxActionError = ''" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-if="hasLoadout" class="bgrid-side">
+          <div v-if="strategies.length" class="bgrid-sec" data-key="strategies">
+            <SectionHeading title="策略" :level="5" :accent="accent" />
+            <div class="row">
+              <Chip
+                v-for="name in strategies"
+                :key="name"
+                kind="st"
+                :name="name" />
+            </div>
+            <p v-if="primaryStrategy" class="b-st-fx">
+              <span class="tag t">{{ primaryStrategy.skill }}</span>
+              <span v-html="fx(primaryStrategy.effect)"></span>
+            </p>
+          </div>
+          <div v-if="hasEquipment" class="bgrid-sec" data-key="equipment">
+            <SectionHeading title="装备与配装" :level="5" :accent="accent" />
+            <div v-if="equipment.length" class="row">
+              <Chip
+                v-for="name in equipment"
+                :key="name"
+                kind="eq"
+                :name="name" />
+            </div>
+            <div v-if="assignedEquips.length" class="b-eq-assign">
+              <span
+                v-for="{slot} in assignedEquips"
+                :key="slot.name"
+                class="b-eq-slot">
                 <button
                   type="button"
-                  class="balt-target"
+                  class="b-eq-op"
                   @click="actions.openDetail('op', slot.name)">
                   {{ slot.name }}
                 </button>
+                <i aria-hidden="true">→</i>
+                <Chip
+                  v-for="(eqName, index) in slot.eq"
+                  :key="index"
+                  kind="eq"
+                  :name="eqName" />
               </span>
             </div>
-          </div>
-        </template>
-        <div v-else class="bgrab-stages">
-          <section
-            v-for="stage in grabStages"
-            :key="stage.label"
-            class="bgrab-stage">
-            <header>
-              <b>{{ stage.label }}</b>
-              <span class="tag">{{ stage.range }}</span>
-            </header>
-            <div class="bgrab-items">
-              <button
-                v-for="item in stage.items"
-                :key="item.operator.name"
-                type="button"
-                :class="[
-                  'bgrab-card',
-                  {core: item.slot?.core, alt: !item.slot},
-                ]"
-                :data-t="item.operator.tier"
-                :data-op="item.operator.name"
-                @click="actions.openDetail('op', item.operator.name)">
-                <img
-                  v-if="avatarSrc(item.operator.name)"
-                  :src="avatarSrc(item.operator.name)"
-                  alt=""
-                  width="32"
-                  height="32"
-                  loading="lazy" />
-                <span class="bgrab-info">
-                  <span class="bgrab-nm">
-                    <i class="tn">{{ TIER_LABELS[item.operator.tier] }}</i>
-                    <b>
-                      {{ item.slot?.core ? '★ ' : '' }}{{ item.operator.name }}
-                    </b>
-                  </span>
-                  <small v-if="item.slot" class="bgrab-sub">
-                    <template v-if="item.slot.elite">精锐</template>
-                    <template v-if="item.slot.elite && item.slot.eq.length">
-                      ·
-                    </template>
-                    <template v-if="item.slot.eq.length">
-                      {{ item.slot.eq.join('/') }}
-                    </template>
-                    <template v-if="!item.slot.elite && !item.slot.eq.length">
-                      主力
-                    </template>
-                  </small>
-                  <small v-else class="bgrab-sub alt">
-                    ⇄ 过渡/替{{ item.replaces.join('·') }}
-                  </small>
-                </span>
-              </button>
-            </div>
-          </section>
-        </div>
-      </div>
-      <EmptyState v-else message="还没有干员，点「编辑」排阵容" />
-    </div>
-    <div class="bgrid">
-      <div v-if="tips.length">
-        <h5>打法要点</h5>
-        <ol class="qsteps">
-          <li
-            v-for="(tip, index) in tips"
-            :key="index"
-            :style="{animationDelay: index * 0.06 + 's'}">
-            <span>{{ tip }}</span>
-          </li>
-        </ol>
-      </div>
-      <div style="display: grid; gap: 12px; align-content: start">
-        <div v-if="strategies.length" data-key="strategies">
-          <h5>策略</h5>
-          <div class="row">
-            <Chip
-              v-for="name in strategies"
-              :key="name"
-              kind="st"
-              :name="name" />
-          </div>
-          <p v-if="primaryStrategy" class="b-st-fx">
-            <span class="tag t">{{ primaryStrategy.skill }}</span>
-            <span v-html="fx(primaryStrategy.effect)"></span>
-          </p>
-        </div>
-        <div
-          v-if="equipment.length || planEquipNotes.length"
-          data-key="equipment">
-          <h5>装备与配装</h5>
-          <div v-if="equipment.length" class="row">
-            <Chip
-              v-for="name in equipment"
-              :key="name"
-              kind="eq"
-              :name="name" />
-          </div>
-          <div v-if="assignedEquips.length" class="b-eq-assign">
-            <span
-              v-for="{slot} in assignedEquips"
-              :key="slot.name"
-              class="b-eq-slot">
-              <button
-                type="button"
-                class="b-eq-op"
-                @click="actions.openDetail('op', slot.name)">
-                {{ slot.name }}
-              </button>
-              <i aria-hidden="true">→</i>
-              <Chip
-                v-for="(eqName, index) in slot.eq"
+            <ul v-if="planEquipNotes.length" class="b-eq-notes">
+              <li
+                v-for="(note, index) in planEquipNotes"
                 :key="index"
-                kind="eq"
-                :name="eqName" />
-            </span>
+                :class="note.kind">
+                <b>{{ note.op }}</b>
+                {{ note.text }}
+              </li>
+            </ul>
           </div>
-          <ul v-if="planEquipNotes.length" class="b-eq-notes">
-            <li
-              v-for="(note, index) in planEquipNotes"
-              :key="index"
-              :class="note.kind">
-              <b>{{ note.op }}</b>
-              {{ note.text }}
-            </li>
-          </ul>
         </div>
       </div>
-    </div>
-    <details v-if="effects.length" class="bfx bfx-fold" :open="!isSmallWindow">
-      <summary>
-        盟约效果详情
-        <span class="hint">已成型 {{ effects.length }} 个</span>
-      </summary>
-      <div class="fxg">
-        <article
-          v-for="(c, i) in effects"
-          :key="c.name"
-          :class="['fxc', 'on', {max: c.bonusActive}]"
-          :style="{'--c': color(c.name), animationDelay: i * 0.05 + 's'}">
-          <header>
-            <button
-              type="button"
-              class="n"
-              :data-cv="c.name"
-              data-peek="off"
-              :title="`查看${c.name}盟约页`"
-              @click="actions.openCovenant(c.name)">
-              <CovenantIcon :name="c.name" />
-              {{ c.name }}
-            </button>
-            <span class="need">{{ c.need }} 人</span>
-            <span class="mine" :title="c.members.join('、')">
-              {{ c.count }} / {{ c.need }}
-              <template v-if="c.layers">· {{ c.layers }} 层</template>
-            </span>
-          </header>
-          <p v-html="c.effect"></p>
-          <p v-if="c.bonus" class="bn">
-            <span :class="['tag', c.bonusActive ? 'a' : '']">
-              {{ c.bonusActive ? '已强化' : c.bonusLabel }}
-            </span>
-            <span v-html="c.bonus"></span>
-          </p>
-        </article>
-      </div>
-    </details>
-    <div v-if="main" class="qcalc" :style="{'--c': accent}">
-      <div class="vals">
-        <div v-for="layers in [0, 50, 100, 150, 200]" :key="layers">
-          <span>{{ layers }} 层 · {{ main.label }}</span>
-          <b>
-            {{ round1(main.at(layers)) }}
-            <small>{{ main.unit }}</small>
-          </b>
+      <details
+        v-if="effects.length"
+        class="bfx bfx-fold"
+        :open="!isSmallWindow">
+        <summary>
+          盟约效果详情
+          <span class="hint">已成型 {{ effects.length }} 个</span>
+        </summary>
+        <div class="fxg">
+          <article
+            v-for="(c, i) in effects"
+            :key="c.name"
+            :class="['fxc', 'on', {max: c.bonusActive}]"
+            :style="{'--c': color(c.name), animationDelay: i * 0.05 + 's'}">
+            <header>
+              <button
+                type="button"
+                class="n"
+                :data-cv="c.name"
+                data-peek="off"
+                :title="`查看${c.name}盟约页`"
+                @click="actions.openCovenant(c.name)">
+                <CovenantIcon :name="c.name" />
+                {{ c.name }}
+              </button>
+              <span class="need">{{ c.need }} 人</span>
+              <span class="mine" :title="c.members.join('、')">
+                {{ c.count }} / {{ c.need }}
+                <template v-if="c.layers">· {{ c.layers }} 层</template>
+              </span>
+            </header>
+            <p v-html="c.effect"></p>
+            <p v-if="c.bonus" class="bn">
+              <span :class="['tag', c.bonusActive ? 'a' : '']">
+                {{ c.bonusActive ? '已强化' : c.bonusLabel }}
+              </span>
+              <span v-html="c.bonus"></span>
+            </p>
+          </article>
         </div>
-      </div>
+      </details>
     </div>
   </div>
 </template>
 
 <style scoped>
+.bsel button[data-bd] {
+  min-height: 34px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.bsel button.build-manage-pill {
+  min-height: 34px;
+  padding: 4px 11px;
+  font-size: 13px;
+  font-weight: 600;
+  transition:
+    border-color 150ms ease,
+    color 150ms ease,
+    background-color 150ms ease;
+}
+.bsel button.build-manage-pill:hover,
+.bsel button.build-manage-pill[aria-expanded='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.bsel button.build-manage-pill.on {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+.build-drawer-chevron {
+  flex: none;
+  margin-left: 1px;
+  opacity: 0.78;
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+[aria-expanded='true'] > .build-drawer-chevron {
+  transform: rotate(180deg);
+}
+
+/* 通用折叠抽屉动效：管理流派、更多操作与 Box 体检共用 */
+.build-drawer {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    grid-template-rows 210ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 150ms ease,
+    margin-top 210ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.build-drawer.open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  pointer-events: auto;
+}
+.build-drawer-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+.build-drawer .build-fold,
+.build-drawer .b-box-body {
+  transform: translateY(-4px);
+  transition: transform 210ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.build-drawer.open .build-fold,
+.build-drawer.open .b-box-body {
+  transform: translateY(0);
+}
+.bsel-manage-drawer.open {
+  margin-top: 8px;
+}
+.build-actions-drawer {
+  padding-inline: var(--build-inset);
+}
+.build-actions-fold {
+  margin-top: 10px;
+}
+@keyframes build-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.b-panel-in {
+  animation: build-panel-in 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 流派详情的入口、主操作和阵容共享同一个视觉容器。 */
+.build-frame {
+  --build-inset: 16px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--c);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 2px 7px color-mix(in srgb, var(--ink) 6%, transparent);
+}
+.build-toolbar {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+  padding: 12px var(--build-inset) 10px;
+  border-radius: 8px 8px 0 0;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(
+    110deg,
+    color-mix(in srgb, var(--c) 9%, var(--surface)),
+    var(--surface) 82%
+  );
+}
+.build-masthead {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  min-width: 0;
+}
+.build-identity {
+  flex: 1 1 132px;
+  min-width: 0;
+  max-width: 100%;
+}
+.build-title {
+  display: inline-flex;
+  max-width: 100%;
+  min-height: 34px;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink);
+}
+.build-title :deep(.cv-emblem),
+.build-emblem {
+  --cv-emblem-size: 28px;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 3px;
+  border-radius: 7px;
+}
+.build-emblem {
+  background: color-mix(in srgb, var(--c) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--c) 22%, var(--line));
+  color: var(--c);
+}
+.build-emblem svg {
+  width: 20px;
+  height: 20px;
+}
+.build-name {
+  margin: 0;
+  min-width: 0;
+  color: inherit;
+  font: 400 28px / 1.12 var(--fd);
+  overflow-wrap: anywhere;
+}
+.build-name,
+.build-caption {
+  word-break: normal;
+}
+.build-caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 7px;
+  margin: 2px 0 0 41px;
+  color: var(--ink2);
+  font-size: 12px;
+  line-height: 1.3;
+}
+.build-status {
+  color: var(--c);
+}
+.build-primary-actions,
+.build-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 6px;
+}
+.build-primary-actions {
+  flex: 0 0 auto;
+  max-width: 100%;
+  margin-inline-start: auto;
+  justify-content: flex-end;
+}
+.build-icon-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.build-action-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+.build-control {
+  min-height: 34px;
+  padding: 4px 10px;
+  border: 1px solid var(--line2);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    border-color 150ms ease,
+    color 150ms ease,
+    background-color 150ms ease;
+}
+.build-control:hover,
+.build-control.on,
+.build-control[aria-expanded='true'] {
+  border-color: var(--c, var(--accent));
+  color: var(--c, var(--accent));
+}
+.build-control.on {
+  background: color-mix(in srgb, var(--c, var(--accent)) 10%, var(--surface));
+  font-weight: 600;
+}
+.build-control.build-run {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+@supports (color: contrast-color(red)) {
+  .build-control.build-run {
+    --run-fill: color-mix(in srgb, var(--c) 86%, #111);
+    background: var(--run-fill);
+    color: contrast-color(var(--run-fill));
+  }
+}
+.build-run svg {
+  width: 15px;
+  height: 15px;
+}
+.build-more {
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  color: var(--ink2);
+}
+.build-control:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.build-fold {
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface2);
+}
+.build-detail {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px var(--build-inset) 16px;
+}
+.build-detail .bneed {
+  gap: 5px 6px;
+  margin: 0;
+}
+.build-detail .bneed > .k {
+  font-weight: 600;
+}
+.build-detail .bneed .c {
+  min-height: 34px;
+}
+.build-detail .bsec-head {
+  gap: 6px 12px;
+  margin-bottom: 7px;
+}
+.build-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 9px;
+  min-width: 0;
+  color: var(--ink2);
+}
+.build-summary b {
+  color: var(--ink);
+  font: 650 14px var(--fn);
+}
+.build-core {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.build-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11.5px;
+  color: var(--ink3);
+}
+.build-legend i {
+  font-style: normal;
+  color: var(--accent);
+}
+.build-lineup {
+  display: grid;
+  --build-tile-min: 64px;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(100%, var(--build-tile-min)), 1fr)
+  );
+  gap: 6px;
+  width: min(
+    100%,
+    calc(var(--build-count) * 108px + (var(--build-count) - 1) * 6px)
+  );
+}
+.build-lineup :deep(> .tile) {
+  width: 100%;
+  min-width: 0;
+  max-width: 108px;
+  padding: 5px 4px 4px;
+  gap: 4px;
+}
+.build-lineup :deep(.tile-avatar > img) {
+  width: 49px;
+  height: 49px;
+}
+.build-lineup :deep(.tile.core::after) {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+/* 完整展示长干员名：均衡折行、不截断省略，同时保持同排头像顶对齐、色条底对齐 */
+.build-lineup :deep(.tile-name) {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.24;
+  min-height: 1.24em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 0 auto;
+}
+.build-lineup :deep(.dots) {
+  margin-top: auto;
+}
+
+/* 阵容区与打法/策略/配装区的层级分隔与易读性增强 */
+.build-detail .bgrid {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.build-detail .bgrid > :only-child {
+  grid-column: 1 / -1;
+}
+.bgrid-main {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.bgrid-side {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+.bgrid-sec {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.build-detail .qsteps {
+  gap: 7px;
+}
+.build-detail .qsteps li {
+  color: var(--ink);
+  line-height: 1.65;
+}
+.build-detail .b-st-fx {
+  margin: 2px 0 0;
+  padding: 7px 10px;
+  border-radius: 7px;
+  border-left: 3px solid var(--teal);
+  background: var(--surface2);
+  color: var(--ink);
+  line-height: 1.6;
+}
+.build-detail .bfx-fold > summary {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface2);
+  color: var(--ink2);
+  transition:
+    border-color 150ms ease,
+    color 150ms ease;
+}
+.build-detail .bfx-fold > summary:hover {
+  border-color: var(--c);
+  color: var(--ink);
+}
+
+@container quickref-view (min-width: 590px) {
+  .build-lineup {
+    --build-tile-min: 62px;
+  }
+}
+@container quickref-view (max-width: 720px) {
+  .build-detail .bgrid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+@media (max-height: 600px), (max-width: 600px) {
+  .build-frame {
+    --build-inset: 10px;
+  }
+  .build-toolbar {
+    padding-block: 8px;
+  }
+  .build-detail {
+    gap: 8px;
+    padding-top: 7px;
+  }
+  .build-name {
+    font-size: 25px;
+  }
+  .build-lineup :deep(.tile-avatar > img) {
+    width: 46px;
+    height: 46px;
+  }
+  .build-detail .bgrid {
+    padding-top: 9px;
+  }
+}
+@media (pointer: coarse) {
+  .bsel button.build-manage-pill {
+    min-height: 36px;
+  }
+}
+@container quickref-view (max-width: 520px) {
+  .build-control {
+    padding-inline: 8px;
+    font-size: 12.5px;
+  }
+  .build-caption {
+    margin-left: 0;
+  }
+}
+@container quickref-view (max-width: 390px) {
+  .build-masthead {
+    gap: 5px 6px;
+  }
+  .build-name {
+    font-size: 23px;
+  }
+  .build-control {
+    padding-inline: 7px;
+  }
+  .build-detail .bsec-head {
+    justify-content: flex-start;
+  }
+}
+
 .box-fit-pill {
   font-style: normal;
   font-family: var(--fn);
@@ -1386,7 +2196,7 @@ watch(
 }
 .b-box-strip {
   display: grid;
-  margin: 0 0 8px;
+  margin: 0;
   border: 1px solid color-mix(in srgb, var(--teal) 28%, var(--line));
   border-radius: 8px;
   background: color-mix(in srgb, var(--teal) 5%, var(--surface2));
@@ -1471,7 +2281,7 @@ watch(
 .b-box-arrow {
   display: inline-block;
   font-style: normal;
-  transition: transform 0.16s ease;
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .b-box-arrow.open {
   transform: rotate(180deg);
@@ -1575,11 +2385,29 @@ watch(
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .b-box-arrow {
+  .b-box-arrow,
+  .build-drawer-chevron,
+  .build-drawer,
+  .build-drawer .build-fold,
+  .build-drawer .b-box-body,
+  .build-control,
+  .bsel button.build-manage-pill {
     transition: none;
   }
+  .b-panel-in {
+    animation: none;
+  }
 }
-:global(:root[data-motion='reduce'] .b-box-arrow) {
+:global(:root[data-motion='reduce'] .b-box-arrow),
+:global(:root[data-motion='reduce'] .build-drawer-chevron),
+:global(:root[data-motion='reduce'] .build-drawer),
+:global(:root[data-motion='reduce'] .build-drawer .build-fold),
+:global(:root[data-motion='reduce'] .build-drawer .b-box-body),
+:global(:root[data-motion='reduce'] .build-control),
+:global(:root[data-motion='reduce'] .bsel button.build-manage-pill) {
   transition: none !important;
+}
+:global(:root[data-motion='reduce'] .b-panel-in) {
+  animation: none !important;
 }
 </style>
