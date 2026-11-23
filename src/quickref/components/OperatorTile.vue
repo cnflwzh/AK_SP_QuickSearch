@@ -95,7 +95,7 @@ const tileTitle = computed(() =>
           height="16" />
       </span>
     </div>
-    <span>{{ operator.name }}</span>
+    <span class="tile-name">{{ operator.name }}</span>
     <span class="dots">
       <u
         v-for="name in operator.covenants"
