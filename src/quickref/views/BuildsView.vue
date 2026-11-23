@@ -135,9 +135,11 @@ watch(
 );
 onUnmounted(finishEdit);
 function selectBuild(key: string): void {
+  closeBuildMenu();
   void navigate(buildLocation(key));
 }
 function editBuild(key: string): void {
+  closeBuildMenu();
   void navigate(buildLocation(key, true));
 }
 function createBuild(): void {
@@ -161,7 +163,7 @@ const presetBoxMap = computed(() => {
     // 收起抽屉时只有当前流派、本局流派和自建流派仍展示体检结果。
     if (
       item.builtin &&
-      settings.collapsePresetBuilds &&
+      (buildMenu.value !== 'choose' || settings.collapsePresetBuilds) &&
       item.key !== current.value.key &&
       item.key !== runKey.value
     )
@@ -232,26 +234,33 @@ const drawerGroups = computed(() => [
   {list: coreList.value, offset: 0},
   {list: mixedList.value, offset: coreList.value.length},
 ]);
-const pinnedPresets = computed(() =>
-  settings.collapsePresetBuilds
-    ? listedPresets.value.filter(
-        (x) =>
-          x.builtin && (x.key === current.value.key || x.key === runKey.value),
-      )
-    : [],
+type BuildMenu = 'choose' | 'actions';
+const buildMenu = ref<BuildMenu | null>(null);
+const buildManagementOpen = ref(false);
+const otherRun = computed(() =>
+  runKey.value && runKey.value !== current.value.key
+    ? presetOf(runKey.value)
+    : undefined,
+);
+function toggleBuildMenu(menu: BuildMenu): void {
+  buildManagementOpen.value = false;
+  buildMenu.value = buildMenu.value === menu ? null : menu;
+}
+function closeBuildMenu(event?: KeyboardEvent): void {
+  const open = buildMenu.value;
+  if (!open) return;
+  buildMenu.value = null;
+  buildManagementOpen.value = false;
+  if (event) {
+    event.stopPropagation();
+    document.getElementById(`build-${open}-toggle`)?.focus();
+  }
+}
+watch([() => currentRoute.value.params.id, () => currentRoute.value.name], () =>
+  closeBuildMenu(),
 );
 function togglePresetFold(): void {
   updateSetting('collapsePresetBuilds', !settings.collapsePresetBuilds);
-}
-function pinBeforeLeave(el: Element): void {
-  const target = el as HTMLElement;
-  target.style.left = `${target.offsetLeft}px`;
-  target.style.top = `${target.offsetTop}px`;
-}
-function clearPinStyle(el: Element): void {
-  const target = el as HTMLElement;
-  target.style.left = '';
-  target.style.top = '';
 }
 
 /* ---------- 查看 ---------- */
@@ -516,6 +525,7 @@ const activePanel = computed(
 );
 const importOpen = computed(() => activePanel.value === 'import');
 function togglePanel(name: 'import' | 'backup' | 'share'): void {
+  closeBuildMenu();
   const closedPanel = currentRoute.value.hash.startsWith('#p=')
     ? 'closed'
     : null;
@@ -567,111 +577,119 @@ watch(
 </script>
 <template>
   <div
-    :class="[
-      'bsel-wrap',
-      {'is-editing': editing && !importOpen && activePanel !== 'backup'},
-    ]">
-    <div
-      :class="['bsel-drawer', {collapsed: settings.collapsePresetBuilds}]"
-      :inert="settings.collapsePresetBuilds"
-      :aria-hidden="settings.collapsePresetBuilds ? 'true' : undefined">
-      <div class="bsel-drawer-inner">
-        <div class="bsel bsel-presets">
-          <template v-for="(group, gi) in drawerGroups" :key="gi">
-            <span v-if="gi > 0" class="sp"></span>
-            <button
-              v-for="(x, idx) in group.list"
-              :key="x.key"
-              type="button"
-              :class="{on: x.key === p.key, run: x.key === runKey}"
-              :style="{'--c': presetColor(x), '--i': group.offset + idx}"
-              :data-bd="x.key"
-              :aria-pressed="x.key === p.key"
-              @click="selectBuild(x.key)">
-              <CovenantIcon v-if="CORE_BUILDS[x.key]" :name="x.key" />
-              {{ x.plan.name }}
-              <i v-if="x.modified" class="md" title="已修改">✎</i>
-              <i
-                v-if="x.boxBadge"
-                :class="['box-fit-pill', x.boxBadge.tone]"
-                :title="x.boxBadge.title">
-                {{ x.boxBadge.text }}
-              </i>
-              <i
-                v-if="banImpact.get(x.key)"
-                class="ban-hit"
-                :title="`本局禁池缺 ${banImpact.get(x.key)} 人`">
-                -{{ banImpact.get(x.key) }}
-              </i>
-            </button>
-          </template>
-        </div>
-      </div>
+    class="build-toolbar"
+    :class="{'is-editing': editing && !importOpen && activePanel !== 'backup'}"
+    @keydown.esc="closeBuildMenu">
+    <div class="build-toolbar-line">
+      <button
+        id="build-choose-toggle"
+        type="button"
+        class="build-control"
+        :aria-expanded="buildMenu === 'choose'"
+        :aria-controls="buildMenu === 'choose' ? 'build-choose' : undefined"
+        @click="toggleBuildMenu('choose')">
+        切换流派
+      </button>
+      <button
+        v-if="otherRun"
+        type="button"
+        class="build-control build-other-run"
+        @click="selectBuild(otherRun.key)">
+        本局：{{ otherRun.plan.name }}
+      </button>
     </div>
-    <div class="bsel bsel-bar">
-      <button
-        type="button"
-        :class="['preset-fold', {folded: settings.collapsePresetBuilds}]"
-        :aria-expanded="!settings.collapsePresetBuilds"
-        @click="togglePresetFold">
-        <span>
-          {{ settings.collapsePresetBuilds ? '预设流派' : '收起预设' }}
-        </span>
-        <i>{{ builtinCount }}</i>
-        <svg
-          class="preset-fold-arrow"
-          viewBox="0 0 12 12"
-          width="11"
-          height="11"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true">
-          <path d="M2.5 7.5 6 4l3.5 3.5" />
-        </svg>
-      </button>
-      <button
-        v-if="hasAnyBox"
-        type="button"
-        :class="['add', 'box-sort-btn', {on: sortByBox}]"
-        :aria-pressed="sortByBox"
-        title="按当前账号 Box 完整度与自持激活率排序流派"
-        @click="sortByBox = !sortByBox">
-        {{ sortByBox ? '✓ 按 Box 适配度' : '按 Box 适配度' }}
-      </button>
-      <TransitionGroup
-        name="bsel-pin"
-        @before-leave="pinBeforeLeave"
-        @leave-cancelled="clearPinStyle">
+
+    <div v-if="buildMenu === 'choose'" id="build-choose" class="build-fold">
+      <div class="bsel build-list">
         <button
-          v-for="x in pinnedPresets"
-          :key="`pin:${x.key}`"
           type="button"
-          :class="{on: x.key === p.key, run: x.key === runKey}"
-          :style="{'--c': presetColor(x)}"
-          :data-bd="x.key"
-          :aria-pressed="x.key === p.key"
-          @click="selectBuild(x.key)">
-          <CovenantIcon v-if="CORE_BUILDS[x.key]" :name="x.key" />
-          {{ x.plan.name }}
-          <i v-if="x.modified" class="md" title="已修改">✎</i>
-          <i
-            v-if="x.boxBadge"
-            :class="['box-fit-pill', x.boxBadge.tone]"
-            :title="x.boxBadge.title">
-            {{ x.boxBadge.text }}
-          </i>
-          <i
-            v-if="banImpact.get(x.key)"
-            class="ban-hit"
-            :title="`本局禁池缺 ${banImpact.get(x.key)} 人`">
-            -{{ banImpact.get(x.key) }}
-          </i>
+          class="preset-fold"
+          :class="{folded: settings.collapsePresetBuilds}"
+          :aria-expanded="!settings.collapsePresetBuilds"
+          :aria-controls="
+            !settings.collapsePresetBuilds ? 'build-presets' : undefined
+          "
+          @click="togglePresetFold">
+          预设流派 {{ builtinCount }}
         </button>
-        <span key="sp-mine" class="sp"></span>
-        <span key="bk-mine" class="bk">我的</span>
+        <button
+          v-if="hasAnyBox"
+          type="button"
+          :class="['add', 'box-sort-btn', {on: sortByBox}]"
+          :aria-pressed="sortByBox"
+          title="按当前账号 Box 完整度与自持激活率排序流派"
+          @click="sortByBox = !sortByBox">
+          按 Box 适配度
+        </button>
+        <button
+          id="build-manage-toggle"
+          type="button"
+          class="add build-manage"
+          :aria-expanded="buildManagementOpen"
+          :aria-controls="buildManagementOpen ? 'build-manage' : undefined"
+          @click="buildManagementOpen = !buildManagementOpen">
+          管理流派
+        </button>
+      </div>
+      <div
+        v-if="buildManagementOpen"
+        id="build-manage"
+        class="build-actions build-management">
+        <button type="button" class="build-control" @click="createBuild">
+          新建
+        </button>
+        <button
+          type="button"
+          class="build-control"
+          :aria-expanded="importOpen"
+          :aria-controls="importOpen ? 'build-import' : undefined"
+          @click="togglePanel('import')">
+          导入
+        </button>
+        <button
+          type="button"
+          class="build-control"
+          :aria-expanded="activePanel === 'backup'"
+          :aria-controls="activePanel === 'backup' ? 'build-backup' : undefined"
+          @click="togglePanel('backup')">
+          备份与恢复
+        </button>
+      </div>
+      <div
+        v-if="!settings.collapsePresetBuilds"
+        id="build-presets"
+        class="bsel build-list">
+        <template v-for="(group, gi) in drawerGroups" :key="gi">
+          <span v-if="gi > 0" class="sp"></span>
+          <button
+            v-for="(x, idx) in group.list"
+            :key="x.key"
+            type="button"
+            :class="{on: x.key === p.key, run: x.key === runKey}"
+            :style="{'--c': presetColor(x), '--i': group.offset + idx}"
+            :data-bd="x.key"
+            :aria-pressed="x.key === p.key"
+            @click="selectBuild(x.key)">
+            <CovenantIcon v-if="CORE_BUILDS[x.key]" :name="x.key" />
+            {{ x.plan.name }}
+            <i v-if="x.modified" class="md" title="已修改">✎</i>
+            <i
+              v-if="x.boxBadge"
+              :class="['box-fit-pill', x.boxBadge.tone]"
+              :title="x.boxBadge.title">
+              {{ x.boxBadge.text }}
+            </i>
+            <i
+              v-if="banImpact.get(x.key)"
+              class="ban-hit"
+              :title="`本局禁池缺 ${banImpact.get(x.key)} 人`">
+              -{{ banImpact.get(x.key) }}
+            </i>
+          </button>
+        </template>
+      </div>
+      <div v-if="mine.length" class="bsel build-list">
+        <span class="bk">我的流派</span>
         <button
           v-for="x in mine"
           :key="x.key"
@@ -695,28 +713,7 @@ watch(
             -{{ banImpact.get(x.key) }}
           </i>
         </button>
-        <button key="act-new" type="button" class="add" @click="createBuild">
-          ＋ 新建
-        </button>
-        <button
-          key="act-import"
-          type="button"
-          :class="['add', {on: importOpen}]"
-          :aria-expanded="importOpen"
-          :aria-controls="importOpen ? 'build-import' : undefined"
-          @click="togglePanel('import')">
-          导入
-        </button>
-        <button
-          key="act-backup"
-          type="button"
-          :class="['add', {on: activePanel === 'backup'}]"
-          :aria-expanded="activePanel === 'backup'"
-          :aria-controls="activePanel === 'backup' ? 'build-backup' : undefined"
-          @click="togglePanel('backup')">
-          备份与恢复
-        </button>
-      </TransitionGroup>
+      </div>
     </div>
   </div>
 
@@ -765,7 +762,11 @@ watch(
 
   <PlannerView v-if="editing" @done="completeEdit" />
 
-  <div v-else class="panel" :style="{'--c': accent}">
+  <div
+    v-else
+    class="panel build-detail"
+    :style="{'--c': accent}"
+    @keydown.esc="closeBuildMenu">
     <div class="ph">
       <CovenantIcon v-if="COVENANTS[p.key]" :name="p.key" emblem />
       <h2>{{ p.plan.name }}</h2>
@@ -777,7 +778,7 @@ watch(
           :class="['pri', {in: isRun}]"
           :disabled="!p.plan.ops.length"
           @click="isRun ? endRun() : setRun(p.key)">
-          {{ isRun ? '✓ 本局 · 结束' : '▶ 本局打这套' }}
+          {{ isRun ? '结束本局' : '本局打这套' }}
         </button>
         <button
           v-if="isRun && needs.length"
@@ -787,44 +788,87 @@ watch(
           去盟约抓牌 ▸
         </button>
         <button
+          v-if="!p.builtin && !isRun"
           type="button"
-          :class="{on: activePanel === 'share'}"
-          :aria-expanded="activePanel === 'share'"
-          :aria-controls="activePanel === 'share' ? 'build-share' : undefined"
-          @click="togglePanel('share')">
-          分享
+          @click="editBuild(p.key)">
+          编辑
         </button>
-        <button type="button" @click="editBuild(p.key)">编辑</button>
-        <button type="button" @click="duplicateBuild(p.key)">复制</button>
-        <template
-          v-if="coreNames.length && coreNames.length < p.plan.ops.length">
-          <OperatorRequestButton
-            :names="coreNames"
-            :build-name="p.plan.name"
-            label="求核心" />
-          <OperatorRequestButton
-            :names="p.plan.ops.map((slot) => slot.name)"
-            :build-name="p.plan.name"
-            label="求整队" />
-        </template>
-        <OperatorRequestButton
-          v-else
-          :names="p.plan.ops.map((slot) => slot.name)"
-          :build-name="p.plan.name" />
-        <ConfirmButton
-          v-if="p.modified"
-          label="恢复默认"
-          confirm-label="确认恢复"
-          tone="neutral"
-          :reset-key="p.key"
-          @confirm="restore" />
-        <ConfirmButton
-          v-if="!p.builtin"
-          label="删除"
-          confirm-label="确认删除"
-          :reset-key="p.key"
-          @confirm="remove" />
+        <button
+          id="build-actions-toggle"
+          type="button"
+          :aria-expanded="buildMenu === 'actions'"
+          :aria-controls="buildMenu === 'actions' ? 'build-actions' : undefined"
+          @click="toggleBuildMenu('actions')">
+          更多
+        </button>
       </span>
+    </div>
+
+    <div
+      v-if="buildMenu === 'actions'"
+      id="build-actions"
+      class="build-fold build-actions">
+      <button
+        type="button"
+        class="build-control"
+        :class="{on: activePanel === 'share'}"
+        :aria-expanded="activePanel === 'share'"
+        :aria-controls="activePanel === 'share' ? 'build-share' : undefined"
+        @click="togglePanel('share')">
+        分享
+      </button>
+      <button
+        v-if="p.builtin || isRun"
+        type="button"
+        class="build-control"
+        @click="editBuild(p.key)">
+        编辑
+      </button>
+      <button
+        type="button"
+        class="build-control"
+        @click="duplicateBuild(p.key)">
+        {{ p.builtin ? '复制为我的流派' : '复制' }}
+      </button>
+      <button
+        v-if="slotEntries.length"
+        type="button"
+        class="build-control"
+        :aria-expanded="banOpen"
+        :aria-controls="banOpen ? 'build-bans' : undefined"
+        @click="
+          manualBanOpen = !banOpen;
+          closeBuildMenu();
+        ">
+        盟约禁选
+      </button>
+      <template v-if="coreNames.length && coreNames.length < p.plan.ops.length">
+        <OperatorRequestButton
+          :names="coreNames"
+          :build-name="p.plan.name"
+          label="求核心" />
+        <OperatorRequestButton
+          :names="p.plan.ops.map((slot) => slot.name)"
+          :build-name="p.plan.name"
+          label="求整队" />
+      </template>
+      <OperatorRequestButton
+        v-else
+        :names="p.plan.ops.map((slot) => slot.name)"
+        :build-name="p.plan.name" />
+      <ConfirmButton
+        v-if="p.modified"
+        label="恢复默认"
+        confirm-label="确认恢复"
+        tone="neutral"
+        :reset-key="p.key"
+        @confirm="restore" />
+      <ConfirmButton
+        v-if="!p.builtin"
+        label="删除"
+        confirm-label="确认删除"
+        :reset-key="p.key"
+        @confirm="remove" />
     </div>
 
     <PlanSharePanel
@@ -851,15 +895,17 @@ watch(
         <small>{{ s.count }}/{{ s.need }}</small>
       </button>
       <button
+        v-if="hasRelevantBan || banOpen"
         type="button"
         :class="['bbtn', {on: banOpen}]"
         :aria-expanded="banOpen"
+        :aria-controls="banOpen ? 'build-bans' : undefined"
         @click="manualBanOpen = !banOpen">
-        有盟约被 ban？
+        盟约禁选
       </button>
     </div>
 
-    <div v-if="slotEntries.length && banOpen" class="bban">
+    <div v-if="slotEntries.length && banOpen" id="build-bans" class="bban">
       <div class="bpick">
         <span class="k">点选被 ban 的</span>
         <button
@@ -969,17 +1015,11 @@ watch(
 
     <div>
       <div class="bsec-head">
-        <h5>
-          {{ lineupMode === 0 ? '终盘阵容' : '按等阶抓牌顺序' }}
-          <template v-if="lineupMode === 0 && coreBase">
-            ·
-            <span class="tag a" style="padding: 0 6px">核心</span>
-          </template>
-          <span v-if="slotEntries.length" class="cnt">
-            · {{ slotEntries.length }} 人 · 招募 {{ cost.recruit }}
-            <template v-if="cost.elites">· {{ cost.elites }} 精锐</template>
-          </span>
-        </h5>
+        <div v-if="slotEntries.length" class="build-summary cnt">
+          <span v-if="lineupMode === 0 && coreBase" class="tag a">核心</span>
+          {{ slotEntries.length }} 人 · 招募 {{ cost.recruit }}
+          <template v-if="cost.elites">· {{ cost.elites }} 精锐</template>
+        </div>
         <SubTabs
           v-if="slotEntries.length"
           v-model="lineupMode"
@@ -1362,6 +1402,102 @@ watch(
 </template>
 
 <style scoped>
+.build-toolbar {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.build-toolbar-line,
+.build-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 6px;
+}
+.build-list .build-manage {
+  margin-inline-start: auto;
+}
+.build-other-run {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.build-control {
+  min-height: 34px;
+  padding: 4px 10px;
+  border: 1px solid var(--line2);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.build-control:hover,
+.build-control[aria-expanded='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.build-fold {
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface2);
+}
+.build-list {
+  margin-bottom: 0;
+}
+.build-list + .build-list,
+.build-management + .build-list {
+  margin-top: 6px;
+}
+.build-management {
+  margin-top: 6px;
+}
+.build-detail {
+  gap: 10px;
+}
+.build-detail .ph {
+  gap: 6px 8px;
+}
+.build-detail .bact .pri {
+  border-color: var(--c);
+  background: var(--c);
+  color: #fff;
+  font-weight: 700;
+}
+.build-detail .bact .pri.in {
+  background: var(--surface);
+  color: var(--c);
+}
+.build-detail .bneed {
+  margin: 0;
+}
+.build-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.build-summary .tag {
+  padding-inline: 6px;
+}
+@container quickref-view (max-width: 860px) {
+  .build-toolbar.is-editing {
+    display: none;
+  }
+}
+@media (max-height: 600px) {
+  .build-detail {
+    padding: 10px;
+    gap: 8px;
+  }
+  .build-detail .ph h2 {
+    font-size: 30px;
+  }
+}
+
 .box-fit-pill {
   font-style: normal;
   font-family: var(--fn);
