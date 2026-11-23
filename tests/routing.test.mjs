@@ -105,7 +105,7 @@ test('tool links retain navigation destinations without calculator inputs or loc
     bountyQuery: '假想敌',
   };
   assert.deepEqual(normalizeQuery('nu', transient), {});
-  for (const tool of ['credit', 'dealer', 'excuse']) {
+  for (const tool of ['credit', 'dealer', 'excuse', 'apology']) {
     const query = {
       ...transient,
       tool,
