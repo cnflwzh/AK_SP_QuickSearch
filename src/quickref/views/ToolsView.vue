@@ -20,6 +20,7 @@ const panels = {
   credit: defineAsyncComponent(() => import('../numbers/CreditTools.vue')),
   dealer: defineAsyncComponent(() => import('../numbers/DealerGame.vue')),
   excuse: defineAsyncComponent(() => import('../numbers/ExcuseTools.vue')),
+  apology: defineAsyncComponent(() => import('../numbers/ApologyTools.vue')),
 };
 const visibleTools = computed(() => {
   const hidden = new Set(settings.hiddenTools);
@@ -85,7 +86,8 @@ watch(advisorPreviewEnabled, (enabled) => {
     v-if="
       activeTool !== 'advisor' &&
       activeTool !== 'dealer' &&
-      activeTool !== 'excuse'
+      activeTool !== 'excuse' &&
+      activeTool !== 'apology'
     " />
   <div class="numbers-tools workbench-controls">
     <!-- 工具标题沿用现有 h4 样式，由 aria-level 表达页面与卡片的标题层级。 -->
@@ -100,7 +102,7 @@ watch(advisorPreviewEnabled, (enabled) => {
     </nav>
     <!-- 仅工具切换产生过渡；临时输入和详情弹窗更新不重建面板。 -->
     <Transition :name="panelTransition" mode="out-in">
-      <KeepAlive :max="6">
+      <KeepAlive :max="7">
         <component :is="panels[activeTool]" :key="activeTool" />
       </KeepAlive>
     </Transition>
