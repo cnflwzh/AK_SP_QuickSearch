@@ -24,7 +24,6 @@ import {OWNABLE_OPERATORS} from '../lib/box/model.ts';
 import {boxSeasonCount, boxStorageWriteFailed, initBoxStorageSync} from '../lib/box/store.ts';
 import {prefersReducedMotion} from '../lib/ui/dom.ts';
 import {
-  isSmallWindow,
   settings,
   visibleContentTabs,
 } from '../lib/settings/index.ts';
@@ -70,6 +69,7 @@ import {
 import {lazyView} from '../lib/ui/lazyView.ts';
 import CovenantIcon from './components/CovenantIcon.vue';
 import PrtsPanel from './components/PrtsPanel.vue';
+import {isFloatingWindow} from '../lib/ui/windowMode.ts';
 import BoxOnboardingDialog from './components/BoxOnboardingDialog.vue';
 import {provideWikiPanel} from './wikiPanel.ts';
 import SkipLink from '../lib/ui/SkipLink.vue';
@@ -94,7 +94,7 @@ const TAB_META: Record<TabId, {label: string; count: number | ''}> = {
 };
 const tabs = computed(() => {
   const ordered: TabId[] = [...visibleContentTabs()];
-  if (!isSmallWindow.value) ordered.push('se');
+  if (!isFloatingWindow.value) ordered.push('se');
   return ordered.map((id) => ({
     id,
     label: TAB_META[id].label,
@@ -106,7 +106,7 @@ const tabs = computed(() => {
   }));
 });
 const windowRestricted = computed(
-  () => isSmallWindow.value && !!currentRoute.value.meta.regularWindowTitle,
+  () => isFloatingWindow.value && !!currentRoute.value.meta.regularWindowTitle,
 );
 const showingRouteStatus = computed(
   () => windowRestricted.value || currentRoute.value.name === 'not-found',
@@ -597,6 +597,7 @@ onUnmounted(() => {
         </h1>
         <div class="qhead-actions">
           <RouterLink
+            v-if="!isFloatingWindow"
             to="/box"
             :class="[
               'box-mini',
@@ -793,7 +794,7 @@ onUnmounted(() => {
       :selection="detail"
       :split-view="wikiPanel.isOpen.value" />
     <BoxOnboardingDialog
-      v-if="!isSmallWindow && currentRoute.name !== 'not-found'" />
+      v-if="!isFloatingWindow && currentRoute.name !== 'not-found'" />
   </div>
 </template>
 

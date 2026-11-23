@@ -25,6 +25,7 @@ import {
   operatorBox,
   setOperatorRanks,
 } from '../../lib/box/store.ts';
+import {isFloatingWindow} from '../../lib/ui/windowMode.ts';
 import {avatarSrc} from '../../lib/ui/assets.ts';
 import {banReplace} from '../../lib/recommendation/index.ts';
 import {
@@ -37,11 +38,7 @@ import {
   type Decoded,
   type PlanOp,
 } from '../../lib/plans/index.ts';
-import {
-  isSmallWindow,
-  settings,
-  updateSetting,
-} from '../../lib/settings/store.ts';
+import {settings, updateSetting} from '../../lib/settings/store.ts';
 import {useQuickrefActions} from '../state.ts';
 import {
   presetOf,
@@ -1660,7 +1657,7 @@ watch(
       <details
         v-if="effects.length"
         class="bfx bfx-fold"
-        :open="!isSmallWindow">
+        :open="!isFloatingWindow">
         <summary>
           盟约效果详情
           <span class="hint">已成型 {{ effects.length }} 个</span>
