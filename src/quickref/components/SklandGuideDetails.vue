@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import {computed} from 'vue';
+import {computed, ref, watch} from 'vue';
+import {OPERATOR} from '../../../data/index.ts';
 import {
   guideCandidates,
   guidePlanFields,
@@ -8,6 +9,10 @@ import {
   type SklandGuide,
 } from '../../lib/plans/skland.ts';
 import {MAX_NOTE, MAX_OPS} from '../../lib/plans/model.ts';
+import {avatarSrc, equipIconSrc} from '../../lib/ui/assets.ts';
+import BuildStageSwitcher from './BuildStageSwitcher.vue';
+import CovenantIcon from './CovenantIcon.vue';
+import EmptyState from './EmptyState.vue';
 import SectionHeading from './SectionHeading.vue';
 import StatusNotice from './StatusNotice.vue';
 
@@ -16,6 +21,41 @@ const lineupSections = computed(() => [
   props.guide.formation,
   ...props.guide.rounds,
 ]);
+const expanded = ref(false);
+const stageId = ref('');
+// 使用原文顺序作索引，重叠回合和仅供阅读的阶段也能逐项查看。
+const stages = computed(() =>
+  lineupSections.value.map((lineup, index) => ({
+    id: index ? String(index) : '',
+    label: index
+      ? `第 ${lineup.from === lineup.to ? lineup.from : `${lineup.from}–${lineup.to}`} 回合`
+      : '成型阵容',
+    count: lineup.operators.length,
+  })),
+);
+const lineup = computed(
+  () => lineupSections.value[Number(stageId.value)] ?? props.guide.formation,
+);
+watch(
+  () => props.guide,
+  () => {
+    stageId.value = '';
+  },
+);
+const listedOperators = computed(() =>
+  lineup.value.operators.map((op) => ({
+    ...op,
+    portrait: OPERATOR[op.name]?.avatar === op.id ? avatarSrc(op.name) : '',
+  })),
+);
+const hasRoster = computed(
+  () =>
+    !!(
+      lineup.value.operators.length ||
+      lineup.value.bonds.length ||
+      lineup.value.equipment.length
+    ),
+);
 const importLimits = computed(() => {
   const guide = props.guide;
   if (!isCurrentGuideSeason(guide)) return '';
@@ -47,18 +87,30 @@ const importLimits = computed(() => {
 </script>
 
 <template>
-  <div class="source-guide">
-    <SectionHeading :title="guide.title" :level="4" variant="plain" />
-    <div class="byline">
-      <span>
-        森空岛
-        <span v-if="guide.author">· {{ guide.author }}</span>
-      </span>
-      <span>{{ guide.seasonLabel || guide.version }}</span>
-      <a :href="sklandUrl(guide.id)" target="_blank" rel="noopener noreferrer">
-        查看原文 ↗
+  <article class="source-guide" aria-label="森空岛原文快照">
+    <header class="source-head">
+      <div class="source-heading">
+        <div class="source-meta">
+          <span class="origin">森空岛</span>
+          <span v-if="guide.author">{{ guide.author }}</span>
+          <span v-if="guide.seasonLabel || guide.version">
+            {{ guide.seasonLabel || guide.version }}
+          </span>
+        </div>
+        <h4>{{ guide.title }}</h4>
+      </div>
+      <a
+        class="source-link"
+        :href="sklandUrl(guide.id)"
+        target="_blank"
+        rel="noopener noreferrer">
+        查看原文
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+          <path
+            d="M9 3h4v4m0-4L6.5 9.5M6 4H4a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-2" />
+        </svg>
       </a>
-    </div>
+    </header>
     <StatusNotice
       v-if="!isCurrentGuideSeason(guide)"
       tone="warning"
@@ -67,95 +119,488 @@ const importLimits = computed(() => {
       v-else-if="importLimits"
       tone="info"
       :message="importLimits" />
-    <details>
-      <summary>查看原文快照</summary>
-      <p v-if="guide.scope">
-        <b>适用范围</b>
-        {{ guide.scope }}
-      </p>
-      <p v-if="guide.strategies.length">
-        <b>策略</b>
-        {{ guide.strategies.join('、') }}
-      </p>
-      <section v-for="(lineup, i) in lineupSections" :key="i">
-        <SectionHeading
-          :title="i ? `第 ${lineup.from}–${lineup.to} 回合` : '成型阵容'"
-          variant="dot"
-          :level="5" />
-        <ul v-if="lineup.operators.length">
-          <li v-for="(op, n) in lineup.operators" :key="n">
-            <b>{{ op.name }}</b>
-            <span v-if="op.elite">· 精锐</span>
-            <small v-if="op.skill || op.module">
-              {{ [op.skill, op.module].filter(Boolean).join(' · ') }}
-            </small>
-          </li>
-        </ul>
-        <p v-if="lineup.equipment.length">
-          <b>推荐装备</b>
-          {{ lineup.equipment.join('、') }}
-        </p>
-        <p v-if="lineup.bonds.length">
-          <b>激活盟约</b>
-          {{ lineup.bonds.join('、') }}
-        </p>
-        <p v-if="lineup.idea">{{ lineup.idea }}</p>
-      </section>
+    <details
+      @toggle="expanded = ($event.currentTarget as HTMLDetailsElement).open">
+      <summary>
+        <svg
+          class="book"
+          viewBox="0 0 20 20"
+          width="18"
+          height="18"
+          aria-hidden="true">
+          <path
+            d="M10 5c-2-1.5-5-1.5-7-.8v11c2-.7 5-.7 7 .8 2-1.5 5-1.5 7-.8v-11c-2-.7-5-.7-7 .8Zm0 0v11" />
+        </svg>
+        <strong>原文快照</strong>
+        <span class="summary-count">
+          成型阵容
+          <span v-if="guide.rounds.length">
+            · {{ guide.rounds.length }} 个阶段
+          </span>
+        </span>
+        <span class="chevron" aria-hidden="true"></span>
+      </summary>
+      <div v-if="expanded" class="source-body">
+        <dl v-if="guide.scope || guide.strategies.length" class="guide-facts">
+          <template v-if="guide.scope">
+            <dt>适用范围</dt>
+            <dd class="scope">{{ guide.scope }}</dd>
+          </template>
+          <template v-if="guide.strategies.length">
+            <dt>推荐策略</dt>
+            <dd>
+              <ul class="tags">
+                <li
+                  v-for="(name, i) in guide.strategies"
+                  :key="i"
+                  class="strategy">
+                  {{ name }}
+                </li>
+              </ul>
+            </dd>
+          </template>
+        </dl>
+        <BuildStageSwitcher
+          v-if="guide.rounds.length"
+          v-model="stageId"
+          :items="stages"
+          label="原文阵容阶段" />
+        <div
+          :key="stageId"
+          class="stage-content"
+          :class="{'has-aside': listedOperators.length && lineup.idea}">
+          <section v-if="listedOperators.length" class="stage-roster">
+            <SectionHeading
+              title="阵容干员"
+              :count="listedOperators.length"
+              :level="5"
+              variant="plain" />
+            <ul class="operator-list">
+              <li v-for="(op, i) in listedOperators" :key="i" class="operator">
+                <span class="portrait" aria-hidden="true">
+                  <img
+                    v-if="op.portrait"
+                    :src="op.portrait"
+                    alt=""
+                    width="36"
+                    height="36"
+                    loading="lazy"
+                    decoding="async" />
+                  <span v-else>{{ Array.from(op.name)[0] }}</span>
+                </span>
+                <span class="op-info">
+                  <span class="op-name">
+                    <b>{{ op.name }}</b>
+                    <small v-if="op.elite" class="elite">精锐</small>
+                  </span>
+                  <span v-if="op.skill" class="loadout">
+                    <span class="sr-only">技能：</span>
+                    {{ op.skill }}
+                  </span>
+                  <span v-if="op.module" class="loadout">
+                    <span class="sr-only">模组：</span>
+                    {{ op.module }}
+                  </span>
+                </span>
+              </li>
+            </ul>
+          </section>
+          <section v-if="lineup.idea" class="idea">
+            <SectionHeading title="运营思路" :level="5" variant="bar" />
+            <p>{{ lineup.idea }}</p>
+          </section>
+          <div
+            v-if="lineup.bonds.length || lineup.equipment.length"
+            class="stage-resources">
+            <section v-if="lineup.bonds.length">
+              <SectionHeading title="激活盟约" :level="5" variant="plain" />
+              <ul class="tags">
+                <li v-for="(name, i) in lineup.bonds" :key="i" class="bond">
+                  <CovenantIcon
+                    v-if="isCurrentGuideSeason(guide)"
+                    :name="name" />
+                  {{ name }}
+                </li>
+              </ul>
+            </section>
+            <section v-if="lineup.equipment.length">
+              <SectionHeading title="推荐装备" :level="5" variant="plain" />
+              <ul class="tags">
+                <li v-for="(name, i) in lineup.equipment" :key="i" class="gear">
+                  <img
+                    v-if="isCurrentGuideSeason(guide) && equipIconSrc(name)"
+                    :src="equipIconSrc(name)"
+                    alt=""
+                    width="20"
+                    height="20"
+                    loading="lazy"
+                    decoding="async" />
+                  {{ name }}
+                </li>
+              </ul>
+            </section>
+          </div>
+          <EmptyState
+            v-if="!hasRoster && !lineup.idea"
+            message="原文未填写此阵容的内容。"
+            compact />
+        </div>
+      </div>
     </details>
-  </div>
+  </article>
 </template>
 
 <style scoped>
 .source-guide {
+  --source-tint: color-mix(in srgb, var(--accent) 5%, var(--surface));
+  --source-edge: color-mix(in srgb, var(--accent) 19%, var(--line));
+  --source-ink: color-mix(in srgb, var(--accent) 72%, var(--ink));
+  container: skland-snapshot / inline-size;
   min-width: 0;
+  border: 1px solid var(--source-edge);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
   overflow-wrap: anywhere;
 }
-.byline {
+.source-head {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 0 10px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px 10px;
+  border-radius: 9px 9px 0 0;
+  background: linear-gradient(105deg, var(--source-tint), var(--surface) 85%);
+}
+.source-heading {
+  min-width: 0;
+}
+.source-meta,
+.source-link,
+summary,
+.op-name,
+.tags,
+.tags li {
+  display: flex;
+  align-items: center;
+}
+.source-meta {
+  gap: 2px 8px;
+  flex-wrap: wrap;
+  color: var(--ink2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.source-meta > span {
+  max-width: 100%;
+}
+.source-meta > span + span::before {
+  content: '·';
+  margin-right: 8px;
   color: var(--ink3);
+}
+.origin {
+  color: var(--source-ink);
+  font-weight: 700;
+}
+.source-head h4 {
+  margin: 3px 0 0;
+  font: 400 clamp(19px, 4cqi, 24px)/1.2 var(--fd);
+}
+.source-link {
+  flex: none;
+  gap: 4px;
+  min-height: 34px;
+  padding: 0 6px;
+  color: var(--ink2);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 5px;
+}
+.source-guide svg {
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.source-guide > :deep(.q-notice) {
+  margin: 4px 12px 8px;
+}
+summary {
+  gap: 8px;
+  min-height: 40px;
+  padding: 5px 16px;
+  border-top: 1px solid var(--source-edge);
+  border-radius: 0 0 9px 9px;
+  background: var(--source-tint);
+  cursor: pointer;
+  list-style: none;
+  transition: background-color 150ms ease;
+}
+summary::-webkit-details-marker {
+  display: none;
+}
+summary strong {
+  font-size: 14px;
+}
+.book,
+.chevron {
+  color: var(--source-ink);
+}
+.summary-count {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--ink2);
+}
+.chevron {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin: 0 3px;
+  border-right: 1.5px solid;
+  border-bottom: 1.5px solid;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 180ms ease;
+}
+details[open] > summary {
+  border-radius: 0;
+}
+details[open] .chevron {
+  transform: translateY(2px) rotate(225deg);
+}
+@media (hover: hover) {
+  summary:hover,
+  .source-link:hover {
+    background: var(--accent-soft);
+  }
+  .source-link:hover {
+    color: var(--source-ink);
+  }
+}
+summary:focus-visible,
+.source-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.source-body {
+  display: grid;
+  gap: 12px;
+  padding: 12px 16px 16px;
+}
+.source-body :deep(.subtabs.is-l3 .subtabs-btn) {
+  min-height: 34px;
+}
+.guide-facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 5px 12px;
+  margin: 0;
   font-size: 13px;
 }
-.byline a,
-summary {
-  display: inline-flex;
-  align-items: center;
-  min-height: 34px;
-  color: var(--accent);
-}
-summary {
-  display: list-item;
-  align-content: center;
-  width: fit-content;
-  cursor: pointer;
+.guide-facts dt {
+  color: var(--ink2);
+  font-size: 12px;
   font-weight: 600;
 }
-details section {
-  margin: 6px 0 12px;
+.guide-facts dd {
+  margin: 0;
+  min-width: 0;
 }
-p {
-  margin: 5px 0;
-  white-space: pre-line;
-  line-height: 1.6;
+.scope,
+.idea p {
+  white-space: pre-wrap;
 }
-ul {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+.tags,
+.operator-list {
   list-style: none;
-  margin: 5px 0;
+  margin: 0;
   padding: 0;
 }
-li {
-  padding: 3px 7px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  font-size: 13px;
+.tags {
+  flex-wrap: wrap;
+  gap: 4px 6px;
 }
-small {
+.tags li {
+  max-width: 100%;
+  gap: 4px;
+  border-radius: 4px;
+  padding: 3px 7px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.strategy {
+  background: var(--accent-soft);
+  color: var(--source-ink);
+  font-weight: 650;
+}
+.bond {
+  background: var(--teal-soft);
+  color: var(--teal);
+}
+.gear {
+  background: var(--surface2);
+  color: var(--ink2);
+}
+.gear img {
+  flex: none;
+  object-fit: contain;
+}
+.stage-content,
+.stage-roster,
+.stage-resources,
+.stage-resources section {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 12px;
+}
+.stage-content {
+  align-items: start;
+  animation: snapshot-in 160ms ease-out;
+}
+.stage-roster,
+.stage-resources section {
+  gap: 6px;
+}
+.stage-resources {
+  grid-column: 1 / -1;
+}
+.stage-roster :deep(.q-sechead-title),
+.stage-resources :deep(.q-sechead-title) {
+  color: var(--ink2);
+}
+.operator-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 145px), 1fr));
+  gap: 5px;
+}
+.operator {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  min-width: 0;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.portrait {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  background: var(--surface2);
+  color: var(--ink2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.portrait img {
   display: block;
-  color: var(--ink3);
+  object-fit: cover;
+}
+.op-info {
+  min-width: 0;
+}
+.op-name {
+  flex-wrap: wrap;
+  gap: 1px 5px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.elite {
+  padding: 0 4px;
+  border-radius: 3px;
+  color: var(--source-ink);
+  background: var(--accent-soft);
+  font-size: 10px;
+}
+.loadout {
+  display: block;
+  color: var(--ink2);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.idea {
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--source-tint);
+}
+.idea p {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.75;
+}
+@container skland-snapshot (min-width: 720px) {
+  .stage-content.has-aside {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    column-gap: 18px;
+  }
+  .stage-resources section {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: baseline;
+    gap: 12px;
+  }
+  .stage-resources :deep(.q-sechead-line) {
+    display: none;
+  }
+}
+@container skland-snapshot (max-width: 440px) {
+  .source-head {
+    padding: 8px 10px;
+    gap: 4px;
+  }
+  summary {
+    padding: 4px 10px;
+    gap: 6px;
+  }
+  .source-body {
+    padding: 10px;
+    gap: 9px;
+  }
+  .operator-list {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 126px), 1fr));
+  }
+  .portrait,
+  .portrait img {
+    width: 30px;
+    height: 30px;
+  }
+}
+@media (max-height: 600px) {
+  .source-head {
+    padding-block: 6px;
+  }
+  summary {
+    min-height: 34px;
+  }
+  .source-body {
+    gap: 8px;
+    padding-block: 8px;
+  }
+}
+@keyframes snapshot-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  summary,
+  .chevron,
+  .stage-content {
+    transition: none;
+    animation: none;
+  }
+}
+:global(:root[data-motion='reduce'] .source-guide summary),
+:global(:root[data-motion='reduce'] .source-guide .chevron),
+:global(:root[data-motion='reduce'] .source-guide .stage-content) {
+  transition: none;
+  animation: none;
 }
 </style>
