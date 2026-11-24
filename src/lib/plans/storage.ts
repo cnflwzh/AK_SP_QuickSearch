@@ -1,10 +1,20 @@
 /** 浏览器方案存档适配。读写与默认记录生成留在推荐计算模块之外。 */
-import { STRATEGY, buildByName } from '../../../data/index.ts';
-import { MAX_NOTE, cleanLayers, cleanOps, type Plan } from './model.ts';
+import {STRATEGY, buildByName} from '../../../data/index.ts';
+import {
+  MAX_NOTE,
+  MAX_STAGE_ROUND,
+  cleanLayers,
+  cleanOps,
+  cleanStages,
+  cleanStrategyAlternates,
+  readPlanIcon,
+  type Plan,
+} from './model.ts';
+import {isSklandGuide, migrateLegacyGuidePlan} from './skland.ts';
 /* ---------- 本地存档 ---------- */
 
-const KEY = 'wsq.plans',
-  CURRENT = 'wsq.plan';
+const KEY = 'wsq.plans';
+const BEFORE_ROUND_LIMIT = 'wsq.plans.beforeRoundLimit';
 const read = (key: string): string | null => {
   try {
     return localStorage.getItem(key);
@@ -41,7 +51,14 @@ function clean(value: unknown): Plan | null {
     typeof value.base === 'string' && buildByName(value.base)
       ? value.base
       : undefined;
-  return {
+  const strategy =
+    typeof value.strategy === 'string' &&
+    Object.hasOwn(STRATEGY, value.strategy)
+      ? value.strategy
+      : '';
+  const icon = readPlanIcon(value.icon);
+  return migrateLegacyGuidePlan({
+    ...(icon ? {icon} : {}),
     id: typeof value.id === 'string' && value.id ? value.id : newId(),
     name:
       typeof value.name === 'string' && value.name
@@ -51,19 +68,49 @@ function clean(value: unknown): Plan | null {
       typeof value.updated === 'number' && Number.isFinite(value.updated)
         ? value.updated
         : Date.now(),
-    strategy:
-      typeof value.strategy === 'string' &&
-      Object.hasOwn(STRATEGY, value.strategy)
-        ? value.strategy
-        : '',
+    strategy,
+    ...(Array.isArray(value.strategyAlternates)
+      ? {
+          strategyAlternates: cleanStrategyAlternates(
+            strategy,
+            value.strategyAlternates,
+          ),
+        }
+      : {}),
+    ...(Array.isArray(value.stages) ? {stages: cleanStages(value.stages)} : {}),
     note: typeof value.note === 'string' ? value.note.slice(0, MAX_NOTE) : '',
     layers: cleanLayers(value.layers),
     ops: cleanOps(value.ops, base ? buildByName(base)!.carries : []),
-    ...(base ? { base } : {}),
-  };
+    ...(isSklandGuide(value.skland) ? {skland: value.skland} : {}),
+    ...(base ? {base} : {}),
+  });
 }
 /** 读取当前原始存档，用于判断另一个标签页是否已保存。 */
 export const readPlanSnapshot = (): string | null => read(KEY);
+
+/** 只保留涉及超限回合的旧记录，供玩家从备份面板取回原始阵容和备注。 */
+function legacyRoundRecords(snapshot: string | null): string | null {
+  if (!snapshot) return null;
+  try {
+    const records: unknown = JSON.parse(snapshot);
+    if (!Array.isArray(records)) return null;
+    const affected = records.filter(
+      (plan) =>
+        Array.isArray(plan?.stages) &&
+        plan.stages.some(
+          (stage: unknown) =>
+            record(stage) &&
+            typeof stage.to === 'number' &&
+            stage.to > MAX_STAGE_ROUND,
+        ),
+    );
+    return affected.length ? JSON.stringify(affected) : null;
+  } catch {
+    return null;
+  }
+}
+export const originalRoundRecords = (): string | null =>
+  read(BEFORE_ROUND_LIMIT) ?? legacyRoundRecords(readPlanSnapshot());
 
 /** 解析给定存档或当前本地存档，跳过损坏的记录。 */
 export function loadPlans(snapshot = readPlanSnapshot()): Plan[] {
@@ -87,13 +134,18 @@ export function loadPlans(snapshot = readPlanSnapshot()): Plan[] {
     return [];
   }
 }
-/** 写入已经序列化的方案快照，返回是否成功；存储被禁用或空间不足时返回 false。 */
-export const savePlanSnapshot = (snapshot: string): boolean =>
-  write(KEY, snapshot);
+let checkedSnapshot: string | null = null;
+/** 保存应用中的方案，首次迁移先备份被裁剪的旧记录；任一写入失败均保留原主存档。 */
+export function savePlanSnapshot(snapshot: string): boolean {
+  const previous = readPlanSnapshot();
+  if (previous !== checkedSnapshot && !read(BEFORE_ROUND_LIMIT)) {
+    const original = legacyRoundRecords(previous);
+    if (original && !write(BEFORE_ROUND_LIMIT, original)) return false;
+  }
+  if (!write(KEY, snapshot)) return false;
+  checkedSnapshot = snapshot;
+  return true;
+}
 /** 序列化并写入全部方案，返回是否成功。 */
 export const savePlans = (plans: readonly Plan[]): boolean =>
   savePlanSnapshot(JSON.stringify(plans));
-export const loadCurrent = (): string => read(CURRENT) ?? '';
-export const saveCurrent = (id: string): void => {
-  write(CURRENT, id);
-};

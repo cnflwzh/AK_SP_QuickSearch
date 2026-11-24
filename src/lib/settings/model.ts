@@ -1,3 +1,9 @@
+import {
+  DEFAULT_BREAKPOINTS,
+  normalizeBreakpoints,
+  type ViewportBreakpoints,
+} from '../ui/viewportLayout.ts';
+
 export const CONTENT_TAB_IDS = [
   'fx',
   'bd',
@@ -12,7 +18,7 @@ export type ContentTabId = (typeof CONTENT_TAB_IDS)[number];
 
 export const CUSTOMIZABLE_TOOL_IDS = [
   'match-reference',
-  'credit',
+  'glossary',
   'dealer',
   'excuse',
   'apology',
@@ -29,6 +35,10 @@ export interface UserSettings {
   cardDensity: CardDensity;
   fontScale: FontScale;
   reducedMotion: boolean;
+  developerMode: boolean;
+  debugLayoutDetails: boolean;
+  debugLayoutBounds: boolean;
+  viewportBreakpoints: ViewportBreakpoints;
   tabOrder: ContentTabId[];
   hiddenTabs: ContentTabId[];
   defaultTab: DefaultTabSetting;
@@ -79,6 +89,10 @@ export function createDefaultSettings(): UserSettings {
     cardDensity: 'auto',
     fontScale: 'normal',
     reducedMotion: false,
+    developerMode: false,
+    debugLayoutDetails: false,
+    debugLayoutBounds: false,
+    viewportBreakpoints: {...DEFAULT_BREAKPOINTS},
     tabOrder: [...CONTENT_TAB_IDS],
     hiddenTabs: [],
     defaultTab: 'last',
@@ -99,6 +113,7 @@ export function createDefaultSettings(): UserSettings {
 
 export const DEFAULT_SETTINGS: Readonly<UserSettings> = Object.freeze({
   ...createDefaultSettings(),
+  viewportBreakpoints: DEFAULT_BREAKPOINTS,
   tabOrder: Object.freeze([...CONTENT_TAB_IDS]) as unknown as ContentTabId[],
   hiddenTabs: Object.freeze([]) as unknown as ContentTabId[],
   hiddenTools: Object.freeze([]) as unknown as CustomizableToolId[],
@@ -162,6 +177,18 @@ export function normalizeSettings(raw: unknown): UserSettings {
     ),
     fontScale: readEnum(raw.fontScale, ['normal', 'large'], defaults.fontScale),
     reducedMotion: readBool(raw, 'reducedMotion', defaults.reducedMotion),
+    developerMode: readBool(raw, 'developerMode', defaults.developerMode),
+    debugLayoutDetails: readBool(
+      raw,
+      'debugLayoutDetails',
+      defaults.debugLayoutDetails,
+    ),
+    debugLayoutBounds: readBool(
+      raw,
+      'debugLayoutBounds',
+      defaults.debugLayoutBounds,
+    ),
+    viewportBreakpoints: normalizeBreakpoints(raw.viewportBreakpoints),
     tabOrder,
     hiddenTabs,
     defaultTab,

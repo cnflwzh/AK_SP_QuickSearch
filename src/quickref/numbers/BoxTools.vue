@@ -2060,10 +2060,6 @@ function resetFilters(): void {
   background: color-mix(in srgb, var(--teal) 8%, var(--surface));
   font-size: 12.5px;
 }
-.bx-err {
-  font-size: 12px;
-  color: var(--red);
-}
 
 /* ---------- 可开关的编辑画笔工具栏 ---------- */
 .bx-editor-bar {
@@ -2118,15 +2114,6 @@ function resetFilters(): void {
   min-height: 34px;
   padding: 4px 10px;
   font-size: 12.5px;
-}
-.bx-danger {
-  border-color: color-mix(in srgb, var(--red) 45%, var(--line2));
-  color: var(--red);
-}
-.bx-danger-solid {
-  border-color: var(--red);
-  background: var(--red);
-  color: #fff;
 }
 
 /* ---------- 精简筛选栏 + 当前激活条件 ---------- */
@@ -2197,10 +2184,6 @@ function resetFilters(): void {
 .bx-clear-all:hover {
   color: var(--ink);
 }
-.bx-notice {
-  font-size: 12px;
-  color: var(--teal);
-}
 
 /* ---------- 分类列表与干员卡片 ---------- */
 .bx-groups {
@@ -2217,35 +2200,6 @@ function resetFilters(): void {
   align-items: center;
   gap: 6px 8px;
 }
-.bx-group-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 999px;
-  flex: none;
-  background: var(--line2);
-}
-.bx-group-head.r3 .bx-group-dot {
-  background: var(--bx-r3);
-}
-.bx-group-head.r2 .bx-group-dot {
-  background: var(--bx-r2);
-}
-.bx-group-head.r1 .bx-group-dot {
-  background: var(--bx-r1);
-}
-.bx-group-head.r0 .bx-group-dot {
-  background: var(--bx-r0);
-}
-.bx-group-head.rborrowed .bx-group-dot {
-  background: var(--bx-borrowed);
-}
-.bx-group-head.runborrowed .bx-group-dot {
-  background: transparent;
-  border: 1.5px dashed var(--bx-unborrowed);
-}
-.bx-group-head.rpreset .bx-group-dot {
-  background: var(--bx-preset);
-}
 .bx-group-title {
   margin: 0;
   font-size: 14px;
@@ -2256,51 +2210,6 @@ function resetFilters(): void {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-}
-.bx-group-head.r3 .bx-group-title {
-  color: var(--bx-r3);
-}
-.bx-group-head.r2 .bx-group-title {
-  color: var(--bx-r2);
-}
-.bx-group-head.r1 .bx-group-title {
-  color: var(--bx-r1);
-}
-.bx-group-head.r0 .bx-group-title {
-  color: var(--bx-r0);
-}
-.bx-group-head.rborrowed .bx-group-title {
-  color: var(--bx-borrowed);
-}
-.bx-group-head.rpreset .bx-group-title {
-  color: var(--bx-preset);
-}
-.bx-group-head.runborrowed .bx-group-title {
-  color: var(--bx-unborrowed);
-}
-.bx-group-count {
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: var(--surface2);
-  border: 1px solid var(--line);
-  font: 700 12px var(--fn);
-  color: var(--ink2);
-}
-.bx-group-head.rborrowed .bx-group-count {
-  border-color: color-mix(in srgb, var(--bx-borrowed) 50%, var(--line));
-  color: var(--bx-borrowed);
-}
-.bx-group-head.rpreset .bx-group-count {
-  border-color: color-mix(in srgb, var(--bx-preset) 48%, var(--line));
-  color: var(--bx-preset);
-}
-.bx-group-head.runborrowed .bx-group-count {
-  border-style: dashed;
-  color: var(--bx-unborrowed);
-}
-.bx-group-count.over {
-  border-color: var(--red) !important;
-  color: var(--red) !important;
 }
 .bx-group-desc {
   font-size: 12px;
@@ -2343,15 +2252,6 @@ function resetFilters(): void {
 /* 标注态多一个独立详情按钮，卡片按实际可用宽度排栏。 */
 .bx-tool.is-edit .bx-grid {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 236px), 1fr));
-}
-.bx-empty {
-  padding: 20px;
-  text-align: center;
-  display: grid;
-  justify-items: center;
-  gap: 8px;
-  color: var(--ink3);
-  font-size: 13px;
 }
 
 /* ---------- 容器查询与横屏小窗适配 ---------- */

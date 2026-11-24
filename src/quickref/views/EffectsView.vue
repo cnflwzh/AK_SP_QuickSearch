@@ -9,7 +9,14 @@ import {
 import {atLayers} from '../../lib/plans/index.ts';
 import {color, fx, bonusHeadcount, bonusText} from '../format.ts';
 import {useQuickrefActions} from '../state.ts';
-import {clearBans, run, runStat, runBans, toggleBan} from '../planStore.ts';
+import {
+  clearBans,
+  run,
+  runStat,
+  runBans,
+  runFormation,
+  toggleBan,
+} from '../planStore.ts';
 import RunBanner from '../components/RunBanner.vue';
 import SubTabs, {
   type SubTabDirection,
@@ -53,14 +60,15 @@ const groupTabs = computed<readonly SubTabItem<number>[]>(() => {
 });
 const list = computed(() =>
   scopedCovenants.value.filter(
-    (name) => filter.value === 0 || isCoreCovenant(name) === (filter.value === 1),
+    (name) =>
+      filter.value === 0 || isCoreCovenant(name) === (filter.value === 1),
   ),
 );
 const cards = computed(() =>
   list.value.map((name) => {
     const cov = COVENANTS[name],
       stat = runStat.value.get(name);
-    const layers = stat ? (run.value?.plan.layers[name] ?? 0) : 0;
+    const layers = stat ? (runFormation.value?.layers[name] ?? 0) : 0;
     const head = bonusHeadcount(cov.bonus);
     return {
       name,

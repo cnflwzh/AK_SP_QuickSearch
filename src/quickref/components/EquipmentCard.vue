@@ -58,11 +58,11 @@ const actions = useQuickrefActions();
       </span>
       <span class="pr">{{ item.price }}</span>
     </div>
-    <div class="tx" v-html="fx(item.effect)"></div>
+    <div class="tx" v-html="fx(item.effect, false)"></div>
     <div
       v-if="item.advanced && item.advanced !== item.effect"
       class="tx adv"
-      v-html="`<span class='tag a'>进阶</span> ${fx(item.advanced)}`"></div>
+      v-html="`<span class='tag a'>进阶</span> ${fx(item.advanced, false)}`"></div>
     <div v-if="recipe" class="eq-recipe" aria-label="组合配方">
       <template v-for="(name, index) in recipe" :key="name">
         <b v-if="index" class="eq-recipe-sign" aria-hidden="true">

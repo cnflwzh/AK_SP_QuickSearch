@@ -118,7 +118,6 @@ export interface DealerCard {
   readonly advisorScore?: number;
   readonly advisorReasons?: readonly string[];
   readonly advisorLosses?: readonly string[];
-  readonly advisorReplace?: string;
   readonly triggerHint: string;
   readonly secondaryClue: string;
   readonly traitSegments: readonly TraitSegment[];
@@ -209,7 +208,6 @@ export interface DealerPosterModel {
   readonly badgeText: string;
   readonly modeLabel: string;
   readonly hintBadge: PosterHintBadge;
-  readonly summaryLine: string;
   readonly spoilerNotice: string;
   readonly grade: DealerGrade;
   readonly rank: DealerRank;

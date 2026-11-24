@@ -32,6 +32,7 @@ import {
   isRunBannedOp,
   presetsUsing,
   quickTargetPreset,
+  quickTargetOps,
   runAltTargets,
   runEquipMaterials,
   runEquipOwners,
@@ -44,6 +45,7 @@ import {
 } from '../planStore.ts';
 import Chip from './Chip.vue';
 import CovenantIcon from './CovenantIcon.vue';
+import GlossaryText from './GlossaryText.vue';
 import PrtsLink from './PrtsLink.vue';
 import OperatorRequestButton from './OperatorRequestButton.vue';
 import SectionHeading from './SectionHeading.vue';
@@ -115,20 +117,16 @@ const opAltTargets = computed(() =>
 const inQuickBuild = computed(
   () =>
     !!operator.value &&
-    !!quickTargetPreset.value?.plan.ops.some(
-      (slot) => slot.name === operator.value!.name,
-    ),
+    quickTargetOps.value.some((slot) => slot.name === operator.value!.name),
 );
 const quickBuildFull = computed(
-  () =>
-    !!quickTargetPreset.value &&
-    quickTargetPreset.value.plan.ops.length >= MAX_OPS,
+  () => !!quickTargetPreset.value && quickTargetOps.value.length >= MAX_OPS,
 );
 const quickBuildLabel = computed(() => {
   const target = quickTargetPreset.value;
   if (!target) return '＋ 用TA建流派';
   if (inQuickBuild.value) return '✓ 已在流派 · 移出';
-  if (target.plan.ops.length >= MAX_OPS)
+  if (quickTargetOps.value.length >= MAX_OPS)
     return `流派已满 ${MAX_OPS}/${MAX_OPS}`;
   const shortName =
     target.plan.name.length > 5
@@ -290,7 +288,7 @@ onBeforeUnmount(() => dialog.value?.close());
               <span v-if="operator.stars" class="stars">
                 {{ '★'.repeat(operator.stars) }}
               </span>
-              <span class="op-dh-type">{{ operator.type }}</span>
+              <GlossaryText class="op-dh-type" :text="operator.type" />
               <span v-if="opBanned" class="tag r">本局禁池</span>
               <span v-if="opRunSlot" class="tag t">
                 {{ opRunSlot.core ? '★ 本局核心' : '✓ 本局主力' }}
@@ -329,7 +327,7 @@ onBeforeUnmount(() => dialog.value?.close());
                 :disabled="!inQuickBuild && quickBuildFull"
                 :title="
                   quickTargetPreset
-                    ? `流派「${quickTargetPreset.plan.name}」（${quickTargetPreset.plan.ops.length}/${MAX_OPS}）`
+                    ? `流派「${quickTargetPreset.plan.name}」（${quickTargetOps.length}/${MAX_OPS}）`
                     : '新建我的流派并加入这名干员'
                 "
                 @click="onToggleQuickBuild">
@@ -426,15 +424,20 @@ onBeforeUnmount(() => dialog.value?.close());
         </div>
         <div class="sh-b">
           <div v-if="operator && stats" class="cmp2">
-            <div
-              v-html="
-                `<div class='lb'><span class='tag'>初始</span><small>${stats.base}</small></div>${fx(operator.trait)}`
-              "></div>
-            <div
-              class="el"
-              v-html="
-                `<div class='lb'><span class='tag a'>精锐</span><small>${stats.elite}</small></div>${fx(operator.elite)}`
-              "></div>
+            <div>
+              <div class="lb">
+                <span class="tag">初始</span>
+                <small>{{ stats.base }}</small>
+              </div>
+              <span v-html="fx(operator.trait)"></span>
+            </div>
+            <div class="el">
+              <div class="lb">
+                <GlossaryText class="tag a" text="精锐" />
+                <small>{{ stats.elite }}</small>
+              </div>
+              <span v-html="fx(operator.elite)"></span>
+            </div>
           </div>
           <div v-else-if="equipment" class="cmp2">
             <div
@@ -493,11 +496,7 @@ onBeforeUnmount(() => dialog.value?.close());
             </div>
           </div>
           <div
-            v-if="
-              equipment &&
-              quickTargetPreset &&
-              quickTargetPreset.plan.ops.length
-            "
+            v-if="equipment && quickTargetPreset && quickTargetOps.length"
             class="sh-sec sh-eq-assign">
             <SectionHeading
               :title="`配给「${quickTargetPreset.plan.name}」`"
@@ -505,7 +504,7 @@ onBeforeUnmount(() => dialog.value?.close());
               :level="5" />
             <div class="row">
               <button
-                v-for="slot in quickTargetPreset.plan.ops"
+                v-for="slot in quickTargetOps"
                 :key="slot.name"
                 type="button"
                 :class="['sh-eq-slot', {on: slot.eq.includes(equipment.name)}]"

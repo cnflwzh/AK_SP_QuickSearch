@@ -8,24 +8,31 @@ import {
 } from '../../../data/index.ts';
 import {
   MAX_OPS,
+  MAX_STAGE_ROUND,
   MAX_EQ,
   MAX_ALT,
   MAX_NOTE,
   MAX_LAYERS,
+  cleanStrategyAlternates,
+  editablePlanKey,
+  readPlanIcon,
   usesLayers,
+  validStageRange,
   type Plan,
   type PlanOp,
+  type PlanStage,
 } from './model.ts';
 import {newId} from './storage.ts';
+import {isSklandGuide, migrateLegacyGuidePlan, sklandUrl} from './skland.ts';
 
 const BACKUP_FORMAT = 'weishu-quickref-builds';
-const BACKUP_VERSION = 1;
+type BackupVersion = 1 | 2 | 3;
 export const MAX_BACKUP_BYTES = 5 * 1024 * 1024;
 
 /** version 标识文件结构；plans 包括自建流派和用户修改过的预设。 */
 export interface PlanBackup {
   format: typeof BACKUP_FORMAT;
-  version: typeof BACKUP_VERSION;
+  version: BackupVersion;
   exportedAt: string;
   plans: Plan[];
 }
@@ -45,25 +52,16 @@ const isText = (value: unknown, limit: number): value is string =>
 const isKnown = (catalog: object, value: unknown): value is string =>
   typeof value === 'string' && Object.hasOwn(catalog, value);
 
-function readPlan(value: unknown, index: number): Plan {
-  const invalid = (): never => {
-    throw new Error(
-      `第 ${index + 1} 套流派的数据不完整或包含无法识别的内容，请更新页面或重新导出备份。`,
-    );
-  };
-  if (!isRecord(value)) return invalid();
+// 成型阵容与各阶段使用相同的完整校验，避免恢复时静默跳过人数、装备或说明。
+function readLineup(
+  value: Record<string, unknown>,
+  invalid: () => never,
+): Pick<Plan, 'ops' | 'note' | 'layers'> {
   if (
-    !isText(value.id, 100) ||
-    !value.id ||
-    !isText(value.name, 16) ||
     !isText(value.note, MAX_NOTE) ||
-    typeof value.updated !== 'number' ||
-    !Number.isFinite(value.updated) ||
-    !(value.strategy === '' || isKnown(STRATEGY, value.strategy)) ||
     !Array.isArray(value.ops) ||
     value.ops.length > MAX_OPS ||
-    !isRecord(value.layers) ||
-    (value.base !== undefined && !isText(value.base, 100))
+    !isRecord(value.layers)
   )
     return invalid();
 
@@ -109,37 +107,142 @@ function readPlan(value: unknown, index: number): Plan {
       return invalid();
     layers[name] = count;
   }
+  return {ops, note: value.note, layers};
+}
+
+function readPlan(value: unknown, index: number): Plan {
+  const invalid = (): never => {
+    throw new Error(
+      `第 ${index + 1} 套流派的数据不完整或包含无法识别的内容，请更新页面或重新导出备份。`,
+    );
+  };
+  if (
+    !isRecord(value) ||
+    !isText(value.id, 100) ||
+    !value.id ||
+    !isText(value.name, 16) ||
+    typeof value.updated !== 'number' ||
+    !Number.isFinite(value.updated) ||
+    !(value.strategy === '' || isKnown(STRATEGY, value.strategy)) ||
+    (value.base !== undefined && !isText(value.base, 100)) ||
+    (value.skland !== undefined && !isSklandGuide(value.skland))
+  )
+    return invalid();
+  const icon = readPlanIcon(value.icon);
+  if (value.icon !== undefined && !icon) return invalid();
+  let strategyAlternates: string[] | undefined;
+  if (value.strategyAlternates !== undefined) {
+    if (!Array.isArray(value.strategyAlternates)) return invalid();
+    strategyAlternates = cleanStrategyAlternates(
+      value.strategy,
+      value.strategyAlternates,
+    );
+    if (strategyAlternates.length !== value.strategyAlternates.length)
+      return invalid();
+  }
+  let stages: PlanStage[] | undefined;
+  if (value.stages !== undefined) {
+    if (!Array.isArray(value.stages)) return invalid();
+    stages = [];
+    for (const stage of value.stages) {
+      if (
+        isRecord(stage) &&
+        typeof stage.to === 'number' &&
+        stage.to > MAX_STAGE_ROUND
+      )
+        throw new Error(
+          `第 ${index + 1} 套流派包含第 ${MAX_STAGE_ROUND} 回合以后的阶段，请先调整备份中的回合范围。`,
+        );
+      if (
+        !isRecord(stage) ||
+        typeof stage.from !== 'number' ||
+        typeof stage.to !== 'number' ||
+        !validStageRange(stage.from, stage.to, stages)
+      )
+        return invalid();
+      stages.push({
+        from: stage.from,
+        to: stage.to,
+        ...readLineup(stage, invalid),
+      });
+    }
+  }
   // 原预设下架时仍保留用户的整套方案，作为自建流派展示。
   const base =
     typeof value.base === 'string' && BUILD_NAMES.includes(value.base)
       ? value.base
       : undefined;
-  return {
+  return migrateLegacyGuidePlan({
     id: value.id,
+    ...(icon ? {icon} : {}),
     name: value.name,
-    ops,
+    ...readLineup(value, invalid),
     strategy: value.strategy,
-    note: value.note,
-    layers,
+    ...(strategyAlternates ? {strategyAlternates} : {}),
+    ...(stages ? {stages} : {}),
     updated: value.updated,
+    ...(isSklandGuide(value.skland) ? {skland: value.skland} : {}),
     ...(base ? {base} : {}),
-  };
+  });
+}
+
+/** 旧版最多读取 8 人与 240 码元，且会丢弃新增字段；包含这些扩展的文件须标记新版。 */
+export function needsExtendedPlanBackup(plan: Plan): boolean {
+  return (
+    plan.icon !== undefined ||
+    plan.ops.length > 8 ||
+    plan.note.length > 240 ||
+    plan.skland !== undefined ||
+    plan.strategyAlternates !== undefined ||
+    plan.stages !== undefined
+  );
+}
+
+/** 只在需要时提高导出版本，防止旧版读取带图标的备份时静默丢弃图标。 */
+export function planBackupVersion(plans: readonly Plan[] = []): BackupVersion {
+  if (plans.some((plan) => plan.icon)) return 3;
+  return plans.some(needsExtendedPlanBackup) ? 2 : 1;
+}
+
+/** 导出 JSON，优先保留缩进；只有紧凑内容本身超过导入字节上限时才抛出调用方的提示。 */
+export function serializeBackupDocument(
+  value: object,
+  oversizeMessage: string,
+): string {
+  const encoder = new TextEncoder();
+  for (const indent of [2, 0]) {
+    const text = JSON.stringify(value, null, indent);
+    if (
+      text.length <= MAX_BACKUP_BYTES &&
+      encoder.encode(text).length <= MAX_BACKUP_BYTES
+    )
+      return text;
+  }
+  throw new Error(oversizeMessage);
+}
+
+/** 为每条有来源的流派附上可直接访问的原文链接。导入仍以快照的攻略编号为准。 */
+export function writeBackupPlans(plans: readonly Plan[]) {
+  return plans.map((plan) =>
+    plan.skland ? {sklandUrl: sklandUrl(plan.skland.id), ...plan} : plan,
+  );
 }
 
 /** 将当前内存中的流派序列化为 JSON；超过文件大小限制时抛出可展示的错误。 */
 export function serializePlanBackup(plans: readonly Plan[]): string {
   const backup: PlanBackup = {
     format: BACKUP_FORMAT,
-    version: BACKUP_VERSION,
+    version: planBackupVersion(plans),
     exportedAt: new Date().toISOString(),
-    plans: [...plans],
+    plans: writeBackupPlans(plans),
   };
-  const text = JSON.stringify(backup, null, 2);
-  if (new TextEncoder().encode(text).length > MAX_BACKUP_BYTES)
-    throw new Error('流派备份超过 5 MB，请精简流派后再导出。');
-  return text;
+  return serializeBackupDocument(
+    backup,
+    '流派备份超过 5 MB，请精简流派后再导出。',
+  );
 }
 
+/** 解析流派或设置备份中的全部方案。任意一项无效会抛错，并取消整批恢复。 */
 export function readBackupPlans(value: unknown): Plan[] {
   if (!Array.isArray(value)) throw new Error('流派列表格式无效。');
   return value.map(readPlan);
@@ -157,7 +260,7 @@ export function parsePlanBackup(text: string): PlanBackup {
   }
   if (!isRecord(value) || value.format !== BACKUP_FORMAT)
     throw new Error('这不是卫戍速查的流派备份文件。');
-  if (value.version !== BACKUP_VERSION)
+  if (value.version !== 1 && value.version !== 2 && value.version !== 3)
     throw new Error('此备份版本暂不支持，请更新页面后重试。');
   if (
     !Array.isArray(value.plans) ||
@@ -168,7 +271,7 @@ export function parsePlanBackup(text: string): PlanBackup {
   }
   return {
     format: BACKUP_FORMAT,
-    version: BACKUP_VERSION,
+    version: value.version,
     exportedAt: value.exportedAt,
     plans: readBackupPlans(value.plans),
   };
@@ -176,21 +279,7 @@ export function parsePlanBackup(text: string): PlanBackup {
 
 /** 内容去重忽略 ID、修改时间和预设归属，层数字段的写入顺序不影响判定。 */
 function contentKey(plan: Plan): string {
-  return JSON.stringify([
-    plan.name,
-    plan.ops.map((slot) => [
-      slot.name,
-      slot.elite,
-      slot.core,
-      slot.eq,
-      slot.alt,
-    ]),
-    plan.strategy,
-    plan.note,
-    Object.entries(plan.layers)
-      .filter(([, count]) => count > 0)
-      .sort(([a], [b]) => a.localeCompare(b)),
-  ]);
+  return JSON.stringify([plan.skland ?? null, editablePlanKey(plan)]);
 }
 
 /**

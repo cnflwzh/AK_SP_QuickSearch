@@ -474,7 +474,7 @@ export const S1_EQUIPMENT: readonly Equipment[] = [
     price: 3,
     covenant: null,
     icon: 'e48',
-    effect: '销毁携带干员，出现2名同阶干员免费选1；原干员下回合送给队友',
+    effect: '销毁携带干员，在2名同阶干员中免费选1。联机时下个休整期将原干员发给对应盟约人数最多的队友，并列时随机。不能用于自选干员。',
     advanced: null,
   },
   {

@@ -201,14 +201,6 @@ export function createBoxAffinityScorer(
   };
 }
 
-/** 对单个干员返回账号排序权重，未记录当前赛季时返回 0。 */
-export function boxAffinityScore(
-  op: Operator,
-  box?: Readonly<OperatorBox>,
-): number {
-  return createBoxAffinityScorer(box)(op);
-}
-
 /** 评估一套阵容在当前账号 Box 下的缺口、精 0 未激活与综合适配度。 */
 export function evaluateLineupBox(
   ops: readonly PlanOp[],

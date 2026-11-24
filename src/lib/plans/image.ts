@@ -12,11 +12,13 @@ import {
   avatarSrc,
   covenantIconSrc,
   equipIconSrc,
+  planIconSrc,
   portraitSrc,
 } from '../ui/assets.ts';
 import {covenantStats} from './covenants.ts';
 import {planCost} from './costs.ts';
-import type {Plan} from './model.ts';
+import {effectivePlanIcon, type Plan} from './model.ts';
+import {canShareViaQr, stageRoundLabel} from './sharing.ts';
 
 const BASE_WIDTH = 720,
   PAD = 24,
@@ -119,7 +121,7 @@ function drawSlotName(
   ctx.fillText(`${text}…`, cx, y);
 }
 
-/** link：分享链接（#p=分享码），画成二维码 */
+/** 绘制终盘和分段概览。可容纳的链接嵌入二维码，超长链接使用配套文件提示。 */
 export async function planImage(
   plan: Plan,
   link: string,
@@ -127,11 +129,15 @@ export async function planImage(
   const stats = covenantStats(plan.ops, plan.layers);
   const cost = planCost(plan.ops);
   const rows = Math.max(1, stats.length);
-  const {default: qrcode} = await import('qrcode-generator');
-  const qr = qrcode(0, 'M');
-  qr.addData(link);
-  qr.make();
-  const QR = Math.max(QR_MIN, qr.getModuleCount() * QR_MODULE + 16);
+  const qr = canShareViaQr(link)
+    ? (await import('qrcode-generator')).default(0, 'M')
+    : null;
+  if (qr) {
+    qr.addData(link, 'Byte');
+    qr.make();
+  }
+  const QR = qr ? Math.max(QR_MIN, (qr.getModuleCount() + 8) * QR_MODULE) : 0;
+  const fullText = qr ? '扫码查看完整方案' : '完整方案见配套分享码或 JSON 文件';
   const st = STRATEGY[plan.strategy];
   const cache = new Map<string, Promise<HTMLImageElement | null>>();
   const asset = (src: string): Promise<HTMLImageElement | null> => {
@@ -139,7 +145,8 @@ export async function planImage(
     return cache.get(src)!;
   };
   // 所有导出素材同时加载，同一个头像只请求一次。
-  const [images, eqImages, altImages, covImages, strategyImage] =
+  const icon = effectivePlanIcon(plan);
+  const [images, eqImages, altImages, covImages, strategyImage, emblem] =
     await Promise.all([
       Promise.all(plan.ops.map((o) => asset(avatarSrc(o.name)))),
       Promise.all(
@@ -152,6 +159,7 @@ export async function planImage(
       ),
       Promise.all(stats.map((s) => asset(covenantIconSrc(s.name)))),
       st ? asset(portraitSrc(st.name)) : Promise.resolve(null),
+      icon ? asset(planIconSrc(icon)) : Promise.resolve(null),
     ]);
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
@@ -175,7 +183,10 @@ export async function planImage(
     ),
   );
   // 长二维码和九格盟约进度同时出现时，为文字保留独立宽度。
-  const W = Math.max(BASE_WIDTH, Math.ceil(PAD * 2 + statWidth + 20 + QR));
+  const W = Math.max(
+    BASE_WIDTH,
+    Math.ceil(PAD * 2 + statWidth + (qr ? 20 + QR : 0)),
+  );
   const textWidth = W - PAD * 2 - 8;
 
   const altEntries = plan.ops.flatMap((slot) =>
@@ -205,24 +216,67 @@ export async function planImage(
       ? rawNoteLines.map((l, idx) => `${idx + 1}. ${l}`)
       : rawNoteLines;
   ctx.font = `13px ${FONT}`;
-  const noteLines = numberedNotes.length
+  let noteLines = numberedNotes.length
     ? wrapParagraphs(ctx, numberedNotes, W - PAD * 2 - 14)
     : [];
 
+  if (noteLines.length > 6)
+    noteLines = [...noteLines.slice(0, 5), `说明节选 · ${fullText}`];
+
+  ctx.font = `12px ${FONT}`;
+  const stages = plan.stages ?? [];
+  const stageLines: string[] = [];
+  if (stages.length) {
+    stageLines.push(`阶段概览 · ${fullText}`);
+    for (const stage of stages.slice(0, 5)) {
+      const label = stageRoundLabel(stage.from, stage.to);
+      const members = stage.ops
+        .map((op) => (op.core ? '★' : '') + op.name)
+        .join('、');
+      stageLines.push(
+        ...wrapParagraphs(
+          ctx,
+          [`${label}　${members || '未选干员'}`],
+          textWidth,
+        ),
+      );
+      if (stage.note.trim()) {
+        const preview = wrapParagraphs(
+          ctx,
+          stage.note.split('\n'),
+          textWidth - 42,
+        );
+        stageLines.push(`打法：${preview[0]}${preview.length > 1 ? '…' : ''}`);
+      }
+    }
+    if (stages.length > 5) stageLines.push(`另有 ${stages.length - 5} 个阶段`);
+  }
+  const strategyLines = plan.strategyAlternates?.length
+    ? wrapParagraphs(
+        ctx,
+        [`备选策略：${plan.strategyAlternates.join('、')}`],
+        textWidth,
+      )
+    : [];
+
   const hasAlt = plan.ops.some((o) => o.alt.length);
+  const columns = Math.floor((W - PAD * 2) / CELL);
+  const rowHeight = CELL + 18 + (hasAlt ? ALT + 14 : 0);
+  const rosterHeight = Math.ceil(plan.ops.length / columns) * rowHeight;
   const SECTION =
     PAD +
     26 +
     18 +
-    CELL +
-    18 +
-    (hasAlt ? ALT + 14 : 0) +
+    rosterHeight +
+    (stageLines.length ? stageLines.length * META_LINE + 10 : 0) +
+    strategyLines.length * META_LINE +
     (altLines.length ? altLines.length * META_LINE + 8 : 0) +
     34 +
     (eqLines.length ? eqLines.length * META_LINE + 10 : 0) +
     (noteLines.length ? noteLines.length * NOTE_LINE + 16 : 0) +
     8;
-  const H = SECTION + Math.max(rows * 26, QR + 44) + 8 + PAD;
+  const H =
+    SECTION + Math.max(rows * 26, qr ? QR + 44 : 0) + (qr ? 8 : 28) + PAD;
   const scale = 2;
   canvas.width = W * scale;
   canvas.height = H * scale;
@@ -237,20 +291,42 @@ export async function planImage(
 
   // 标题
   let y = PAD + 26;
+  if (emblem) {
+    ctx.save();
+    round(ctx, PAD, y - 23, 28, 28, 5);
+    ctx.clip();
+    ctx.fillStyle = '#243238';
+    ctx.fill();
+    const size = icon?.kind === 'covenant' ? 22 : 28;
+    const scale = Math.min(
+      size / emblem.naturalWidth,
+      size / emblem.naturalHeight,
+    );
+    const w = emblem.naturalWidth * scale,
+      h = emblem.naturalHeight * scale;
+    ctx.drawImage(emblem, PAD + (28 - w) / 2, y - 23 + (28 - h) / 2, w, h);
+    ctx.restore();
+  }
   ctx.fillStyle = INK;
   ctx.font = `700 24px ${FONT}`;
   ctx.textBaseline = 'alphabetic';
-  ctx.fillText(plan.name || '阵容', PAD, y);
+  ctx.fillText(plan.name || '阵容', PAD + (emblem ? 35 : 0), y);
   ctx.font = `13px ${FONT}`;
   ctx.fillStyle = INK3;
   ctx.textAlign = 'right';
-  ctx.fillText(`招募 ${cost.recruit} · 装备 ${cost.equipment}`, W - PAD, y);
+  ctx.fillText(
+    `终盘 ${plan.ops.length} 人 · 招募 ${cost.recruit} · 装备 ${cost.equipment}`,
+    W - PAD,
+    y,
+  );
   ctx.textAlign = 'left';
   y += 18;
 
   // 干员
+  const rosterY = y;
   plan.ops.forEach((slot, i) => {
-    const x = PAD + i * CELL,
+    const y = rosterY + Math.floor(i / columns) * rowHeight;
+    const x = PAD + (i % columns) * CELL,
       tier = OPERATOR[slot.name]?.tier ?? 0;
     ctx.fillStyle = TIER[tier];
     round(ctx, x, y, 72, 72, 6);
@@ -324,8 +400,7 @@ export async function planImage(
       }
     });
   });
-  y += CELL + 18;
-  if (hasAlt) y += ALT + 14;
+  y += rosterHeight;
 
   // 过渡/备选说明行
   if (altLines.length) {
@@ -355,6 +430,12 @@ export async function planImage(
     ctx.fillText('策略 · 未选', PAD, y + 18);
   }
   y += 34;
+  ctx.fillStyle = INK2;
+  ctx.font = `12px ${FONT}`;
+  for (const line of strategyLines) {
+    ctx.fillText(line, PAD, y + 12);
+    y += META_LINE;
+  }
 
   // 配装说明行
   if (eqLines.length) {
@@ -376,6 +457,15 @@ export async function planImage(
       ctx.fillText(line, PAD + 10, y + 14 + k * NOTE_LINE),
     );
     y += noteLines.length * NOTE_LINE + 16;
+  }
+  if (stageLines.length) {
+    ctx.fillStyle = INK2;
+    ctx.font = `12px ${FONT}`;
+    for (const line of stageLines) {
+      ctx.fillText(line, PAD, y + 12);
+      y += META_LINE;
+    }
+    y += 10;
   }
   y += 8;
 
@@ -422,29 +512,35 @@ export async function planImage(
   }
 
   // 二维码：盟约右侧，扫码即打开分享链接
-  const qx = W - PAD - QR,
-    qy = SECTION;
-  ctx.fillStyle = '#fff';
-  ctx.strokeStyle = LINE;
-  round(ctx, qx, qy, QR, QR, 8);
-  ctx.fill();
-  ctx.stroke();
-  const n = qr.getModuleCount(),
-    cell = Math.floor(((QR - 16) * scale) / n) / scale,
-    off = (QR - cell * n) / 2;
-  ctx.fillStyle = INK;
-  for (let r = 0; r < n; r++)
-    for (let c = 0; c < n; c++)
-      if (qr.isDark(r, c))
-        ctx.fillRect(qx + off + c * cell, qy + off + r * cell, cell, cell);
-  ctx.textAlign = 'center';
-  ctx.fillStyle = INK;
-  ctx.font = `700 13px ${FONT}`;
-  ctx.fillText('扫码导入阵容', qx + QR / 2, qy + QR + 20);
-  ctx.fillStyle = ACCENT;
-  ctx.font = `700 11px ${FONT}`;
-  ctx.fillText('卫戍速查 · 阵容规划', qx + QR / 2, qy + QR + 37);
-  ctx.textAlign = 'left';
+  if (qr) {
+    const qx = W - PAD - QR,
+      qy = SECTION;
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = LINE;
+    round(ctx, qx, qy, QR, QR, 8);
+    ctx.fill();
+    ctx.stroke();
+    const n = qr.getModuleCount(),
+      cell = Math.floor((QR * scale) / (n + 8)) / scale,
+      off = (QR - cell * n) / 2;
+    ctx.fillStyle = INK;
+    for (let r = 0; r < n; r++)
+      for (let c = 0; c < n; c++)
+        if (qr.isDark(r, c))
+          ctx.fillRect(qx + off + c * cell, qy + off + r * cell, cell, cell);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = INK;
+    ctx.font = `700 13px ${FONT}`;
+    ctx.fillText('扫码导入阵容', qx + QR / 2, qy + QR + 20);
+    ctx.fillStyle = ACCENT;
+    ctx.font = `700 11px ${FONT}`;
+    ctx.fillText('卫戍速查 · 阵容规划', qx + QR / 2, qy + QR + 37);
+    ctx.textAlign = 'left';
+  } else {
+    ctx.fillStyle = INK2;
+    ctx.font = `12px ${FONT}`;
+    ctx.fillText(fullText, PAD, H - PAD);
+  }
 
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
 }

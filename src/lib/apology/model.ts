@@ -110,7 +110,6 @@ export interface ApologyDocument {
   readonly subtitle: string;
   readonly docNo: string;
   readonly dateText: string;
-  readonly accentColor: string;
   readonly metaRows: readonly {
     readonly label: string;
     readonly value: string;
@@ -851,7 +850,6 @@ export function buildApologyDocument(state: ApologyFormState): ApologyDocument {
     subtitle: meta.subtitle,
     docNo,
     dateText,
-    accentColor: '#b8322a',
     metaRows,
     targetBadge,
     salutation,

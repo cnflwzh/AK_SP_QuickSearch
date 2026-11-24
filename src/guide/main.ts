@@ -1,4 +1,4 @@
-import { createApp } from 'vue';
+import {createApp} from 'vue';
 import GuideApp from './GuideApp.vue';
 
 /** Mount the tutorial and resolve after its visible/hash chapter has rendered.
@@ -6,7 +6,7 @@ import GuideApp from './GuideApp.vue';
  */
 export function mountGuide(): Promise<void> {
   return new Promise<void>((resolve, reject) => {
-    const app = createApp(GuideApp, { ready: resolve, failed: reject });
+    const app = createApp(GuideApp, {ready: resolve, failed: reject});
     app.config.errorHandler = reject;
     app.mount('#app');
     import.meta.hot?.dispose(() => app.unmount());

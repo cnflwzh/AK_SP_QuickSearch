@@ -40,7 +40,6 @@ export default defineConfig({
       writeRouteEntries(dist);
     },
   }],
-  define: { __BUILD_COMMIT__: JSON.stringify(commit) },
   build: {
     target: 'es2022',
     rolldownOptions: { input: { index: resolve(root, 'index.html'), guide: resolve(root, 'guide.html') } },

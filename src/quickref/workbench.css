@@ -48,15 +48,15 @@
 .workbench-controls .control-disclosure[aria-expanded=true] { border-color: var(--accent); }
 .workbench-controls .control-disclosure[aria-expanded=true] > .control-chevron { transform: rotate(180deg); }
 
-.workbench-controls :is(.nt-fold, .nt-inline-details, .pl-note-fold, .ra-method) > summary {
+.workbench-controls :is(.nt-inline-details, .pl-note-fold, .ra-method) > summary {
   position: relative;
   list-style: none;
   padding-right: 24px;
   min-height: 28px;
   align-content: center;
 }
-.workbench-controls :is(.nt-fold, .nt-inline-details, .pl-note-fold, .ra-method) > summary::-webkit-details-marker { display: none; }
-.workbench-controls :is(.nt-fold, .nt-inline-details, .pl-note-fold, .ra-method) > summary::after {
+.workbench-controls :is(.nt-inline-details, .pl-note-fold, .ra-method) > summary::-webkit-details-marker { display: none; }
+.workbench-controls :is(.nt-inline-details, .pl-note-fold, .ra-method) > summary::after {
   content: '';
   position: absolute;
   top: calc(50% - 6px);
@@ -67,7 +67,7 @@
   mask: var(--control-chevron) center / contain no-repeat;
   transition: transform .15s ease;
 }
-.workbench-controls :is(.nt-fold, .nt-inline-details, .pl-note-fold, .ra-method)[open] > summary::after { transform: rotate(180deg); }
+.workbench-controls :is(.nt-inline-details, .pl-note-fold, .ra-method)[open] > summary::after { transform: rotate(180deg); }
 
 @media (hover: hover) {
   .workbench-controls :is(select:not(.q-select-native), input[type=search]:not(.q-search-input)):not(:disabled):hover { border-color: var(--accent); }

@@ -2,6 +2,7 @@
 import {avatarSrc} from '../../lib/ui/assets.ts';
 import type {RecruitAdvice} from '../../lib/recommendation/live/runAdvisor.ts';
 import EmptyState from '../components/EmptyState.vue';
+import GlossaryText from '../components/GlossaryText.vue';
 
 /**
  * 抓取建议列表。录入商店时它就是商店本身：按推荐排序，可直接记录抓到或移出候选；
@@ -61,11 +62,9 @@ function signed(value: number): string {
               <small>{{ item.label }}</small>
             </span>
             <span class="ra-rec-preview">
-              {{
-                item.losses.length
-                  ? `代价：${item.losses.join('、')}`
-                  : item.reasons[0]
-              }}
+              <GlossaryText
+                :text="item.losses.length ? `代价：${item.losses.join('、')}` : (item.reasons[0] ?? '')"
+                :focusable="false" />
             </span>
           </span>
         </summary>
@@ -88,7 +87,7 @@ function signed(value: number): string {
             </div>
           </dl>
           <ul>
-            <li v-for="reason in item.reasons" :key="reason">{{ reason }}</li>
+            <li v-for="reason in item.reasons" :key="reason"><GlossaryText :text="reason" /></li>
           </ul>
           <p v-if="item.replace">
             可换下
@@ -96,7 +95,7 @@ function signed(value: number): string {
             ，抓到后先入整备区。
           </p>
           <p v-if="item.losses.length" class="ra-warning">
-            代价：{{ item.losses.join('；') }}
+            代价：<GlossaryText :text="item.losses.join('；')" />
           </p>
           <button
             type="button"
@@ -140,7 +139,7 @@ function signed(value: number): string {
         <span class="ra-rec-text">
           <span class="ra-rec-title">
             <b>{{ item.name }}</b>
-            <small>{{ item.reason }}</small>
+            <small><GlossaryText :text="item.reason" /></small>
           </span>
           <span class="ra-rec-preview">不参与本轮推荐</span>
         </span>

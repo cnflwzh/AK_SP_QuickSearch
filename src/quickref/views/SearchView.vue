@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {computed, ref, watch} from 'vue';
-import {rolesForTraining, type EnemyTerm} from '../../../data/index.ts';
+import {rolesForTraining} from '../../../data/index.ts';
+import {findGlossaryTerm, GLOSSARY_KIND_LABELS} from '../../lib/glossary.ts';
 import {enemyIconSrc} from '../../lib/ui/assets.ts';
 import {rosterLocation} from '../../router/location.ts';
 import NavigationLink from '../components/NavigationLink.vue';
@@ -24,11 +25,6 @@ const props = defineProps<{query: string}>();
 const actions = useQuickrefActions();
 const operatorLimit = ref(60);
 const eliteMode = ref<0 | 1 | 2>(0);
-const GLOSSARY_KIND_LABEL: Readonly<Record<EnemyTerm['kind'], string>> = {
-  unit: '单位',
-  status: '状态',
-  mechanic: '机制',
-};
 watch(
   () => props.query,
   () => {
@@ -37,6 +33,14 @@ watch(
 );
 const prepared = computed(() => prepareSearchQuery(props.query));
 const results = computed(() => searchResults(prepared.value, presets.value));
+const sectionOrder = computed(() => {
+  const {order, glossary} = results.value;
+  if (!glossary.length) return order;
+  // 搜「D」会同时匹配许多拼音首字母，先让玩家看到这个简称的完整解释。
+  return findGlossaryTerm(props.query)
+    ? ['glossary', ...order]
+    : [...order, 'glossary'];
+});
 const visibleOperators = computed(() =>
   results.value.operators.slice(0, operatorLimit.value).map((operator) => ({
     operator,
@@ -65,7 +69,7 @@ const resultSummary = computed(() => {
     [results.value.leaders.length, '名 Boss'],
     [results.value.bounties.length, '名悬赏敌人'],
     [results.value.trainings.length, '类普通敌人'],
-    [results.value.glossary.length, '条敌人名词'],
+    [results.value.glossary.length, '条术语'],
   ] as const;
   return (
     `「${props.query}」找到` +
@@ -78,7 +82,7 @@ const resultSummary = computed(() => {
 </script>
 <template>
   <EmptyState v-if="empty" :message="`没有匹配「${query}」`" />
-  <template v-for="group in results.order" :key="group">
+  <template v-for="group in sectionOrder" :key="group">
     <template v-if="group === 'covenants'">
       <SectionHeading
         class="sr-sec"
@@ -273,28 +277,28 @@ const resultSummary = computed(() => {
         </button>
       </div>
     </template>
-  </template>
-  <template v-if="results.glossary.length">
-    <SectionHeading
-      class="sr-sec"
-      title="敌人名词解析"
-      :count="results.glossary.length"
-      :level="2"
-      data-key="heading:敌人名词" />
-    <dl class="sr-gloss-list" data-key="glossary">
-      <div
-        v-for="entry in results.glossary"
-        :key="entry.term"
-        class="sr-gloss-item">
-        <dt>
-          <i :class="['sr-gloss-kind', entry.kind]">
-            {{ GLOSSARY_KIND_LABEL[entry.kind] }}
-          </i>
-          <b>{{ entry.term }}</b>
-        </dt>
-        <dd>{{ entry.desc }}</dd>
-      </div>
-    </dl>
+    <template v-else-if="group === 'glossary'">
+      <SectionHeading
+        class="sr-sec"
+        title="术语词典"
+        :count="results.glossary.length"
+        :level="2"
+        data-key="heading:术语词典" />
+      <dl class="sr-gloss-list" data-key="glossary">
+        <div
+          v-for="entry in results.glossary"
+          :key="entry.term"
+          class="sr-gloss-item">
+          <dt>
+            <i :class="['sr-gloss-kind', entry.kind]">
+              {{ GLOSSARY_KIND_LABELS[entry.kind] }}
+            </i>
+            <b>{{ entry.term }}</b>
+          </dt>
+          <dd>{{ entry.desc }}</dd>
+        </div>
+      </dl>
+    </template>
   </template>
   <LiveStatus :message="resultSummary" />
 </template>
@@ -458,7 +462,9 @@ const resultSummary = computed(() => {
   background: color-mix(in srgb, var(--red) 14%, transparent);
   color: var(--red);
 }
-.sr-gloss-kind.mechanic {
+.sr-gloss-kind.mechanic,
+.sr-gloss-kind.lineup,
+.sr-gloss-kind.recruit {
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   color: var(--accent);
 }

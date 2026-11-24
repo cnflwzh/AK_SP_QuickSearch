@@ -6,6 +6,7 @@ import type {
   LeaderDamage,
 } from '../../../data/index.ts';
 import {esc} from '../ui/dom.ts';
+import {glossaryHtml} from '../ui/glossaryText.ts';
 
 const DAMAGE_CLASS: Readonly<Record<LeaderDamage, string>> = {
   物理: 'phy',
@@ -22,23 +23,27 @@ export const damageClass = (damage: LeaderDamage): string =>
 export const normalizeTermKey = (raw: string): string =>
   raw.replace(/[“”"「」]/g, '').trim();
 
-/** 能力文本：数字加粗，【技能】 <单位> {状态} 分别上色；若传入已知词条表则标记可点选解释。 */
+/** 领袖效果转为安全的 HTML。传入当前领袖词表时，为专属词保留页内解析，并给正文加上新手词典释义。 */
 export const leaderFx = (
   text: string,
   knownTerms?: ReadonlyMap<string, string>,
 ): string => {
-  const wrapTerm = (cls: string, raw: string) => {
+  const boldNumbers = (escaped: string) =>
+    escaped.replace(/\d+(?:\.\d+)?%?/g, '<b>$&</b>');
+  return text.split(/(【[^】]+】|<[^<>]+>|\{[^}]+\})/g).map((part, index) => {
+    if (index % 2 === 0) {
+      // 速览浮卡只读；仅详情正文接受焦点或点击。
+      return knownTerms ? glossaryHtml(part, true, boldNumbers) : boldNumbers(esc(part));
+    }
+    const raw = part.slice(1, -1);
+    const cls = part.startsWith('【') ? 'lk' : part.startsWith('<') ? 'lu' : 'ls';
+    const label = boldNumbers(esc(raw));
     const target = knownTerms?.get(normalizeTermKey(raw));
     if (target) {
-      return `<em class="${cls} has-term" data-term="${esc(target)}" tabindex="0" role="button">${raw}</em>`;
+      return `<em class="${cls} has-term" data-term="${esc(target)}" tabindex="0" role="button">${label}</em>`;
     }
-    return `<em class="${cls}">${raw}</em>`;
-  };
-  return esc(text)
-    .replace(/(\d+(?:\.\d+)?%?)/g, '<b>$1</b>')
-    .replace(/【([^】]+)】/g, (_, raw: string) => wrapTerm('lk', raw))
-    .replace(/&lt;([^&]+?)&gt;/g, (_, raw: string) => wrapTerm('lu', raw))
-    .replace(/\{([^}]+)\}/g, (_, raw: string) => wrapTerm('ls', raw));
+    return `<em class="${cls}">${label}</em>`;
+  }).join('');
 };
 
 /** 收集与指定 Boss 相关的全部名词与召唤物解释（专属单位/机制在前，通用异常/损伤在后）。 */
@@ -118,14 +123,6 @@ export const abilityLabel = (
   skill: string | undefined,
   hidden = false,
 ): string => skill || (hidden ? '强化' : '特性');
-
-/** 头像旁的短名：胄、昆图斯、阿利斯泰尔、萨米的意志…… */
-export const shortName = (leader: Pick<Leader, 'name'>): string =>
-  leader.name
-    .replace(/^假想敌：/, '')
-    .replace(/^盐风主教/, '')
-    .replace(/，.*$/, '')
-    .replace(/[“”]/g, '');
 
 /** 领袖回合会巡逻进玩家半场（铳、鳍、矩兽） */
 export const patrols = (leader: Pick<Leader, 'stage'>): boolean =>
