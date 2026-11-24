@@ -85,6 +85,8 @@ import SklandImport from '../components/SklandImport.vue';
 import {color, fx, bonusHeadcount, bonusText} from '../format.ts';
 import Chip from '../components/Chip.vue';
 import CovenantIcon from '../components/CovenantIcon.vue';
+import PlanEmblem from '../components/PlanEmblem.vue';
+import {effectivePlanIcon} from '../../lib/plans/model.ts';
 import OperatorTile from '../components/OperatorTile.vue';
 import PlanImportPreview from '../components/PlanImportPreview.vue';
 import BuildPicker from '../components/BuildPicker.vue';
@@ -294,6 +296,7 @@ const pickerGroups = computed(() =>
     items: sortPresetList(list).map((item) => ({
       key: item.key,
       name: item.plan.name,
+      icon: effectivePlanIcon(item.plan),
       accent: presetColor(item),
       modified: item.modified,
       badge: item.boxBadge?.text,
@@ -987,18 +990,7 @@ watch(
       <div class="build-masthead">
         <div class="build-identity">
           <div class="build-title">
-            <CovenantIcon v-if="COVENANTS[p.key]" :name="p.key" emblem />
-            <span v-else class="build-emblem" aria-hidden="true">
-              <svg
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.6"
-                stroke-linecap="round">
-                <rect x="4" y="4" width="12" height="12" rx="2" />
-                <path d="M7 8h6M7 12h4" />
-              </svg>
-            </span>
+            <PlanEmblem :icon="effectivePlanIcon(p.plan)" />
             <h2 id="build-heading" class="build-name" tabindex="-1">
               {{ p.plan.name }}
             </h2>
@@ -1926,26 +1918,6 @@ watch(
   max-width: 100%;
   vertical-align: top;
 }
-.build-title :deep(.cv-emblem),
-.build-emblem {
-  --cv-emblem-size: 28px;
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  padding: 3px;
-  border-radius: 7px;
-}
-.build-emblem {
-  border: 1px solid color-mix(in srgb, var(--c) 22%, var(--line));
-  background: color-mix(in srgb, var(--c) 12%, var(--surface));
-  color: var(--c);
-}
-.build-emblem svg {
-  width: 20px;
-  height: 20px;
-}
 .build-name {
   margin: 0;
   min-width: 0;
@@ -2156,11 +2128,8 @@ watch(
   flex-wrap: nowrap;
   gap: 5px;
 }
-.build-compact .build-title :deep(.cv-emblem),
-.build-compact .build-emblem {
-  --cv-emblem-size: 22px;
-  width: 27px;
-  height: 27px;
+.build-compact .build-title {
+  --emblem-size: 27px;
 }
 .build-compact .build-caption {
   margin-inline-start: 34px;

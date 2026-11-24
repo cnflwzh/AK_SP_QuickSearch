@@ -7,6 +7,30 @@ import {initSettingsDom} from './lib/settings/store.ts';
 initWindowMode();
 initSettingsDom();
 
+// 页脚来自静态 HTML。用户可在首屏就绪前点它，让首次点击和首访公告共用一次加载。
+let aboutReady: Promise<(() => void) | undefined> | undefined;
+function loadAbout() {
+  return (aboutReady ??= import('./lib/ui/about.ts')
+    .then(({initAbout}) => {
+      const {show, dispose} = initAbout(finishInitialNotice);
+      import.meta.hot?.dispose(dispose);
+      return show;
+    })
+    .catch(() => {
+      aboutReady = undefined;
+      finishInitialNotice();
+      return undefined;
+    }));
+}
+const aboutTrigger = document.querySelector('[data-about]');
+const openAbout = () => {
+  void loadAbout().then((show) => show?.());
+};
+aboutTrigger?.addEventListener('click', openAbout);
+import.meta.hot?.dispose(() =>
+  aboutTrigger?.removeEventListener('click', openAbout),
+);
+
 /** Mount content and controls first; visited-only offline caching starts after first paint. */
 const screen = document.getElementById('load-screen');
 const slow = setTimeout(() => {
@@ -25,9 +49,11 @@ try {
       const siteWorker = new URL('/sw.js', location.origin).href;
       if (
         registration &&
-        [registration.installing, registration.waiting, registration.active].some(
-          (worker) => worker?.scriptURL === siteWorker,
-        )
+        [
+          registration.installing,
+          registration.waiting,
+          registration.active,
+        ].some((worker) => worker?.scriptURL === siteWorker)
       ) {
         await registration.unregister();
       }
@@ -77,12 +103,7 @@ try {
       .then((module) => module.initializeAnalytics())
       .catch(() => {});
   }
-  import('./lib/ui/about.ts')
-    .then((module) => {
-      const dispose = module.initAbout(finishInitialNotice);
-      import.meta.hot?.dispose(dispose);
-    })
-    .catch(finishInitialNotice);
+  void loadAbout();
   import('./lib/runtime/deferred.ts')
     .then((module) => module.loadDeferredAssets())
     .catch(() => {});

@@ -51,6 +51,7 @@ watch(
       :strategy-alternates="plan.strategyAlternates"
       :layers="lineup.layers"
       :title="title || plan.name || '导入的流派'"
+      :icon="plan.icon"
       :compact="compact" />
     <details
       v-if="lineup.note"

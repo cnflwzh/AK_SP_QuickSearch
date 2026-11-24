@@ -121,11 +121,13 @@ export function packSharePayload(
   mode: TextMode,
   hasCore = false,
   extended = false,
+  hasIcon = false,
 ): string {
   if (payload.length > (extended ? MAX_EXTENDED_PAYLOAD : MAX_PAYLOAD))
     throw new Error('Share data too large');
   const compressed = deflateSync(payload, COMPRESSION);
-  const flags = mode | (hasCore ? 8 : 0) | (extended ? 16 : 0);
+  const flags =
+    mode | (hasCore ? 8 : 0) | (extended ? 16 : 0) | (hasIcon ? 32 : 0);
   return compressed.length < payload.length
     ? BASE64[flags | 4] + toBase64(compressed)
     : BASE64[flags] + toBase64(payload);
@@ -137,9 +139,10 @@ export function unpackSharePayload(token: string): {
   mode: TextMode;
   hasCore: boolean;
   extended: boolean;
+  hasIcon: boolean;
 } {
   const flags = BASE64.indexOf(token[0]);
-  if (flags < 0 || flags & ~31 || (flags & 3) === 3)
+  if (flags < 0 || (flags & 3) === 3 || (flags & 32 && !(flags & 16)))
     throw new Error('Unknown share format');
   const extended = !!(flags & 16);
   const limit = extended ? MAX_EXTENDED_PAYLOAD : MAX_PAYLOAD;
@@ -169,5 +172,6 @@ export function unpackSharePayload(token: string): {
     mode: (flags & 3) as TextMode,
     hasCore: !!(flags & 8),
     extended,
+    hasIcon: !!(flags & 32),
   };
 }

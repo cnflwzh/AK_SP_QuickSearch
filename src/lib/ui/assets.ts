@@ -6,6 +6,7 @@ import {
   LEADER,
   COVENANTS,
 } from '../../../data/index.ts';
+import type {PlanIcon} from '../plans/model.ts';
 
 const IMG = '/assets/img';
 
@@ -21,6 +22,15 @@ export const covenantIconSrc = (name: string): string =>
   COVENANTS[name]
     ? `${IMG}/covenants/${COVENANTS[name].icon ?? COVENANTS[name].id}.webp`
     : '';
+
+/** 解析经过图鉴校验的流派图标，供页面、图标库和分享图共用。 */
+export const planIconSrc = (icon: PlanIcon): string =>
+  ({
+    covenant: covenantIconSrc,
+    operator: avatarSrc,
+    strategy: portraitSrc,
+    equipment: equipIconSrc,
+  })[icon.kind](icon.name);
 
 /** 盟约行内图标 HTML（纯白透明遮罩图，配合 .cv-ic 使用当前主题色或反白文字色） */
 export const covenantIconHtml = (name: string, className = 'cv-ic'): string => {

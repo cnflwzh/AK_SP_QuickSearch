@@ -35,6 +35,7 @@ import {
   type PlanStage,
 } from '../lib/plans/index.ts';
 import {readPlanSnapshot, savePlanSnapshot} from '../lib/plans/storage.ts';
+import {effectivePlanIcon} from '../lib/plans/model.ts';
 import {guidePlanFields, isCurrentGuideSeason, matchesGuidePlan, type SklandGuide} from '../lib/plans/skland.ts';
 import {isBanned} from '../lib/recommendation/index.ts';
 import {mergePlanBackup, type PlanBackupMerge} from '../lib/plans/backup.ts';
@@ -51,6 +52,7 @@ export const plans = reactive<Plan[]>(
       p.note ||
       p.strategy ||
       p.skland ||
+      p.icon ||
       p.stages?.length ||
       Object.keys(p.layers).length ||
       p.base ||
@@ -242,6 +244,7 @@ export function copyPreset(key: string): string | undefined {
     name: source.plan.name.slice(0, 13) + ' 副本',
     updated: Date.now(),
   };
+  if (!copy.icon) copy.icon = effectivePlanIcon(source.plan);
   delete copy.base;
   return addPlan(copy);
 }

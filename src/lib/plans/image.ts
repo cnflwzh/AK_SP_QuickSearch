@@ -12,11 +12,12 @@ import {
   avatarSrc,
   covenantIconSrc,
   equipIconSrc,
+  planIconSrc,
   portraitSrc,
 } from '../ui/assets.ts';
 import {covenantStats} from './covenants.ts';
 import {planCost} from './costs.ts';
-import type {Plan} from './model.ts';
+import {effectivePlanIcon, type Plan} from './model.ts';
 import {canShareViaQr, stageRoundLabel} from './sharing.ts';
 
 const BASE_WIDTH = 720,
@@ -144,7 +145,8 @@ export async function planImage(
     return cache.get(src)!;
   };
   // 所有导出素材同时加载，同一个头像只请求一次。
-  const [images, eqImages, altImages, covImages, strategyImage] =
+  const icon = effectivePlanIcon(plan);
+  const [images, eqImages, altImages, covImages, strategyImage, emblem] =
     await Promise.all([
       Promise.all(plan.ops.map((o) => asset(avatarSrc(o.name)))),
       Promise.all(
@@ -157,6 +159,7 @@ export async function planImage(
       ),
       Promise.all(stats.map((s) => asset(covenantIconSrc(s.name)))),
       st ? asset(portraitSrc(st.name)) : Promise.resolve(null),
+      icon ? asset(planIconSrc(icon)) : Promise.resolve(null),
     ]);
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
@@ -288,10 +291,26 @@ export async function planImage(
 
   // 标题
   let y = PAD + 26;
+  if (emblem) {
+    ctx.save();
+    round(ctx, PAD, y - 23, 28, 28, 5);
+    ctx.clip();
+    ctx.fillStyle = '#243238';
+    ctx.fill();
+    const size = icon?.kind === 'covenant' ? 22 : 28;
+    const scale = Math.min(
+      size / emblem.naturalWidth,
+      size / emblem.naturalHeight,
+    );
+    const w = emblem.naturalWidth * scale,
+      h = emblem.naturalHeight * scale;
+    ctx.drawImage(emblem, PAD + (28 - w) / 2, y - 23 + (28 - h) / 2, w, h);
+    ctx.restore();
+  }
   ctx.fillStyle = INK;
   ctx.font = `700 24px ${FONT}`;
   ctx.textBaseline = 'alphabetic';
-  ctx.fillText(plan.name || '阵容', PAD, y);
+  ctx.fillText(plan.name || '阵容', PAD + (emblem ? 35 : 0), y);
   ctx.font = `13px ${FONT}`;
   ctx.fillStyle = INK3;
   ctx.textAlign = 'right';

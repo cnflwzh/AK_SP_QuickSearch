@@ -16,6 +16,30 @@ export const REPO_URL = 'https://github.com/cnflwzh/AK_SP_QuickSearch';
 
 export const PURPOSE: readonly string[] = CURRENT_SEASON.credits.purpose;
 
+/** 关于页按日期倒序展示面向玩家的功能变化。 */
+export const SITE_UPDATES = [
+  {
+    date: '2026-11-24',
+    title: '流派支持分阶段规划和自选图标',
+    items: [
+      '粘贴森空岛攻略链接即可保存阵容、查看原文快照，并手动拉取更新。',
+      '每个阶段可安排 20 名干员，流派最多推荐 5 个策略。编辑时点名称旁的图标，可以从四类游戏素材中选择。',
+    ],
+  },
+  {
+    date: '2026-11-23',
+    title: '流派切换和 Box 浏览更顺手',
+    items: [
+      '从流派页打开目录即可切换阵容。编辑 Box 时，页面会滚动到干员列表。',
+    ],
+  },
+  {
+    date: '2026-11-21',
+    title: '敌人页新增术语速查',
+    items: ['可以搜索敌人机制术语，也可以在说明中直接点开术语查看释义。'],
+  },
+] as const;
+
 export const WIKIS: readonly WikiSource[] = CURRENT_SEASON.credits.wikis;
 
 /** 当前版本的流派参考。阵容与运营结合攻略正文、实战讨论及 Wiki 的干员特质整理。 */

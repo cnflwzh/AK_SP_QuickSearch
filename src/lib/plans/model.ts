@@ -39,12 +39,50 @@ export interface PlanStage {
   note: string;
   layers: Layers;
 }
+/** 图标只引用本赛季的图鉴条目，存档和分享均不保存图片地址。 */
+export const PLAN_ICON_CATALOGS = {
+  covenant: COVENANTS,
+  operator: OPERATOR,
+  strategy: STRATEGY,
+  equipment: EQUIP,
+} as const;
+export interface PlanIcon {
+  kind: keyof typeof PLAN_ICON_CATALOGS;
+  name: string;
+}
+
+/** 从外部数据还原已知图标，缺省或已失效的条目交由界面显示默认图标。 */
+export function readPlanIcon(value: unknown): PlanIcon | undefined {
+  if (
+    !record(value) ||
+    typeof value.kind !== 'string' ||
+    !Object.hasOwn(PLAN_ICON_CATALOGS, value.kind) ||
+    typeof value.name !== 'string'
+  )
+    return;
+  const kind = value.kind as PlanIcon['kind'];
+  if (Object.hasOwn(PLAN_ICON_CATALOGS[kind], value.name))
+    return {kind, name: value.name};
+}
+
+/** 预设默认沿用同名盟约徽章，自建流派缺省时使用通用图标。 */
+export function effectivePlanIcon(
+  plan: Pick<Plan, 'base' | 'icon'>,
+): PlanIcon | undefined {
+  return (
+    plan.icon ??
+    (plan.base && Object.hasOwn(COVENANTS, plan.base)
+      ? {kind: 'covenant', name: plan.base}
+      : undefined)
+  );
+}
 /** base：改自哪个内置流派（同名内置流派由这份修改版代替）；没有 = 自建流派 */
 export interface Plan {
   /** 最近导入的森空岛原文快照，与可编辑的本局配置独立保存。 */
   skland?: SklandGuide;
   id: string;
   name: string;
+  icon?: PlanIcon;
   ops: PlanOp[];
   strategy: string;
   /** 首选以外的推荐策略，按玩家设置的优先级排列。 */
@@ -127,6 +165,7 @@ function lineupContent(lineup: Pick<Plan, 'ops' | 'note' | 'layers'>) {
 export function editablePlanKey(plan: Plan): string {
   return JSON.stringify([
     plan.name,
+    plan.icon ? [plan.icon.kind, plan.icon.name] : null,
     ...lineupContent(plan),
     plan.strategy,
     plan.strategyAlternates ?? [],

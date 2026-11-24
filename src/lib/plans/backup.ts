@@ -14,6 +14,7 @@ import {
   MAX_LAYERS,
   cleanStrategyAlternates,
   editablePlanKey,
+  readPlanIcon,
   usesLayers,
   validStageRange,
   type Plan,
@@ -24,13 +25,13 @@ import {newId} from './storage.ts';
 import {isSklandGuide, migrateLegacyGuidePlan} from './skland.ts';
 
 const BACKUP_FORMAT = 'weishu-quickref-builds';
-const BACKUP_VERSION = 2;
+type BackupVersion = 1 | 2 | 3;
 export const MAX_BACKUP_BYTES = 5 * 1024 * 1024;
 
 /** version 标识文件结构；plans 包括自建流派和用户修改过的预设。 */
 export interface PlanBackup {
   format: typeof BACKUP_FORMAT;
-  version: 1 | typeof BACKUP_VERSION;
+  version: BackupVersion;
   exportedAt: string;
   plans: Plan[];
 }
@@ -126,6 +127,8 @@ function readPlan(value: unknown, index: number): Plan {
     (value.skland !== undefined && !isSklandGuide(value.skland))
   )
     return invalid();
+  const icon = readPlanIcon(value.icon);
+  if (value.icon !== undefined && !icon) return invalid();
   let strategyAlternates: string[] | undefined;
   if (value.strategyAlternates !== undefined) {
     if (!Array.isArray(value.strategyAlternates)) return invalid();
@@ -162,6 +165,7 @@ function readPlan(value: unknown, index: number): Plan {
       : undefined;
   return migrateLegacyGuidePlan({
     id: value.id,
+    ...(icon ? {icon} : {}),
     name: value.name,
     ...readLineup(value, invalid),
     strategy: value.strategy,
@@ -176,12 +180,19 @@ function readPlan(value: unknown, index: number): Plan {
 /** 旧版最多读取 8 人与 240 码元，且会丢弃新增字段；包含这些扩展的文件须标记新版。 */
 export function needsExtendedPlanBackup(plan: Plan): boolean {
   return (
+    plan.icon !== undefined ||
     plan.ops.length > 8 ||
     plan.note.length > 240 ||
     plan.skland !== undefined ||
     plan.strategyAlternates !== undefined ||
     plan.stages !== undefined
   );
+}
+
+/** 只在需要时提高导出版本，防止旧版读取带图标的备份时静默丢弃图标。 */
+export function planBackupVersion(plans: readonly Plan[] = []): BackupVersion {
+  if (plans.some((plan) => plan.icon)) return 3;
+  return plans.some(needsExtendedPlanBackup) ? 2 : 1;
 }
 
 /** 导出 JSON，优先保留缩进；只有紧凑内容本身超过导入字节上限时才抛出调用方的提示。 */
@@ -205,7 +216,7 @@ export function serializeBackupDocument(
 export function serializePlanBackup(plans: readonly Plan[]): string {
   const backup: PlanBackup = {
     format: BACKUP_FORMAT,
-    version: plans.some(needsExtendedPlanBackup) ? BACKUP_VERSION : 1,
+    version: planBackupVersion(plans),
     exportedAt: new Date().toISOString(),
     plans: [...plans],
   };
@@ -233,7 +244,7 @@ export function parsePlanBackup(text: string): PlanBackup {
   }
   if (!isRecord(value) || value.format !== BACKUP_FORMAT)
     throw new Error('这不是卫戍速查的流派备份文件。');
-  if (value.version !== 1 && value.version !== BACKUP_VERSION)
+  if (value.version !== 1 && value.version !== 2 && value.version !== 3)
     throw new Error('此备份版本暂不支持，请更新页面后重试。');
   if (
     !Array.isArray(value.plans) ||

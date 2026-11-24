@@ -1,7 +1,7 @@
 import {normalizeOperatorBox, type OperatorBox} from '../box/model.ts';
 import {
   MAX_BACKUP_BYTES,
-  needsExtendedPlanBackup,
+  planBackupVersion,
   readBackupPlans,
   serializeBackupDocument,
 } from '../plans/backup.ts';
@@ -9,12 +9,12 @@ import type {Plan} from '../plans/model.ts';
 import {normalizeSettings, type UserSettings} from './model.ts';
 
 export const SETTINGS_BACKUP_FORMAT = 'weishu-quickref-settings';
-export const SETTINGS_BACKUP_VERSION = 2;
+export const SETTINGS_BACKUP_VERSION = 3;
 export const MAX_SETTINGS_BACKUP_BYTES = MAX_BACKUP_BYTES;
 
 export interface SettingsBackup {
   format: typeof SETTINGS_BACKUP_FORMAT;
-  version: 1 | typeof SETTINGS_BACKUP_VERSION;
+  version: 1 | 2 | typeof SETTINGS_BACKUP_VERSION;
   exportedAt: string;
   settings: UserSettings;
   plans?: Plan[];
@@ -34,7 +34,7 @@ export function serializeSettingsBackup(
   const cleanBox = box ? normalizeOperatorBox(box) : undefined;
   const backup: SettingsBackup = {
     format: SETTINGS_BACKUP_FORMAT,
-    version: plans?.some(needsExtendedPlanBackup) ? SETTINGS_BACKUP_VERSION : 1,
+    version: planBackupVersion(plans),
     exportedAt: new Date().toISOString(),
     settings: cleanSettings,
     ...(plans ? {plans: [...plans]} : {}),
@@ -66,7 +66,11 @@ export function parseSettingsBackup(text: string): SettingsBackup {
   if (value.format !== SETTINGS_BACKUP_FORMAT) {
     throw new Error('这不是卫戍速查的配置文件。');
   }
-  if (value.version !== 1 && value.version !== SETTINGS_BACKUP_VERSION) {
+  if (
+    value.version !== 1 &&
+    value.version !== 2 &&
+    value.version !== SETTINGS_BACKUP_VERSION
+  ) {
     throw new Error('此配置版本暂不支持，请更新页面后重新导出。');
   }
   if (

@@ -4,6 +4,8 @@ import {OPERATOR, STRATEGY, TIER_LABELS} from '../../../data/index.ts';
 import {avatarSrc, equipIconSrc, portraitSrc} from '../../lib/ui/assets.ts';
 import {covenantStats, planCost, type PlanOp} from '../../lib/plans/index.ts';
 import PlanCovenants from './PlanCovenants.vue';
+import type {PlanIcon} from '../../lib/plans/model.ts';
+import PlanEmblem from './PlanEmblem.vue';
 /** 只读的阵容概览：导入预览与对比共用。highlight 中的干员加框（对比时标出两边不同的人） */
 const props = withDefaults(
   defineProps<{
@@ -13,6 +15,7 @@ const props = withDefaults(
     note?: string;
     layers?: Readonly<Record<string, number>>;
     title?: string;
+    icon?: PlanIcon;
     highlight?: ReadonlySet<string> | null;
     compact?: boolean;
   }>(),
@@ -24,7 +27,10 @@ const cost = computed(() => planCost(props.ops));
 <template>
   <div class="pls">
     <div v-if="title" class="pls-t">
-      <b>{{ title }}</b>
+      <b class="summary-title">
+        <PlanEmblem v-if="icon" :icon="icon" />
+        {{ title }}
+      </b>
       <span>
         {{ ops.length }} 人 · {{ stats.filter((s) => s.active).length }} 盟约
       </span>
@@ -103,3 +109,12 @@ const cost = computed(() => planCost(props.ops));
     </div>
   </div>
 </template>
+
+<style scoped>
+.summary-title {
+  --emblem-size: 23px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+</style>

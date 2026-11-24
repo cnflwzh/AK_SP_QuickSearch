@@ -81,6 +81,24 @@ test('full roster preserves order, elite and core flags, two equipment and three
   assert.deepEqual(plan, original, 'encoding must not mutate the saved plan');
 });
 
+test('custom icons survive sharing with their category and staged text boundaries', () => {
+  for (const [kind, name] of [
+    ['covenant', ALL_COVENANTS[0]],
+    ['operator', OPERATORS[0].name],
+    ['strategy', STRATEGIES[0].name],
+    ['equipment', EQUIPMENT[0].name],
+  ]) {
+    const plan = {
+      ...empty(), name: '图标😀', icon: {kind, name}, note: '终盘',
+      stages: [{from: 1, to: 3, ops: [], layers: {}, note: '阶段一'}],
+    };
+    const code = encodePlan(plan);
+    assert.deepEqual(decodePlan(code)?.plan, plan);
+    assert.deepEqual(decodePlan('#p=' + code.slice(2))?.plan, plan);
+  }
+  assert.throws(() => encodePlan({...empty(), icon: {kind: 'equipment', name: '__proto__'}}));
+});
+
 test('published eight-member, 240-unit share code remains byte-for-byte stable', () => {
   // 原协议在扩容前生成的码，覆盖 core、重复装备、备选和 UTF-16 说明边界。
   const code =

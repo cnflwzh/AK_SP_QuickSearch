@@ -6,6 +6,7 @@ import {
   cleanOps,
   cleanStages,
   cleanStrategyAlternates,
+  readPlanIcon,
   type Plan,
 } from './model.ts';
 import {isSklandGuide, migrateLegacyGuidePlan} from './skland.ts';
@@ -54,7 +55,9 @@ function clean(value: unknown): Plan | null {
     Object.hasOwn(STRATEGY, value.strategy)
       ? value.strategy
       : '';
+  const icon = readPlanIcon(value.icon);
   return migrateLegacyGuidePlan({
+    ...(icon ? {icon} : {}),
     id: typeof value.id === 'string' && value.id ? value.id : newId(),
     name:
       typeof value.name === 'string' && value.name

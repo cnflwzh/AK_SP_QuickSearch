@@ -46,7 +46,7 @@ import {
   type Plan,
   type PlanOp,
 } from '../../lib/plans/index.ts';
-import {MAX_STRATEGIES, type PlanStage} from '../../lib/plans/model.ts';
+import {effectivePlanIcon, MAX_STRATEGIES, type PlanIcon, type PlanStage} from '../../lib/plans/model.ts';
 import {suggestions, alternatesFor} from '../../lib/recommendation/index.ts';
 import {
   current,
@@ -75,6 +75,7 @@ import PlanCovenants from '../components/PlanCovenants.vue';
 import PlanSummary from '../components/PlanSummary.vue';
 import PlanSharePanel from '../components/PlanSharePanel.vue';
 import PlannerSheet from '../components/PlannerSheet.vue';
+import PlanIconPicker from '../components/PlanIconPicker.vue';
 import PlannerStages from '../planner/PlannerStages.vue';
 import {useCompactPlanner} from '../planner/useCompactPlanner.ts';
 import '../workbench.css';
@@ -104,6 +105,13 @@ const ops = computed(() => formation.value.ops);
 const inPlan = computed(() => new Set(ops.value.map((op) => op.name)));
 const stats = computed(() => covenantStats(ops.value, formation.value.layers));
 const canRun = computed(() => hasPlanOperators(plan.value));
+
+function setIcon(icon?: PlanIcon): void {
+  // 再次选中预设自带的盟约，与恢复默认等效，不留下仅图标不同的修改版。
+  if (!icon || (icon.kind === 'covenant' && icon.name === plan.value.base)) delete plan.value.icon;
+  else plan.value.icon = icon;
+  touch();
+}
 
 function commitStages(next: PlanStage[], selected: string): void {
   const oldKey = editingStageKey.value;
@@ -730,6 +738,7 @@ const shared = computed(() => plan.value.ops.length - onlyMine.value.size);
       @back="backToSlot" />
     <!-- 方案栏 -->
     <div id="build-editor-heading" class="pl-bar" role="group" aria-label="流派编辑器" tabindex="-1">
+      <PlanIconPicker :key="editingId" :model-value="plan.icon" :base="plan.base" @update:model-value="setIcon" />
       <input
         v-model="plan.name"
         class="pl-name"
@@ -796,6 +805,7 @@ const shared = computed(() => plan.value.ops.length - onlyMine.value.size);
             :note="plan.note"
             :layers="plan.layers"
             :title="plan.name"
+            :icon="effectivePlanIcon(plan)"
             :highlight="onlyMine"
             compact />
           <PlanSummary
@@ -805,6 +815,7 @@ const shared = computed(() => plan.value.ops.length - onlyMine.value.size);
             :note="otherPlan.note"
             :layers="otherPlan.layers"
             :title="otherPlan.name"
+            :icon="effectivePlanIcon(otherPlan)"
             :highlight="onlyOther"
             compact />
         </div>

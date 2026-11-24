@@ -31,10 +31,12 @@ import {
   cleanLayers,
   cleanOps,
   cleanStrategyAlternates,
+  readPlanIcon,
   validStageRange,
   usesLayers,
   type Layers,
   type Plan,
+  type PlanIcon,
   type PlanOp,
   type PlanStage,
 } from './model.ts';
@@ -42,12 +44,13 @@ import {
  * 紧凑格式：WS + 一字符模式 + Base64URL 位流；链接省略 WS。
  * 模式低两位选择 UTF-8 / UTF-16 / 固定 Huffman，bit2 表示 raw DEFLATE，bit3 表示包含核心标记。
  * 数值按实际范围打包；层数根据当前最大值选择位宽，盟约按稀疏列表或位图存储。
- * bit4 标记扩展格式，允许分段阵容、策略备选及长说明。旧格式的位宽和编号保持固定。
+ * bit4 标记扩展格式，允许分段阵容、策略备选及长说明。bit5 标记自选图标。
  */
 export const CODE_PREFIX = 'WS';
 export type Shared = Pick<
   Plan,
   | 'name'
+  | 'icon'
   | 'ops'
   | 'strategy'
   | 'strategyAlternates'
@@ -75,6 +78,8 @@ const COV_NO = new Map(LAYER_NAMES.map((c, i) => [c, i]));
 
 const LEGACY_OPS = 8;
 const LEGACY_NOTE = 240;
+// 固定类别编号和条目名称一起编码，图鉴增删、重排时仍能识别原图标。
+const ICON_KINDS = ['covenant', 'operator', 'strategy', 'equipment'] as const;
 
 function writeSlot(writer: BitWriter, slot: PlanOp, hasCore: boolean): void {
   writer.write(OP_NO.get(slot.name)!, 8);
@@ -189,6 +194,9 @@ const referenceBits = (count: number): number =>
  * 完整说明按原 UTF-16 码元保存，超出领域上限时报错。
  */
 export function encodePlan(plan: Shared): string {
+  const icon = readPlanIcon(plan.icon);
+  if (plan.icon && (!icon || icon.name.length > 63))
+    throw new Error('Invalid plan icon');
   const stages = plan.stages ?? [];
   const alternatives = cleanStrategyAlternates(
     plan.strategy,
@@ -209,6 +217,7 @@ export function encodePlan(plan: Shared): string {
     throw new Error('Invalid strategy alternates');
 
   const extended = !!(
+    icon ||
     stages.length ||
     alternatives.length ||
     plan.ops.length > LEGACY_OPS ||
@@ -216,12 +225,17 @@ export function encodePlan(plan: Shared): string {
   );
   const rosters = sections.map((s) => cleanOps(s.ops));
   const hasCore = rosters.some((ops) => ops.some((slot) => slot.core));
-  const text = plan.name + sections.map((s) => s.note).join('');
+  const text =
+    (icon?.name ?? '') + plan.name + sections.map((s) => s.note).join('');
   let best = '';
   // 大型合集用 UTF-16 加 DEFLATE，避免在手机上反复压缩整份长文。
   const modes = text.length > 8192 ? ([1] as const) : ([0, 1, 2] as const);
   for (const mode of modes) {
     const writer = new BitWriter();
+    if (icon) {
+      writer.write(ICON_KINDS.indexOf(icon.kind), 2);
+      writer.write(icon.name.length, 6);
+    }
     if (extended) {
       writer.write(plan.name.length, 5);
       writer.write(strategyNumber(plan.strategy), 6);
@@ -263,7 +277,13 @@ export function encodePlan(plan: Shared): string {
     const payload = writer.finish();
     if (payload.length > (extended ? MAX_EXTENDED_PAYLOAD : MAX_PAYLOAD))
       continue;
-    const candidate = packSharePayload(payload, mode, hasCore, extended);
+    const candidate = packSharePayload(
+      payload,
+      mode,
+      hasCore,
+      extended,
+      !!icon,
+    );
     if (!best || candidate.length < best.length) best = candidate;
   }
   if (!best) throw new Error('Share data too large');
@@ -285,7 +305,10 @@ export function decodePlan(input: string): Decoded | null {
     source.match(/(?:^|[^A-Za-z0-9_-])WS([A-Za-z0-9_-]+)/)?.[1];
   if (!token) return null;
   try {
-    const {reader, mode, hasCore, extended} = unpackSharePayload(token);
+    const {reader, mode, hasCore, extended, hasIcon} =
+      unpackSharePayload(token);
+    const iconKind = hasIcon ? ICON_KINDS[reader.read(2)] : undefined;
+    const iconLength = hasIcon ? reader.read(6) : 0;
     const legacyCount = extended ? 0 : reader.read(4);
     const extendedNameLength = extended ? reader.read(5) : 0;
     const strategy = readStrategy(reader);
@@ -338,10 +361,14 @@ export function decodePlan(input: string): Decoded | null {
     }
     const text = readShareText(
       reader,
-      noteLengths.reduce((n, length) => n + length, nameLength),
+      noteLengths.reduce((n, length) => n + length, nameLength + iconLength),
       mode,
     );
-    let offset = nameLength;
+    const icon: PlanIcon | undefined = hasIcon
+      ? readPlanIcon({kind: iconKind, name: text.slice(0, iconLength)})
+      : undefined;
+    if (hasIcon && !icon) return null;
+    let offset = iconLength + nameLength;
     sections.forEach((section, i) => {
       section.note = text.slice(offset, offset + noteLengths[i]);
       offset += noteLengths[i];
@@ -349,7 +376,8 @@ export function decodePlan(input: string): Decoded | null {
     const {ops, layers, note} = sections[0];
     return {
       plan: {
-        name: text.slice(0, nameLength),
+        name: text.slice(iconLength, iconLength + nameLength),
+        ...(icon ? {icon} : {}),
         ops,
         layers,
         note,

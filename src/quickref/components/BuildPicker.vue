@@ -9,7 +9,8 @@ import {
 } from 'vue';
 import {prefersReducedMotion} from '../../lib/ui/dom.ts';
 import {nameScore, normalize} from '../../lib/ui/match.ts';
-import CovenantIcon from './CovenantIcon.vue';
+import type {PlanIcon} from '../../lib/plans/model.ts';
+import PlanEmblem from './PlanEmblem.vue';
 import EmptyState from './EmptyState.vue';
 import SearchInput from './SearchInput.vue';
 import SelectInput from './SelectInput.vue';
@@ -20,6 +21,7 @@ interface BuildChoice {
   key: string;
   name: string;
   accent: string;
+  icon?: PlanIcon;
   modified?: boolean;
   badge?: string;
   badgeTitle?: string;
@@ -480,9 +482,7 @@ function onTab(event: KeyboardEvent): void {
                   @click="
                     leave(() => emit('select', item.key), $event.currentTarget)
                   ">
-                  <span class="picker-emblem" aria-hidden="true">
-                    <CovenantIcon :name="item.key" />
-                  </span>
+                  <PlanEmblem class="picker-emblem" :icon="item.icon" />
                   <span class="picker-info">
                     <span class="picker-name">{{ item.name }}</span>
                     <span v-if="item.key === runKey" class="picker-run">
@@ -728,21 +728,8 @@ function onTab(event: KeyboardEvent): void {
   text-align: left;
 }
 .picker-emblem {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  flex: none;
-  border-radius: 6px;
-  color: var(--build-color);
-  background: color-mix(in srgb, var(--build-color) 12%, var(--surface));
-}
-.picker-emblem:empty::before {
-  content: '';
-  width: 7px;
-  height: 7px;
-  border-radius: 2px;
-  background: currentColor;
+  --emblem-size: 24px;
+  --c: var(--build-color);
 }
 .picker-info {
   display: flex;

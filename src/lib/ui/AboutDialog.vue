@@ -2,6 +2,7 @@
 import {ref} from 'vue';
 import {
   PURPOSE,
+  SITE_UPDATES,
   WIKIS,
   UPLOADERS,
   FURTHER_READING,
@@ -52,60 +53,70 @@ defineExpose({show});
       <section>
         <p v-for="p in PURPOSE" :key="p">{{ p }}</p>
       </section>
-      <section>
-        <h3>
-          <i>01</i>
-          数据来源
-        </h3>
-        <ul class="ab-list">
-          <li v-for="w in WIKIS" :key="w.url">
-            <div class="ab-src">
-              <a :href="w.url" target="_blank" rel="noopener">
-                <b>{{ w.name }}</b>
-                {{ w.page }}
-              </a>
-            </div>
-            <div class="ab-use">{{ w.used }}</div>
+      <details class="ab-fold" open>
+        <summary>更新说明</summary>
+        <ol class="ab-timeline">
+          <li v-for="update in SITE_UPDATES" :key="update.date">
+            <time :datetime="update.date">{{ update.date }}</time>
+            <strong>{{ update.title }}</strong>
+            <p v-for="item in update.items" :key="item">{{ item }}</p>
           </li>
-        </ul>
-      </section>
-      <section
-        v-for="(group, index) in [UPLOADERS, FURTHER_READING]"
-        :key="index">
-        <h3>
-          <i>{{ index === 0 ? '02' : '03' }}</i>
-          {{ index === 0 ? '流派参考 · B 站' : '延伸阅读' }}
-        </h3>
-        <p v-if="index === 0" class="ab-note">
-          流派页的阵容由本项目根据上方 Wiki
-          的盟约与干员数据整理；核心盟约、开局策略与打法关键词参考了以下 UP
-          主的攻略。完整运营思路请看原视频。
-        </p>
-        <div v-for="u in group" :key="u.uid" class="ab-up">
-          <div class="ab-uh">
-            <b>{{ u.name }}</b>
-            <a :href="spaceUrl(u.uid)" target="_blank" rel="noopener">
-              UID {{ u.uid }}
-            </a>
-          </div>
-          <ul>
-            <li v-for="v in u.videos" :key="v.bv">
+        </ol>
+      </details>
+      <details class="ab-fold ab-references">
+        <summary>数据来源、流派参考与延伸阅读</summary>
+        <section>
+          <h3>
+            <i>01</i>
+            数据来源
+          </h3>
+          <ul class="ab-list">
+            <li v-for="w in WIKIS" :key="w.url">
               <div class="ab-src">
-                <a :href="videoUrl(v.bv)" target="_blank" rel="noopener">
-                  {{ v.title }}
+                <a :href="w.url" target="_blank" rel="noopener">
+                  <b>{{ w.name }}</b>
+                  {{ w.page }}
                 </a>
-                <span class="ab-bv">{{ v.bv }}</span>
               </div>
-              <div class="ab-use">{{ v.used }}</div>
+              <div class="ab-use">{{ w.used }}</div>
             </li>
           </ul>
-        </div>
-      </section>
+        </section>
+        <section
+          v-for="(group, index) in [UPLOADERS, FURTHER_READING]"
+          :key="index">
+          <h3>
+            <i>{{ index === 0 ? '02' : '03' }}</i>
+            {{ index === 0 ? '流派参考 · B 站' : '延伸阅读' }}
+          </h3>
+          <p v-if="index === 0" class="ab-note">
+            流派页的阵容由本项目根据上方 Wiki
+            的盟约与干员数据整理；核心盟约、开局策略与打法关键词参考了以下 UP
+            主的攻略。完整运营思路请看原视频。
+          </p>
+          <div v-for="u in group" :key="u.uid" class="ab-up">
+            <div class="ab-uh">
+              <b>{{ u.name }}</b>
+              <a :href="spaceUrl(u.uid)" target="_blank" rel="noopener">
+                UID {{ u.uid }}
+              </a>
+            </div>
+            <ul>
+              <li v-for="v in u.videos" :key="v.bv">
+                <div class="ab-src">
+                  <a :href="videoUrl(v.bv)" target="_blank" rel="noopener">
+                    {{ v.title }}
+                  </a>
+                  <span class="ab-bv">{{ v.bv }}</span>
+                </div>
+                <div class="ab-use">{{ v.used }}</div>
+              </li>
+            </ul>
+          </div>
+        </section>
+      </details>
       <section>
-        <h3>
-          <i>04</i>
-          许可
-        </h3>
+        <h3>许可</h3>
         <dl class="ab-lic">
           <template v-for="[what, license] in LICENSES" :key="what">
             <dt>{{ what }}</dt>

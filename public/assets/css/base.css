@@ -968,9 +968,73 @@ dialog.about::backdrop {
   color: var(--ink2);
 }
 
-.ab-b section:first-child p:first-child {
+.ab-b > section:first-child p:first-child {
   color: var(--ink);
   font-weight: 500;
+}
+
+.ab-fold {
+  margin: 0 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  overflow: clip;
+}
+.ab-fold > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 42px;
+  padding: 6px 12px;
+  background: var(--surface2);
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+.ab-fold > summary::-webkit-details-marker { display: none; }
+.ab-fold > summary::after {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-right: 4px;
+  border: solid var(--ink2);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+  transition: transform 160ms ease;
+}
+.ab-fold[open] > summary::after { transform: rotate(225deg); }
+.ab-fold > summary:focus-visible { outline: 2px solid var(--teal); outline-offset: -3px; }
+.ab-fold[open] > summary { border-bottom: 1px solid var(--line); }
+.ab-references > section { margin-inline: 12px; }
+.ab-timeline { list-style: none; margin: 0; padding: 14px 14px 14px 20px; }
+.ab-timeline > li {
+  position: relative;
+  padding: 0 0 14px 16px;
+  border-inline-start: 1px solid var(--line2);
+}
+.ab-timeline > li:last-child { padding-bottom: 0; border-color: transparent; }
+.ab-timeline > li::before {
+  content: '';
+  position: absolute;
+  inset: 5px auto auto -4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--line2);
+}
+.ab-timeline > li:first-child::before { background: var(--teal); }
+.ab-timeline time {
+  display: block;
+  color: var(--ink2);
+  font: 600 12px/1.5 var(--fn);
+  font-variant-numeric: tabular-nums;
+}
+.ab-timeline strong { display: block; margin: 1px 0 3px; font-size: 14px; }
+.ab-timeline p:last-child { margin-bottom: 0; }
+:root[data-motion='reduce'] .ab-fold > summary::after { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .ab-fold > summary::after { transition: none; }
 }
 
 .ab-b h3 {
