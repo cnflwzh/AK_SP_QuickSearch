@@ -624,8 +624,10 @@ onUnmounted(() => {
             </template>
             <template v-else>导入 Box</template>
           </RouterLink>
-          <a v-if="navigationLayout.showGuide && (!wikiPanel.isOpen.value || navigationWidth > activeBreakpoints.wideGuideWidth)"
-            class="guide-mini" href="/guide.html">图解教程 ▸</a>
+          <template v-if="navigationLayout.showGuide && (!wikiPanel.isOpen.value || navigationWidth > activeBreakpoints.wideGuideWidth)">
+            <a class="guide-mini" href="/guide.html">图解教程 ▸</a>
+            <a class="guide-mini diff-mini" href="/diff.html">更新对比 ▸</a>
+          </template>
         </div>
       </header>
       <div

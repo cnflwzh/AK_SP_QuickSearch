@@ -12,7 +12,7 @@
 /box/ / 200
 /settings / 200
 /index / 200
-# /guide is served automatically from guide.html by Cloudflare's HTML handling.
+# Cloudflare serves /guide and /diff from their respective HTML entries.
 /overview/* / 200
 /builds/* / 200
 /covenants/* / 200

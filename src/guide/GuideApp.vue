@@ -274,6 +274,7 @@ onBeforeUnmount(() => {
           打开局内速查
           <Markup :html="iconSvg('link', 'g-ic sm')" />
         </a>
+        <a href="/diff.html" class="btn hero-cta">赛季更新对比</a>
       </div>
     </div>
 

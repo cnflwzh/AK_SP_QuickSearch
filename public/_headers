@@ -14,6 +14,8 @@
   Cache-Control: no-cache
 /guide
   Cache-Control: no-cache
+/diff
+  Cache-Control: no-cache
 /js/*
   Cache-Control: no-cache
 /data/*

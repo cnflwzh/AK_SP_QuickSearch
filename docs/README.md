@@ -9,7 +9,7 @@
 | 文档 | 内容范围 |
 |---|---|
 | **[开发总览（本页）](README.md)** | 技术栈、目录结构、开发脚本、Git 钩子、CI 与部署方式 |
-| **[系统架构与核心模块](architecture.md)** | 双入口构建、路由与实体短码、状态/本地存储、领域模块与单元测试体系 |
+| **[系统架构与核心模块](architecture.md)** | 多入口构建、路由与实体短码、状态/本地存储、领域模块与单元测试体系 |
 | **[公共 UI 组件与交互规范](ui-components.md)** | 基础组件库 API 与用法、四级导航层级、安卓横屏小窗适配、克制动效与 Vue CSS 避坑 |
 | **[赛季数据维护指南](data-guide.md)** | 多赛季架构、`data/seasons/s1/*` 字段约定、自选/替补数据、图片资源与拼音表生成 |
 
@@ -30,7 +30,8 @@
 ```text
 ├── index.html                    速查页入口
 ├── guide.html                    图解教程页入口
-├── vite.config.ts                双页面构建、Commit 版本号注入与 SW 生成
+├── diff.html                     赛季更新对比页入口
+├── vite.config.ts                多页面构建、Commit 版本号注入与 SW 生成
 ├── tsconfig.json                 TypeScript 编译配置
 ├── eslint.config.js              ESLint 扁平配置（含 vue/html-closing-bracket-newline）
 ├── package.json                  脚本与锁定依赖
@@ -85,6 +86,7 @@
 │   │   ├── numbers/              小工具子面板与专用样式
 │   │   ├── advisor/              实验性局内抓取顾问与选择弹层
 │   │   └── planner/              流派规划器小屏适配逻辑
+│   ├── diff/                     赛季对比页与图表
 │   └── guide/                    图解教程页（guide.html）
 │       ├── main.ts               入口挂载
 │       ├── GuideApp.vue          章节导航与按需懒加载

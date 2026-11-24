@@ -1,5 +1,5 @@
 /**
- * 生成 data/pinyin.ts：为赛季实体以及通用攻略术语和别名生成搜索拼音。
+ * 为当前赛季、攻略术语及别名生成 data/pinyin.ts，为比较页单独生成缺少的读音。
  *
  *   npm install
  *   npm run pinyin
@@ -11,6 +11,7 @@
 import {writeFileSync} from 'node:fs';
 import {pinyin} from 'pinyin-pro';
 import {format, resolveConfig} from 'prettier';
+import {COMPARISON_VERSIONS} from '../data/comparison/index.ts';
 import {ENEMY_TERM_ALIASES, GAME_TERMS} from '../data/gameTerms.ts';
 import {
   OPERATORS,
@@ -74,8 +75,8 @@ const names = [
 const HAN = /\p{Script=Han}/u;
 
 /** 一个名称的全部读法，每种读法是空格分隔的音节串 */
-function readings(name) {
-  if (Object.hasOwn(PINYIN_OVERRIDES, name)) return PINYIN_OVERRIDES[name];
+function readings(name, overrides) {
+  if (Object.hasOwn(overrides, name)) return overrides[name];
   const parts = pinyin(name, {
     toneType: 'none',
     type: 'array',
@@ -89,31 +90,65 @@ function readings(name) {
 
 const entries = names
   .filter((name) => HAN.test(name))
-  .map((name) => [name, readings(name)]);
+  .map((name) => [name, readings(name, PINYIN_OVERRIDES)]);
 
-const body = entries
-  .map(
-    ([name, list]) =>
-      `  ${JSON.stringify(name)}: ${JSON.stringify(list.length === 1 ? list[0] : list)},`,
-  )
-  .join('\n');
+const currentReadings = new Map(entries);
+const extraReadings = new Map();
+for (const {season} of COMPARISON_VERSIONS) {
+  const entityNames = new Set([
+    ...Object.keys(season.covenants),
+    ...season.operators.map((op) => op.name),
+    ...season.strategies.map((strategy) => strategy.name),
+    ...season.equipment.map((item) => item.name),
+    ...season.leaders.map((leader) => leader.name),
+    ...season.rules.bounties.map((bounty) => bounty.name),
+  ]);
+  for (const name of entityNames) {
+    if (!HAN.test(name)) continue;
+    // 同名实体也要逐赛季读取，旧赛季的多音字覆盖可能与当前词表不同。
+    const missing = readings(name, season.meta.pinyinOverrides).filter(
+      (reading) => !currentReadings.get(name)?.includes(reading),
+    );
+    if (!missing.length) continue;
+    const variants = extraReadings.get(name) ?? new Set();
+    for (const reading of missing) variants.add(reading);
+    extraReadings.set(name, variants);
+  }
+}
 
-const destination = new URL('../data/pinyin.ts', import.meta.url);
-const source = `import type { PinyinIndex } from './types.ts';
+async function writeIndex(path, typePath, exportName, entries) {
+  const body = entries
+    .map(
+      ([name, list]) =>
+        `  ${JSON.stringify(name)}: ${JSON.stringify(list.length === 1 ? list[0] : list)},`,
+    )
+    .join('\n');
+
+  const destination = new URL(`../${path}`, import.meta.url);
+  const source = `import type { PinyinIndex } from '${typePath}';
 
 /**
  * 名称拼音，音节以空格分隔；有多种读法时为数组，第一种为标准读法。
  * 由 scripts/gen_pinyin.mjs 生成，请勿手改。
  */
-export const PINYIN: PinyinIndex = {
+export const ${exportName}: PinyinIndex = {
 ${body}
 };
 `;
-writeFileSync(
-  destination,
-  await format(source, {
-    ...(await resolveConfig(destination)),
-    parser: 'typescript',
-  }),
+  writeFileSync(
+    destination,
+    await format(source, {
+      ...(await resolveConfig(destination)),
+      parser: 'typescript',
+    }),
+  );
+  console.log(`${path}  ${entries.length} names`);
+}
+
+await writeIndex('data/pinyin.ts', './types.ts', 'PINYIN', entries);
+await writeIndex(
+  'data/comparison/pinyin.ts',
+  '../types.ts',
+  'COMPARISON_PINYIN',
+  [...extraReadings].map(([name, variants]) => [name, [...variants]]),
 );
-console.log(`data/pinyin.ts  ${entries.length} names`);

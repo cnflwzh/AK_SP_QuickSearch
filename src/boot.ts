@@ -64,6 +64,10 @@ try {
   if (document.body.dataset.page === 'guide') {
     const {mountGuide} = await import('./guide/main.ts');
     await mountGuide();
+  } else if (document.body.dataset.page === 'diff') {
+    const {mountDiff} = await import('./diff/main.ts');
+    const unmount = mountDiff();
+    import.meta.hot?.dispose(unmount);
   } else {
     const {mountQuickref} = await import('./quickref/main.ts');
     const unmount = await mountQuickref();
