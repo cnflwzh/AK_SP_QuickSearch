@@ -21,6 +21,7 @@ import {
   writeShareText,
 } from './shareCodec.ts';
 import {covenantStats} from './covenants.ts';
+import {planShareSource} from './shareInput.ts';
 import {equipNotes} from './costs.ts';
 import {
   MAX_LAYERS,
@@ -297,9 +298,7 @@ export interface Decoded {
 /** 接受分享码、链接、片段或完整攻略文案，损坏和超限输入返回 null。 */
 export function decodePlan(input: string): Decoded | null {
   if (input.length > MAX_EXTENDED_PAYLOAD * 4) return null;
-  // 文案的最后一行是本站生成的链接/分享码，说明本身也可能引用其他方案。
-  const tail = input.slice(input.trimEnd().lastIndexOf('\n') + 1);
-  const source = /^(导入链接|分享码)：/.test(tail) ? tail : input;
+  const source = planShareSource(input);
   const token =
     source.match(/#p=([A-Za-z0-9_-]+)/)?.[1] ??
     source.match(/(?:^|[^A-Za-z0-9_-])WS([A-Za-z0-9_-]+)/)?.[1];
@@ -392,8 +391,8 @@ export function decodePlan(input: string): Decoded | null {
 }
 
 /** 链接的 #p= 已标明用途，省去只用于识别独立分享码的 WS 前缀。 */
-export const shareUrl = (code: string): string =>
-  `${location.origin}/#p=${code.slice(CODE_PREFIX.length)}`;
+export const shareUrl = (code: string, origin = location.origin): string =>
+  `${origin}/#p=${code.slice(CODE_PREFIX.length)}`;
 
 /** 当前二维码使用 Byte 模式和 M 级纠错，40 版容量为 2331 个字节。 */
 export function canShareViaQr(link: string): boolean {

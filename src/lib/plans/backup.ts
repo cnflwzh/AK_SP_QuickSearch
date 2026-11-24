@@ -23,7 +23,7 @@ import {
   type PlanStage,
 } from './model.ts';
 import {newId} from './storage.ts';
-import {isSklandGuide, migrateLegacyGuidePlan} from './skland.ts';
+import {isSklandGuide, migrateLegacyGuidePlan, sklandUrl} from './skland.ts';
 
 const BACKUP_FORMAT = 'weishu-quickref-builds';
 type BackupVersion = 1 | 2 | 3;
@@ -221,13 +221,20 @@ export function serializeBackupDocument(
   throw new Error(oversizeMessage);
 }
 
+/** 为每条有来源的流派附上可直接访问的原文链接。导入仍以快照的攻略编号为准。 */
+export function writeBackupPlans(plans: readonly Plan[]) {
+  return plans.map((plan) =>
+    plan.skland ? {sklandUrl: sklandUrl(plan.skland.id), ...plan} : plan,
+  );
+}
+
 /** 将当前内存中的流派序列化为 JSON；超过文件大小限制时抛出可展示的错误。 */
 export function serializePlanBackup(plans: readonly Plan[]): string {
   const backup: PlanBackup = {
     format: BACKUP_FORMAT,
     version: planBackupVersion(plans),
     exportedAt: new Date().toISOString(),
-    plans: [...plans],
+    plans: writeBackupPlans(plans),
   };
   return serializeBackupDocument(
     backup,

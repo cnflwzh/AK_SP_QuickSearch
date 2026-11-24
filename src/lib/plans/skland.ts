@@ -307,7 +307,7 @@ export function guidePlanFields(
 
 /** 判断本地所有可编辑字段是否仍等于保存时的原文映射，供手动更新时决定是否另存。 */
 export function matchesGuidePlan(plan: Plan, guide: SklandGuide): boolean {
-  return samePlan(plan, {...plan, ...guidePlanFields(guide)});
+  return samePlan(plan, {...plan, icon: undefined, ...guidePlanFields(guide)});
 }
 
 /** 从旧导入快照恢复当时未进入规划器的内容，保留玩家已改动的字段及原存档 ID。 */

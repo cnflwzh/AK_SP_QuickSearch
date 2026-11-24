@@ -136,6 +136,7 @@ export function packSharePayload(
 /** 按版本限制载荷；多留一字节识别被输出缓冲区截断的解压结果。 */
 export function unpackSharePayload(token: string): {
   reader: BitReader;
+  payload: Uint8Array;
   mode: TextMode;
   hasCore: boolean;
   extended: boolean;
@@ -168,6 +169,7 @@ export function unpackSharePayload(token: string): {
   if (flags & 4 && toBase64(deflateSync(payload, COMPRESSION)) !== body)
     throw new Error('Noncanonical compressed data');
   return {
+    payload,
     reader: new BitReader(payload),
     mode: (flags & 3) as TextMode,
     hasCore: !!(flags & 8),

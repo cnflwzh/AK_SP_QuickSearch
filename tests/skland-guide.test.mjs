@@ -1,8 +1,27 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {OPERATORS, SEASON_META, STRATEGY} from '../data/index.ts';
+import {
+  COVENANTS,
+  EQUIPMENT,
+  OPERATORS,
+  SEASON_META,
+  STRATEGY,
+} from '../data/index.ts';
+import {
+  applyGuidePatch,
+  planShareLinks,
+  readGuideReference,
+} from '../src/lib/plans/sklandShare.ts';
+import {
+  canShareViaQr,
+  decodePlan,
+  formatPlanShareText,
+} from '../src/lib/plans/sharing.ts';
+import {samePlan, usesLayers} from '../src/lib/plans/model.ts';
 import {blankPlan, loadPlans} from '../src/lib/plans/storage.ts';
 import {parsePlanBackup, serializePlanBackup} from '../src/lib/plans/backup.ts';
+import {serializeSettingsBackup} from '../src/lib/settings/backup.ts';
+import {DEFAULT_SETTINGS} from '../src/lib/settings/model.ts';
 import {
   guidePlanFields,
   matchesGuidePlan,
@@ -98,6 +117,83 @@ test('分享文案保留长编号，仅识别官方攻略详情', () => {
   assert.throws(() => parseSklandResponse(payload, '1'));
 });
 
+test('原样转发只带攻略编号，二维码能直接导入，文案中的其他链接不抢占末行目标', () => {
+  const guide = parseSklandResponse(payload, id);
+  const plan = {...blankPlan(), ...guidePlanFields(guide), skland: guide};
+  const origin = 'https://example.org';
+  const {kind, link, qrLink, code} = planShareLinks(plan, origin);
+  assert.equal(kind, 'original');
+  assert.equal(link, sklandUrl(id));
+  assert.equal(qrLink, origin + '/#g=' + id);
+  assert.equal(readGuideReference(qrLink).id, id);
+  assert.equal(readGuideReference(id).id, id);
+  assert.equal(
+    readGuideReference(sklandUrl('42') + '\n导入链接：' + link).id,
+    id,
+  );
+  assert.ok(samePlan(plan, decodePlan(code).plan));
+  for (const suffix of ['.', '.Q', '.Aaa', '.Qabc!', '.Qabc.extra'])
+    assert.equal(readGuideReference(qrLink + suffix), null);
+  const nativePlan = {...plan, skland: undefined};
+  const native = planShareLinks(nativePlan, origin);
+  assert.equal(native.kind, 'full');
+  assert.ok(samePlan(nativePlan, decodePlan(native.link).plan));
+});
+
+test('差异还原全部可编辑字段，保留显式清空；二次转发稳定并拒绝错版和损坏的链接', () => {
+  const guide = parseSklandResponse(payload, id);
+  const fields = guidePlanFields(guide);
+  const plan = {...blankPlan(), ...fields, skland: guide};
+  const original = structuredClone(plan);
+  plan.icon = {kind: 'operator', name: roster[0].name};
+  assert.equal(matchesGuidePlan(plan, guide), false);
+  plan.name = '我的修改';
+  plan.ops.reverse();
+  plan.ops[0].core = true;
+  plan.ops[0].elite = false;
+  plan.ops[0].eq = [EQUIPMENT[0].name];
+  plan.ops[0].alt = [roster.at(-1).name];
+  plan.layers[Object.keys(COVENANTS).find(usesLayers)] = 15;
+  plan.strategy = strategyNames[4];
+  plan.strategyAlternates = [];
+  plan.note = '';
+  plan.stages[0].to = 5;
+  plan.stages[0].note = plan.stages[0].note.slice(0, -1) + '😀';
+  plan.stages[0].ops.splice(2, 1);
+  plan.stages.push({from: 6, to: 15, note: '换人', ops: [], layers: {}});
+  for (const edited of [
+    plan,
+    {...plan, stages: [], ops: [], strategy: '', icon: undefined},
+  ]) {
+    const share = planShareLinks(edited, 'https://example.org');
+    assert.equal(share.kind, 'delta');
+    assert.ok(canShareViaQr(share.qrLink));
+    const ref = readGuideReference(formatPlanShareText(edited, share.link));
+    assert.equal(ref.id, id);
+    const restored = {
+      ...blankPlan(),
+      ...applyGuidePatch(guide, ref.patch),
+      skland: guide,
+    };
+    assert.ok(samePlan(edited, restored));
+    assert.throws(
+      () => applyGuidePatch({...guide, id: '12'}, ref.patch),
+      /完整分享码/,
+    );
+    assert.deepEqual(planShareLinks(restored, 'https://example.org'), share);
+    assert.throws(
+      () => applyGuidePatch({...guide, title: '作者更新'}, ref.patch),
+      /完整分享码/,
+    );
+    assert.throws(
+      () => applyGuidePatch(guide, ref.patch.slice(0, -2)),
+      /完整分享码/,
+    );
+    assert.ok(samePlan(edited, decodePlan(share.code).plan));
+  }
+  assert.deepEqual(guidePlanFields(guide), guidePlanFields(original.skland));
+});
+
 test('独立映射各阶段二十人、五项策略和长备注，存档与备份保留完整原文', () => {
   const guide = parseSklandResponse(payload, id);
   assert.equal(guide.formation.operators.length, 23);
@@ -144,6 +240,29 @@ test('独立映射各阶段二十人、五项策略和长备注，存档与备�
   const plan = {...blankPlan(), ...fields, skland: guide};
   assert.deepEqual(loadPlans(JSON.stringify([plan])), [plan]);
   assert.deepEqual(parsePlanBackup(serializePlanBackup([plan])).plans, [plan]);
+});
+
+test('下载单套流派、备份流派和导出配置时都写入森空岛原文链接', () => {
+  const guide = parseSklandResponse(payload, id);
+  const edited = {
+    ...blankPlan(),
+    ...guidePlanFields(guide),
+    skland: guide,
+    note: '自己的打法',
+  };
+  const local = blankPlan('自建');
+  for (const json of [
+    serializePlanBackup([edited]),
+    serializePlanBackup([edited, local]),
+    serializeSettingsBackup(DEFAULT_SETTINGS, [edited, local]),
+  ]) {
+    const {plans} = JSON.parse(json);
+    assert.equal(plans[0].sklandUrl, sklandUrl(id));
+    assert.equal(plans[0].note, edited.note);
+    assert.deepEqual(plans[0].skland, guide);
+    if (plans.length > 1)
+      assert.equal(Object.hasOwn(plans[1], 'sklandUrl'), false);
+  }
 });
 
 test('无效与重叠回合留在原文，其余阶段仍按回合转入且独立于成型阵容', () => {

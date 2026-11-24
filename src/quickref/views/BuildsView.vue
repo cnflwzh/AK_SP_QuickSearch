@@ -76,8 +76,9 @@ import {
 import {
   fetchSklandGuide,
   isCurrentGuideSeason,
-  sklandIdFromText,
 } from '../../lib/plans/skland.ts';
+import {readGuideReference} from '../../lib/plans/sklandShare.ts';
+import {isPlanShareHash, planShareSource} from '../../lib/plans/shareInput.ts';
 import type {Plan} from '../../lib/plans/model.ts';
 import {MAX_BACKUP_BYTES, parsePlanBackup} from '../../lib/plans/backup.ts';
 import SklandGuideDetails from '../components/SklandGuideDetails.vue';
@@ -558,7 +559,9 @@ const banImpact = computed(() => {
   const map = new Map<string, number>();
   if (!runBans.value.length) return map;
   for (const item of presets.value) {
-    const count = presetFormation(item).ops.filter((s) => isRunBannedOp(s.name)).length;
+    const count = presetFormation(item).ops.filter((s) =>
+      isRunBannedOp(s.name),
+    ).length;
     if (count > 0) map.set(item.key, count);
   }
   return map;
@@ -696,7 +699,7 @@ function saveBan(): void {
 const activePanel = computed(
   () =>
     queryText(routeQuery.value, 'panel') ||
-    (currentRoute.value.hash.startsWith('#p=') ? 'import' : ''),
+    (isPlanShareHash(currentRoute.value.hash) ? 'import' : ''),
 );
 const importOpen = computed(() => activePanel.value === 'import');
 const libraryPanel = computed(
@@ -711,7 +714,7 @@ async function openLibraryPanel(name: 'import' | 'backup'): Promise<void> {
 }
 async function closeLibraryPanel(): Promise<void> {
   await updateQuery({
-    panel: currentRoute.value.hash.startsWith('#p=') ? 'closed' : null,
+    panel: isPlanShareHash(currentRoute.value.hash) ? 'closed' : null,
   });
   await nextTick();
   document
@@ -721,7 +724,7 @@ async function closeLibraryPanel(): Promise<void> {
 function toggleShare(): void {
   pickerOpen.value = false;
   closeBuildMenu();
-  const closedPanel = currentRoute.value.hash.startsWith('#p=')
+  const closedPanel = isPlanShareHash(currentRoute.value.hash)
     ? 'closed'
     : null;
   void updateQuery({
@@ -734,8 +737,8 @@ const importText = ref('');
 const planFile = ref<HTMLInputElement>();
 const filePlan = shallowRef<Plan>();
 const pasteError = ref('');
-const guideId = computed(() =>
-  imported.value ? null : sklandIdFromText(importText.value),
+const guideReference = computed(() =>
+  imported.value ? null : readGuideReference(importText.value),
 );
 const canReadClipboard =
   typeof navigator !== 'undefined' &&
@@ -743,7 +746,8 @@ const canReadClipboard =
 const imported = computed<Decoded | null>(() =>
   filePlan.value
     ? {plan: filePlan.value}
-    : importText.value.trim()
+    : importText.value.trim() &&
+        !planShareSource(importText.value).includes('#g=')
       ? decodePlan(importText.value)
       : null,
 );
@@ -862,7 +866,10 @@ async function pullGuide(): Promise<void> {
 watch(
   () => currentRoute.value.hash,
   (hash) => {
-    if (hash.startsWith('#p=')) importText.value = hash;
+    if (isPlanShareHash(hash)) {
+      clearFileImport();
+      importText.value = hash;
+    }
   },
   {immediate: true},
 );
@@ -941,7 +948,11 @@ watch(
                 v-if="pasteError"
                 tone="warning"
                 :message="pasteError" />
-              <SklandImport v-if="guideId" :id="guideId" @accept="saveImport" />
+              <SklandImport
+                v-if="guideReference"
+                :id="guideReference.id"
+                :patch="guideReference.patch"
+                @accept="saveImport" />
               <template v-else-if="imported">
                 <PlanImportPreview :plan="imported.plan" />
                 <div class="pl-row">

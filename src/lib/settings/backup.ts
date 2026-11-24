@@ -4,6 +4,7 @@ import {
   planBackupVersion,
   readBackupPlans,
   serializeBackupDocument,
+  writeBackupPlans,
 } from '../plans/backup.ts';
 import type {Plan} from '../plans/model.ts';
 import {normalizeSettings, type UserSettings} from './model.ts';
@@ -37,7 +38,7 @@ export function serializeSettingsBackup(
     version: planBackupVersion(plans),
     exportedAt: new Date().toISOString(),
     settings: cleanSettings,
-    ...(plans ? {plans: [...plans]} : {}),
+    ...(plans ? {plans: writeBackupPlans(plans)} : {}),
     ...(cleanBox && Object.keys(cleanBox).length ? {box: cleanBox} : {}),
   };
   return serializeBackupDocument(

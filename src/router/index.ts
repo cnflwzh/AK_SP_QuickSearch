@@ -11,6 +11,7 @@ import {
   LEADERS,
 } from '../../data/index.ts';
 import {lazyView} from '../lib/ui/lazyView.ts';
+import {isPlanShareHash} from '../lib/plans/shareInput.ts';
 import {covenantName, detailFromId} from './entities.ts';
 import {
   settings,
@@ -144,7 +145,7 @@ const routes: RouteRecordRaw[] = [
 
 /** Only the legacy entry restores a preference; explicit URLs always use deterministic defaults. */
 function entryPath(hash: string): string {
-  if (hash.startsWith('#p=')) return PAGE_PATHS.bd;
+  if (isPlanShareHash(hash)) return PAGE_PATHS.bd;
   if (hash.startsWith('#b=')) return '/box';
   const visible = visibleContentTabs();
   const fallback = PAGE_PATHS[visible[0] ?? 'fx'];

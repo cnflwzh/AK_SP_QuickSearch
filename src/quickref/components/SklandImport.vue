@@ -8,13 +8,14 @@ import {
   type SklandGuide,
 } from '../../lib/plans/skland.ts';
 import {MAX_OPS, type Plan} from '../../lib/plans/model.ts';
+import {applyGuidePatch} from '../../lib/plans/sklandShare.ts';
 import {blankPlan} from '../../lib/plans/storage.ts';
 import {hasPlanOperators} from '../planStore.ts';
 import PlanImportPreview from './PlanImportPreview.vue';
 import StatusNotice from './StatusNotice.vue';
 import SklandGuideDetails from './SklandGuideDetails.vue';
 
-const props = defineProps<{id: string}>();
+const props = defineProps<{id: string; patch?: string}>();
 const emit = defineEmits<{accept: [plan: Plan, andRun: boolean]}>();
 const guide = shallowRef<SklandGuide>();
 const selected = ref<string[]>([]);
@@ -23,9 +24,21 @@ const retry = ref(0);
 const candidates = computed(() =>
   guide.value ? guideCandidates(guide.value) : [],
 );
-const fields = computed(
-  () => guide.value && guidePlanFields(guide.value, selected.value),
-);
+const preview = computed(() => {
+  if (!guide.value) return {};
+  try {
+    return {
+      fields: props.patch
+        ? applyGuidePatch(guide.value, props.patch)
+        : guidePlanFields(guide.value, selected.value),
+    };
+  } catch (reason) {
+    return {
+      error: reason instanceof Error ? reason.message : '无法还原这份阵容。',
+    };
+  }
+});
+const fields = computed(() => preview.value.fields);
 watch(
   [() => props.id, retry],
   async ([id], _, onCleanup) => {
@@ -39,9 +52,13 @@ watch(
       selected.value = guidePlanFields(next).ops.map((op) => op.name);
       guide.value = next;
     } catch (reason) {
-      if (!controller.signal.aborted)
-        error.value =
+      if (!controller.signal.aborted) {
+        const message =
           reason instanceof Error ? reason.message : '读取失败，请重试。';
+        error.value = props.patch
+          ? message + '也可向分享者索取完整分享码。'
+          : message;
+      }
     }
   },
   {immediate: true},
@@ -59,7 +76,9 @@ function accept(andRun: boolean): void {
 <template>
   <template v-if="guide && fields">
     <SklandGuideDetails :guide="guide" />
-    <fieldset v-if="candidates.length > MAX_OPS" class="guide-choices">
+    <fieldset
+      v-if="!patch && candidates.length > MAX_OPS"
+      class="guide-choices">
       <legend>选择成型阵容干员（{{ selected.length }}/{{ MAX_OPS }}）</legend>
       <label v-for="op in candidates" :key="op.name">
         <input
@@ -73,9 +92,9 @@ function accept(andRun: boolean): void {
       </label>
     </fieldset>
     <PlanImportPreview
-      v-if="isCurrentGuideSeason(guide)"
+      v-if="patch || isCurrentGuideSeason(guide)"
       :plan="fields"
-      title="可编辑阵容"
+      :title="patch ? '分享者修改后的阵容' : '可编辑阵容'"
       compact />
     <div class="pl-row">
       <button type="button" @click="accept(false)">存为我的流派</button>
@@ -88,8 +107,8 @@ function accept(andRun: boolean): void {
       </button>
     </div>
   </template>
-  <template v-else-if="error">
-    <StatusNotice tone="warning" :message="error" />
+  <template v-else-if="error || preview.error">
+    <StatusNotice tone="warning" :message="error || preview.error" />
     <div class="pl-row">
       <button type="button" @click="retry++">重新读取</button>
     </div>

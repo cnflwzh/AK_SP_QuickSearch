@@ -1,30 +1,21 @@
 <script setup lang="ts">
 import {computed, onBeforeUnmount, ref} from 'vue';
-import {
-  encodePlan,
-  formatPlanShareText,
-  shareUrl,
-  type Plan,
-} from '../../lib/plans/index.ts';
+import {formatPlanShareText, type Plan} from '../../lib/plans/index.ts';
 import {downloadBlob} from '../../lib/ui/download.ts';
 import {serializePlanBackup} from '../../lib/plans/backup.ts';
 import {canShareViaQr} from '../../lib/plans/sharing.ts';
 import {sklandUrl} from '../../lib/plans/skland.ts';
+import {planShareLinks} from '../../lib/plans/sklandShare.ts';
 import CopyButton from './CopyButton.vue';
 import StatusNotice from './StatusNotice.vue';
 
 /** 分享传入方案的当前内容；查看页和编辑页共用，不会修改或保存方案。 */
 const props = defineProps<{plan: Plan}>();
-const code = computed(() => {
-  try {
-    return encodePlan(props.plan);
-  } catch {
-    return '';
-  }
-});
-const link = computed(() => (code.value ? shareUrl(code.value) : ''));
-const qrFits = computed(() => canShareViaQr(link.value));
-const guideText = computed(() => formatPlanShareText(props.plan, link.value));
+const share = computed(() => planShareLinks(props.plan, location.origin));
+const qrFits = computed(() => canShareViaQr(share.value.qrLink));
+const guideText = computed(() =>
+  formatPlanShareText(props.plan, share.value.link),
+);
 const showPreview = ref(false);
 const copied = ref('');
 let copyTimer: ReturnType<typeof setTimeout> | undefined;
@@ -70,7 +61,7 @@ async function saveImage(): Promise<void> {
   // 导出期间切换或继续编辑，也让图片、二维码和文件名来自同一份快照。
   const snapshot: Plan = JSON.parse(JSON.stringify(props.plan));
   try {
-    const blob = await buildImageBlob(snapshot, link.value);
+    const blob = await buildImageBlob(snapshot, share.value.qrLink);
     downloadBlob(blob, `${snapshot.name || '阵容'}.png`);
   } catch {
     imageError.value = '图片生成失败，请重试或复制攻略文案。';
@@ -86,7 +77,9 @@ async function copyImage(): Promise<void> {
   try {
     // 绘图会异步加载头像；在点击事件内发起写入，避免生成图片期间用户激活失效。
     await navigator.clipboard.write([
-      new ClipboardItem({'image/png': buildImageBlob(snapshot, link.value)}),
+      new ClipboardItem({
+        'image/png': buildImageBlob(snapshot, share.value.qrLink),
+      }),
     ]);
     markCopied('img');
   } catch {
@@ -99,7 +92,33 @@ async function copyImage(): Promise<void> {
 
 <template>
   <section class="pl-panel plan-share" aria-label="分享流派">
-    <div v-if="plan.skland" class="pl-code">
+    <div v-if="share.link" class="pl-code">
+      <span class="k">
+        {{ share.kind === 'original' ? '森空岛原文' : '阵容链接' }}
+      </span>
+      <code>
+        {{
+          share.link.length > 160 ? share.link.slice(0, 160) + '…' : share.link
+        }}
+      </code>
+      <CopyButton
+        :text="share.link"
+        label="复制链接"
+        copied-label="已复制"
+        variant="compact"
+        aria-label="复制分享链接"
+        @copied="markCopied('link')" />
+    </div>
+    <p v-if="plan.skland" class="hint share-source-hint">
+      {{
+        share.kind === 'original'
+          ? '阵容与原文一致。转发链接可看森空岛原文，扫描分享图可在卫戍速查导入。'
+          : share.kind === 'delta'
+            ? '链接包含你相对原文的修改。接收方需联网读取森空岛；离线导入可使用下方完整分享码。'
+            : '这份阵容使用完整分享，导入时可离线还原修改。'
+      }}
+    </p>
+    <div v-if="plan.skland && share.kind !== 'original'" class="pl-code">
       <span class="k">森空岛原文</span>
       <code>{{ sklandUrl(plan.skland.id) }}</code>
       <CopyButton
@@ -157,22 +176,15 @@ async function copyImage(): Promise<void> {
         </button>
       </span>
     </div>
-    <div v-if="link" class="pl-code">
-      <span class="k">阵容链接</span>
-      <code>{{ link.length > 160 ? link.slice(0, 160) + '…' : link }}</code>
+    <div v-if="share.code" class="pl-code">
+      <span class="k">{{ plan.skland ? '完整分享码' : '分享码' }}</span>
+      <code>
+        {{
+          share.code.length > 160 ? share.code.slice(0, 160) + '…' : share.code
+        }}
+      </code>
       <CopyButton
-        :text="link"
-        label="复制"
-        copied-label="已复制"
-        variant="compact"
-        aria-label="复制分享链接"
-        @copied="markCopied('link')" />
-    </div>
-    <div v-if="code" class="pl-code">
-      <span class="k">分享码</span>
-      <code>{{ code.length > 160 ? code.slice(0, 160) + '…' : code }}</code>
-      <CopyButton
-        :text="code"
+        :text="share.code"
         label="复制"
         copied-label="已复制"
         variant="compact"
@@ -183,13 +195,17 @@ async function copyImage(): Promise<void> {
       v-if="!qrFits"
       tone="info"
       :message="
-        code
+        share.code
           ? '完整链接超出二维码容量。可复制分享码，也可发送 JSON 方案文件。'
           : '当前方案无法生成分享码，可下载 JSON 文件保存完整内容。'
       " />
     <div class="pl-code pl-code-wrap">
       <span class="k">方案文件</span>
-      <span class="hint">包含完整内容，可在流派页选择「导入文件」。</span>
+      <span class="hint">{{
+        plan.skland
+          ? '包含当前阵容、森空岛原文链接和原文快照。'
+          : '包含完整内容，可在流派页选择「导入文件」。'
+      }}</span>
       <span class="share-btns">
         <button type="button" @click="savePlanFile">下载 JSON</button>
       </span>
@@ -203,6 +219,9 @@ async function copyImage(): Promise<void> {
 <style scoped>
 .plan-share {
   min-width: 0;
+}
+.share-source-hint {
+  margin: 0;
 }
 .plan-share button:not(.copy-btn) {
   font-family: inherit;
