@@ -16,6 +16,7 @@ import SelectInput, {type SelectOption} from './SelectInput.vue';
 import SubTabs, {type SubTabDirection, type SubTabItem} from './SubTabs.vue';
 import EmptyState from './EmptyState.vue';
 import CovenantCounterGrid from './CovenantCounterGrid.vue';
+import GlossaryText from './GlossaryText.vue';
 
 const search = ref('');
 const payout = ref<'' | 'single' | 'multi'>('');
@@ -256,11 +257,11 @@ function resetFilters(): void {
         <div class="bty-body">
           <p class="bty-line">
             <span class="bty-k">机制</span>
-            <span>{{ bounty.mechanics }}</span>
+            <GlossaryText :text="bounty.mechanics" />
           </p>
           <p class="bty-line counter">
             <span class="bty-k">对策</span>
-            <span>{{ bounty.counter }}</span>
+            <GlossaryText :text="bounty.counter" />
           </p>
         </div>
 

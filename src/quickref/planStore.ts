@@ -32,8 +32,11 @@ import {
   samePlan,
   type CovenantStat,
   type Plan,
+  type PlanStage,
 } from '../lib/plans/index.ts';
 import {readPlanSnapshot, savePlanSnapshot} from '../lib/plans/storage.ts';
+import {effectivePlanIcon, MAX_STAGE_ROUND} from '../lib/plans/model.ts';
+import {guidePlanFields, isCurrentGuideSeason, matchesGuidePlan, type SklandGuide} from '../lib/plans/skland.ts';
 import {isBanned} from '../lib/recommendation/index.ts';
 import {mergePlanBackup, type PlanBackupMerge} from '../lib/plans/backup.ts';
 // The route adapter selects a preset; this store does not depend on the browser router.
@@ -48,6 +51,9 @@ export const plans = reactive<Plan[]>(
       p.ops.length ||
       p.note ||
       p.strategy ||
+      p.skland ||
+      p.icon ||
+      p.stages?.length ||
       Object.keys(p.layers).length ||
       p.base ||
       p.name !== '我的阵容',
@@ -55,36 +61,59 @@ export const plans = reactive<Plan[]>(
 );
 
 /* ---------- 存档：连续修改合并写入，离页时立即落盘 ---------- */
-export const saveErrorMessage = ref('');
-export const saveError = computed(() => !!saveErrorMessage.value);
+const planWriteError = ref('');
+interface PendingRunWrite {
+  value: string;
+  previous: string | null | undefined;
+}
+const pendingRunWrites = new Map<string, PendingRunWrite>();
+const runWriteFailed = ref(false);
+export const saveErrorMessage = computed(
+  () =>
+    planWriteError.value ||
+    (runWriteFailed.value
+      ? '本局设置只在当前页面生效，请检查浏览器存储空间和权限。'
+      : ''),
+);
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let dirty = false;
+let failedDraftWrite = false;
 let lastSavedSnapshot = JSON.stringify(toRaw(plans));
 function persistPlans(records: readonly Plan[]): boolean {
   const snapshot = JSON.stringify(toRaw(records));
-  saveErrorMessage.value = '';
   // 闲置标签页也会触发 pagehide，只有本页发生编辑才可写回整份存档。
-  if (snapshot === lastSavedSnapshot) return true;
+  if (snapshot === lastSavedSnapshot) {
+    // 撤销草稿可解除草稿错误。导入/恢复失败的数据尚未进入 plans，自动保存旧数据不代表重试成功。
+    if (failedDraftWrite) planWriteError.value = '';
+    return true;
+  }
+  failedDraftWrite = records === plans;
   const latest = readPlanSnapshot();
   if (latest !== snapshot) {
     if (latest !== storedSnapshot) {
-      saveErrorMessage.value = '其他标签页已更新流派。本页草稿尚未保存，请先导出流派备份，再刷新并导入。';
+      planWriteError.value = '其他标签页已更新流派。本页草稿尚未保存，请先导出流派备份，再刷新并导入。';
       return false;
     }
     if (!savePlanSnapshot(snapshot)) {
-      saveErrorMessage.value = '本地保存失败，请先复制分享码保留流派，再检查浏览器的存储空间和权限。';
+      planWriteError.value = '本地保存失败，请保留此页，检查浏览器存储空间和权限后重试。已编辑的阵容可以在「分享」中下载 JSON 文件。';
       return false;
     }
   }
   storedSnapshot = snapshot;
   lastSavedSnapshot = snapshot;
+  failedDraftWrite = false;
+  planWriteError.value = '';
   return true;
 }
 export function flushSave(force = false): void {
   clearTimeout(saveTimer);
   saveTimer = undefined;
-  if (!dirty && !force) return;
-  dirty = !persistPlans(plans);
+  if (dirty || force) dirty = !persistPlans(plans);
+  const runSelection = pendingRunWrites.get('wsq.run');
+  if (runSelection) write('wsq.run', runSelection.value, runSelection);
+  for (const [key, pending] of pendingRunWrites) {
+    if (key !== 'wsq.run') write(key, pending.value, pending);
+  }
 }
 function scheduleSave(): void {
   dirty = true;
@@ -155,6 +184,44 @@ export function addPlan(next: Plan): string {
   select(next.id);
   return next.id;
 }
+/** 先落盘再展示导入结果。存储空间不足或其他标签页发生修改时，保留当前内容并抛错。 */
+export function saveGuidePlan(next: Plan): string {
+  if (!persistPlans([next, ...plans])) throw new Error(saveErrorMessage.value);
+  return addPlan(next);
+}
+
+/** 对已保存的来源拉取结果进行合并。保留修改过的阵容和正在进行的本局。 */
+export function applyGuideUpdate(key: string, guide: SklandGuide) {
+  const index = plans.findIndex((plan) => plan.id === key);
+  const current = plans[index];
+  if (!current?.skland || current.skland.id !== guide.id)
+    throw new Error('原流派已变更，请重新选择。');
+  const snapshot = JSON.stringify(guide);
+  if (JSON.stringify(current.skland) === snapshot)
+    return {key, status: 'unchanged'} as const;
+  if (Number(guide.editedAt) < Number(current.skland.editedAt))
+    throw new Error('森空岛返回了较早的版本，已保留本地攻略。');
+  const fields = guidePlanFields(guide);
+  if (!matchesGuidePlan(current, current.skland)) {
+    const existing = plans.find(
+      (plan) =>
+        plan.skland?.id === guide.id &&
+        JSON.stringify(plan.skland) === snapshot &&
+        matchesGuidePlan(plan, guide),
+    );
+    const copyKey =
+      existing?.id ?? saveGuidePlan({...blankPlan(), ...fields, skland: guide});
+    return {key: copyKey, status: 'copy'} as const;
+  }
+  const updated = {...current, ...fields, skland: guide, updated: Date.now()};
+  const records = plans.slice();
+  records[index] = updated;
+  if (!persistPlans(records)) throw new Error(saveErrorMessage.value);
+  plans.splice(index, 1, updated);
+  if (runKey.value === key && runStageKey.value && !stageOf(updated, runStageKey.value))
+    setRun(key);
+  return {key, status: 'updated'} as const;
+}
 /** 合并已校验的备份；先写入本地存储，再追加到界面。保存失败抛出错误，现有方案保持原样。 */
 export function restorePlanBackup(incoming: readonly Plan[]): PlanBackupMerge {
   const result = mergePlanBackup(plans, incoming);
@@ -176,6 +243,7 @@ export function copyPreset(key: string): string | undefined {
     name: source.plan.name.slice(0, 13) + ' 副本',
     updated: Date.now(),
   };
+  if (!copy.icon) copy.icon = effectivePlanIcon(source.plan);
   delete copy.base;
   return addPlan(copy);
 }
@@ -197,6 +265,15 @@ export function restorePreset(name: string): void {
 
 /* ---------- 编辑 ---------- */
 export const editingId = ref('');
+/** 空键表示成型阵容，区间键由回合组成，可随本机存档恢复。 */
+export const stageKey = (stage: Pick<PlanStage, 'from' | 'to'>): string =>
+  `${stage.from}-${stage.to}`;
+export const stageLabel = (stage: Pick<PlanStage, 'from' | 'to'>): string =>
+  stage.from === stage.to ? `第 ${stage.from} 回合` : `第 ${stage.from}–${stage.to} 回合`;
+export const hasPlanOperators = (plan: Pick<Plan, 'ops' | 'stages'>): boolean =>
+  !!(plan.ops.length || plan.stages?.some(stage => stage.ops.length));
+export const editingStageKey = ref('');
+const stageOf = (plan: Plan, key: string) => plan.stages?.find(stage => stageKey(stage) === key);
 const FALLBACK = blankPlan();
 /** 正在编辑的方案；规划器只在编辑时挂载 */
 export const plan = computed<Plan>(
@@ -222,17 +299,11 @@ export function startEdit(key: string): void {
 /** 退出编辑；修改版改回和内置一样时丢弃 */
 export function finishEdit(): void {
   const edited = plans.find((p) => p.id === editingId.value);
+  editingStageKey.value = '';
   editingId.value = '';
   if (edited?.base && samePlan(edited, BUILTIN.get(edited.base)!))
     plans.splice(plans.indexOf(edited), 1);
 }
-/** 规划器内部：正在编辑的阵容 */
-export const planOps = computed(() => plan.value.ops);
-export const inPlan = computed(() => new Set(planOps.value.map((o) => o.name)));
-export const planStats = computed(() =>
-  covenantStats(planOps.value, plan.value.layers),
-);
-
 /* ---------- 本局 ---------- */
 const read = (key: string): string => {
   try {
@@ -241,13 +312,30 @@ const read = (key: string): string => {
     return '';
   }
 };
-const write = (key: string, value: string): void => {
+/** 本局选项与方案分开存储。重试前核对失败时的旧值，保留其他标签页后写入的选择。 */
+function write(key: string, value: string, retry?: PendingRunWrite): void {
+  let previous: string | null | undefined;
   try {
-    localStorage.setItem(key, value);
+    previous = localStorage.getItem(key);
+    if (previous !== value) {
+      if (retry && previous !== retry.previous) return;
+      // 阶段只属于当前流派；流派 ID 写入失败时，先保留上次已保存流派的阶段。
+      if (
+        key === 'wsq.runStage' &&
+        (localStorage.getItem('wsq.run') ?? '') !== runKey.value
+      ) {
+        pendingRunWrites.set(key, retry ?? {value, previous});
+        runWriteFailed.value = true;
+        return;
+      }
+      localStorage.setItem(key, value);
+    }
+    pendingRunWrites.delete(key);
   } catch {
-    /* 隐私模式下不可用 */
+    pendingRunWrites.set(key, retry ?? {value, previous});
   }
-};
+  runWriteFailed.value = pendingRunWrites.size > 0;
+}
 const storedBans = ((): string[] => {
   try {
     const v: unknown = JSON.parse(read('wsq.bans') || '[]');
@@ -268,6 +356,10 @@ const storedBans = ((): string[] => {
 
 const storedRun = read('wsq.run');
 export const runKey = ref(presetOf(storedRun) ? storedRun : '');
+const savedStageKey = read('wsq.runStage');
+const [savedFrom, savedTo] = savedStageKey.split('-').map(Number);
+const playableKey = savedTo > MAX_STAGE_ROUND ? `${savedFrom}-${MAX_STAGE_ROUND}` : savedStageKey;
+export const runStageKey = ref(presetOf(storedRun)?.plan.stages?.some(s => stageKey(s) === playableKey) ? playableKey : '');
 /** 本局被 ban 的盟约（玩家自己勾的，用于替代推荐、图鉴禁池隐藏与真实抓牌概率） */
 export const runBans = ref<string[]>(storedBans);
 export const runBanSet = computed(() => new Set(runBans.value));
@@ -276,6 +368,7 @@ export const runLeaderKey = ref(
   Object.hasOwn(LEADER, storedLeader) ? storedLeader : '',
 );
 const stopRun = watch(runKey, (key) => write('wsq.run', key), {flush: 'sync'});
+const stopRunStage = watch(runStageKey, (key) => write('wsq.runStage', key), {flush: 'sync'});
 const stopBans = watch(
   runBans,
   (bans) => write('wsq.bans', JSON.stringify(bans)),
@@ -287,13 +380,36 @@ const stopLeader = watch(runLeaderKey, (key) => write('wsq.leader', key), {
 export const run = computed(() =>
   runKey.value ? presetOf(runKey.value) : undefined,
 );
+export const runStage = computed(() => run.value && stageOf(run.value.plan, runStageKey.value));
+export const runFormation = computed(() => runStage.value ?? run.value?.plan);
+/** Box 推荐按一套阵容评估。优先使用本局阶段，其余流派取成型阵容或首个有人的阶段。 */
+export function presetFormation(preset: Preset): Plan | PlanStage {
+  if (preset.key === runKey.value && runFormation.value)
+    return runFormation.value;
+  if (preset.plan.ops.length) return preset.plan;
+  return preset.plan.stages?.find((stage) => stage.ops.length) ?? preset.plan;
+}
 export const runLeader = computed(() =>
   runLeaderKey.value ? LEADER[runLeaderKey.value] : undefined,
 );
 /** 换一套流派或结束本局；结束时清掉勾选的 ban */
-export function setRun(key: string): void {
-  if (key && !presetOf(key)) return;
+export function setRun(key: string, stage?: string): void {
+  const target = presetOf(key);
+  if (key && !target) return;
+  const preferred = target && (stage ? stageOf(target.plan, stage) : undefined);
+  const fallback =
+    target && !target.plan.ops.length && stage !== ''
+      ? target.plan.stages?.find(item => item.ops.length)
+      : undefined;
+  const nextStage = preferred ?? fallback;
+  const nextStageKey = nextStage ? stageKey(nextStage) : '';
+  // 再次选择相同值不会触发 watch，仍允许玩家主动重试上次失败的选择。
+  if (runKey.value === key && pendingRunWrites.has('wsq.run'))
+    write('wsq.run', key);
   runKey.value = key;
+  if (runStageKey.value === nextStageKey && pendingRunWrites.has('wsq.runStage'))
+    write('wsq.runStage', nextStageKey);
+  runStageKey.value = nextStageKey;
   if (!key) runBans.value = [];
 }
 export function setRunLeader(name: string): void {
@@ -302,8 +418,7 @@ export function setRunLeader(name: string): void {
 }
 /** 一键结束本局（清空本局流派、禁池与领袖标记）。 */
 export function endRun(): void {
-  runKey.value = '';
-  runBans.value = [];
+  setRun('');
   runLeaderKey.value = '';
 }
 export function toggleBan(name: string): void {
@@ -318,7 +433,7 @@ export function clearBans(): void {
 export function isRunBannedOp(name: string): boolean {
   return runBanSet.value.size > 0 && isBanned(name, runBanSet.value);
 }
-export const runOps = computed(() => run.value?.plan.ops ?? []);
+export const runOps = computed(() => runFormation.value?.ops ?? []);
 export const inRun = computed(() => new Set(runOps.value.map((o) => o.name)));
 export const runSlotMap = computed(
   () => new Map(runOps.value.map((slot) => [slot.name, slot])),
@@ -343,7 +458,7 @@ export const inRunAny = computed(
   () => new Set([...inRun.value, ...inRunAlt.value]),
 );
 export const runStats = computed<CovenantStat[]>(() =>
-  run.value ? covenantStats(run.value.plan.ops, run.value.plan.layers) : [],
+  runFormation.value ? covenantStats(runFormation.value.ops, runFormation.value.layers) : [],
 );
 export const runStat = computed(
   () => new Map(runStats.value.map((s) => [s.name, s])),
@@ -351,6 +466,14 @@ export const runStat = computed(
 export const runBaseBuild = computed(() =>
   run.value?.plan.base ? buildByName(run.value.plan.base) : undefined,
 );
+const runGuide = computed(() => {
+  const guide = run.value?.plan.skland;
+  return guide && isCurrentGuideSeason(guide) ? guide : undefined;
+});
+const runGuideLineup = computed(() => {
+  const stage = runStage.value;
+  return stage ? runGuide.value?.rounds.find(row => row.from === stage.from && row.to === stage.to) : runGuide.value?.formation;
+});
 export const runEquipOwners = computed(() => {
   const map = new Map<string, string[]>();
   for (const slot of runOps.value) {
@@ -371,6 +494,7 @@ export const runEquipRecommended = computed(
       [
         ...runOps.value.flatMap((o) => o.eq),
         ...(runBaseBuild.value?.equipment ?? []),
+        ...(runGuideLineup.value?.equipment ?? []),
       ].filter((e) => Object.hasOwn(EQUIP, e)),
     ),
 );
@@ -393,7 +517,7 @@ export const runEquipMaterials = computed(() => {
 export const runStrategies = computed(() => {
   const primary = run.value?.plan.strategy ?? '';
   const all = new Set(
-    [primary, ...(runBaseBuild.value?.strategies ?? [])].filter((s) =>
+    [primary, ...(run.value?.plan.strategyAlternates ?? [])].filter((s) =>
       Object.hasOwn(STRATEGY, s),
     ),
   );
@@ -409,6 +533,13 @@ export const quickTargetPreset = computed<Preset | undefined>(() => {
   if (run.value && !run.value.builtin) return run.value;
   return myPresets.value[0];
 });
+const quickFormation = computed(() => {
+  const target = quickTargetPreset.value;
+  if (!target) return undefined;
+  if (editing.value) return stageOf(target.plan, editingStageKey.value) ?? target.plan;
+  return runKey.value === target.key ? runFormation.value : target.plan;
+});
+export const quickTargetOps = computed(() => quickFormation.value?.ops ?? []);
 
 export function toggleOpInQuickBuild(opName: string): {
   status: 'added' | 'removed' | 'full' | 'created';
@@ -421,16 +552,17 @@ export function toggleOpInQuickBuild(opName: string): {
   const existing = quickTargetPreset.value;
   if (existing) {
     const target = existing.plan;
-    const index = target.ops.findIndex((slot) => slot.name === opName);
+    const ops = quickTargetOps.value;
+    const index = ops.findIndex((slot) => slot.name === opName);
     if (index >= 0) {
-      target.ops.splice(index, 1);
+      ops.splice(index, 1);
       target.updated = Date.now();
       return {status: 'removed', key: existing.key, planName: target.name};
     }
-    if (target.ops.length >= MAX_OPS) {
+    if (ops.length >= MAX_OPS) {
       return {status: 'full', key: existing.key, planName: target.name};
     }
-    target.ops.push(newSlot(opName));
+    ops.push(newSlot(opName));
     target.updated = Date.now();
     return {status: 'added', key: existing.key, planName: target.name};
   }
@@ -451,17 +583,20 @@ export function presetsUsing(kind: 'op' | 'eq' | 'st', name: string): string[] {
   );
   return presets.value
     .filter((preset) => {
+      const source = preset.plan.skland;
+      const guide = source && isCurrentGuideSeason(source) ? source : undefined;
+      const lineups = [preset.plan, ...(preset.plan.stages ?? [])];
       if (kind === 'op') {
         return (
-          preset.plan.ops.some(
-            (slot) => slot.name === name || slot.alt.includes(name),
-          ) ||
+          lineups.some(lineup => lineup.ops.some(slot => slot.name === name || slot.alt.includes(name))) ||
           (preset.builtin && !preset.modified && staticSet.has(preset.key))
         );
       }
       if (kind === 'eq') {
         return (
-          preset.plan.ops.some((slot) => slot.eq.includes(name)) ||
+          lineups.some(lineup => lineup.ops.some(slot => slot.eq.includes(name))) ||
+          guide?.formation.equipment.includes(name) ||
+          guide?.rounds.some(row => row.equipment.includes(name)) ||
           (preset.plan.base
             ? (buildByName(preset.plan.base)?.equipment.includes(name) ?? false)
             : false) ||
@@ -470,10 +605,7 @@ export function presetsUsing(kind: 'op' | 'eq' | 'st', name: string): string[] {
       }
       return (
         preset.plan.strategy === name ||
-        (preset.plan.base
-          ? (buildByName(preset.plan.base)?.strategies.includes(name) ?? false)
-          : false) ||
-        (preset.builtin && !preset.modified && staticSet.has(preset.key))
+        preset.plan.strategyAlternates?.includes(name)
       );
     })
     .map((preset) => preset.key);
@@ -487,7 +619,7 @@ export function toggleEquipInQuickBuild(
     return 'missing';
   }
   const target = quickTargetPreset.value.plan;
-  const slot = target.ops.find((item) => item.name === opName);
+  const slot = quickTargetOps.value.find((item) => item.name === opName);
   if (!slot) return 'missing';
   const index = slot.eq.indexOf(eqName);
   if (index >= 0) {
@@ -512,7 +644,11 @@ export function setStrategyInQuickBuild(stName: string): {
   const existing = quickTargetPreset.value;
   if (existing) {
     const target = existing.plan;
-    target.strategy = target.strategy === stName ? '' : stName;
+    const alternates = (target.strategyAlternates ?? []).filter(name => name !== stName);
+    const previous = target.strategy;
+    if (previous && target.strategyAlternates?.includes(stName)) alternates.unshift(previous);
+    target.strategy = previous === stName ? (alternates.shift() ?? '') : stName;
+    if (target.strategyAlternates) target.strategyAlternates = alternates;
     target.updated = Date.now();
     return {
       status: target.strategy ? 'set' : 'cleared',
@@ -533,6 +669,7 @@ if (import.meta.hot)
     saveOnExit();
     stopSaving();
     stopRun();
+    stopRunStage();
     stopBans();
     stopLeader();
     window.removeEventListener('pagehide', saveOnExit);

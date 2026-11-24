@@ -36,7 +36,6 @@ export {
   renderBoxQrSvg,
 } from './share.ts';
 export {
-  boxAffinityScore,
   evaluateLineupBox,
   hasBoxEntries,
   isBoxAvailable,

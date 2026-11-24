@@ -12,14 +12,14 @@ import {
   operatorSellPrice,
   TIER_LABELS,
   TIERS,
-} from '../../../data/index';
-import {avatar} from '../chips';
-import {isBanned} from '../../lib/recommendation/planning';
-import {dispatchTable} from '../chapters/recruitView';
+} from '../../../data/index.ts';
+import {avatar} from '../chips.ts';
+import {isBanned} from '../../lib/recommendation/planning.ts';
+import {dispatchTable} from '../chapters/recruitView.ts';
 import SelectInput, {
   type SelectOption,
 } from '../../quickref/components/SelectInput.vue';
-import Markup from './Markup';
+import Markup from './Markup.ts';
 
 const dispatchModeOptions: readonly SelectOption<number>[] = DISPATCH_MODES.map(
   (label, i) => ({value: i, label}),
@@ -77,6 +77,9 @@ const randomOperator = (level: number) => pickRandom(pools.value[level]).name;
 const levelInfo = (level: number) => DISPATCH_BY_MODE[mode.value][level - 1];
 const tierOf = (name: string) => OPERATOR[name].tier;
 const priceOf = (name: string) => operatorPrice(OPERATOR[name]);
+const covenantsOf = (name: string) => OPERATOR[name].covenants.join(' · ');
+const hasBenchCopy = (name: string) =>
+  sim.bench.some((card) => !card.elite && card.name === name);
 const info = computed(() => levelInfo(sim.level));
 const maxed = computed(() => sim.level >= MAX_LEVEL);
 const costPercent = computed(() =>
@@ -86,7 +89,6 @@ const benchCells = computed(() =>
   Array.from({length: BENCH_SIZE}, (_, i) => sim.bench[i]),
 );
 
-/** Every card has an identity, so purchases and sales patch only affected slots. */
 function beginAction() {
   flip.value = false;
   sim.bench.forEach((card) => {
@@ -113,7 +115,6 @@ function reset() {
   });
   rollShop();
 }
-/** The special two-card merge and free reward use the current dispatch level. */
 function tryMerge(name: string) {
   const need = operatorEliteCopies(name);
   const copies = sim.bench
@@ -189,7 +190,6 @@ function upgrade() {
   while (sim.slots.length < info.value.operatorSlots)
     sim.slots.push(randomOperator(sim.level));
 }
-/** Round boundaries expire unclaimed rewards and refill only frozen gaps. */
 function nextRound() {
   beginAction();
   sim.bench.forEach((card) => {
@@ -215,9 +215,16 @@ reset();
 <template>
   <h3 class="bh">
     <span>2.2</span>
-    调度中心模拟
+    调度中心模拟演练
+    <span class="bh-note">亲手试一次「升本降价」与「三合一碰牌」</span>
   </h3>
   <div class="card">
+    <p class="sim-hint">
+      <b>试一试：</b>
+      先点两下「下一回合」看升本费自动减 1 → 点「升本」解锁高阶卡 → 买齐 3
+      张同名干员（金框提示已有同款）触发 0 费高一阶三选一。
+      演练从当前可选干员中等概率抽牌，不能据此估算游戏内出率。
+    </p>
     <div class="row" style="margin-bottom: 14px">
       <label for="dispatchMode">模式</label>
       <SelectInput
@@ -225,18 +232,16 @@ reset();
         v-model="mode"
         :options="dispatchModeOptions"
         aria-label="调度模式" />
-      <label v-if="mode === 0">
+      <label v-if="mode === 0" class="row" style="font-size: 13px; gap: 5px">
         <input v-model="lowSolo" type="checkbox" />
-        规程 1–4（固定缺席盟约）
+        规程 1–4（缺席 8 盟约）
       </label>
-      <span class="tag">切换模式重置练习</span>
-      <small>演示从符合条件的固定干员中等概率抽取。</small>
     </div>
     <div class="sim">
       <div class="lvl">
         <div class="lv-badge">
           <span class="big num" id="sLv">{{ sim.level }}</span>
-          <span>级调度中心</span>
+          <span>级调度中心（{{ sim.level }} 本）</span>
         </div>
         <div class="tiers" id="sTiers">
           <div
@@ -251,7 +256,7 @@ reset();
           <div
             class="row"
             style="justify-content: space-between; font-size: 13px">
-            <span>升级费用</span>
+            <span>当前升本费用</span>
             <b class="num" style="font-size: 22px" id="sCost">
               {{ maxed ? 'MAX' : sim.cost }}
             </b>
@@ -267,7 +272,7 @@ reset();
           </div>
           <div>
             <b class="num" id="sSpent">{{ sim.spent }}</b>
-            <span>已花费</span>
+            <span>净花费</span>
           </div>
           <div>
             <b class="num" id="sSlots">{{ info.operatorSlots }}</b>
@@ -280,7 +285,7 @@ reset();
             id="bUp"
             :disabled="maxed || !!sim.reward"
             @click="upgrade">
-            升级
+            升本
             <b id="bUpC">{{ maxed ? '—' : sim.cost }}</b>
           </button>
           <button
@@ -298,7 +303,7 @@ reset();
             :aria-pressed="sim.frozen"
             :disabled="!!sim.reward"
             @click="freeze">
-            {{ sim.frozen ? '已冻结 ❄' : '冻结' }}
+            {{ sim.frozen ? '已锁店 ❄' : '锁店' }}
           </button>
           <button class="btn" id="bNext" @click="nextRound">下一回合 ▸</button>
           <button class="btn" id="bReset" @click="reset">重置</button>
@@ -313,16 +318,20 @@ reset();
             :aria-label="name ? `招募${name}，${priceOf(name)} 资金` : '空栏位'"
             :key="shopRoll + ':' + i"
             class="slot"
-            :class="{empty: !name, flip: !!name && flip}"
+            :class="{
+              empty: !name,
+              flip: !!name && flip,
+              pair: !!name && hasBenchCopy(name),
+            }"
             :data-key="'shop:' + shopRoll + ':' + i"
             :data-i="name ? i : undefined"
             :data-t="name ? tierOf(name) : undefined"
-            :style="name ? {animationDelay: i * 0.05 + 's'} : undefined"
             @click="buy(i)">
             <template v-if="name">
               <Markup :html="avatar(name)" />
               <span class="ti">{{ TIER_LABELS[tierOf(name)] }}</span>
               <span>{{ name }}</span>
+              <span class="sl-cov">{{ covenantsOf(name) }}</span>
               <span class="pr">{{ priceOf(name) }} 资金</span>
             </template>
           </button>
@@ -332,9 +341,8 @@ reset();
         </div>
         <div class="reward" id="sReward" :class="{on: !!sim.reward}">
           <div class="row" style="margin-bottom: 8px">
-            <span class="tag a">精锐奖励</span>
-            <span class="tag">0 资金 · 三选一</span>
-            <span class="tag">不可刷新 / 冻结 / 保留</span>
+            <span class="tag a">★ 精锐奖励（0 资金 · 高一阶三选一）</span>
+            <span class="cnt">不可刷新或锁店，过回合即作废</span>
           </div>
           <div class="slots" id="sRewardSlots">
             <button
@@ -351,6 +359,7 @@ reset();
               <Markup :html="avatar(name)" />
               <span class="ti">{{ TIER_LABELS[tierOf(name)] }}</span>
               <span>{{ name }}</span>
+              <span class="sl-cov">{{ covenantsOf(name) }}</span>
               <span class="pr">0 资金</span>
             </button>
           </div>
@@ -358,10 +367,12 @@ reset();
         <div
           class="row"
           style="margin-top: 12px; justify-content: space-between">
-          <span class="lab" style="margin: 0">干员整备区（含召唤物）</span>
+          <span class="lab" style="margin: 0">干员整备区（点头像可出售）</span>
           <span class="cnt" id="sBenchN">
             {{ sim.bench.length }} / {{ BENCH_SIZE }}
-            <template v-if="sim.bench.length >= BENCH_SIZE"> · 出售干员后可继续招募</template>
+            <template v-if="sim.bench.length >= BENCH_SIZE">
+              · 已满，出售后可继续买
+            </template>
           </span>
         </div>
         <div class="bench" id="sBench">
@@ -369,7 +380,9 @@ reset();
             v-for="(card, i) in benchCells"
             type="button"
             :disabled="!card"
-            :aria-label="card ? `出售${card.name}，回收 ${card.sale} 资金` : '空整备位'"
+            :aria-label="
+              card ? `出售${card.name}，回收 ${card.sale} 资金` : '空整备位'
+            "
             :key="card ? 'card:' + card.id : 'empty:' + i"
             class="b"
             :class="{
@@ -396,10 +409,12 @@ reset();
       </div>
     </div>
   </div>
-  <div class="card mt">
-    <h4>调度中心等级表</h4>
-    <div class="tw">
-      <Markup as="table" id="shopTbl" :html="dispatchTable(mode)" />
+  <details class="guide-fold">
+    <summary>查看当前模式 1–6 本升本费用与栏位数表</summary>
+    <div class="guide-fold-body">
+      <div class="tw">
+        <Markup as="table" id="shopTbl" :html="dispatchTable(mode)" />
+      </div>
     </div>
-  </div>
+  </details>
 </template>

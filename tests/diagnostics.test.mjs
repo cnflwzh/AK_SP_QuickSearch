@@ -3,7 +3,9 @@ import test from 'node:test';
 import {
   COMBAT_ROLE_LABELS,
   OPERATOR,
+  OPERATORS,
   equipmentWithRoles,
+  operatorRolesAtElite,
   operatorsWithRoles,
   rolesForTraining,
 } from '../data/index.ts';
@@ -181,4 +183,31 @@ test('conditional elemental output tracks the missing source of elemental damage
       (r) => r.role === '元素输出',
     ),
   );
+});
+
+test('a twenty-position draft can borrow its last operator for a unique role', () => {
+  const last = '荒芜拉普兰德';
+  const slots = OPERATORS.filter(
+    (op) =>
+      op.borrowable &&
+      op.stars === 6 &&
+      !operatorRolesAtElite(op, false).includes('沉默'),
+  )
+    .slice(0, 19)
+    .map((op) => newSlot(op.name));
+  slots.push(newSlot(last));
+  assert.equal(slots.length, 20);
+  const box = {[OPERATOR['拜松'].avatar]: 3};
+  const report = diagnoseLineup(slots, [], box, 20);
+  assert.deepEqual(
+    report.substituteRisks
+      .find((risk) => risk.role === '沉默')
+      .operators.map((op) => op.name),
+    [last],
+  );
+  assert.ok(report.borrowPlan.names.includes(last));
+  assert.ok(report.borrowPlan.names.length < slots.length);
+  for (const name of report.borrowPlan.names)
+    box[OPERATOR[name].avatar] = BOX_RANK_BORROWED;
+  assert.deepEqual(diagnoseLineup(slots, [], box).substituteRisks, []);
 });

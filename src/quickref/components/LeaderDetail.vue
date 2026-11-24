@@ -32,6 +32,7 @@ import SubTabs, {type SubTabItem} from './SubTabs.vue';
 import CopyButton from './CopyButton.vue';
 import SearchInput from './SearchInput.vue';
 import EmptyState from './EmptyState.vue';
+import GlossaryText from './GlossaryText.vue';
 import LeaderMap from './LeaderMap.vue';
 import CounterLookupPanel from './CounterLookupPanel.vue';
 
@@ -302,7 +303,7 @@ function leaderBriefText(): string {
             v-for="damage in leader.damage"
             :key="damage"
             :class="['ldt', damageClass(damage)]">
-            {{ damage }}
+            <GlossaryText :text="damage" />
           </i>
           <button
             v-if="patrols(leader)"
@@ -355,29 +356,29 @@ function leaderBriefText(): string {
       <div class="lwd-pf-grid">
         <div class="lwd-pf-cell">
           <small>攻击方式</small>
-          <span>{{ leader.profile.attackMode }}</span>
+          <GlossaryText :text="leader.profile.attackMode" />
         </div>
         <div class="lwd-pf-cell">
           <small>双抗参考</small>
-          <span>{{ leader.profile.defense }}</span>
+          <GlossaryText :text="leader.profile.defense" />
         </div>
         <div class="lwd-pf-cell">
           <small>索敌 / 仇恨</small>
-          <span>{{ leader.profile.targeting }}</span>
+          <GlossaryText :text="leader.profile.targeting" />
         </div>
         <div class="lwd-pf-cell">
           <small>阻挡要求</small>
-          <span>{{ leader.profile.blocking }}</span>
+          <GlossaryText :text="leader.profile.blocking" />
         </div>
       </div>
       <div class="lwd-pf-notes">
         <p class="lwd-pf-note">
           <b>战前速记</b>
-          <span>{{ leader.profile.summary }}</span>
+          <GlossaryText :text="leader.profile.summary" />
         </p>
         <p v-if="leader.profile.hiddenSummary" class="lwd-pf-note hc">
           <b>隐秘核心</b>
-          <span>{{ leader.profile.hiddenSummary }}</span>
+          <GlossaryText :text="leader.profile.hiddenSummary" />
         </p>
       </div>
     </section>
@@ -550,7 +551,7 @@ function leaderBriefText(): string {
           </button>
           <i v-else :class="['ctg', counterClass(c.tag)]">{{ c.tag }}</i>
           <span v-html="formatFx(c.text)"></span>
-          <small>{{ c.by }}</small>
+          <small><GlossaryText :text="c.by" /></small>
         </li>
       </ul>
       <template v-if="hiddenCounters.length">
@@ -576,7 +577,7 @@ function leaderBriefText(): string {
             </button>
             <i v-else :class="['ctg', counterClass(c.tag)]">{{ c.tag }}</i>
             <span v-html="formatFx(c.text)"></span>
-            <small>{{ c.by }}</small>
+            <small><GlossaryText :text="c.by" /></small>
           </li>
         </ul>
       </template>
@@ -672,7 +673,7 @@ function leaderBriefText(): string {
           <span>目标</span>
           <b v-for="mark in targetMarks" :key="mark">{{ mark }}</b>
         </div>
-        <p>{{ scene.hint }}</p>
+        <p><GlossaryText :text="scene.hint" /></p>
       </div>
       <div v-if="layout" class="lwlg ops">
         <span v-for="[role, desc] in usedRoles" :key="role">

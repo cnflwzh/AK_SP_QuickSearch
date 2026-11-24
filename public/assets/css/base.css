@@ -853,7 +853,7 @@ td.n {
   }
 }
 
-footer {
+body > footer {
   display: flex;
   align-items: baseline;
   gap: 12px 20px;
@@ -864,9 +864,19 @@ footer {
   margin-top: 56px;
 }
 
-footer .foot-content {
+body > footer .foot-content {
   flex: 1;
   min-width: 0;
+}
+
+/* 调试边框不参与盒模型，小窗和弹层的尺寸仍可直接测量。 */
+:root[data-debug-bounds] :is(.qbar, main, .build-picker, .source-guide, .settings-card, .pl-sheet, .icon-library) {
+  outline: 2px solid #168a9a;
+  outline-offset: -2px;
+}
+:root[data-debug-bounds] :is(.qhead, .tabs-wrap, .picker-head, .picker-filters, .picker-list, .picker-actions, #guide-content, .build-toolbar) {
+  outline: 1px dashed #d67915;
+  outline-offset: -1px;
 }
 
 .build-version {
@@ -939,8 +949,8 @@ dialog.about::backdrop {
   border: 0;
   background: var(--surface2);
   color: var(--ink2);
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border-radius: 8px;
   font-size: 14px;
   cursor: pointer;
@@ -968,9 +978,157 @@ dialog.about::backdrop {
   color: var(--ink2);
 }
 
-.ab-b section:first-child p:first-child {
+.ab-b > section:first-child > p:first-child {
+  margin-bottom: 6px;
   color: var(--ink);
-  font-weight: 500;
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+.ab-intro > p:last-of-type:not(.ab-tip) {
+  margin-bottom: 0;
+}
+
+.ab-b h3.ab-usage-title {
+  margin: 12px 0 8px;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+
+.ab-usage {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ab-step {
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-inline-start: 3px solid var(--teal);
+  border-radius: 8px;
+  background: var(--surface2);
+}
+
+.ab-step-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+}
+
+.ab-step-head i {
+  flex: none;
+  font-style: normal;
+  font: 700 11.5px/16px var(--fn);
+  padding: 0 5px;
+  border-radius: 4px;
+  color: var(--teal);
+  background: var(--teal-soft);
+}
+
+.ab-step-head b {
+  font-size: 13.5px;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+.ab-step p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink2);
+}
+
+.ab-b p.ab-tip {
+  margin: 10px 0 0;
+  padding: 7px 10px;
+  border-radius: 7px;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink2);
+}
+
+.ab-fold {
+  margin: 0 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  overflow: clip;
+}
+.ab-fold > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 42px;
+  padding: 6px 12px;
+  background: var(--surface2);
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+.ab-fold > summary::-webkit-details-marker { display: none; }
+.ab-fold > summary::after {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-right: 4px;
+  border: solid var(--ink2);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+  transition: transform 160ms ease;
+}
+.ab-fold[open] > summary::after { transform: rotate(225deg); }
+.ab-fold > summary:focus-visible { outline: 2px solid var(--teal); outline-offset: -3px; }
+.ab-fold[open] > summary { border-bottom: 1px solid var(--line); }
+.ab-references > section { margin-inline: 12px; }
+.ab-timeline { list-style: none; margin: 0; padding: 14px 14px 14px 20px; }
+.ab-timeline > li {
+  position: relative;
+  padding: 0 0 14px 16px;
+  border-inline-start: 1px solid var(--line2);
+}
+.ab-timeline > li:last-child { padding-bottom: 0; border-color: transparent; }
+.ab-timeline > li::before {
+  content: '';
+  position: absolute;
+  inset: 5px auto auto -4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--line2);
+}
+.ab-timeline > li:first-child::before { background: var(--teal); }
+.ab-timeline time {
+  display: block;
+  color: var(--ink2);
+  font: 600 12px/1.5 var(--fn);
+  font-variant-numeric: tabular-nums;
+}
+.ab-timeline strong { display: block; margin: 1px 0 3px; font-size: 14px; }
+.ab-timeline p:last-child { margin-bottom: 0; }
+.ab-b ul.ab-items { margin: 3px 0 0; }
+.ab-items > li {
+  position: relative;
+  padding-inline-start: 12px;
+  color: var(--ink2);
+}
+.ab-items > li + li { margin-top: 4px; }
+.ab-items > li::before {
+  content: '';
+  position: absolute;
+  inset: .62em auto auto 0;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--ink3);
+}
+:root[data-motion='reduce'] .ab-fold > summary::after { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  dialog.about[open] { animation: none; }
+  .ab-fold > summary::after { transition: none; }
 }
 
 .ab-b h3 {
@@ -1124,19 +1282,62 @@ dialog.about::backdrop {
   }
 }
 
-/* 横屏小窗：压缩留白 */
-@media (max-height:480px) {
+@media (max-width:520px) {
+  .ab-usage {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 横屏小窗：压缩留白，保证按钮与折叠栏触控高度 ≥ 34px */
+@media (max-height:600px) {
   dialog.about {
     max-height: 96vh;
   }
   .ab-h {
-    padding: 10px 16px 8px;
+    padding: 8px 16px;
+  }
+  .ab-h .kicker {
+    font-size: 11.5px;
   }
   .ab-h h2 {
-    font-size: 19px;
+    margin-top: 0;
+    font-size: 18px;
+  }
+  .ab-b {
+    padding: 2px 16px 6px;
+  }
+  .ab-b section {
+    padding: 8px 0;
+  }
+  .ab-b h3.ab-usage-title {
+    margin: 8px 0 6px;
+  }
+  .ab-usage {
+    gap: 6px;
+  }
+  .ab-step {
+    padding: 6px 9px;
+  }
+  .ab-b p.ab-tip {
+    margin-top: 7px;
+    padding: 5px 8px;
+  }
+  .ab-fold > summary {
+    min-height: 36px;
+    padding: 4px 10px;
+  }
+  .ab-timeline {
+    padding: 10px 12px 10px 16px;
+  }
+  .ab-timeline > li {
+    padding: 0 0 10px 14px;
   }
   .ab-f {
     padding: 8px 16px;
+  }
+  .ab-ok {
+    min-height: 34px;
+    padding: 6px 18px;
   }
 }
 
@@ -1337,6 +1538,20 @@ dialog.about::backdrop {
   font-size: 11px;
 }
 
+.glossary-term {
+  text-decoration: underline dotted color-mix(in srgb, currentColor 48%, transparent);
+  text-underline-offset: .2em;
+  cursor: help;
+}
+.glossary-term:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+:root[data-peek="off"] .glossary-term:not([tabindex]) {
+  text-decoration: none;
+  cursor: inherit;
+}
 .pk-term-desc {
   font-size: 12.5px;
   line-height: 1.55;
@@ -1352,15 +1567,15 @@ dialog.about::backdrop {
 
 /* 触屏：长按用于速览，关掉系统的长按菜单、选字和放大镜 */
 @media (pointer:coarse) {
-  [data-op], [data-eq], [data-st], [data-cv], [data-term], .cv, em.c,
-  [data-op] *, [data-eq] *, [data-st] *, [data-cv] *, [data-term] * {
+  [data-op], [data-eq], [data-st], [data-cv], [data-term], [data-glossary-term], .cv, em.c,
+  [data-op] *, [data-eq] *, [data-st] *, [data-cv] *, [data-term] *, [data-glossary-term] * {
     -webkit-touch-callout: none;
     -webkit-user-select: none;
     user-select: none;
   }
 }
 
-/* ---------- 领袖：伤害类型、能力文本（速览卡片与速查页领袖标签共用，src/lib/leader.ts） ---------- */
+/* ---------- 领袖：伤害类型、能力文本（速览卡片与速查页领袖标签共用） ---------- */
 .ldt {
   --c: var(--ink2);
   display: inline-block;
@@ -1475,10 +1690,10 @@ em.ls {
 :root[data-font="large"] :is(.q-search-input, .q-select-trigger, .q-select-opt) {
   font-size: 15px;
 }
-:root[data-font="large"] .subtab {
+:root[data-font="large"] .subtabs-btn {
   font-size: 15px;
 }
-:root[data-font="large"] .subtabs-l3 .subtab {
+:root[data-font="large"] .subtabs.is-l3 .subtabs-btn {
   font-size: 14px;
 }
 :root[data-font="large"] .seg button {
@@ -1489,15 +1704,14 @@ em.ls {
   .ef,
   .sr,
   .nt-excuse-text,
-  .cv-fx,
   .bfx,
-  .bnote,
   .lws,
   .lwc,
   .lwe,
   .pl-trait,
   .ra-trait-preview,
-  .bo-lead
+  .bo-lead,
+  .ab-b
 ) {
   font-size: 15px;
   line-height: 1.65;
@@ -1505,28 +1719,22 @@ em.ls {
 :root[data-font="large"] :is(
   .oc .h b,
   .op-name,
-  .cvc h3,
-  .lwr-name,
   .lwd-h h3,
-  .bc-name,
   .settings-row-info b,
   .bx-name,
-  .rs-name,
   .tr-item-main b,
   .tr-detail-desc,
   .bty-name-row b,
-  .bo-points b
+  .bo-points b,
+  .ab-b > section:first-child > p:first-child,
+  .ab-b h3.ab-usage-title,
+  .ab-step-head b,
+  .ab-timeline strong
 ) {
   font-size: 16px;
 }
 :root[data-font="large"] :is(
   .oc .op-tx,
-  .dt-box,
-  .dt-tx,
-  .st-tx,
-  .eq-tx,
-  .cv-desc,
-  .lwd-desc,
   .lwd-pf-cell span,
   .lwd-pf-note,
   .lwd-gloss-pin p,
@@ -1538,9 +1746,6 @@ em.ls {
   .nt-match-foot,
   .settings-row-info small,
   .settings-note,
-  .rs-desc,
-  .rs-sub,
-  .bx-summary-note,
   .tr-intel-box p,
   .tr-role-notes,
   .ccg-chip,
@@ -1549,11 +1754,13 @@ em.ls {
   .sr-bty-counter,
   .sr-gloss-item dd,
   .recent-chip,
-  .bo-points span
+  .bo-points span,
+  .ab-step p,
+  .ab-b p.ab-tip
 ) {
   font-size: 14px;
 }
-:root[data-font="large"] :is(.settings-card h2, .sec-h, .nt-section-title) {
+:root[data-font="large"] :is(.settings-card h2, .nt-section-title) {
   font-size: 17px;
 }
 :root[data-font="large"] :is(.tr-role-btn, .bty-role-btn, .bty-expand-btn, .bty-when) {
@@ -1562,6 +1769,7 @@ em.ls {
 :root[data-font="large"] .bty-funds {
   font-size: 21px;
 }
+:root[data-motion="reduce"],
 :root[data-motion="reduce"] *,
 :root[data-motion="reduce"] *::before,
 :root[data-motion="reduce"] *::after {

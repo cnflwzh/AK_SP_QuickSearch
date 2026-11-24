@@ -22,8 +22,9 @@ import {
 import {synthesisTier} from '../../lib/numbers/numberTools.ts';
 import {prefersReducedMotion} from '../../lib/ui/dom.ts';
 import {color} from '../format.ts';
-import {run, runStats} from '../planStore.ts';
+import {run, runStageKey, runFormation, runStats} from '../planStore.ts';
 import CovenantIcon from '../components/CovenantIcon.vue';
+import GlossaryText from '../components/GlossaryText.vue';
 import SectionHeading from '../components/SectionHeading.vue';
 import Segmented from '../components/Segmented.vue';
 import SelectInput, {
@@ -61,7 +62,7 @@ const sectionTabs: readonly SubTabItem<MatchOverviewSection>[] = [
 ];
 
 watch(
-  () => run.value?.key ?? '',
+  () => (run.value ? `${run.value.key}/${runStageKey.value}` : ''),
   (key) => {
     if (!key) {
       layerState.lastAutoRunKey = '';
@@ -87,7 +88,7 @@ watch(
         : HEADCOUNT_BREAKPOINTS.some((h) => h.covenant === picked.name)
           ? 'headcount'
           : 'threshold';
-    layerState.count = run.value?.plan.layers[picked.name] ?? 0;
+    layerState.count = runFormation.value?.layers[picked.name] ?? 0;
   },
   {immediate: true},
 );
@@ -236,9 +237,9 @@ const decisions = computed(
               }}
             </span>
             <span class="nt-threshold-effect">
-              {{
-                LAYER_BREAKPOINTS[name].map((point) => point.effect).join('；')
-              }}
+              <GlossaryText
+                :text="LAYER_BREAKPOINTS[name].map((point) => point.effect).join('；')"
+                :focusable="false" />
               <i>›</i>
             </span>
           </button>
@@ -260,7 +261,7 @@ const decisions = computed(
               {{ name }}
             </b>
             <span class="tag">每 {{ cycle.every }} 层</span>
-            <span>{{ cycle.reward }}</span>
+            <GlossaryText :text="cycle.reward" :focusable="false" />
             <i>›</i>
           </button>
         </section>
@@ -285,7 +286,7 @@ const decisions = computed(
               {{ item.covenant }}
             </b>
             <span class="tag">{{ item.condition }}</span>
-            <span>{{ item.effect }}</span>
+            <GlossaryText :text="item.effect" :focusable="false" />
             <i>›</i>
           </button>
         </section>
@@ -318,7 +319,7 @@ const decisions = computed(
             <table class="nt-dispatch-table">
               <thead>
                 <tr>
-                  <th scope="col">调度中心</th>
+                  <th scope="col"><GlossaryText text="调度中心" /></th>
                   <th
                     v-for="row in levels"
                     :key="row.level"
@@ -396,7 +397,7 @@ const decisions = computed(
             <p class="nt-match-note">
               基础出售
               <b>+1 资</b>
-              ；3 张同名合成精锐，附赠
+              ；3 张同名合成<GlossaryText text="精锐" />，附赠
               <b>当前等级 +1 阶</b>
               三选一（最高 Ⅵ 阶）。
             </p>

@@ -17,7 +17,7 @@ import {settings, type CustomizableToolId} from '../../lib/settings/index.ts';
 const panels = {
   advisor: defineAsyncComponent(() => import('../advisor/RunAdvisor.vue')),
   'match-reference': LayerTools,
-  credit: defineAsyncComponent(() => import('../numbers/CreditTools.vue')),
+  glossary: defineAsyncComponent(() => import('../numbers/GlossaryTools.vue')),
   dealer: defineAsyncComponent(() => import('../numbers/DealerGame.vue')),
   excuse: defineAsyncComponent(() => import('../numbers/ExcuseTools.vue')),
   apology: defineAsyncComponent(() => import('../numbers/ApologyTools.vue')),
@@ -82,13 +82,7 @@ watch(advisorPreviewEnabled, (enabled) => {
 </script>
 
 <template>
-  <RunBanner
-    v-if="
-      activeTool !== 'advisor' &&
-      activeTool !== 'dealer' &&
-      activeTool !== 'excuse' &&
-      activeTool !== 'apology'
-    " />
+  <RunBanner v-if="activeTool === 'match-reference'" />
   <div class="numbers-tools workbench-controls">
     <!-- 工具标题沿用现有 h4 样式，由 aria-level 表达页面与卡片的标题层级。 -->
     <nav class="bar numbers-subtabs" aria-label="小工具">

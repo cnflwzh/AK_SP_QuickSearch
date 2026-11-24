@@ -16,6 +16,8 @@ import {
   runKey,
   runLeader,
   runStats,
+  runStage,
+  stageLabel,
   toggleBan,
 } from '../planStore.ts';
 /** 本局提示条：当前打的流派、要用的盟约、禁池勾选与本局领袖锚点；focus = 当前正在看的盟约 */
@@ -48,7 +50,9 @@ function onEndRun(): void {
       class="nm"
       :title="`查看「${run.plan.name}」`"
       @click="actions.openBuild(runKey)">
-      {{ run.plan.name }} ▸
+      {{ run.plan.name }}
+      <template v-if="runStage">· {{ stageLabel(runStage) }}</template>
+      ▸
     </button>
     <button
       v-else

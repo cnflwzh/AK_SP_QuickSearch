@@ -105,7 +105,7 @@ test('tool links retain navigation destinations without calculator inputs or loc
     bountyQuery: '假想敌',
   };
   assert.deepEqual(normalizeQuery('nu', transient), {});
-  for (const tool of ['credit', 'dealer', 'excuse', 'apology']) {
+  for (const tool of ['glossary', 'dealer', 'excuse', 'apology']) {
     const query = {
       ...transient,
       tool,
@@ -119,6 +119,7 @@ test('tool links retain navigation destinations without calculator inputs or loc
     assert.deepEqual(query, original);
   }
   assert.deepEqual(normalizeQuery('nu', {tool: 'match-reference'}), {});
+  assert.deepEqual(normalizeQuery('nu', {tool: 'credit'}), {});
   assert.deepEqual(
     normalizeQuery('nu', {tool: 'missing', layers: 'NaN', card: 'missing'}),
     {},

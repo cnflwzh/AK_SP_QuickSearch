@@ -537,7 +537,6 @@ function createScenarioCard(
     advisorScore: Math.round(advice.score),
     advisorReasons: reasons,
     advisorLosses: losses,
-    advisorReplace: advice.replace || undefined,
     triggerHint: ownedTag,
     secondaryClue: `${op.type} · ${extractTriggerHint(op.trait)}`,
     traitSegments: splitTraitSegments(fullReasonText),

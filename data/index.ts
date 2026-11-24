@@ -119,11 +119,8 @@ export const EQUIPMENT_COMBOS: readonly EquipmentCombo[] =
 export const EQUIPMENT_RECIPES: Readonly<Record<string, EquipmentCombo>> =
   Object.fromEntries(EQUIPMENT_COMBOS.map((recipe) => [recipe[2], recipe]));
 
-export const COMPANION_COVENANT_EQUIP: Equipment | undefined = EQUIPMENT.find(
-  (eq) => eq.mechanics?.grantsCompanionCovenant,
-);
 export const COMPANION_EQUIP_NAME: string =
-  COMPANION_COVENANT_EQUIP?.name ?? '';
+  EQUIPMENT.find((eq) => eq.mechanics?.grantsCompanionCovenant)?.name ?? '';
 export const DEPLOYMENT_BONUS_EQUIP: Equipment | undefined = EQUIPMENT.find(
   (eq) => (eq.mechanics?.deploymentSlotBonus ?? 0) > 0,
 );
@@ -384,7 +381,6 @@ export const BUILD_NAMES: readonly string[] = [
   ...Object.keys(CORE_BUILDS),
   ...MIXED_BUILDS.map((b) => b.name),
 ];
-export const BUILD_COUNT = BUILD_NAMES.length;
 
 /** 按名称取流派；核心流派的 name 补为盟约名 */
 export const buildByName = (name: string): Build | undefined =>
@@ -415,7 +411,7 @@ export function buildsUsing(field: BuildField, name: string): string[] {
 export const NUMBER_TOOLS = [
   {id: 'advisor', label: '局内抓取'},
   {id: 'match-reference', label: '对局速查'},
-  {id: 'credit', label: '认证效率'},
+  {id: 'glossary', label: '术语词典'},
   {id: 'dealer', label: '痛扁发牌'},
   {id: 'excuse', label: '抽象文案'},
   {id: 'apology', label: '漏怪文书'},

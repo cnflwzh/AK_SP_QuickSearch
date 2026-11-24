@@ -62,7 +62,7 @@
 │   │   ├── box/                  干员持有/练度/助战借用模型、外部导入与存储
 │   │   ├── dealer/               痛扁发牌题库、出题、错题本、文案与战报
 │   │   ├── leaders/              领袖数据格式化与路径寻路
-│   │   ├── numbers/              层数门槛、刷牌预算与认证效率计算
+│   │   ├── numbers/              层数门槛、刷牌预算及图解教程的回合认证收益计算
 │   │   ├── plans/                流派方案、费用、盟约统计、诊断、备份与分享编码
 │   │   ├── prts/                 PRTS 维基外链构造与正文解析
 │   │   ├── recommendation/       流派规划推荐与局内抓取实时建议引擎
@@ -146,7 +146,7 @@ npm run dev             # 启动 http://127.0.0.1:5173
 
 `vite.config.ts` 在构建阶段会执行以下额外步骤：
 
-1. 读取当前 Git `HEAD` 提交 SHA（或环境变量 `CF_PAGES_COMMIT_SHA` / `BUILD_COMMIT_SHA`），将前 7 位注入页面页脚 `<code class="build-version">` 并暴露全局常量 `__BUILD_COMMIT__`。
+1. 读取当前 Git `HEAD` 提交 SHA（或环境变量 `CF_PAGES_COMMIT_SHA` / `BUILD_COMMIT_SHA`），将前 7 位注入页面页脚 `<code class="build-version">`。
 2. 为入口 `<script type="module">` 附加 `onerror` 回调，脚本下载失败时加载遮罩自动切到可重试错误态。
 3. 打包结束后复制 `LICENSE` 至 `dist/LICENSE`，并调用 `scripts/build-sw.mjs` 生成包含核心静态资源清单与内容哈希版本号的 `dist/sw.js`。
 
@@ -157,4 +157,5 @@ npm run dev             # 启动 http://127.0.0.1:5173
   ```bash
   npx wrangler@4.160.0 deploy
   ```
+- **Cloudflare 开发预览**　推送到 `develop` 后，Workers Builds 会运行 `npm run build` 和 `npx wrangler@4.160.0 preview`。每次成功构建都会更新同一个[开发预览地址](https://develop-ak-sp-quicksearch.cnflwzh.workers.dev)。`main` 继续用于正式部署。
 - **缓存头**：静态资源缓存策略定义在 [`public/_headers`](../public/_headers)。

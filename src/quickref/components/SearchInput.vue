@@ -7,6 +7,7 @@ const model = defineModel<string>({required: true});
 
 const props = withDefaults(
   defineProps<{
+    id?: string;
     placeholder?: string;
     label?: string;
     initialFocus?: boolean;
@@ -55,6 +56,7 @@ defineExpose({focus, inputRef});
       <path d="M20 20l-3.5-3.5" />
     </svg>
     <input
+      :id="id"
       ref="inputRef"
       v-model="model"
       type="search"

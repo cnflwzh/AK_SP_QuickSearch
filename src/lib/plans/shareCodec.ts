@@ -8,6 +8,9 @@ export {BitReader, BitWriter} from '../shareBits.ts';
 const BASE64 =
   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 export const MAX_PAYLOAD = 768;
+// 保留原扩展协议的解压边界；可编辑阶段数和回合上限由领域模型单独验证。
+// 固定上界也用于限制未知分享码的解压分配。
+export const MAX_EXTENDED_PAYLOAD = 512 * 1024;
 const ESCAPE = 65536;
 const COMPRESSION = {level: 9, mem: 4} as const;
 export type TextMode = 0 | 1 | 2;
@@ -102,40 +105,54 @@ export function readShareText(
   return text;
 }
 
-const toBase64 = (bytes: Uint8Array): string =>
-  btoa(String.fromCharCode(...bytes))
+function toBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 8192)
+    binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  return btoa(binary)
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/, '');
+}
 
 /** 返回 URL 安全载荷；hasCore 标记位流含核心字段，压缩更短时使用 raw DEFLATE；超限抛出异常。 */
 export function packSharePayload(
   payload: Uint8Array,
   mode: TextMode,
   hasCore = false,
+  extended = false,
+  hasIcon = false,
 ): string {
-  if (payload.length > MAX_PAYLOAD) throw new Error('Share data too large');
+  if (payload.length > (extended ? MAX_EXTENDED_PAYLOAD : MAX_PAYLOAD))
+    throw new Error('Share data too large');
   const compressed = deflateSync(payload, COMPRESSION);
-  const flags = mode | (hasCore ? 8 : 0);
+  const flags =
+    mode | (hasCore ? 8 : 0) | (extended ? 16 : 0) | (hasIcon ? 32 : 0);
   return compressed.length < payload.length
     ? BASE64[flags | 4] + toBase64(compressed)
     : BASE64[flags] + toBase64(payload);
 }
 
-/** 解码不超过 768 字节的载荷；多留一字节检测解压溢出，禁止压缩流扩大内存分配。 */
+/** 按版本限制载荷；多留一字节识别被输出缓冲区截断的解压结果。 */
 export function unpackSharePayload(token: string): {
   reader: BitReader;
+  payload: Uint8Array;
   mode: TextMode;
   hasCore: boolean;
+  extended: boolean;
+  hasIcon: boolean;
 } {
+  const flags = BASE64.indexOf(token[0]);
+  if (flags < 0 || (flags & 3) === 3 || (flags & 32 && !(flags & 16)))
+    throw new Error('Unknown share format');
+  const extended = !!(flags & 16);
+  const limit = extended ? MAX_EXTENDED_PAYLOAD : MAX_PAYLOAD;
   if (
     token.length < 2 ||
-    token.length > 1025 ||
+    token.length > 1 + Math.ceil((limit * 4) / 3) ||
     !/^[A-Za-z0-9_-]+$/.test(token)
   )
     throw new Error('Invalid share token');
-  const flags = BASE64.indexOf(token[0]);
-  if (flags & ~15 || (flags & 3) === 3) throw new Error('Unknown share format');
   const body = token.slice(1);
   const bytes = Uint8Array.from(
     atob(
@@ -146,16 +163,17 @@ export function unpackSharePayload(token: string): {
   );
   if (toBase64(bytes) !== body) throw new Error('Invalid base64 padding');
   const payload =
-    flags & 4
-      ? inflateSync(bytes, {out: new Uint8Array(MAX_PAYLOAD + 1)})
-      : bytes;
-  if (payload.length > MAX_PAYLOAD) throw new Error('Share data too large');
+    flags & 4 ? inflateSync(bytes, {out: new Uint8Array(limit + 1)}) : bytes;
+  if (payload.length > limit) throw new Error('Share data too large');
   // fflate 允许终止块后的字节；限定为本编码器的规范输出，拒绝夹带或截断的压缩流。
   if (flags & 4 && toBase64(deflateSync(payload, COMPRESSION)) !== body)
     throw new Error('Noncanonical compressed data');
   return {
+    payload,
     reader: new BitReader(payload),
     mode: (flags & 3) as TextMode,
     hasCore: !!(flags & 8),
+    extended,
+    hasIcon: !!(flags & 32),
   };
 }

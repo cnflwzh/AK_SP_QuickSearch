@@ -60,7 +60,7 @@ const isRec = computed(() => runStrategies.value.all.has(props.strategy.name));
     <div
       class="tx"
       v-html="
-        `<span style='color:var(--ink);font-weight:500'>${esc(strategy.skill)}</span>\u3000${fx(strategy.effect)}`
+        `<span style='color:var(--ink);font-weight:500'>${esc(strategy.skill)}</span>\u3000${fx(strategy.effect, false)}`
       "></div>
   </NavigationLink>
 </template>

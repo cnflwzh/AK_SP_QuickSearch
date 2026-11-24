@@ -9,6 +9,7 @@ import {
 } from '../../../data/index.ts';
 import {state} from '../state.ts';
 import CovenantCounterGrid from './CovenantCounterGrid.vue';
+import GlossaryText from './GlossaryText.vue';
 
 const ROLE_DESC = new Map(COMBAT_ROLES.map((role) => [role.label, role.desc]));
 
@@ -86,7 +87,7 @@ const activeRoleNotes = computed(() =>
         <i class="tr-dot" aria-hidden="true"></i>
         <span class="tr-item-main">
           <b>{{ item.name }}</b>
-          <small>{{ item.desc }}</small>
+          <small><GlossaryText :text="item.desc" :focusable="false" /></small>
         </span>
         <span class="tr-item-roles">
           <em v-for="role in item.roles.slice(0, 2)" :key="role">{{ role }}</em>
@@ -106,7 +107,7 @@ const activeRoleNotes = computed(() =>
       <header class="tr-detail-head">
         <div class="tr-detail-title">
           <span class="tr-badge">{{ activeItem.name }}</span>
-          <span class="tr-detail-desc">{{ activeItem.desc }}</span>
+          <GlossaryText class="tr-detail-desc" :text="activeItem.desc" />
         </div>
         <div class="tr-detail-tags">
           <i v-for="tag in activeItem.tags" :key="tag">{{ tag }}</i>
@@ -120,14 +121,14 @@ const activeRoleNotes = computed(() =>
       <div class="tr-intel">
         <div class="tr-intel-box">
           <small>攻击方式与机制</small>
-          <p>{{ activeItem.attackStyle }}</p>
+          <p><GlossaryText :text="activeItem.attackStyle" /></p>
           <div class="tr-examples">
             <span v-for="ex in activeItem.examples" :key="ex">{{ ex }}</span>
           </div>
         </div>
         <div class="tr-intel-box counter">
           <small>实战应对思路</small>
-          <p>{{ activeItem.strategy }}</p>
+          <p><GlossaryText :text="activeItem.strategy" /></p>
         </div>
       </div>
 
@@ -165,7 +166,7 @@ const activeRoleNotes = computed(() =>
         <ul v-if="activeRoleNotes.length" class="tr-role-notes">
           <li v-for="entry in activeRoleNotes" :key="entry.role">
             <b>{{ entry.role }}</b>
-            <span>{{ entry.desc }}</span>
+            <GlossaryText :text="entry.desc" />
           </li>
         </ul>
       </div>

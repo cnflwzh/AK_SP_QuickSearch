@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import {ref} from 'vue';
+import {SEASON_META} from '../../../data/index.ts';
 import {
+  ABOUT_TIP,
   PURPOSE,
+  USAGE,
+  SITE_UPDATES,
   WIKIS,
   UPLOADERS,
   FURTHER_READING,
@@ -37,7 +41,7 @@ defineExpose({show});
     <div class="ab-h">
       <div>
         <div class="kicker">ABOUT · 关于本项目</div>
-        <h2>卫戍协议·规程 速查</h2>
+        <h2>{{ SEASON_META.title }} 速查</h2>
       </div>
       <button
         type="button"
@@ -49,63 +53,92 @@ defineExpose({show});
       </button>
     </div>
     <div ref="body" class="ab-b">
-      <section>
+      <section class="ab-intro">
         <p v-for="p in PURPOSE" :key="p">{{ p }}</p>
-      </section>
-      <section>
-        <h3>
-          <i>01</i>
-          数据来源
-        </h3>
-        <ul class="ab-list">
-          <li v-for="w in WIKIS" :key="w.url">
-            <div class="ab-src">
-              <a :href="w.url" target="_blank" rel="noopener">
-                <b>{{ w.name }}</b>
-                {{ w.page }}
-              </a>
-            </div>
-            <div class="ab-use">{{ w.used }}</div>
-          </li>
-        </ul>
-      </section>
-      <section
-        v-for="(group, index) in [UPLOADERS, FURTHER_READING]"
-        :key="index">
-        <h3>
-          <i>{{ index === 0 ? '02' : '03' }}</i>
-          {{ index === 0 ? '流派参考 · B 站' : '延伸阅读' }}
-        </h3>
-        <p v-if="index === 0" class="ab-note">
-          流派页的阵容由本项目根据上方 Wiki
-          的盟约与干员数据整理；核心盟约、开局策略与打法关键词参考了以下 UP
-          主的攻略。完整运营思路请看原视频。
-        </p>
-        <div v-for="u in group" :key="u.uid" class="ab-up">
-          <div class="ab-uh">
-            <b>{{ u.name }}</b>
-            <a :href="spaceUrl(u.uid)" target="_blank" rel="noopener">
-              UID {{ u.uid }}
-            </a>
-          </div>
-          <ul>
-            <li v-for="v in u.videos" :key="v.bv">
-              <div class="ab-src">
-                <a :href="videoUrl(v.bv)" target="_blank" rel="noopener">
-                  {{ v.title }}
-                </a>
-                <span class="ab-bv">{{ v.bv }}</span>
+        <template v-if="USAGE.length">
+          <h3 class="ab-usage-title">基本用法</h3>
+          <div class="ab-usage">
+            <div
+              v-for="(item, index) in USAGE"
+              :key="item.title"
+              class="ab-step">
+              <div class="ab-step-head">
+                <i>0{{ index + 1 }}</i>
+                <b>{{ item.title }}</b>
               </div>
-              <div class="ab-use">{{ v.used }}</div>
+              <p>{{ item.desc }}</p>
+            </div>
+          </div>
+        </template>
+        <p v-if="ABOUT_TIP" class="ab-tip">{{ ABOUT_TIP }}</p>
+      </section>
+      <details class="ab-fold" open>
+        <summary>更新说明</summary>
+        <ol class="ab-timeline">
+          <li v-for="update in SITE_UPDATES" :key="update.date">
+            <time :datetime="update.date">{{ update.date }}</time>
+            <strong>{{ update.title }}</strong>
+            <ul v-if="update.items.length > 1" class="ab-items">
+              <li v-for="item in update.items" :key="item">{{ item }}</li>
+            </ul>
+            <p v-else-if="update.items.length === 1">{{ update.items[0] }}</p>
+          </li>
+        </ol>
+      </details>
+      <details class="ab-fold ab-references">
+        <summary>数据来源、流派参考与延伸阅读</summary>
+        <section>
+          <h3>
+            <i>01</i>
+            数据来源
+          </h3>
+          <ul class="ab-list">
+            <li v-for="w in WIKIS" :key="w.url">
+              <div class="ab-src">
+                <a :href="w.url" target="_blank" rel="noopener">
+                  <b>{{ w.name }}</b>
+                  {{ w.page }}
+                </a>
+              </div>
+              <div class="ab-use">{{ w.used }}</div>
             </li>
           </ul>
-        </div>
-      </section>
+        </section>
+        <section
+          v-for="(group, index) in [UPLOADERS, FURTHER_READING]"
+          :key="index">
+          <h3>
+            <i>{{ index === 0 ? '02' : '03' }}</i>
+            {{ index === 0 ? '流派参考 · B 站' : '延伸阅读' }}
+          </h3>
+          <p v-if="index === 0" class="ab-note">
+            流派页的阵容由本项目根据上方 Wiki
+            的盟约与干员数据整理；核心盟约、开局策略与打法关键词参考了以下 UP
+            主的攻略。完整运营思路请看原视频。
+          </p>
+          <div v-for="u in group" :key="u.uid" class="ab-up">
+            <div class="ab-uh">
+              <b>{{ u.name }}</b>
+              <a :href="spaceUrl(u.uid)" target="_blank" rel="noopener">
+                UID {{ u.uid }}
+              </a>
+            </div>
+            <ul>
+              <li v-for="v in u.videos" :key="v.bv">
+                <div class="ab-src">
+                  <a :href="videoUrl(v.bv)" target="_blank" rel="noopener">
+                    {{ v.title }}
+                  </a>
+                  <span class="ab-bv">{{ v.bv }}</span>
+                </div>
+                <div class="ab-use">{{ v.used }}</div>
+              </li>
+            </ul>
+          </div>
+        </section>
+      </details>
       <section>
-        <h3>
-          <i>04</i>
-          许可
-        </h3>
+        <h3>许可</h3>
         <dl class="ab-lic">
           <template v-for="[what, license] in LICENSES" :key="what">
             <dt>{{ what }}</dt>

@@ -581,6 +581,8 @@ export interface SeasonMeta {
   readonly title: string;
   readonly guideSubtitle: string;
   readonly ruleVersion: string;
+  /** 森空岛攻略使用的活动与数据版本，只有匹配时才转入本局规划。 */
+  readonly skland?: {readonly season: string; readonly version: string};
   readonly ruleSource: string;
   readonly defaultCovenant: string;
   readonly defaultBuild: string;
@@ -645,9 +647,16 @@ export interface SeasonRules {
   readonly combatRoles: readonly CombatRoleMeta[];
 }
 
+export interface AboutUsageItem {
+  readonly title: string;
+  readonly desc: string;
+}
+
 export interface SeasonCredits {
   readonly aboutVersion: number;
   readonly purpose: readonly string[];
+  readonly usage: readonly AboutUsageItem[];
+  readonly tip?: string;
   readonly wikis: readonly WikiSource[];
   readonly uploaders: readonly UploaderSource[];
   readonly furtherReading: readonly UploaderSource[];

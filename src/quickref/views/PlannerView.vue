@@ -38,6 +38,7 @@ import {
   MAX_OPS,
   usesLayers,
   atLayers,
+  covenantStats,
   newSlot,
   diagnoseLineup,
   equipNotes,
@@ -45,16 +46,20 @@ import {
   type Plan,
   type PlanOp,
 } from '../../lib/plans/index.ts';
+import {effectivePlanIcon, MAX_STRATEGIES, type PlanIcon, type PlanStage} from '../../lib/plans/model.ts';
 import {suggestions, alternatesFor} from '../../lib/recommendation/index.ts';
 import {
   current,
   presets,
   editingId,
+  editingStageKey,
+  stageKey,
+  stageLabel,
+  hasPlanOperators,
   plan,
   touch,
-  planOps as ops,
-  inPlan,
-  planStats as stats,
+  runKey,
+  runStageKey,
   setRun,
 } from '../planStore.ts';
 import {useQuickrefActions} from '../state.ts';
@@ -64,16 +69,19 @@ import SearchInput from '../components/SearchInput.vue';
 import SelectInput, {type SelectOption} from '../components/SelectInput.vue';
 import EmptyState from '../components/EmptyState.vue';
 import StatusNotice from '../components/StatusNotice.vue';
+import ConfirmButton from '../components/ConfirmButton.vue';
 import CovenantIcon from '../components/CovenantIcon.vue';
 import PlanCovenants from '../components/PlanCovenants.vue';
 import PlanSummary from '../components/PlanSummary.vue';
+import GlossaryText from '../components/GlossaryText.vue';
 import PlanSharePanel from '../components/PlanSharePanel.vue';
 import PlannerSheet from '../components/PlannerSheet.vue';
+import PlanIconPicker from '../components/PlanIconPicker.vue';
+import PlannerStages from '../planner/PlannerStages.vue';
 import {useCompactPlanner} from '../planner/useCompactPlanner.ts';
 import '../workbench.css';
 /**
- * 流派编辑（规划器）：从全部干员里排 8 人，实时看盟约进度、效果和补位推荐；
- * 编辑的是流派页当前选中的预设，可用分享码 / 链接 / 图片分享，或与另一套对比。
+ * 流派编辑器共用一套干员、装备和盟约控件，始终写入当前查看的阶段或成型阵容。
  */
 import {routeQuery, updateQuery} from '../../router/navigation.ts';
 import {CATEGORY_IDS, queryText} from '../../router/location.ts';
@@ -85,6 +93,40 @@ import {
 } from '../../router/entities.ts';
 const emit = defineEmits<{done: []}>();
 const actions = useQuickrefActions();
+const stages = computed(() => plan.value.stages ?? []);
+const stage = computed(() =>
+  stages.value.find((item) => stageKey(item) === editingStageKey.value),
+);
+watch([editingStageKey, stage], ([key, item]) => {
+  // 其他标签页更新存档后，已删除的区间应回到成型阵容并清除旧槽位的编辑状态。
+  if (key && !item) editingStageKey.value = '';
+});
+const formation = computed(() => stage.value ?? plan.value);
+const ops = computed(() => formation.value.ops);
+const inPlan = computed(() => new Set(ops.value.map((op) => op.name)));
+const stats = computed(() => covenantStats(ops.value, formation.value.layers));
+const canRun = computed(() => hasPlanOperators(plan.value));
+
+function setIcon(icon?: PlanIcon): void {
+  // 再次选中预设自带的盟约，与恢复默认等效，不留下仅图标不同的修改版。
+  if (!icon || (icon.kind === 'covenant' && icon.name === plan.value.base)) delete plan.value.icon;
+  else plan.value.icon = icon;
+  touch();
+}
+
+function commitStages(next: PlanStage[], selected: string): void {
+  const oldKey = editingStageKey.value;
+  const updatesRun =
+    oldKey &&
+    runKey.value === current.value.key &&
+    runStageKey.value === oldKey &&
+    !next.some((item) => stageKey(item) === oldKey);
+  if (updatesRun && selected) runStageKey.value = selected;
+  plan.value.stages = next;
+  editingStageKey.value = selected;
+  if (updatesRun && !selected) setRun(current.value.key);
+  touch();
+}
 const noteInput = ref<HTMLTextAreaElement | null>(null);
 const NOTE_PROMPTS = [
   ['+ 前期过渡', '前期过渡：'],
@@ -122,14 +164,14 @@ const templatePresetOptions = computed<readonly SelectOption<string>[]>(() => [
     })),
 ]);
 function insertNotePrompt(prefix: string): void {
-  const currentNote = plan.value.note;
+  const currentNote = formation.value.note;
   if (currentNote.includes(prefix)) {
     noteInput.value?.focus();
     return;
   }
   const sep = currentNote && !currentNote.endsWith('\n') ? '\n' : '';
   const next = (currentNote + sep + prefix).slice(0, MAX_NOTE);
-  plan.value.note = next;
+  formation.value.note = next;
   touch();
   void nextTick(() => {
     const el = noteInput.value;
@@ -139,8 +181,11 @@ function insertNotePrompt(prefix: string): void {
   });
 }
 function finishAndRun(): void {
-  if (!ops.value.length) return;
-  setRun(current.value.key);
+  if (!canRun.value) return;
+  setRun(
+    current.value.key,
+    ops.value.length ? editingStageKey.value : undefined,
+  );
   emit('done');
 }
 function startWithCovenant(cov: string): void {
@@ -150,10 +195,13 @@ function startWithCovenant(cov: string): void {
 function applyTemplatePreset(key: string): void {
   const source = presets.value.find((x) => x.key === key)?.plan;
   if (!source) return;
-  plan.value.ops = JSON.parse(JSON.stringify(source.ops)) as PlanOp[];
-  plan.value.strategy = source.strategy;
-  plan.value.layers = {...source.layers};
-  if (!plan.value.note.trim()) plan.value.note = source.note;
+  formation.value.ops = JSON.parse(JSON.stringify(source.ops)) as PlanOp[];
+  formation.value.layers = {...source.layers};
+  if (!formation.value.note.trim()) formation.value.note = source.note;
+  if (!stage.value) {
+    plan.value.strategy = source.strategy;
+    plan.value.strategyAlternates = [...(source.strategyAlternates ?? [])];
+  }
   editing.value = -1;
   picking.value = '';
   replacing.value = false;
@@ -165,8 +213,9 @@ function onSelectPlanCovenant(cov: string): void {
   // 筛选值随路由异步更新，本次点击直接使用玩家刚选的盟约。
   if (compact.value && selected) void openOperators();
 }
-watch(editingId, () => {
+watch([editingId, editingStageKey], () => {
   closeMobilePanel();
+  equipmentQuery.value = '';
   mobileSection.value = 'lineup';
 });
 
@@ -203,7 +252,7 @@ const mobileTitle = computed(() => {
     case 'alternatives':
       return `过渡/备选 · ${slot.value?.name ?? ''}（${slot.value?.alt.length ?? 0}/${MAX_ALT}）`;
     case 'strategies':
-      return '选择策略';
+      return strategyEdit.value < 0 ? '添加流派策略' : '更换流派策略';
     default:
       return `添加干员（${ops.value.length}/${MAX_OPS}）`;
   }
@@ -324,7 +373,7 @@ const altSuggest = computed(() =>
         slot.value,
         ops.value,
         8,
-        plan.value.layers,
+        formation.value.layers,
         activeBox.value,
       )
     : [],
@@ -377,11 +426,53 @@ function swapAlt(i: number): void {
   s.core = false;
   touch();
 }
+const strategies = computed(() =>
+  [plan.value.strategy, ...(plan.value.strategyAlternates ?? [])].filter(
+    Boolean,
+  ),
+);
+const strategyEdit = ref(-1);
+
+function openStrategies(index: number): void {
+  if (picking.value === 'st' && strategyEdit.value !== index)
+    picking.value = '';
+  strategyEdit.value = index;
+  openPicker('st');
+}
+
+function setStrategies(names: string[]): void {
+  plan.value.strategy = names[0] ?? '';
+  plan.value.strategyAlternates = names.slice(1);
+  touch();
+}
+
 function pickStrategy(name: string): void {
-  plan.value.strategy = plan.value.strategy === name ? '' : name;
+  const names = [...strategies.value];
+  if (names.includes(name)) return;
+  if (strategyEdit.value < 0) {
+    if (names.length >= MAX_STRATEGIES) return;
+    names.push(name);
+  } else {
+    if (strategyEdit.value >= names.length) return;
+    names[strategyEdit.value] = name;
+  }
+  setStrategies(names);
   picking.value = '';
   if (compact.value) closeMobilePanel();
-  touch();
+}
+
+function moveStrategy(index: number, offset: number): void {
+  const names = [...strategies.value];
+  const dest = index + offset;
+  if (dest < 0 || dest >= names.length) return;
+  [names[index], names[dest]] = [names[dest], names[index]];
+  picking.value = '';
+  setStrategies(names);
+}
+
+function removeStrategy(name: string): void {
+  picking.value = '';
+  setStrategies(strategies.value.filter((item) => item !== name));
 }
 function editSlot(i: number): void {
   editing.value = !compact.value && editing.value === i ? -1 : i;
@@ -392,10 +483,10 @@ function editSlot(i: number): void {
 
 /* ---------- 计算 ---------- */
 /* 盟约层数：每个盟约各自的层数，存在方案里，随分享码一起分享 */
-const layerOf = (name: string): number => plan.value.layers[name] ?? 0;
+const layerOf = (name: string): number => formation.value.layers[name] ?? 0;
 function setLayers(name: string, value: number): void {
-  plan.value.layers = {
-    ...plan.value.layers,
+  formation.value.layers = {
+    ...formation.value.layers,
     [name]: Math.max(0, Math.min(MAX_LAYERS, Math.round(+value || 0))),
   };
   touch();
@@ -443,10 +534,12 @@ function borrowRiskOperators(names: readonly string[]): void {
   }
 }
 const recs = computed(() =>
-  suggestions(ops.value, 8, plan.value.layers, activeBox.value),
+  suggestions(ops.value, 8, formation.value.layers, activeBox.value),
 );
 const notes = computed(() => equipNotes(ops.value));
-const strategy = computed(() => STRATEGY[plan.value.strategy]);
+const replacingStrategy = computed(
+  () => STRATEGY[strategies.value[strategyEdit.value]],
+);
 /** 阵容里已有的盟约：干员池里能推进它们的干员加星 */
 const present = computed(
   () =>
@@ -616,7 +709,7 @@ const otherPlan = computed<Plan | null>(
 const onlyMine = computed(
   () =>
     new Set(
-      ops.value
+      plan.value.ops
         .map((o) => o.name)
         .filter((n) => !otherPlan.value?.ops.some((o) => o.name === n)),
     ),
@@ -626,10 +719,10 @@ const onlyOther = computed(
     new Set(
       (otherPlan.value?.ops ?? [])
         .map((o) => o.name)
-        .filter((n) => !inPlan.value.has(n)),
+        .filter((n) => !plan.value.ops.some((o) => o.name === n)),
     ),
 );
-const shared = computed(() => ops.value.length - onlyMine.value.size);
+const shared = computed(() => plan.value.ops.length - onlyMine.value.size);
 </script>
 <template>
   <div
@@ -645,7 +738,8 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
       @close="closeMobilePanel"
       @back="backToSlot" />
     <!-- 方案栏 -->
-    <div class="pl-bar">
+    <div id="build-editor-heading" class="pl-bar" role="group" aria-label="流派编辑器" tabindex="-1">
+      <PlanIconPicker :key="editingId" :model-value="plan.icon" :base="plan.base" @update:model-value="setIcon" />
       <input
         v-model="plan.name"
         class="pl-name"
@@ -671,7 +765,8 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
         </button>
         <template v-if="!compact">
           <i class="sep"></i>
-          <button type="button" :disabled="!ops.length" @click="finishAndRun">
+          <slot name="library" />
+          <button type="button" :disabled="!canRun" @click="finishAndRun">
             完成并设为本局
           </button>
           <button type="button" class="pri" @click="emit('done')">完成</button>
@@ -705,24 +800,34 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
         </div>
         <div class="pl-cmp">
           <PlanSummary
-            :ops="ops"
+            :ops="plan.ops"
             :strategy="plan.strategy"
+            :strategy-alternates="plan.strategyAlternates"
             :note="plan.note"
             :layers="plan.layers"
             :title="plan.name"
+            :icon="effectivePlanIcon(plan)"
             :highlight="onlyMine"
             compact />
           <PlanSummary
             :ops="otherPlan.ops"
             :strategy="otherPlan.strategy"
+            :strategy-alternates="otherPlan.strategyAlternates"
             :note="otherPlan.note"
             :layers="otherPlan.layers"
             :title="otherPlan.name"
+            :icon="effectivePlanIcon(otherPlan)"
             :highlight="onlyOther"
             compact />
         </div>
       </template>
     </section>
+
+    <PlannerStages
+      :key="editingId"
+      v-model="editingStageKey"
+      :stages="stages"
+      @commit="commitStages" />
 
     <div class="pl-grid">
       <!-- 左栏自成一列，高度不受右侧干员池影响 -->
@@ -803,14 +908,13 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
               </span>
             </button>
             <button
-              v-for="k in MAX_OPS - ops.length"
-              :key="`e${k}`"
+              v-if="!lineupFull"
               type="button"
               class="pl-slot empty"
-              :aria-label="`添加第 ${ops.length + k} 名干员`"
+              :aria-label="`添加第 ${ops.length + 1} 名干员`"
               :aria-haspopup="compact ? 'dialog' : undefined"
               @click="openOperators()">
-              <i class="no">{{ ops.length + k }}</i>
+              <i class="no">{{ ops.length + 1 }}</i>
               +
             </button>
           </div>
@@ -1086,9 +1190,11 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
                     ">
                     {{ !compact && replaceMode ? '取消更换' : '更换' }}
                   </button>
-                  <button type="button" class="dg" @click="removeSlot">
-                    移出
-                  </button>
+                  <ConfirmButton
+                    label="移出"
+                    confirm-label="确认移出"
+                    :reset-key="slot.name"
+                    @confirm="removeSlot" />
                 </div>
               </template>
               <div
@@ -1242,50 +1348,97 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
               @dismiss="riskBorrowError = ''" />
           </div>
 
-          <div class="pl-st">
+          <div class="pl-strategies">
+            <div class="pl-strategies-heading">
+              <b>{{ stages.length ? '流派策略（各阶段共用）' : '流派策略' }}</b>
+              <small>{{ strategies.length }} / {{ MAX_STRATEGIES }}</small>
+            </div>
+            <ol
+              v-if="strategies.length"
+              class="pl-strategies-list"
+              aria-label="流派策略优先顺序">
+              <li v-for="(name, index) in strategies" :key="name">
+                <div class="pl-strategies-row">
+                  <button
+                    type="button"
+                    :class="[
+                      'pl-st-b',
+                      {on: picking === 'st' && strategyEdit === index},
+                    ]"
+                    :aria-label="`更换${index === 0 ? '首选策略' : '备选策略 ' + index} ${name}`"
+                    :aria-expanded="picking === 'st' && strategyEdit === index"
+                    :data-st="name"
+                    @click="openStrategies(index)">
+                    <img
+                      :src="portraitSrc(name)"
+                      alt=""
+                      width="36"
+                      height="36" />
+                    <span>
+                      <small>
+                        {{ index === 0 ? '首选' : '备选 ' + index }}
+                      </small>
+                      <b>{{ name }}</b>
+                    </span>
+                  </button>
+                  <div class="pl-strategy-actions">
+                    <button
+                      v-if="strategies.length > 1"
+                      class="btn"
+                      type="button"
+                      :aria-label="`上移策略 ${name}`"
+                      :disabled="index === 0"
+                      @click="moveStrategy(index, -1)">
+                      ↑
+                    </button>
+                    <button
+                      v-if="strategies.length > 1"
+                      class="btn"
+                      type="button"
+                      :aria-label="`下移策略 ${name}`"
+                      :disabled="index === strategies.length - 1"
+                      @click="moveStrategy(index, 1)">
+                      ↓
+                    </button>
+                    <ConfirmButton
+                      label="移除"
+                      :confirm-label="`移除${name}`"
+                      @confirm="removeStrategy(name)" />
+                  </div>
+                </div>
+                <p v-if="index === 0" v-html="fx(STRATEGY[name].effect)"></p>
+              </li>
+            </ol>
             <button
+              v-if="strategies.length < MAX_STRATEGIES"
               type="button"
-              :class="['pl-st-b', 'control-disclosure', {on: picking === 'st'}]"
-              :aria-expanded="picking === 'st'"
+              class="btn pl-add-strategy"
+              :aria-expanded="picking === 'st' && strategyEdit < 0"
               :aria-controls="
-                picking === 'st' ? 'planner-strategies' : undefined
+                picking === 'st' && strategyEdit < 0
+                  ? 'planner-strategies'
+                  : undefined
               "
-              :data-st="strategy?.name"
-              @click="openPicker('st')">
-              <img
-                v-if="strategy"
-                :src="portraitSrc(strategy.name)"
-                alt=""
-                width="36"
-                height="36" />
-              <span v-else class="ph">+</span>
-              <span>
-                <small>策略</small>
-                <b>{{ strategy ? `${strategy.name}` : '选择策略' }}</b>
-              </span>
-              <span class="control-chevron" aria-hidden="true"></span>
+              @click="openStrategies(-1)">
+              {{ strategies.length ? '＋ 添加备选策略' : '＋ 选择首选策略' }}
             </button>
-            <p v-if="strategy" v-html="fx(strategy.effect)"></p>
           </div>
           <Teleport :to="panelTarget" :disabled="!compact" defer>
             <div
               v-if="picking === 'st'"
               id="planner-strategies"
               class="pl-pick stp">
-              <div v-if="compact && strategy" class="pl-st-current">
+              <div v-if="replacingStrategy" class="pl-st-current">
                 <img
-                  :src="portraitSrc(strategy.name)"
+                  :src="portraitSrc(replacingStrategy.name)"
                   alt=""
                   width="40"
                   height="40" />
                 <span>
-                  <small>当前策略 · {{ strategy.category }}</small>
-                  <b>{{ strategy.name }}</b>
-                  <span v-html="fx(strategy.effect)"></span>
+                  <small>正在更换 · {{ replacingStrategy.category }}</small>
+                  <b>{{ replacingStrategy.name }}</b>
+                  <span v-html="fx(replacingStrategy.effect)"></span>
                 </span>
-                <button type="button" @click="pickStrategy(strategy.name)">
-                  不选
-                </button>
               </div>
               <Segmented
                 :labels="STRATEGY_CATEGORIES"
@@ -1297,8 +1450,9 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
                   v-for="s in stList"
                   :key="s.name"
                   type="button"
-                  :class="{on: s.name === plan.strategy}"
-                  :aria-pressed="s.name === plan.strategy"
+                  :class="{on: strategies.includes(s.name)}"
+                  :aria-pressed="strategies.includes(s.name)"
+                  :disabled="strategies.includes(s.name)"
                   :data-st="s.name"
                   @click="pickStrategy(s.name)">
                   <img
@@ -1315,12 +1469,20 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
           </Teleport>
           <details class="pl-note-fold" :open="!compact">
             <summary v-show="compact">
-              流派说明
-              <span class="hint">{{ plan.note.length }}/{{ MAX_NOTE }}</span>
+              {{ stage ? '阶段说明' : '流派说明' }}
+              <span class="hint">
+                {{ formation.note.length }}/{{ MAX_NOTE }}
+              </span>
             </summary>
             <div class="pl-note-box">
               <div class="pl-note-head">
-                <span class="k">打法要点与抓牌说明</span>
+                <span class="k">
+                  {{
+                    stage
+                      ? stageLabel(stage) + '打法要点'
+                      : '打法要点与抓牌说明'
+                  }}
+                </span>
                 <span class="pl-note-prompts">
                   <button
                     v-for="[label, prefix] in NOTE_PROMPTS"
@@ -1334,13 +1496,13 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
               <label class="pl-note">
                 <textarea
                   ref="noteInput"
-                  v-model="plan.note"
+                  v-model="formation.note"
                   :maxlength="MAX_NOTE"
                   rows="4"
                   placeholder="可分行写：前期谁过渡、几本找核心、装备给谁、抓不到核心怎么平替"
-                  aria-label="流派说明"
+                  :aria-label="stage ? '阶段说明' : '流派说明'"
                   @input="touch"></textarea>
-                <small>{{ plan.note.length }}/{{ MAX_NOTE }}</small>
+                <small>{{ formation.note.length }}/{{ MAX_NOTE }}</small>
               </label>
             </div>
           </details>
@@ -1358,7 +1520,7 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
           </h4>
           <PlanCovenants
             :stats="stats"
-            :layers="plan.layers"
+            :layers="formation.layers"
             interactive
             :selected="poolCovenant"
             @select="onSelectPlanCovenant" />
@@ -1472,8 +1634,8 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
           <ul v-if="notes.length" class="pl-notes">
             <li v-for="(n, i) in notes" :key="i" :class="n.kind">
               <b>{{ n.op }}</b>
-              {{ n.text }}
-              <span v-if="n.result" v-html="fx(n.result)"></span>
+              <GlossaryText :text="n.text" />
+              <span v-if="n.result" class="pl-note-result" v-html="fx(n.result)"></span>
             </li>
           </ul>
         </section>
@@ -1715,10 +1877,11 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
         ＋ 干员
       </button>
       <button type="button" @click="emit('done')">完成</button>
+      <slot name="library" />
       <button
         type="button"
         class="pri"
-        :disabled="!ops.length"
+        :disabled="!canRun"
         @click="finishAndRun">
         设为本局
       </button>
@@ -1727,6 +1890,84 @@ const shared = computed(() => ops.value.length - onlyMine.value.size);
 </template>
 
 <style scoped>
+.pl-mobile-actions {
+  grid-template-columns: .75fr .75fr 1fr .75fr 1.35fr 1.25fr;
+}
+@container quickref-view (max-width: 440px) {
+  .pl-mobile-actions {
+    column-gap: 3px;
+  }
+  .pl-mobile-actions button,
+  .pl-mobile-actions :slotted(.build-picker-trigger) {
+    padding-inline: 2px;
+    font-size: 12px;
+  }
+  .pl-mobile-actions :deep(.build-picker-trigger svg) {
+    display: none;
+  }
+}
+.pl-strategies {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+.pl-strategies-heading,
+.pl-strategies-row,
+.pl-strategy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.pl-strategies-heading {
+  font-size: 13px;
+}
+.pl-strategies-heading small {
+  font: 12px var(--fn);
+  color: var(--ink3);
+}
+.pl-strategies-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+.pl-strategies-list li {
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface2);
+}
+.pl-strategies-row {
+  justify-content: space-between;
+}
+.pl-strategies-row > button {
+  max-width: 100%;
+}
+.pl-strategies-list p {
+  margin: 4px 0 0;
+  color: var(--ink2);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.pl-strategy-actions .btn {
+  min-width: 34px;
+  min-height: 34px;
+  padding-inline: 6px;
+}
+.pl-add-strategy {
+  justify-self: start;
+  min-height: 34px;
+}
+@media (max-height: 600px) {
+  .pl-strategies {
+    margin-top: 8px;
+  }
+  .pl-strategies-list {
+    gap: 4px;
+  }
+}
 .pl-diag {
   display: grid;
   gap: 8px;

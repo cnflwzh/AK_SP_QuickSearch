@@ -21,7 +21,6 @@ import {
   leaderSearchTerms,
   matchedOnlyAdvanced,
   matchedOnlyElite,
-  matchingEnemyTerms,
   prepareSearchQuery,
   searchResults,
   topSearchTarget,
@@ -111,9 +110,14 @@ test('enemy, bounty, training, and glossary pinyin search matches names, terms, 
   assert.ok(nameScore('赘生甲壳', normalize('jiake')) >= 1.5);
 
   // Glossary pinyin lookup
-  assert.ok(matchingEnemyTerms('qs').some((e) => e.term === '侵蚀损伤'));
-  assert.ok(matchingEnemyTerms('diaowang').some((e) => e.term === '凋亡损伤'));
-  assert.ok(matchingEnemyTerms('ymhx').some((e) => e.term === '隐秘核心'));
+  for (const [query, term] of [
+    ['qs', '侵蚀损伤'],
+    ['diaowang', '凋亡损伤'],
+    ['ymhx', '隐秘核心'],
+  ]) {
+    const {glossary} = searchResults(prepareSearchQuery(query));
+    assert.ok(glossary.some((entry) => entry.term === term), query);
+  }
 
   // Boss related term pinyin matching
   const gun = LEADERS.find((l) => l.name === '假想敌：铳');

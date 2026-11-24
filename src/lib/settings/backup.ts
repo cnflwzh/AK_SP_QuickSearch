@@ -1,15 +1,21 @@
 import {normalizeOperatorBox, type OperatorBox} from '../box/model.ts';
-import {MAX_BACKUP_BYTES, readBackupPlans} from '../plans/backup.ts';
+import {
+  MAX_BACKUP_BYTES,
+  planBackupVersion,
+  readBackupPlans,
+  serializeBackupDocument,
+  writeBackupPlans,
+} from '../plans/backup.ts';
 import type {Plan} from '../plans/model.ts';
 import {normalizeSettings, type UserSettings} from './model.ts';
 
 export const SETTINGS_BACKUP_FORMAT = 'weishu-quickref-settings';
-export const SETTINGS_BACKUP_VERSION = 1;
+export const SETTINGS_BACKUP_VERSION = 3;
 export const MAX_SETTINGS_BACKUP_BYTES = MAX_BACKUP_BYTES;
 
 export interface SettingsBackup {
   format: typeof SETTINGS_BACKUP_FORMAT;
-  version: typeof SETTINGS_BACKUP_VERSION;
+  version: 1 | 2 | typeof SETTINGS_BACKUP_VERSION;
   exportedAt: string;
   settings: UserSettings;
   plans?: Plan[];
@@ -29,17 +35,16 @@ export function serializeSettingsBackup(
   const cleanBox = box ? normalizeOperatorBox(box) : undefined;
   const backup: SettingsBackup = {
     format: SETTINGS_BACKUP_FORMAT,
-    version: SETTINGS_BACKUP_VERSION,
+    version: planBackupVersion(plans),
     exportedAt: new Date().toISOString(),
     settings: cleanSettings,
-    ...(plans ? {plans: JSON.parse(JSON.stringify(plans)) as Plan[]} : {}),
+    ...(plans ? {plans: writeBackupPlans(plans)} : {}),
     ...(cleanBox && Object.keys(cleanBox).length ? {box: cleanBox} : {}),
   };
-  const text = JSON.stringify(backup, null, 2);
-  if (new TextEncoder().encode(text).length > MAX_SETTINGS_BACKUP_BYTES) {
-    throw new Error('配置文件超过 5 MB，请取消打包流派后重试。');
-  }
-  return text;
+  return serializeBackupDocument(
+    backup,
+    '配置文件超过 5 MB，请取消打包流派后重试。',
+  );
 }
 
 /** 解析并校验导出的设置文件或配置文本；无效时抛出可直接展示的错误说明。 */
@@ -62,7 +67,11 @@ export function parseSettingsBackup(text: string): SettingsBackup {
   if (value.format !== SETTINGS_BACKUP_FORMAT) {
     throw new Error('这不是卫戍速查的配置文件。');
   }
-  if (value.version !== SETTINGS_BACKUP_VERSION) {
+  if (
+    value.version !== 1 &&
+    value.version !== 2 &&
+    value.version !== SETTINGS_BACKUP_VERSION
+  ) {
     throw new Error('此配置版本暂不支持，请更新页面后重新导出。');
   }
   if (
@@ -83,7 +92,7 @@ export function parseSettingsBackup(text: string): SettingsBackup {
   }
   return {
     format: SETTINGS_BACKUP_FORMAT,
-    version: SETTINGS_BACKUP_VERSION,
+    version: value.version,
     exportedAt: value.exportedAt,
     settings: normalizeSettings(value.settings),
     ...(plans ? {plans} : {}),

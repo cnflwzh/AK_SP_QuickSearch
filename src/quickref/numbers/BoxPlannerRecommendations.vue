@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import {computed, nextTick, ref, shallowRef, watch} from 'vue';
-import {BORROW_LIMIT, CORE_BUILDS, TIER_LABELS} from '../../../data/index.ts';
+import {BORROW_LIMIT, TIER_LABELS} from '../../../data/index.ts';
 import {
   recommendBorrowBatch,
   recommendTraining,
-  type BoxPlanSource,
 } from '../../lib/box/insights.ts';
 import {BOX_RANK_BORROWED} from '../../lib/box/model.ts';
 import {
@@ -14,9 +13,10 @@ import {
   setOperatorRanks,
 } from '../../lib/box/store.ts';
 import {avatarSrc} from '../../lib/ui/assets.ts';
-import {presets} from '../planStore.ts';
+import {presetFormation, presets} from '../planStore.ts';
 import {useQuickrefActions} from '../state.ts';
-import CovenantIcon from '../components/CovenantIcon.vue';
+import {effectivePlanIcon} from '../../lib/plans/model.ts';
+import PlanEmblem from '../components/PlanEmblem.vue';
 import EmptyState from '../components/EmptyState.vue';
 import StatusNotice from '../components/StatusNotice.vue';
 import SubTabs, {
@@ -36,15 +36,16 @@ const showAllTrain = ref(false);
 const feedback = ref('');
 const errorMsg = ref('');
 
-const planSources = computed<readonly BoxPlanSource[]>(() =>
+const planSources = computed(() =>
   presets.value
-    .filter((item) => item.plan.ops.length > 0)
     .map((item) => ({
       key: item.key,
       name: item.plan.name,
+      icon: effectivePlanIcon(item.plan),
       builtin: item.builtin,
-      ops: item.plan.ops,
-    })),
+      ops: presetFormation(item).ops,
+    }))
+    .filter((item) => item.ops.length > 0),
 );
 
 const selectedBuildSet = computed(() => new Set(selectedBuilds.value));
@@ -218,7 +219,7 @@ function markTrainedE1(name: string): void {
         :class="['bxp-bchip', {on: selectedBuildSet.has(source.key)}]"
         :aria-pressed="selectedBuildSet.has(source.key)"
         @click="toggleBuildFilter(source.key)">
-        <CovenantIcon v-if="CORE_BUILDS[source.key]" :name="source.key" />
+        <PlanEmblem v-if="source.icon" :icon="source.icon" />
         {{ source.name }}
       </button>
     </div>
@@ -430,8 +431,8 @@ function markTrainedE1(name: string): void {
   font-weight: 600;
   cursor: pointer;
 }
-.bxp-bchip :deep(.cv-ic) {
-  --cv-ic-size: 13px;
+.bxp-bchip .plan-emblem {
+  --emblem-size: 18px;
 }
 .bxp-bchip.on {
   border-color: var(--accent);
