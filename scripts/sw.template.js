@@ -18,6 +18,7 @@ const FONT_CACHE = 'wsq-font-local-v1';
 const ALLOWED = new Set([...CORE, ...IMAGES].map(path => new URL(path, self.registration.scope).href));
 const APP_SHELL = new URL('index.html', self.registration.scope).href;
 const GUIDE_SHELL = new URL('guide.html', self.registration.scope).href;
+const DIFF_SHELL = new URL('diff.html', self.registration.scope).href;
 const isAppPath = path => /^\/(?:index(?:\.html)?\/?|(?:overview|builds|covenants|operators|equipment|strategies|enemies|tools|settings|box)(?:\/.*)?)?$/.test(path);
 const isGuidePath = path => /^\/guide(?:\.html)?\/?$/.test(path);
 
@@ -25,6 +26,7 @@ const isGuidePath = path => /^\/guide(?:\.html)?\/?$/.test(path);
 function navigationShell(url) {
   if (isAppPath(url.pathname)) return APP_SHELL;
   if (isGuidePath(url.pathname)) return GUIDE_SHELL;
+  if (/^\/diff(?:\.html)?\/?$/.test(url.pathname)) return DIFF_SHELL;
   return null;
 }
 

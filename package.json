@@ -36,6 +36,7 @@
     "node": ">=22.18.0"
   },
   "dependencies": {
+    "chart.js": "4.6.2",
     "dompurify": "3.4.17",
     "fflate": "0.8.3",
     "fossil-delta": "2.0.0",

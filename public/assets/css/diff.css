@@ -1,0 +1,630 @@
+/* ==========================================================================
+   diff.css — 赛季更新对比页（diff.html）专用：图形化 Git Diff 主题与响应式布局
+   ========================================================================== */
+
+:root {
+  --df-del-bg: rgba(193, 61, 54, 0.075);
+  --df-del-bg-strong: rgba(193, 61, 54, 0.2);
+  --df-del-border: rgba(193, 61, 54, 0.34);
+  --df-del-gutter: rgba(193, 61, 54, 0.13);
+  --df-del-ink: #9f2720;
+
+  --df-add-bg: rgba(45, 138, 75, 0.08);
+  --df-add-bg-strong: rgba(45, 138, 75, 0.22);
+  --df-add-border: rgba(45, 138, 75, 0.36);
+  --df-add-gutter: rgba(45, 138, 75, 0.14);
+  --df-add-ink: #1d6b37;
+
+  --df-mod-bg: rgba(180, 106, 7, 0.1);
+  --df-mod-border: rgba(180, 106, 7, 0.38);
+  --df-mod-ink: #925404;
+
+  --df-empty-stripe: repeating-linear-gradient(
+    -45deg,
+    rgba(18, 34, 32, 0.025) 0 6px,
+    rgba(18, 34, 32, 0.055) 6px 12px
+  );
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --df-del-bg: rgba(239, 107, 96, 0.1);
+    --df-del-bg-strong: rgba(239, 107, 96, 0.28);
+    --df-del-border: rgba(239, 107, 96, 0.38);
+    --df-del-gutter: rgba(239, 107, 96, 0.17);
+    --df-del-ink: #ff9c94;
+
+    --df-add-bg: rgba(95, 194, 127, 0.1);
+    --df-add-bg-strong: rgba(95, 194, 127, 0.28);
+    --df-add-border: rgba(95, 194, 127, 0.38);
+    --df-add-gutter: rgba(95, 194, 127, 0.17);
+    --df-add-ink: #8ce2a6;
+
+    --df-mod-bg: rgba(242, 169, 59, 0.13);
+    --df-mod-border: rgba(242, 169, 59, 0.42);
+    --df-mod-ink: #f6bd63;
+
+    --df-empty-stripe: repeating-linear-gradient(
+      -45deg,
+      rgba(225, 234, 232, 0.02) 0 6px,
+      rgba(225, 234, 232, 0.048) 6px 12px
+    );
+  }
+}
+
+:root[data-theme="dark"] {
+  --df-del-bg: rgba(239, 107, 96, 0.1);
+  --df-del-bg-strong: rgba(239, 107, 96, 0.28);
+  --df-del-border: rgba(239, 107, 96, 0.38);
+  --df-del-gutter: rgba(239, 107, 96, 0.17);
+  --df-del-ink: #ff9c94;
+
+  --df-add-bg: rgba(95, 194, 127, 0.1);
+  --df-add-bg-strong: rgba(95, 194, 127, 0.28);
+  --df-add-border: rgba(95, 194, 127, 0.38);
+  --df-add-gutter: rgba(95, 194, 127, 0.17);
+  --df-add-ink: #8ce2a6;
+
+  --df-mod-bg: rgba(242, 169, 59, 0.13);
+  --df-mod-border: rgba(242, 169, 59, 0.42);
+  --df-mod-ink: #f6bd63;
+
+  --df-empty-stripe: repeating-linear-gradient(
+    -45deg,
+    rgba(225, 234, 232, 0.02) 0 6px,
+    rgba(225, 234, 232, 0.048) 6px 12px
+  );
+}
+
+/* ---------- 顶栏与跨页同级入口 ---------- */
+.df-top {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+
+.df-top-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 46px;
+  padding-block: 6px;
+}
+
+.df-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.df-brand h1 {
+  margin: 0;
+  font-family: var(--fd);
+  font-weight: 400;
+  font-size: clamp(22px, 3.6vw, 30px);
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.df-peer-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.df-peer-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 34px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--teal) 48%, var(--line2));
+  background: var(--surface);
+  color: var(--teal);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.df-peer-link:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ---------- 主内容容器 ---------- */
+.df-main {
+  container: diff-view / inline-size;
+  padding-block: 14px 42px;
+  min-height: 68vh;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.nc {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+
+/* ---------- Git 分支/版本对比面板 ---------- */
+.df-rev-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 10px;
+}
+
+.df-rev-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+}
+
+.df-rev-box {
+  display: grid;
+  gap: 6px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  min-width: 0;
+}
+
+.df-rev-box.is-base {
+  background: var(--df-del-bg);
+  border-color: var(--df-del-border);
+}
+
+.df-rev-box.is-head {
+  background: var(--df-add-bg);
+  border-color: var(--df-add-border);
+}
+
+.df-rev-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.df-git-ref {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--fn);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.df-rev-box.is-base .df-git-ref {
+  color: var(--df-del-ink);
+}
+
+.df-rev-box.is-head .df-git-ref {
+  color: var(--df-add-ink);
+}
+
+.df-git-sign {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  font-family: var(--fn);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.df-rev-box.is-base .df-git-sign {
+  background: var(--df-del-bg-strong);
+  color: var(--df-del-ink);
+}
+
+.df-rev-box.is-head .df-git-sign {
+  background: var(--df-add-bg-strong);
+  color: var(--df-add-ink);
+}
+
+.df-rev-ver {
+  font-family: var(--fn);
+  font-size: 11.5px;
+  color: var(--ink3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+.df-swap-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.df-swap-btn {
+  min-width: 38px;
+  min-height: 38px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line2);
+  background: var(--surface2);
+  color: var(--ink2);
+  font-family: var(--fn);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.df-swap-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* 快捷跨赛季预设与 Git Diffstat 统计栏 */
+.df-rev-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+
+.df-presets {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.df-presets-label {
+  font-size: 12px;
+  color: var(--ink3);
+  margin-right: 2px;
+}
+
+.df-preset-chip {
+  min-height: 34px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line2);
+  background: var(--surface2);
+  color: var(--ink2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: border-color 0.14s ease, color 0.14s ease, background-color 0.14s ease;
+}
+
+.df-preset-chip:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.df-preset-chip.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.df-diffstat {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-family: var(--fn);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.df-stat-add {
+  color: var(--df-add-ink);
+}
+.df-stat-mod {
+  color: var(--df-mod-ink);
+}
+.df-stat-del {
+  color: var(--df-del-ink);
+}
+.df-stat-total {
+  color: var(--ink2);
+  font-weight: 600;
+}
+
+.df-meter {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.df-meter i {
+  width: 8px;
+  height: 8px;
+  border-radius: 1.5px;
+  background: var(--line);
+}
+.df-meter i.add {
+  background: var(--green);
+}
+.df-meter i.mod {
+  background: var(--accent);
+}
+.df-meter i.del {
+  background: var(--red);
+}
+
+/* ---------- 分类与筛选工具栏 ---------- */
+.df-controls {
+  display: grid;
+  gap: 8px;
+}
+
+.df-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.df-toolbar-search {
+  flex: 1 1 180px;
+  min-width: 120px;
+}
+
+.df-toolbar-select {
+  flex: 0 1 148px;
+  min-width: 112px;
+}
+
+.df-toolbar-view {
+  flex: 0 0 auto;
+}
+
+body[data-page='diff'] :is(.df-toolbar-view button, .subtabs.is-l3 .subtabs-btn, .df-peer-nav .copy-btn.is-compact, .q-notice .q-notice-close) {
+  min-height: 34px;
+}
+
+@container diff-view (max-width: 760px) {
+  .df-toolbar-select { flex: 0 1 115px; min-width: 86px; }
+  .df-toolbar-search { flex: 1 1 120px; min-width: 90px; }
+}
+
+@container diff-view (max-width: 520px) {
+  .df-toolbar { flex-wrap: wrap; }
+  .df-rev-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .df-swap-col {
+    flex-direction: row;
+  }
+  .df-toolbar-search {
+    flex: 1 1 100%;
+  }
+}
+
+/* ---------- 左右双栏吸顶列头 ---------- */
+.df-col-banner {
+  position: sticky;
+  top: 47px;
+  z-index: 18;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  border: 1px solid var(--line2);
+  border-radius: 8px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 2px 10px -6px rgba(0, 0, 0, 0.18);
+}
+
+.df-col-side {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  font-weight: 700;
+  min-width: 0;
+}
+
+.df-col-side.is-left {
+  background: var(--df-del-bg);
+  color: var(--df-del-ink);
+  border-right: 1px solid var(--line2);
+}
+
+.df-col-side.is-right {
+  background: var(--df-add-bg);
+  color: var(--df-add-ink);
+}
+
+.df-col-side span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.df-col-side small {
+  margin-left: auto;
+  font-family: var(--fn);
+  font-weight: 600;
+  color: var(--ink3);
+  white-space: nowrap;
+}
+
+/* ---------- 分组列表 ---------- */
+.df-section {
+  display: grid;
+  gap: 10px;
+}
+
+.df-section + .df-section {
+  margin-top: 8px;
+}
+
+.df-list {
+  display: grid;
+  gap: 10px;
+}
+
+/* ---------- 富文本高亮词条（供 DiffCard 内部 v-html 共用） ---------- */
+.df-k {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--teal);
+}
+
+.df-c {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--ink);
+  border-bottom: 2px solid var(--c, var(--teal));
+  padding-inline: 1px;
+}
+
+del.df-tok-del {
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+  text-decoration-color: color-mix(in srgb, var(--df-del-ink) 72%, transparent);
+  background: var(--df-del-bg-strong);
+  color: var(--ink);
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+ins.df-tok-add {
+  text-decoration: none;
+  background: var(--df-add-bg-strong);
+  color: var(--ink);
+  border-radius: 3px;
+  padding: 0 2px;
+  border-bottom: 1.5px solid var(--df-add-ink);
+}
+
+/* ---------- 大字号适配 ---------- */
+:root[data-font="large"] .df-col-side {
+  font-size: 14px;
+}
+
+/* ---------- 安卓横屏小窗（max-height: 600px）紧凑优化 ---------- */
+@media (max-height: 600px) {
+  .df-top-inner {
+    min-height: 38px;
+    padding-block: 3px;
+  }
+  .df-brand h1 {
+    font-size: 20px;
+  }
+  .df-peer-link {
+    min-height: 34px;
+    padding: 2px 9px;
+    font-size: 12px;
+  }
+  .df-main {
+    padding-block: 8px 24px;
+    gap: 8px;
+  }
+  .df-rev-card {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  .df-rev-box {
+    padding: 6px 8px;
+    gap: 4px;
+  }
+  .df-swap-btn {
+    min-width: 34px;
+    min-height: 34px;
+    padding: 4px 8px;
+  }
+  .df-rev-foot {
+    padding-top: 6px;
+    gap: 6px;
+  }
+  .df-col-banner {
+    top: 39px;
+  }
+  .df-col-side {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+  .df-col-side small {
+    display: none;
+  }
+}
+
+/* ---------- 减弱动画 ---------- */
+.subtab-panel {
+  animation: df-subtab-fade 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.subtab-panel[data-dir="next"] {
+  animation: df-subtab-next 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.subtab-panel[data-dir="prev"] {
+  animation: df-subtab-prev 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes df-subtab-fade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@keyframes df-subtab-next {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+}
+@keyframes df-subtab-prev {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subtab-panel,
+  .df-peer-link,
+  .df-swap-btn,
+  .df-preset-chip {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+:root[data-motion="reduce"] .subtab-panel,
+:root[data-motion="reduce"] .df-peer-link,
+:root[data-motion="reduce"] .df-swap-btn,
+:root[data-motion="reduce"] .df-preset-chip {
+  animation: none !important;
+  transition: none !important;
+}

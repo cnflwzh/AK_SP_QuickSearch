@@ -16,6 +16,7 @@
     {"src": "assets/icons/maskable-512-f8429c69.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
   ],
   "shortcuts": [
-    {"name": "图解教程", "url": "./guide.html", "icons": [{"src": "assets/icons/icon-192-f8429c69.png", "sizes": "192x192"}]}
+    {"name": "图解教程", "url": "./guide.html", "icons": [{"src": "assets/icons/icon-192-f8429c69.png", "sizes": "192x192"}]},
+    {"name": "赛季更新对比", "url": "./diff.html", "icons": [{"src": "assets/icons/icon-192-f8429c69.png", "sizes": "192x192"}]}
   ]
 }

@@ -3,7 +3,7 @@ import {navigationLayout} from './windowMode.ts';
 /** 调试信息沿用顶栏的分档结果，并报告用户设置和分屏后的实际可见状态。 */
 export function readNavigationLayout(): string {
   const bar = document.querySelector('.qbar');
-  if (!bar) return '图解教程';
+  if (!bar) return document.body.dataset.page === 'diff' ? '赛季更新对比' : '图解教程';
   const title = document.querySelector('.qhead');
   const layout = navigationLayout.value;
   return [

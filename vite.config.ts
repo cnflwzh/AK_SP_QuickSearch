@@ -42,6 +42,6 @@ export default defineConfig({
   }],
   build: {
     target: 'es2022',
-    rolldownOptions: { input: { index: resolve(root, 'index.html'), guide: resolve(root, 'guide.html') } },
+    rolldownOptions: { input: { index: resolve(root, 'index.html'), guide: resolve(root, 'guide.html'), diff: resolve(root, 'diff.html') } },
   },
 });

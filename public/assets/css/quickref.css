@@ -104,6 +104,11 @@
   color: var(--accent);
 }
 
+/* 窄屏标题栏保留 Box 和教程的位置；对比页也可从页脚进入。 */
+@media (max-width: 520px) {
+  .qhead-actions .diff-mini { display: none; }
+}
+
 /* sticky bar */
 .qbar {
   position: sticky;

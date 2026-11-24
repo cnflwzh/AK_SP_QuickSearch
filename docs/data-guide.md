@@ -105,3 +105,9 @@ npm run pinyin
 4. 补齐对应图片资源至 `public/assets/img/`。
 5. 运行 `npm run pinyin` 重新生成拼音索引。
 6. 运行 `npm run check`，确认 `tests/season-architecture.test.mjs`、`tests/box.test.mjs` 与全量单测、类型检查和生产构建全部通过。
+
+## 7. 赛季更新对比
+
+对比页从 `data/comparison/index.ts` 读取可选择的版本。正式赛季注册到 `SEASONS` 后会自动出现在两个选择器中。比较任意两份完整的 `SeasonDefinition` 即可，两个版本之间可以跳过多个赛季。
+
+正式赛季的版本 ID 由赛季 ID 和 `meta.ruleVersion` 组成。需要给玩家保留一次季中更新时，先保存更新前的独立快照，并以原版本 ID 注册在比较目录中。更新当前数据时填写新版本号，为两次修订提供易区分的标签，按发布时间从旧到新排列。这样旧的对比链接仍会选中原来的两版。

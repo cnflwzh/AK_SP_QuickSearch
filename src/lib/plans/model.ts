@@ -1,5 +1,6 @@
 /** 方案领域数据与纯校验。没有浏览器存储、分享编码或推荐评分。 */
 import type {SklandGuide} from './skland.ts';
+import {MAX_LAYERS} from '../season/layers.ts';
 import {
   COVENANTS,
   EQUIP,
@@ -20,7 +21,7 @@ export const MAX_STRATEGIES = 5;
 export const MAX_STAGE_ROUND = 15;
 /** 盟约层数：滑条到 1000，输入框可以填到 9999 */
 export const LAYER_SLIDER = 1000;
-export const MAX_LAYERS = 9999;
+export {MAX_LAYERS};
 
 /** core：用户标注的核心干员，仅用于展示；alt：主选抓不到时的备选名单，不计入盟约统计。 */
 export interface PlanOp {
