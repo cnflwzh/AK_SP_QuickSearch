@@ -4,7 +4,8 @@
  * 拼音只从音节边界开始匹配，"he" 不会命中 "shen" 中间的 he。
  * 拼音表由 scripts/gen_pinyin.mjs 生成（data/pinyin.ts）。
  */
-import { PINYIN } from '../../../data/pinyin.ts';
+import {PINYIN} from '../../../data/pinyin.ts';
+import type {PinyinIndex, PinyinReadings} from '../../../data/types.ts';
 
 const ASCII = /^[a-z0-9]+$/;
 const SEPARATORS = /[\s·・'"“”]/g;
@@ -28,7 +29,8 @@ interface Reading {
 
 // 只缓存赛季拼音表中的名称。用户可自由命名流派，名称也可能与 Object 原型属性同名。
 const normalizedNames = new Map<string, string>();
-const readingCache = new Map<string, Reading[]>();
+// 同名实体在不同赛季可有不同读法，缓存以传入词表中的读音为键。
+const readingCache = new Map<PinyinReadings, Reading[]>();
 
 function normalizedName(name: string): string {
   const cached = normalizedNames.get(name);
@@ -38,28 +40,32 @@ function normalizedName(name: string): string {
   return value;
 }
 
-function readingsOf(name: string): readonly Reading[] {
-  const cached = readingCache.get(name);
+function readingsOf(value: PinyinReadings): readonly Reading[] {
+  const cached = readingCache.get(value);
   if (cached) return cached;
-  if (!Object.hasOwn(PINYIN, name)) return [];
-  const value = PINYIN[name];
-  const readings = (typeof value === 'string' ? [value] : value).map(reading => {
-    const syllables = reading.split(' ');
-    let offset = 0;
-    const offsets = syllables.map(syllable => {
-      const start = offset;
-      offset += syllable.length;
-      return start;
-    });
-    return {full: syllables.join(''), initials: syllables.map(s => s[0]).join(''), offsets};
-  });
-  readingCache.set(name, readings);
+  const readings = (typeof value === 'string' ? [value] : value).map(
+    (reading) => {
+      const syllables = reading.split(' ');
+      let offset = 0;
+      const offsets = syllables.map((syllable) => {
+        const start = offset;
+        offset += syllable.length;
+        return start;
+      });
+      return {
+        full: syllables.join(''),
+        initials: syllables.map((s) => s[0]).join(''),
+        offsets,
+      };
+    },
+  );
+  readingCache.set(value, readings);
   return readings;
 }
 
-function pinyinScore(name: string, q: string): number {
+function pinyinScore(value: PinyinReadings, q: string): number {
   let best = 0;
-  for (const {full, initials, offsets} of readingsOf(name)) {
+  for (const {full, initials, offsets} of readingsOf(value)) {
     if (full === q || initials === q) return 3;
     for (let i = 0; i < offsets.length; i++) {
       const hit = full.startsWith(q, offsets[i]) || initials.startsWith(q, i);
@@ -75,12 +81,18 @@ function pinyinScore(name: string, q: string): number {
 /**
  * 名称与查询的匹配度：
  *   3 = 完全一致（汉字、全拼或首字母）  2 = 包含 / 拼音前缀  1.5 = 拼音从中间的字开始  0 = 不匹配
- * query 需先经过 normalize。
+ * query 需先经过 normalize。index 默认使用当前赛季的词表。
  */
-export function nameScore(name: string, query: string): number {
+export function nameScore(
+  name: string,
+  query: string,
+  index: PinyinIndex = PINYIN,
+): number {
   if (!query) return 0;
   const n = normalizedName(name);
   if (n === query) return 3;
   if (n.includes(query)) return 2;
-  return ASCII.test(query) ? pinyinScore(name, query) : 0;
+  return ASCII.test(query) && Object.hasOwn(index, name)
+    ? pinyinScore(index[name], query)
+    : 0;
 }

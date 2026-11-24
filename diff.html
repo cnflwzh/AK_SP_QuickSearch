@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>赛季更新对比 · 卫戍速查</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#edf1f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a1214" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="/assets/icons/favicon-48-f8429c69.png" sizes="48x48" type="image/png">
+<link rel="icon" href="/assets/icons/favicon.svg" sizes="any" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/icons/apple-180-f8429c69.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="卫戍速查">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<script>try{var s=JSON.parse(localStorage.getItem('wsq.settings.v1')||'{}');if(s.theme==='dark'||s.theme==='light')document.documentElement.dataset.theme=s.theme;if(s.fontScale==='large')document.documentElement.dataset.font='large';if(s.reducedMotion===true)document.documentElement.dataset.motion='reduce';}catch{}</script>
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/diff.css">
+<!-- Discover fonts early; boot settles the current faces before revealing the mounted page. -->
+<link rel="stylesheet" href="/assets/css/fonts.css" fetchpriority="low">
+</head>
+<body class="is-loading" data-page="diff">
+
+<section id="load-screen" role="status" aria-live="polite">
+  <div class="load-stage">
+    <div class="load-core" aria-hidden="true">
+      <svg class="load-squad" viewBox="0 0 64 64" fill="none">
+        <g class="load-shield-group">
+          <path class="load-shield" fill-rule="evenodd" d="M12 10h8v6h8v-6h8v6h8v-6h8v28l-8 9-12 7-12-7-8-9V10Zm10 12v8h8v-8h-8Zm12 0v8h8v-8h-8ZM22 34v8h8v-8h-8Zm12 0v8h8v-8h-8Z"/>
+          <rect class="load-slot" x="22" y="22" width="8" height="8" rx="1"/>
+          <rect class="load-slot" x="34" y="22" width="8" height="8" rx="1"/>
+          <rect class="load-slot" x="22" y="34" width="8" height="8" rx="1"/>
+          <rect class="load-mate m1" x="22" y="22" width="8" height="8" rx="1"/>
+          <rect class="load-mate m2" x="34" y="22" width="8" height="8" rx="1"/>
+          <rect class="load-mate m3" x="22" y="34" width="8" height="8" rx="1"/>
+          <rect class="load-self" x="34" y="34" width="8" height="8" rx="1"/>
+        </g>
+      </svg>
+    </div>
+    <strong class="load-title">赛季更新对比</strong>
+    <div class="load-status">
+      <p class="load-pending">正在比对赛季数据…</p>
+      <p class="load-slow">连接较慢，仍在加载</p>
+      <p class="load-error">加载失败，请重试</p>
+      <button type="button" class="load-retry" onclick="location.reload()">重新加载</button>
+      <noscript><style>.load-core,.load-pending { display:none }</style>请启用 JavaScript 以加载赛季对比数据。</noscript>
+    </div>
+  </div>
+</section>
+
+<div id="app" style="display:contents" aria-busy="true"></div>
+
+<footer class="wrap"><span class="foot-content">数据：PRTS · 可露希尔 Wiki · BWIKI　<button type="button" class="foot-about" data-about>关于本项目 · 更新说明与来源 ▸</button></span><code class="build-version" data-build-version hidden></code></footer>
+
+<script type="module" src="/src/boot.ts" onerror="document.getElementById('load-screen').dataset.state='error'"></script>
+</body>
+</html>
