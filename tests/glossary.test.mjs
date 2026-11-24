@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {ENEMY_GLOSSARY} from '../data/index.ts';
 import {glossaryHtml} from '../src/lib/ui/glossaryText.ts';
+import {normalize} from '../src/lib/ui/match.ts';
 import {
   findGlossaryTerm,
   GLOSSARY_ENTRIES,
@@ -86,10 +87,69 @@ test('区分联机场景、运营路线和招募动作，按原样标注带数�
   assert.equal(parts.map((part) => part.text).join(''), advice);
   assert.deepEqual(
     parts.filter((part) => part.term).map((part) => part.term),
-    ['卖血', '速本', '对子', '精锐奖励', '经济牌', '兜底'],
+    ['卖血', '速本', '对子', '精锐奖励', '经济牌', '联防', '兜底'],
   );
   assert.equal(findGlossaryTerm('碰对子')?.term, '精锐');
   assert.equal(searchGlossary('dianbiaodaozhuan', false)[0]?.term, '电表倒转');
   assert.ok(searchGlossary('同行').some((entry) => entry.term === '抢卡'));
   assert.deepEqual(splitGlossaryText('不同行列'), [{text: '不同行列'}]);
+});
+
+test('卫戍协议社区黑话与新手常见机制词条完整无冲突，支持简称与拼音检索', () => {
+  const seen = new Map();
+  for (const entry of GLOSSARY_ENTRIES) {
+    for (const raw of [entry.term, ...entry.aliases]) {
+      const key = normalize(raw);
+      assert.equal(
+        seen.get(key),
+        undefined,
+        `词条或别名重复: ${raw} (${seen.get(key)} vs ${entry.term})`,
+      );
+      seen.set(key, entry.term);
+    }
+  }
+
+  for (const [alias, expected] of [
+    ['赌狗', '一本流'],
+    ['大盟约', '核心盟约'],
+    ['小盟约', '附加盟约'],
+    ['口粮', '吞噬'],
+    ['九人口', '人口'],
+    ['工具人', '叠层手'],
+    ['轮椅阵容', '轮椅'],
+    ['爆条', '元素爆发'],
+    ['灼燃', '灼燃损伤'],
+    ['频次盾', '次数盾'],
+    ['快活', '快速复活'],
+    ['抛光', '刮痧'],
+    ['ban位', '禁池'],
+    ['塞牌', '传牌'],
+    ['吃利息', '理财'],
+    ['倒牌', '过牌'],
+    ['开局策略', '开局策略'],
+    ['进阶装备', '装备进阶'],
+    ['组合装备', '组合装备'],
+    ['借助战', '助战借用'],
+  ]) {
+    assert.equal(findGlossaryTerm(alias)?.term, expected, alias);
+  }
+
+  for (const [query, expected] of [
+    ['ybl', '一本流'],
+    ['dymy', '第一盟约'],
+    ['rdsh', '弱点伤害'],
+    ['lunyi', '轮椅'],
+    ['zoudi', '走地'],
+  ]) {
+    assert.equal(searchGlossary(query, false)[0]?.term, expected, query);
+  }
+
+  const guideLine =
+    '禁池没ban阿戈尔就走地，吞噬朝向留给口粮；杰西卡拿第一盟约找牌，别贪利息。';
+  assert.deepEqual(
+    splitGlossaryText(guideLine)
+      .filter((part) => part.term)
+      .map((part) => part.term),
+    ['禁池', '走地', '吞噬', '朝向', '吞噬', '第一盟约', '理财'],
+  );
 });

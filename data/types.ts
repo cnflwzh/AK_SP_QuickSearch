@@ -647,9 +647,16 @@ export interface SeasonRules {
   readonly combatRoles: readonly CombatRoleMeta[];
 }
 
+export interface AboutUsageItem {
+  readonly title: string;
+  readonly desc: string;
+}
+
 export interface SeasonCredits {
   readonly aboutVersion: number;
   readonly purpose: readonly string[];
+  readonly usage: readonly AboutUsageItem[];
+  readonly tip?: string;
   readonly wikis: readonly WikiSource[];
   readonly uploaders: readonly UploaderSource[];
   readonly furtherReading: readonly UploaderSource[];

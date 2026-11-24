@@ -20,6 +20,7 @@ const model = defineModel<T>({required: true});
 
 const props = withDefaults(
   defineProps<{
+    id?: string;
     items: readonly SubTabItem<T>[];
     level?: 2 | 3;
     label?: string;
@@ -188,6 +189,7 @@ function onKeydown(event: KeyboardEvent): void {
         ref="trackRef"
         class="subtabs-track"
         role="tablist"
+        :id="id"
         :aria-label="resolvedLabel"
         @scroll.passive="updateScrollHints"
         @keydown="onKeydown">

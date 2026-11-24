@@ -186,6 +186,16 @@ test('season bundle integrity: references, covenants, IDs, share IDs, and defaul
   assert.ok(DEFAULT_BUILD_ID.length > 0);
   assert.equal(covenantName(DEFAULT_COVENANT_ID), SEASON_META.defaultCovenant);
   assert.equal(buildKey(DEFAULT_BUILD_ID), SEASON_META.defaultBuild);
+
+  assert.ok(CURRENT_SEASON.credits.purpose.some((text) => text.trim()));
+  assert.ok(CURRENT_SEASON.credits.usage.length > 0);
+  for (const item of CURRENT_SEASON.credits.usage) {
+    assert.ok(item.title.trim().length > 0, 'Empty about usage title');
+    assert.ok(
+      item.desc.trim().length > 0,
+      `Empty about usage description on ${item.title}`,
+    );
+  }
 });
 
 test('generic mechanics helpers obey data contracts rather than hardcoded names', () => {

@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import {ref} from 'vue';
+import {SEASON_META} from '../../../data/index.ts';
 import {
+  ABOUT_TIP,
   PURPOSE,
+  USAGE,
   SITE_UPDATES,
   WIKIS,
   UPLOADERS,
@@ -38,7 +41,7 @@ defineExpose({show});
     <div class="ab-h">
       <div>
         <div class="kicker">ABOUT · 关于本项目</div>
-        <h2>卫戍协议·规程 速查</h2>
+        <h2>{{ SEASON_META.title }} 速查</h2>
       </div>
       <button
         type="button"
@@ -50,8 +53,24 @@ defineExpose({show});
       </button>
     </div>
     <div ref="body" class="ab-b">
-      <section>
+      <section class="ab-intro">
         <p v-for="p in PURPOSE" :key="p">{{ p }}</p>
+        <template v-if="USAGE.length">
+          <h3 class="ab-usage-title">基本用法</h3>
+          <div class="ab-usage">
+            <div
+              v-for="(item, index) in USAGE"
+              :key="item.title"
+              class="ab-step">
+              <div class="ab-step-head">
+                <i>0{{ index + 1 }}</i>
+                <b>{{ item.title }}</b>
+              </div>
+              <p>{{ item.desc }}</p>
+            </div>
+          </div>
+        </template>
+        <p v-if="ABOUT_TIP" class="ab-tip">{{ ABOUT_TIP }}</p>
       </section>
       <details class="ab-fold" open>
         <summary>更新说明</summary>
@@ -59,7 +78,10 @@ defineExpose({show});
           <li v-for="update in SITE_UPDATES" :key="update.date">
             <time :datetime="update.date">{{ update.date }}</time>
             <strong>{{ update.title }}</strong>
-            <p v-for="item in update.items" :key="item">{{ item }}</p>
+            <ul v-if="update.items.length > 1" class="ab-items">
+              <li v-for="item in update.items" :key="item">{{ item }}</li>
+            </ul>
+            <p v-else-if="update.items.length === 1">{{ update.items[0] }}</p>
           </li>
         </ol>
       </details>

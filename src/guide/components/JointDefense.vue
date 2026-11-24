@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import {onBeforeUnmount, onMounted} from 'vue';
-import {whileVisible} from '../../lib/ui/visibility';
-import {jointDefense} from '../chapters/enemiesView';
-import Markup from './Markup';
+import {prefersReducedMotion} from '../../lib/ui/dom.ts';
+import {whileVisible} from '../../lib/ui/visibility.ts';
+import {jointDefense} from '../chapters/enemiesView.ts';
+import Markup from './Markup.ts';
+
 // Keep the same SVG nodes so whileVisible can resume animation if the OS preference changes.
 const content = jointDefense();
 let dispose: (() => void) | undefined;
@@ -11,7 +13,7 @@ onMounted(() => {
   if (!svg) return;
   svg.pauseAnimations();
   dispose = whileVisible(svg, () => {
-    svg.unpauseAnimations();
+    if (!prefersReducedMotion()) svg.unpauseAnimations();
     return () => svg.pauseAnimations();
   });
 });
