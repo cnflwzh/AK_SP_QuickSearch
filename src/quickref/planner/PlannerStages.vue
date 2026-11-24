@@ -126,6 +126,11 @@ function removeStage(): void {
           type="button"
           class="btn"
           :disabled="nextRound > MAX_STAGE_ROUND"
+          :title="
+            nextRound > MAX_STAGE_ROUND
+              ? `全部 ${MAX_STAGE_ROUND} 个回合已分配`
+              : undefined
+          "
           @click="openRange('add')">
           ＋ 添加阶段
         </button>

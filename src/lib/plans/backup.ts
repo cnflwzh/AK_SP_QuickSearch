@@ -8,6 +8,7 @@ import {
 } from '../../../data/index.ts';
 import {
   MAX_OPS,
+  MAX_STAGE_ROUND,
   MAX_EQ,
   MAX_ALT,
   MAX_NOTE,
@@ -144,6 +145,14 @@ function readPlan(value: unknown, index: number): Plan {
     if (!Array.isArray(value.stages)) return invalid();
     stages = [];
     for (const stage of value.stages) {
+      if (
+        isRecord(stage) &&
+        typeof stage.to === 'number' &&
+        stage.to > MAX_STAGE_ROUND
+      )
+        throw new Error(
+          `第 ${index + 1} 套流派包含第 ${MAX_STAGE_ROUND} 回合以后的阶段，请先调整备份中的回合范围。`,
+        );
       if (
         !isRecord(stage) ||
         typeof stage.from !== 'number' ||

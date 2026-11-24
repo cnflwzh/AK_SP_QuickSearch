@@ -155,7 +155,7 @@ test('无效与重叠回合留在原文，其余阶段仍按回合转入且独�
     {...stage, startRound: '待定', endRound: 9},
     {...stage, startRound: 8, endRound: 6},
     {...stage, startRound: 98, endRound: 100},
-    {...stage, startRound: 12, endRound: 14},
+    {...stage, startRound: 12, endRound: 18},
     {...stage, startRound: 7, endRound: 7},
   );
   const guide = parseSklandResponse(raw, id);
@@ -168,10 +168,11 @@ test('无效与重叠回合留在原文，其余阶段仍按回合转入且独�
     [
       [1, 4],
       [7, 7],
-      [12, 14],
+      [12, 15],
     ],
   );
   assert.equal(fields.stages[0].ops.length, 20);
+  assert.equal(guide.rounds[5].to, 18);
 });
 
 test('旧八人导入可离线恢复各阶段，已修改的字段及后来清空的阶段得到保留', () => {

@@ -70,7 +70,7 @@ import {
 import {lazyView} from '../lib/ui/lazyView.ts';
 import CovenantIcon from './components/CovenantIcon.vue';
 import PrtsPanel from './components/PrtsPanel.vue';
-import {isFloatingWindow} from '../lib/ui/windowMode.ts';
+import {activeBreakpoints, isFloatingWindow, navigationLayout} from '../lib/ui/windowMode.ts';
 import BoxOnboardingDialog from './components/BoxOnboardingDialog.vue';
 import {provideWikiPanel} from './wikiPanel.ts';
 import SkipLink from '../lib/ui/SkipLink.vue';
@@ -169,6 +169,7 @@ function openRecent(item: RecentItem): void {
 }
 const searchInput = ref<HTMLInputElement | null>(null);
 const searchBar = ref<HTMLDivElement | null>(null);
+const navigationWidth = ref(0);
 const view = ref<HTMLElement | null>(null);
 const tabBar = ref<HTMLElement | null>(null);
 const tabsMoreLeft = ref(false);
@@ -391,9 +392,7 @@ provide(quickrefActionsKey, {
 });
 /** ✕：清空并留在搜索框；矮窗口下搜索框平时只是一个图标，✕ 直接清空并收起 */
 function clearAndFocus(): void {
-  // 直接读取导航当前的 CSS 布局，清空后的焦点行为也随小窗尺寸同步。
-  const compact = searchBar.value &&
-    getComputedStyle(searchBar.value).getPropertyValue('--collapsed-search').trim() === '1';
+  const compact = navigationLayout.value.search !== 'row';
   if (query.value && !compact) {
     clearSearch();
     searchInput.value?.focus();
@@ -570,6 +569,7 @@ onMounted(() => {
     navigationResizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         if (entry.target === searchBar.value) {
+          navigationWidth.value = entry.contentRect.width;
           // 搜索框在小窗里可以展开，页内吸顶工具栏要跟随整条导航的实际高度。
           const height =
             entry.borderBoxSize?.[0]?.blockSize ?? searchBar.value.offsetHeight;
@@ -600,7 +600,7 @@ onUnmounted(() => {
     <ViewportSizeBadge v-if="settings.developerMode" />
     <div class="quickref-content" :inert="wikiPanel.isOpen.value && !!detail">
       <SkipLink target-id="view" sticky-header="#qbar" />
-      <header v-if="settings.showHeader" class="wrap qhead">
+      <header v-if="settings.showHeader && navigationLayout.showHeader" class="wrap qhead">
         <h1>
           卫戍速查
           <small>{{ SEASON_META.title }}</small>
@@ -624,12 +624,14 @@ onUnmounted(() => {
             </template>
             <template v-else>导入 Box</template>
           </RouterLink>
-          <a class="guide-mini" href="/guide.html">图解教程 ▸</a>
+          <a v-if="navigationLayout.showGuide && (!wikiPanel.isOpen.value || navigationWidth > activeBreakpoints.wideGuideWidth)"
+            class="guide-mini" href="/guide.html">图解教程 ▸</a>
         </div>
       </header>
       <div
         id="qbar"
         ref="searchBar"
+        :data-search-layout="navigationLayout.search"
         :class="['qbar', {searching}]"
         @focusout="onSearchFocusOut">
         <div class="wrap">
@@ -834,11 +836,6 @@ onUnmounted(() => {
 }
 .wiki-open .qhead h1 small {
   display: none;
-}
-@container quickref-column (max-width: 760px) {
-  .wiki-open .guide-mini {
-    display: none;
-  }
 }
 /* 折叠屏展开后，半屏宽度仍接近手机；页头和导航也按该列宽度收紧。 */
 @container quickref-column (max-width: 520px) {

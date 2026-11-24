@@ -148,8 +148,8 @@ test('extended shares preserve 20 editable slots per stage and ordered strategy 
   };
   const late = {
     ...structuredClone(early),
-    from: 90,
-    to: 99,
+    from: 12,
+    to: 15,
     note: '另一个方案：/#p=AAAAA',
   };
   late.ops[0].eq = [];
@@ -185,7 +185,7 @@ test('largest supported round set and long incompressible notes have a complete 
   const plan = {
     ...empty(),
     note: nextNote(),
-    stages: Array.from({length: 99}, (_, i) => ({
+    stages: Array.from({length: 15}, (_, i) => ({
       from: i + 1,
       to: i + 1,
       ops: [],
@@ -198,7 +198,7 @@ test('largest supported round set and long incompressible notes have a complete 
   assert.equal(canShareViaQr(`https://example.org/#p=${code.slice(2)}`), false);
   const restored = decodePlan(code)?.plan;
   assert.equal(restored?.note, plan.note);
-  assert.equal(restored.stages.length, 99);
+  assert.equal(restored.stages.length, 15);
   assert.ok(
     restored.stages.every(
       (stage, i) =>
@@ -215,6 +215,7 @@ test('largest supported round set and long incompressible notes have a complete 
 test('extended codes reject invalid ranges, oversized lineups and incorrect member references', () => {
   const plan = empty();
   const stage = {from: 1, to: 2, ops: [], note: '', layers: {}};
+  assert.throws(() => encodePlan({...plan, stages: [{...stage, to: 16}]}));
   assert.throws(() =>
     encodePlan({...plan, stages: [stage, {...stage, from: 2}]}),
   );

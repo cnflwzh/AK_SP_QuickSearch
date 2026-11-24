@@ -35,7 +35,7 @@ import {
   type PlanStage,
 } from '../lib/plans/index.ts';
 import {readPlanSnapshot, savePlanSnapshot} from '../lib/plans/storage.ts';
-import {effectivePlanIcon} from '../lib/plans/model.ts';
+import {effectivePlanIcon, MAX_STAGE_ROUND} from '../lib/plans/model.ts';
 import {guidePlanFields, isCurrentGuideSeason, matchesGuidePlan, type SklandGuide} from '../lib/plans/skland.ts';
 import {isBanned} from '../lib/recommendation/index.ts';
 import {mergePlanBackup, type PlanBackupMerge} from '../lib/plans/backup.ts';
@@ -364,7 +364,10 @@ const storedBans = ((): string[] => {
 
 const storedRun = read('wsq.run');
 export const runKey = ref(presetOf(storedRun) ? storedRun : '');
-export const runStageKey = ref(runKey.value ? read('wsq.runStage') : '');
+const savedStageKey = read('wsq.runStage');
+const [savedFrom, savedTo] = savedStageKey.split('-').map(Number);
+const playableKey = savedTo > MAX_STAGE_ROUND ? `${savedFrom}-${MAX_STAGE_ROUND}` : savedStageKey;
+export const runStageKey = ref(presetOf(storedRun)?.plan.stages?.some(s => stageKey(s) === playableKey) ? playableKey : '');
 /** 本局被 ban 的盟约（玩家自己勾的，用于替代推荐、图鉴禁池隐藏与真实抓牌概率） */
 export const runBans = ref<string[]>(storedBans);
 export const runBanSet = computed(() => new Set(runBans.value));

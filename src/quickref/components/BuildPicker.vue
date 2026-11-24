@@ -697,7 +697,7 @@ function onTab(event: KeyboardEvent): void {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 12px var(--picker-pad) 16px;
+  padding: 0 var(--picker-pad);
 }
 .picker-group + .picker-group {
   margin-top: 16px;
@@ -707,6 +707,7 @@ function onTab(event: KeyboardEvent): void {
   top: 0;
   z-index: 1;
   background: var(--surface);
+  padding-block: 3px;
 }
 .picker-group ul {
   margin: 5px 0 0;
@@ -842,9 +843,6 @@ function onTab(event: KeyboardEvent): void {
   }
   .picker-filters {
     padding-bottom: 6px;
-  }
-  .picker-list {
-    padding-block: 6px;
   }
   .picker-group + .picker-group {
     margin-top: 8px;

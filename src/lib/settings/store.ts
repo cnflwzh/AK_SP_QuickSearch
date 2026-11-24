@@ -50,6 +50,10 @@ function updateThemeColorMeta(theme: UserSettings['theme']): void {
 export function applySettingsToDom(current: UserSettings = settings): void {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
+  root.toggleAttribute(
+    'data-debug-bounds',
+    current.developerMode && current.debugLayoutBounds,
+  );
   if (current.theme === 'system') delete root.dataset.theme;
   else root.dataset.theme = current.theme;
   root.dataset.density = current.cardDensity;
@@ -80,6 +84,8 @@ function replaceSettings(next: unknown, persist = true): void {
     clean.cardDensity !== settings.cardDensity ||
     clean.fontScale !== settings.fontScale ||
     clean.reducedMotion !== settings.reducedMotion ||
+    (clean.developerMode && clean.debugLayoutBounds) !==
+      (settings.developerMode && settings.debugLayoutBounds) ||
     clean.enableHoverPeek !== settings.enableHoverPeek ||
     clean.showFooter !== settings.showFooter;
   Object.assign(settings, clean);

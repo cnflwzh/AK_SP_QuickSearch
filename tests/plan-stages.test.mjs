@@ -28,6 +28,10 @@ import {
 } from '../src/lib/plans/backup.ts';
 import {createDefaultSettings} from '../src/lib/settings/model.ts';
 import {
+  originalRoundRecords,
+  savePlanSnapshot,
+} from '../src/lib/plans/storage.ts';
+import {
   parseSettingsBackup,
   serializeSettingsBackup,
 } from '../src/lib/settings/backup.ts';
@@ -120,6 +124,41 @@ test('完整阵容、阶段与策略在本地、流派备份和配置备份中�
       ].slice(0, MAX_STRATEGIES),
     );
   }
+});
+
+test('第 15 回合仍可编辑，旧存档跨界时保存原始记录后再落盘', (t) => {
+  const before = {
+    ...blankPlan(),
+    stages: [
+      {...stage, from: 12, to: 18},
+      {...stage, from: 19, to: 20, note: '旧回合说明'},
+    ],
+  };
+  const raw = JSON.stringify([before]);
+  const data = new Map([['wsq.plans', raw]]);
+  const previous = globalThis.localStorage;
+  t.after(() => {
+    if (previous === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = previous;
+  });
+  let full = true;
+  globalThis.localStorage = {
+    getItem: (key) => data.get(key) ?? null,
+    setItem(key, value) {
+      if (full) throw new Error('quota');
+      data.set(key, value);
+    },
+  };
+  const migrated = loadPlans();
+  assert.deepEqual(migrated[0].stages, [{...before.stages[0], to: 15}]);
+  assert.equal(validStageRange(15, 15, []), true);
+  assert.equal(validStageRange(15, 16, []), false);
+  assert.equal(savePlanSnapshot(JSON.stringify(migrated)), false);
+  assert.equal(data.get('wsq.plans'), raw);
+  full = false;
+  assert.equal(savePlanSnapshot(JSON.stringify(migrated)), true);
+  assert.deepEqual(JSON.parse(originalRoundRecords()), [before]);
+  assert.deepEqual(loadPlans(), migrated);
 });
 
 test('本地修复受损项目，备份严格拒绝无效阶段与策略', () => {

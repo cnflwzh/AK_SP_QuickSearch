@@ -21,6 +21,57 @@ import {
 } from '../src/lib/settings/index.ts';
 
 import {hasFloatingWindowBounds} from '../src/lib/ui/windowMode.ts';
+import {
+  DEFAULT_BREAKPOINTS,
+  normalizeBreakpoints,
+  resolveViewportLayout,
+} from '../src/lib/ui/viewportLayout.ts';
+
+test('手机整屏竖放显示教程，小窗和宽矮窗口使用各自的搜索布局', () => {
+  for (const height of [732, 788]) {
+    const result = resolveViewportLayout(384, height);
+    assert.equal(result.showHeader && result.showGuide, true);
+    assert.equal(result.search, 'row');
+  }
+  for (const [width, height, search] of [
+    [384, 498, 'takeover'],
+    [384, 460, 'takeover'],
+    [384, 554, 'takeover'],
+    [384, 516, 'takeover'],
+    [808, 263, 'inline'],
+    [808, 319, 'inline'],
+  ]) {
+    const result = resolveViewportLayout(width, height);
+    assert.equal(result.showHeader || result.showGuide, false);
+    assert.equal(result.search, search);
+  }
+  assert.equal(resolveViewportLayout(360, 844).showHeader, false);
+  assert.equal(resolveViewportLayout(625, 670).showHeader, false);
+  assert.equal(resolveViewportLayout(1280, 900).showGuide, true);
+  assert.equal(
+    resolveViewportLayout(384, 788, DEFAULT_BREAKPOINTS, true).showHeader,
+    false,
+  );
+});
+
+test('断点可独立校正、从设置备份恢复，非法单项用默认值', () => {
+  const custom = normalizeBreakpoints({
+    phoneWindowHeight: 750,
+    narrowWidth: -10,
+    squareWidth: '500',
+  });
+  assert.deepEqual(custom, {...DEFAULT_BREAKPOINTS, phoneWindowHeight: 750});
+  assert.equal(resolveViewportLayout(384, 732, custom).showGuide, false);
+  assert.equal(resolveViewportLayout(384, 788, custom).showGuide, true);
+  const backup = serializeSettingsBackup({
+    ...createDefaultSettings(),
+    viewportBreakpoints: custom,
+  });
+  assert.deepEqual(
+    parseSettingsBackup(backup).settings.viewportBreakpoints,
+    custom,
+  );
+});
 
 test('only a window reduced on both screen axes has floating bounds', () => {
   // 同一尺寸既可能是折叠屏的整个内屏，也可能是大屏上的浮窗。

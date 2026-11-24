@@ -2313,7 +2313,7 @@ mark {
   .nc {
     padding: 10px;
   }
-  footer {
+  body > footer {
     font-size: 11px;
     margin-top: 16px;
     padding-block: 12px 20px;
@@ -3406,42 +3406,20 @@ mark {
 @keyframes bfx-in { from { opacity: 0; transform: translateY(6px); } }
 @media (prefers-reduced-motion: reduce) { .bfx .fxc { animation: none; } }
 
-:root[data-floating-window] .qhead { display: none; }
-
-/* 完整窗口才显示教程入口，窄屏和矮窗保留局内速查操作。 */
-@media (max-width: 760px), (max-height: 600px) {
-  .qhead .guide-mini { display: none; }
-}
-
-/* 极窄和近方形分屏沿用无标题布局，即使高度足以显示独立搜索行。 */
-@media (max-width: 360px),
-       (min-width: 480px) and (max-width: 720px) and (max-height: 840px) and (min-aspect-ratio: 5/8) {
-  .qhead { display: none; }
-}
-
-/* 手机横放的小窗仍可能报出 384×516 的竖向视口。Chrome 和 PWA 均按可用宽高分档。 */
-@media (max-height: 520px), (max-width: 480px) and (max-height: 600px) {
-  .qbar { --collapsed-search: 1; }
-  @media (max-width: 960px) {
-    .qhead { display: none; }
-  }
-  .qbar .wrap { display: flex; align-items: center; gap: 6px; padding-top: 2px; padding-bottom: 0; }
-  .tabs-wrap { order: 1; flex: 1 1 auto; min-width: 0; margin-top: 0; }
-  .search-anchor { order: 2; flex: none; }
-  .search-anchor:has(.search:focus-within, .search.has) { flex: 0 1 280px; }
-  .search { width: 34px; height: 34px; padding: 0; gap: 0; justify-content: center; border-color: transparent; background: none; box-shadow: none; cursor: pointer; }
-  .search svg { stroke: var(--ink2); }
-  .search input { flex: 0 0 0; width: 0; padding: 0; opacity: 0; }
-  .search kbd, .search .x, .search.has .x { display: none; }
-  .search:focus-within, .search.has { width: 100%; padding: 0 4px 0 10px; gap: 8px; border-color: var(--accent); background: var(--surface); cursor: text; }
-  .search:focus-within input, .search.has input { flex: 1; width: auto; opacity: 1; }
-  .search:focus-within .x, .search.has .x { display: block; width: 34px; height: 34px; }
-  /* 窄小窗输入时借用栏目空间。宽横屏保留栏目，可直接切页。 */
-  @media (max-width: 639px) {
-    .search-anchor:has(.search:focus-within, .search.has) { flex: 1 1 auto; }
-    .qbar .wrap:has(.search:focus-within, .search.has) .tabs-wrap { display: none; }
-  }
-}
+/* 顶栏分档来自 viewportLayout.ts，组件按实际布局设置 data-search-layout。 */
+.qbar:not([data-search-layout="row"]) .wrap { display: flex; align-items: center; gap: 6px; padding-top: 2px; padding-bottom: 0; }
+.qbar:not([data-search-layout="row"]) .tabs-wrap { order: 1; flex: 1 1 auto; min-width: 0; margin-top: 0; }
+.qbar:not([data-search-layout="row"]) .search-anchor { order: 2; flex: none; }
+.qbar:not([data-search-layout="row"]) .search-anchor:has(.search:focus-within, .search.has) { flex: 0 1 280px; }
+.qbar:not([data-search-layout="row"]) .search { width: 34px; height: 34px; padding: 0; gap: 0; justify-content: center; border-color: transparent; background: none; box-shadow: none; cursor: pointer; }
+.qbar:not([data-search-layout="row"]) .search svg { stroke: var(--ink2); }
+.qbar:not([data-search-layout="row"]) .search input { flex: 0 0 0; width: 0; padding: 0; opacity: 0; }
+.qbar:not([data-search-layout="row"]) .search kbd, .qbar:not([data-search-layout="row"]) .search .x, .qbar:not([data-search-layout="row"]) .search.has .x { display: none; }
+.qbar:not([data-search-layout="row"]) .search:focus-within, .qbar:not([data-search-layout="row"]) .search.has { width: 100%; padding: 0 4px 0 10px; gap: 8px; border-color: var(--accent); background: var(--surface); cursor: text; }
+.qbar:not([data-search-layout="row"]) .search:focus-within input, .qbar:not([data-search-layout="row"]) .search.has input { flex: 1; width: auto; opacity: 1; }
+.qbar:not([data-search-layout="row"]) .search:focus-within .x, .qbar:not([data-search-layout="row"]) .search.has .x { display: block; width: 34px; height: 34px; }
+.qbar[data-search-layout="takeover"] .search-anchor:has(.search:focus-within, .search.has) { flex: 1 1 auto; }
+.qbar[data-search-layout="takeover"] .wrap:has(.search:focus-within, .search.has) .tabs-wrap { display: none; }
 @media (max-width: 600px) {
   .bact { margin-left: 0; width: 100%; }
   .cv-mine { margin-left: 0; }

@@ -7,6 +7,7 @@ import {
   type PlanBackup,
 } from '../../lib/plans/backup.ts';
 import {downloadBlob} from '../../lib/ui/download.ts';
+import {originalRoundRecords} from '../../lib/plans/storage.ts';
 import {plans, restorePlanBackup} from '../planStore.ts';
 import StatusNotice from './StatusNotice.vue';
 
@@ -16,6 +17,14 @@ const filename = ref('');
 const reading = ref(false);
 const error = ref('');
 const message = ref('');
+const oldRounds = originalRoundRecords();
+function exportOriginalRounds(): void {
+  if (oldRounds)
+    downloadBlob(
+      new Blob([oldRounds], {type: 'application/json'}),
+      '卫戍速查-调整回合上限前的原始记录.json',
+    );
+}
 const customCount = computed(() => plans.filter((plan) => !plan.base).length);
 const modifiedCount = computed(() => plans.length - customCount.value);
 const exportedDate = computed(() =>
@@ -96,6 +105,14 @@ function restoreBackup(): void {
       我的流派 {{ customCount }} · 已修改预设 {{ modifiedCount }}
     </p>
     <p class="hint">导出流派备份，在另一台设备选择文件即可恢复。</p>
+    <div v-if="oldRounds" class="pl-row">
+      <span class="hint">
+        旧流派曾包含第 15 回合以后的阶段，原始阵容和备注可单独下载。
+      </span>
+      <button type="button" @click="exportOriginalRounds">
+        下载旧回合原始记录
+      </button>
+    </div>
     <div class="pl-row">
       <button type="button" :disabled="!plans.length" @click="exportBackup">
         导出全部流派

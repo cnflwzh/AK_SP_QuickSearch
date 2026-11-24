@@ -2,6 +2,7 @@ import {OPERATORS, SEASON_META, STRATEGY} from '../../../data/index.ts';
 import {
   MAX_NOTE,
   MAX_OPS,
+  MAX_STAGE_ROUND,
   cleanStrategyAlternates,
   newSlot,
   samePlan,
@@ -276,12 +277,12 @@ export function guidePlanFields(
   const stages: PlanStage[] = [];
   if (isCurrentGuideSeason(guide)) {
     for (const lineup of guide.rounds) {
-      const {from, to} = lineup;
-      if (
-        typeof from !== 'number' ||
-        typeof to !== 'number' ||
-        !validStageRange(from, to, stages)
-      )
+      const {from} = lineup;
+      const to =
+        typeof lineup.to === 'number' && Number.isInteger(lineup.to)
+          ? Math.min(lineup.to, MAX_STAGE_ROUND)
+          : NaN;
+      if (typeof from !== 'number' || !validStageRange(from, to, stages))
         continue;
       stages.push({
         from,

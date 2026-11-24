@@ -1,7 +1,22 @@
-import {readonly, shallowRef} from 'vue';
+import {computed, readonly, shallowRef} from 'vue';
+import {settings} from '../settings/store.ts';
+import {DEFAULT_BREAKPOINTS, resolveViewportLayout} from './viewportLayout.ts';
 
 const floatingWindow = shallowRef(false);
 export const isFloatingWindow = readonly(floatingWindow);
+const size = shallowRef({width: 0, height: 0});
+export const viewportSize = readonly(size);
+export const activeBreakpoints = computed(() =>
+  settings.developerMode ? settings.viewportBreakpoints : DEFAULT_BREAKPOINTS,
+);
+export const navigationLayout = computed(() =>
+  resolveViewportLayout(
+    size.value.width,
+    size.value.height,
+    activeBreakpoints.value,
+    floatingWindow.value,
+  ),
+);
 
 /** 窗口外框和当前屏幕可用区域均用 CSS 像素。尺寸缺失时保留完整页面。 */
 export function hasFloatingWindowBounds(
@@ -31,6 +46,11 @@ export function initWindowMode(): void {
   const fullscreen = window.matchMedia('(display-mode: fullscreen)');
   const touch = window.matchMedia('(pointer: coarse)');
   function update(): void {
+    if (
+      window.innerWidth !== size.value.width ||
+      window.innerHeight !== size.value.height
+    )
+      size.value = {width: window.innerWidth, height: window.innerHeight};
     const next =
       pictureInPicture.matches ||
       (touch.matches &&

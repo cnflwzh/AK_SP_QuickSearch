@@ -853,7 +853,7 @@ td.n {
   }
 }
 
-footer {
+body > footer {
   display: flex;
   align-items: baseline;
   gap: 12px 20px;
@@ -864,9 +864,19 @@ footer {
   margin-top: 56px;
 }
 
-footer .foot-content {
+body > footer .foot-content {
   flex: 1;
   min-width: 0;
+}
+
+/* 调试边框不参与盒模型，小窗和弹层的尺寸仍可直接测量。 */
+:root[data-debug-bounds] :is(.qbar, main, .build-picker, .source-guide, .settings-card, .pl-sheet, .icon-library) {
+  outline: 2px solid #168a9a;
+  outline-offset: -2px;
+}
+:root[data-debug-bounds] :is(.qhead, .tabs-wrap, .picker-head, .picker-filters, .picker-list, .picker-actions, .guide-main, .build-toolbar) {
+  outline: 1px dashed #d67915;
+  outline-offset: -1px;
 }
 
 .build-version {

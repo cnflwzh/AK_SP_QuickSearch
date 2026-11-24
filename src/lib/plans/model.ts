@@ -16,7 +16,8 @@ export const MAX_ALT = 3;
 export const MAX_NOTE = 2000;
 /** 首选与有序备选共用推荐策略名额。 */
 export const MAX_STRATEGIES = 5;
-export const MAX_STAGE_ROUND = 99;
+/** 可规划回合包含第 15 回合。分享协议仍沿用原有位宽。 */
+export const MAX_STAGE_ROUND = 15;
 /** 盟约层数：滑条到 1000，输入框可以填到 9999 */
 export const LAYER_SLIDER = 1000;
 export const MAX_LAYERS = 9999;
@@ -232,12 +233,16 @@ export function cleanStages(value: unknown): PlanStage[] {
       !record(stage) ||
       typeof stage.from !== 'number' ||
       typeof stage.to !== 'number' ||
-      !validStageRange(stage.from, stage.to, stages)
+      !Number.isInteger(stage.to) ||
+      stage.to > 99
     )
       continue;
+    // 旧存档允许规划到 99 回合，跨越新上限的区间保留可用部分及其阵容。
+    const to = Math.min(stage.to, MAX_STAGE_ROUND);
+    if (!validStageRange(stage.from, to, stages)) continue;
     stages.push({
       from: stage.from,
-      to: stage.to,
+      to,
       ops: cleanOps(stage.ops),
       note: typeof stage.note === 'string' ? stage.note.slice(0, MAX_NOTE) : '',
       layers: cleanLayers(stage.layers),

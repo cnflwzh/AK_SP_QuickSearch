@@ -8,7 +8,7 @@ import {
   sklandUrl,
   type SklandGuide,
 } from '../../lib/plans/skland.ts';
-import {MAX_NOTE, MAX_OPS} from '../../lib/plans/model.ts';
+import {MAX_NOTE, MAX_OPS, MAX_STAGE_ROUND} from '../../lib/plans/model.ts';
 import {avatarSrc, equipIconSrc} from '../../lib/ui/assets.ts';
 import BuildStageSwitcher from './BuildStageSwitcher.vue';
 import CovenantIcon from './CovenantIcon.vue';
@@ -62,6 +62,14 @@ const importLimits = computed(() => {
   const fields = guidePlanFields(guide);
   const notes: string[] = [];
   const skippedRounds = guide.rounds.length - fields.stages.length;
+  if (
+    guide.rounds.some(
+      (round) => typeof round.to === 'number' && round.to > MAX_STAGE_ROUND,
+    )
+  )
+    notes.push(
+      `可编辑阵容只取第 1–${MAX_STAGE_ROUND} 回合，原文保留完整范围。`,
+    );
   if (skippedRounds)
     notes.push(`${skippedRounds} 个阶段的回合无效或重叠，仅保存在原文中。`);
   if (
@@ -267,8 +275,8 @@ const importLimits = computed(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 12px 16px 10px;
+  gap: 8px;
+  padding: 6px 12px;
   border-radius: 9px 9px 0 0;
   background: linear-gradient(105deg, var(--source-tint), var(--surface) 85%);
 }
@@ -305,18 +313,22 @@ summary,
 }
 .source-head h4 {
   margin: 3px 0 0;
-  font: 400 clamp(19px, 4cqi, 24px)/1.2 var(--fd);
+  font: 400 clamp(16px, 3cqi, 19px)/1.2 var(--fd);
 }
 .source-link {
   flex: none;
-  gap: 4px;
+  gap: 3px;
   min-height: 34px;
-  padding: 0 6px;
+  padding: 0 3px;
   color: var(--ink2);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 500;
   text-decoration: none;
   border-radius: 5px;
+}
+.source-link svg {
+  width: 11px;
+  height: 11px;
 }
 .source-guide svg {
   flex: none;
@@ -551,7 +563,7 @@ summary:focus-visible,
 }
 @container skland-snapshot (max-width: 440px) {
   .source-head {
-    padding: 8px 10px;
+    padding: 5px 10px;
     gap: 4px;
   }
   summary {

@@ -10,6 +10,7 @@ import {
 import {NUMBER_TOOLS, SEASON_META, SEASONS} from '../../../data/index.ts';
 import LiveStatus from '../../lib/ui/LiveStatus.vue';
 import {downloadBlob} from '../../lib/ui/download.ts';
+import {layoutReport} from '../../lib/ui/layoutDiagnostics.ts';
 import {
   CONTENT_TAB_IDS,
   CUSTOMIZABLE_TOOL_IDS,
@@ -47,6 +48,8 @@ import {plans, restorePlanBackup} from '../planStore.ts';
 import Segmented from '../components/Segmented.vue';
 import SelectInput, {type SelectOption} from '../components/SelectInput.vue';
 import ConfirmButton from '../components/ConfirmButton.vue';
+import CopyButton from '../components/CopyButton.vue';
+import ViewportBreakpointEditor from '../components/ViewportBreakpointEditor.vue';
 import StatusNotice from '../components/StatusNotice.vue';
 import '../workbench.css';
 
@@ -55,6 +58,18 @@ const THEME_OPTIONS: readonly {id: ThemePreference; label: string}[] = [
   {id: 'light', label: '浅色模式'},
   {id: 'dark', label: '夜间模式'},
 ];
+const debugOptions = [
+  {
+    key: 'debugLayoutDetails',
+    title: '显示导航布局',
+    hint: '在尺寸浮窗下显示当前导航布局和标题栏状态。',
+  },
+  {
+    key: 'debugLayoutBounds',
+    title: '标出布局边界',
+    hint: '实线标记主要容器，虚线标记导航和抽屉内的区域。',
+  },
+] as const;
 const DENSITY_OPTIONS: readonly {id: CardDensity; label: string}[] = [
   {id: 'auto', label: '自动（小窗紧凑）'},
   {id: 'comfortable', label: '标准舒适'},
@@ -777,22 +792,6 @@ function handleResetAll(): void {
                 )
               " />
           </label>
-          <label class="settings-toggle-row">
-            <span class="settings-row-info">
-              <b>开发者模式</b>
-              <small>在左上角实时显示页面宽高（CSS 像素）</small>
-            </span>
-            <input
-              type="checkbox"
-              class="settings-switch"
-              :checked="settings.developerMode"
-              @change="
-                updateSetting(
-                  'developerMode',
-                  ($event.target as HTMLInputElement).checked,
-                )
-              " />
-          </label>
         </div>
       </section>
 
@@ -930,9 +929,7 @@ function handleResetAll(): void {
         </div>
       </section>
 
-      <section
-        class="panel settings-card settings-card-wide"
-        aria-labelledby="set-tabs">
+      <section class="panel settings-card" aria-labelledby="set-tabs">
         <header class="settings-card-head">
           <div>
             <span class="settings-kicker">NAVIGATION</span>
@@ -1024,9 +1021,7 @@ function handleResetAll(): void {
         </TransitionGroup>
       </section>
 
-      <section
-        class="panel settings-card settings-card-wide"
-        aria-labelledby="set-backup">
+      <section class="panel settings-card" aria-labelledby="set-backup">
         <header class="settings-card-head">
           <div>
             <span class="settings-kicker">BACKUP & RESET</span>
@@ -1205,6 +1200,58 @@ function handleResetAll(): void {
           </a>
         </div>
       </section>
+      <section
+        class="panel settings-card settings-card-wide"
+        aria-labelledby="set-developer">
+        <header class="settings-card-head">
+          <h2 id="set-developer">开发者设置</h2>
+          <CopyButton
+            v-if="settings.developerMode"
+            :text="layoutReport"
+            label="复制布局诊断"
+            copied-label="已复制诊断" />
+        </header>
+        <div class="settings-rows">
+          <label class="settings-toggle-row">
+            <span class="settings-row-info">
+              <b>开发者模式</b>
+              <small>在左上角实时显示页面宽高（CSS 像素）。</small>
+            </span>
+            <input
+              type="checkbox"
+              class="settings-switch"
+              :checked="settings.developerMode"
+              @change="
+                updateSetting(
+                  'developerMode',
+                  ($event.target as HTMLInputElement).checked,
+                )
+              " />
+          </label>
+          <template v-if="settings.developerMode">
+            <label
+              v-for="item in debugOptions"
+              :key="item.key"
+              class="settings-toggle-row">
+              <span class="settings-row-info">
+                <b>{{ item.title }}</b>
+                <small>{{ item.hint }}</small>
+              </span>
+              <input
+                type="checkbox"
+                class="settings-switch"
+                :checked="settings[item.key]"
+                @change="
+                  updateSetting(
+                    item.key,
+                    ($event.target as HTMLInputElement).checked,
+                  )
+                " />
+            </label>
+          </template>
+        </div>
+        <ViewportBreakpointEditor v-if="settings.developerMode" />
+      </section>
     </div>
     <LiveStatus :message="statusMessage || errorMessage" />
   </div>
@@ -1368,7 +1415,7 @@ function handleResetAll(): void {
 }
 .settings-backup-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(240px, 0.65fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }

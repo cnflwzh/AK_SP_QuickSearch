@@ -8,7 +8,7 @@ export {BitReader, BitWriter} from '../shareBits.ts';
 const BASE64 =
   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 export const MAX_PAYLOAD = 768;
-// 100 个阵容（含终盘），每段 2,000 个 UTF-16 码元、20 名干员和各盟约层数。
+// 保留原扩展协议的解压边界；可编辑阶段数和回合上限由领域模型单独验证。
 // 固定上界也用于限制未知分享码的解压分配。
 export const MAX_EXTENDED_PAYLOAD = 512 * 1024;
 const ESCAPE = 65536;
