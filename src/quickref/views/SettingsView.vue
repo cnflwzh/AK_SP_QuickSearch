@@ -777,6 +777,22 @@ function handleResetAll(): void {
                 )
               " />
           </label>
+          <label class="settings-toggle-row">
+            <span class="settings-row-info">
+              <b>开发者模式</b>
+              <small>在左上角实时显示页面宽高（CSS 像素）</small>
+            </span>
+            <input
+              type="checkbox"
+              class="settings-switch"
+              :checked="settings.developerMode"
+              @change="
+                updateSetting(
+                  'developerMode',
+                  ($event.target as HTMLInputElement).checked,
+                )
+              " />
+          </label>
         </div>
       </section>
 

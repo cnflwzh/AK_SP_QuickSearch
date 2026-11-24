@@ -23,6 +23,7 @@ import {
 import {OWNABLE_OPERATORS} from '../lib/box/model.ts';
 import {boxSeasonCount, boxStorageWriteFailed, initBoxStorageSync} from '../lib/box/store.ts';
 import {prefersReducedMotion} from '../lib/ui/dom.ts';
+import ViewportSizeBadge from '../lib/ui/ViewportSizeBadge.vue';
 import {
   settings,
   visibleContentTabs,
@@ -594,6 +595,7 @@ onUnmounted(() => {
 </script>
 <template>
   <div :class="['quickref-layout', {'wiki-open': wikiPanel.isOpen.value}]">
+    <ViewportSizeBadge v-if="settings.developerMode" />
     <div class="quickref-content" :inert="wikiPanel.isOpen.value && !!detail">
       <SkipLink target-id="view" sticky-header="#qbar" />
       <header v-if="settings.showHeader" class="wrap qhead">

@@ -36,6 +36,8 @@ test('only a window reduced on both screen axes has floating bounds', () => {
 test('normalizeSettings deduplicates tab order, restores missing tabs, and blocks hiding all tabs or tools', () => {
   assert.deepEqual(normalizeSettings(null), createDefaultSettings());
   assert.deepEqual(normalizeSettings('invalid'), DEFAULT_SETTINGS);
+  assert.equal(normalizeSettings({}).developerMode, false);
+  assert.equal(normalizeSettings({developerMode: 'true'}).developerMode, false);
 
   const normalized = normalizeSettings({
     theme: 'dark',
@@ -133,6 +135,7 @@ test('settings store supports tab reordering, visibility guards, tool toggles, a
 test('settings backup serializes, validates, and preserves optional plans on round trip', () => {
   resetAllSettings();
   const custom = normalizeSettings({
+    developerMode: true,
     theme: 'dark',
     cardDensity: 'compact',
     tabOrder: ['op', 'st', 'fx'],
@@ -146,6 +149,7 @@ test('settings backup serializes, validates, and preserves optional plans on rou
 
   const textOnly = serializeSettingsBackup(settings);
   const parsedOnly = parseSettingsBackup(`\uFEFF${textOnly}`);
+  assert.equal(parsedOnly.settings.developerMode, true);
   assert.deepEqual(parsedOnly.settings, custom);
   assert.equal(parsedOnly.plans, undefined);
 

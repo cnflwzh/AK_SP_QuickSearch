@@ -20,6 +20,8 @@ import {whileVisible} from '../lib/ui/visibility.ts';
 import {decodeFragment} from '../lib/runtime/url.ts';
 import {placeholders} from './placeholders.ts';
 import SkipLink from '../lib/ui/SkipLink.vue';
+import ViewportSizeBadge from '../lib/ui/ViewportSizeBadge.vue';
+import {settings} from '../lib/settings/store.ts';
 
 const props = defineProps<{
   ready: () => void;
@@ -168,6 +170,7 @@ onBeforeUnmount(() => {
 </script>
 <template>
   <SkipLink target-id="guide-content" sticky-header="nav.top" />
+  <ViewportSizeBadge v-if="settings.developerMode" />
   <header class="wrap hero">
     <div>
       <div class="kicker">ARKNIGHTS · STRONGHOLD PROTOCOL</div>

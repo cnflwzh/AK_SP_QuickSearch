@@ -29,6 +29,7 @@ export interface UserSettings {
   cardDensity: CardDensity;
   fontScale: FontScale;
   reducedMotion: boolean;
+  developerMode: boolean;
   tabOrder: ContentTabId[];
   hiddenTabs: ContentTabId[];
   defaultTab: DefaultTabSetting;
@@ -79,6 +80,7 @@ export function createDefaultSettings(): UserSettings {
     cardDensity: 'auto',
     fontScale: 'normal',
     reducedMotion: false,
+    developerMode: false,
     tabOrder: [...CONTENT_TAB_IDS],
     hiddenTabs: [],
     defaultTab: 'last',
@@ -162,6 +164,7 @@ export function normalizeSettings(raw: unknown): UserSettings {
     ),
     fontScale: readEnum(raw.fontScale, ['normal', 'large'], defaults.fontScale),
     reducedMotion: readBool(raw, 'reducedMotion', defaults.reducedMotion),
+    developerMode: readBool(raw, 'developerMode', defaults.developerMode),
     tabOrder,
     hiddenTabs,
     defaultTab,
