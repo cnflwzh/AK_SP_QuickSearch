@@ -391,7 +391,9 @@ provide(quickrefActionsKey, {
 });
 /** ✕：清空并留在搜索框；矮窗口下搜索框平时只是一个图标，✕ 直接清空并收起 */
 function clearAndFocus(): void {
-  const compact = window.matchMedia('(max-height:520px)').matches;
+  // 直接读取导航当前的 CSS 布局，清空后的焦点行为也随小窗尺寸同步。
+  const compact = searchBar.value &&
+    getComputedStyle(searchBar.value).getPropertyValue('--collapsed-search').trim() === '1';
   if (query.value && !compact) {
     clearSearch();
     searchInput.value?.focus();

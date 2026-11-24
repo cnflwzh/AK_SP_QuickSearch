@@ -3413,30 +3413,34 @@ mark {
   .qhead .guide-mini { display: none; }
 }
 
-/* 极窄视口直接收起页头。其余安卓小窗按尺寸与比例兜底，避免依赖系统正确报告浮窗。 */
+/* 极窄和近方形分屏沿用无标题布局，即使高度足以显示独立搜索行。 */
 @media (max-width: 360px),
-       (max-width: 960px) and (max-height: 520px) and (orientation: landscape),
        (min-width: 480px) and (max-width: 720px) and (max-height: 840px) and (min-aspect-ratio: 5/8) {
   .qhead { display: none; }
 }
 
-/* 矮窗口将搜索缩成图标，与栏目共用一行；点击或按 / 展开，失焦且没有内容时收回。 */
-@media (max-height:520px) {
+/* 手机横放的小窗仍可能报出 384×516 的竖向视口。Chrome 和 PWA 均按可用宽高分档。 */
+@media (max-height: 520px), (max-width: 480px) and (max-height: 600px) {
+  .qbar { --collapsed-search: 1; }
+  @media (max-width: 960px) {
+    .qhead { display: none; }
+  }
   .qbar .wrap { display: flex; align-items: center; gap: 6px; padding-top: 2px; padding-bottom: 0; }
   .tabs-wrap { order: 1; flex: 1 1 auto; min-width: 0; margin-top: 0; }
   .search-anchor { order: 2; flex: none; }
   .search-anchor:has(.search:focus-within, .search.has) { flex: 0 1 280px; }
-  .search { width: 34px; height: 30px; padding: 0; gap: 0; justify-content: center; border-color: transparent; background: none; box-shadow: none; cursor: pointer; }
+  .search { width: 34px; height: 34px; padding: 0; gap: 0; justify-content: center; border-color: transparent; background: none; box-shadow: none; cursor: pointer; }
   .search svg { stroke: var(--ink2); }
   .search input { flex: 0 0 0; width: 0; padding: 0; opacity: 0; }
   .search kbd, .search .x, .search.has .x { display: none; }
   .search:focus-within, .search.has { width: 100%; padding: 0 4px 0 10px; gap: 8px; border-color: var(--accent); background: var(--surface); cursor: text; }
   .search:focus-within input, .search.has input { flex: 1; width: auto; opacity: 1; }
-  .search:focus-within .x, .search.has .x { display: block; width: 24px; height: 24px; }
-}
-@media (max-height:520px) and (max-width:639px) {
-  .search-anchor:has(.search:focus-within, .search.has) { flex: 1 1 auto; }
-  .qbar .wrap:has(.search:focus-within, .search.has) .tabs-wrap { display: none; }
+  .search:focus-within .x, .search.has .x { display: block; width: 34px; height: 34px; }
+  /* 窄小窗输入时借用栏目空间。宽横屏保留栏目，可直接切页。 */
+  @media (max-width: 639px) {
+    .search-anchor:has(.search:focus-within, .search.has) { flex: 1 1 auto; }
+    .qbar .wrap:has(.search:focus-within, .search.has) .tabs-wrap { display: none; }
+  }
 }
 @media (max-width: 600px) {
   .bact { margin-left: 0; width: 100%; }
