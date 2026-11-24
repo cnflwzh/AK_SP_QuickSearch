@@ -328,11 +328,20 @@ function closeBuildMenu(event?: KeyboardEvent): void {
   actionsOpen.value = false;
 }
 watch(
-  [() => currentRoute.value.params.id, () => currentRoute.value.name],
-  () => {
-    closeBuildMenu();
-    pickerOpen.value = false;
+  [
+    () => currentRoute.value.params.id,
+    () => currentRoute.value.name,
+    () => queryText(routeQuery.value, 'panel'),
+  ],
+  ([id, name, panel], [previousId, previousName]) => {
+    if (id !== previousId || name !== previousName) {
+      closeBuildMenu();
+      pickerOpen.value = false;
+    }
+    // 直接打开分享地址或浏览器前进时，也让「收起分享」留在可见的操作区。
+    if (panel === 'share') actionsOpen.value = true;
   },
+  {immediate: true},
 );
 
 /* ---------- 查看 ---------- */
@@ -724,7 +733,6 @@ async function closeLibraryPanel(): Promise<void> {
 }
 function toggleShare(): void {
   pickerOpen.value = false;
-  closeBuildMenu();
   const closedPanel = isPlanShareHash(currentRoute.value.hash)
     ? 'closed'
     : null;
@@ -1143,7 +1151,7 @@ watch(
               <circle cx="14.5" cy="15" r="1.7" />
               <path d="m6.6 9.2 6.3-3.4m-6.3 5 6.3 3.4" />
             </svg>
-            分享
+            {{ activePanel === 'share' ? '收起分享' : '分享' }}
           </button>
           <button
             v-if="p.builtin || isRun || (compact && hasPlanOperators(p.plan))"
