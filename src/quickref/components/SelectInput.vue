@@ -60,6 +60,8 @@ const props = withDefaults(
     highlightActive?: boolean;
     defaultValue?: T;
     placeholder?: string;
+    /** 当前值在触发框里的简短标签，菜单仍使用选项的完整名称。 */
+    triggerLabel?: string;
   }>(),
   {
     disabled: false,
@@ -137,7 +139,11 @@ const selectedOption = computed<FlatOption<T> | undefined>(() =>
 );
 
 const displayLabel = computed(
-  () => selectedOption.value?.label ?? props.placeholder ?? String(model.value),
+  () =>
+    props.triggerLabel ??
+    selectedOption.value?.label ??
+    props.placeholder ??
+    String(model.value),
 );
 
 const isActiveFilter = computed(() => {

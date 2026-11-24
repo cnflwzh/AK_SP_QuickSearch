@@ -886,6 +886,83 @@ test('all saved routes guide equal-value choices without replacing rules, funds 
   );
 });
 
+test('route preference can reassign a full chain of competing alternate slots', async () => {
+  const {createAdvisorPreferenceEvaluator} =
+    await import('../src/lib/recommendation/live/advisorPreferences.ts');
+  for (const length of [8, 20]) {
+    const names = OPERATORS.slice(0, length + 1).map((op) => op.name);
+    const plan = {
+      name: '备选链',
+      strategy: '',
+      ops: names.slice(0, length).map((name, i) => ({
+        ...newSlot(name),
+        alt: [names[i + 1]],
+      })),
+    };
+    const held = names.slice(1, length).map(newSlot);
+    const field = held.slice(0, 8);
+    const reserve = held.slice(8);
+    const evaluate = createAdvisorPreferenceEvaluator([plan], {
+      field,
+      reserve,
+      strategy: '',
+      mainCovenant: 'mixed',
+    });
+    // 新招最后一个备选后，要把此前每个主选都向前挪一位才能填满整条路线。
+    const withAlternate = [...reserve, newSlot(names[length])];
+    const alternateGain = evaluate(field, withAlternate).preference;
+    assert.ok(alternateGain > 0);
+    assert.equal(
+      evaluate(field, withAlternate.toReversed()).preference,
+      alternateGain,
+    );
+    const primaryGain = evaluate(field, [
+      ...reserve,
+      newSlot(names[0]),
+    ]).preference;
+    assert.equal(primaryGain - alternateGain, length);
+    if (length === 8) assert.equal(primaryGain, 35);
+  }
+});
+
+test('a route follows the recorded round and accepts its alternative strategies', async () => {
+  const {createRunPreference} =
+    await import('../src/lib/recommendation/live/advisorEvaluation.ts');
+  const field = [newSlot('拜松')];
+  const plan = {
+    name: '分段',
+    strategy: '阿米娅',
+    strategyAlternates: ['歌利亚', '大帝', '卡莱莎', '天空盒'],
+    ops: [...field, newSlot('夕')],
+    layers: {},
+    stages: [
+      {
+        from: 3,
+        to: 5,
+        ops: [...field, newSlot('霜叶')],
+        layers: {灵巧: 40},
+        note: '',
+      },
+      {from: 6, to: 6, ops: [], layers: {}, note: ''},
+    ],
+  };
+  function gain(round, candidate, strategy = '天空盒') {
+    const run = runWith(['拜松'], {round, strategy, mainCovenant: 'mixed'});
+    const evaluate = createRunPreference(run, [plan], field, []);
+    return evaluate(field, [newSlot(candidate)]).preference;
+  }
+  for (const round of [3, 5]) {
+    assert.ok(gain(round, '霜叶') > 0);
+    assert.equal(gain(round, '夕'), 0);
+  }
+  for (const round of [null, 2, 7]) {
+    assert.equal(gain(round, '霜叶'), 0);
+    assert.ok(gain(round, '夕') > 0);
+  }
+  assert.equal(gain(6, '夕'), 0);
+  assert.equal(gain(5, '霜叶', '百炼嘉维尔'), 0);
+});
+
 test('an acquisition milestone can favor a swap while the same free deployment favors the empty slot', async () => {
   const {recommendDeployments} =
     await import('../src/lib/recommendation/live/runAdvisor.ts');

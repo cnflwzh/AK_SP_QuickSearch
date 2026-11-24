@@ -103,6 +103,7 @@
   - `highlightActive?: boolean`（默认 `false`）：当前值非默认值（空串或 `0`，亦可通过 `defaultValue` 指定）时，以主色边框与浅底提示筛选已激活
   - `compact?: boolean`（默认 `false`）：紧凑内边距版本，适用于局内本数、地图场地等窄栏位
   - `disabled?: boolean`、`id?: string`、`placeholder?: string`、`label?: string`（或透传 `aria-label`）
+  - `triggerLabel?: string` 可单独指定收起时显示的短标签。展开后的选项仍显示完整文字。
 - **动作型下拉**：传入固定 `:model-value="''"` 并监听 `@update:model-value` 或 `@change` 即可，移动端会在下一帧自动将原生 `<select>` 复位到绑定值。
 
 ### 2.5 `SectionHeading.vue`（分组标题栏）

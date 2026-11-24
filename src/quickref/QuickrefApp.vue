@@ -471,7 +471,13 @@ function touchEnd(event: TouchEvent): void {
 function keydown(event: KeyboardEvent): void {
   // 规划器包含方案名、搜索框和长说明，输入时让 / 保留为普通字符。
   const target = event.target;
-  if (event.isComposing || event.ctrlKey || event.metaKey || event.altKey)
+  if (
+    event.isComposing ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.altKey ||
+    (target instanceof Element && target.closest('dialog[open]'))
+  )
     return;
   if (
     target instanceof HTMLElement &&
@@ -824,6 +830,11 @@ onUnmounted(() => {
 }
 .wiki-open .qhead h1 small {
   display: none;
+}
+@container quickref-column (max-width: 760px) {
+  .wiki-open .guide-mini {
+    display: none;
+  }
 }
 /* 折叠屏展开后，半屏宽度仍接近手机；页头和导航也按该列宽度收紧。 */
 @container quickref-column (max-width: 520px) {

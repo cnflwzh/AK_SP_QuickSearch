@@ -91,15 +91,10 @@ function restoreBackup(): void {
 </script>
 
 <template>
-  <section
-    class="pl-panel bimp plan-backup"
-    aria-labelledby="plan-backup-title">
-    <div class="backup-heading">
-      <h3 id="plan-backup-title">备份与恢复</h3>
-      <span class="hint">
-        我的流派 {{ customCount }} · 已修改预设 {{ modifiedCount }}
-      </span>
-    </div>
+  <div class="pl-panel bimp plan-backup">
+    <p class="hint">
+      我的流派 {{ customCount }} · 已修改预设 {{ modifiedCount }}
+    </p>
     <p class="hint">导出流派备份，在另一台设备选择文件即可恢复。</p>
     <div class="pl-row">
       <button type="button" :disabled="!plans.length" @click="exportBackup">
@@ -139,7 +134,7 @@ function restoreBackup(): void {
     </div>
     <StatusNotice v-if="error" tone="danger" :message="error" />
     <StatusNotice v-if="message" tone="success" :message="message" />
-  </section>
+  </div>
 </template>
 
 <style scoped>
@@ -157,16 +152,6 @@ function restoreBackup(): void {
 .plan-backup button:disabled {
   opacity: 0.5;
   cursor: default;
-}
-.backup-heading {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px 12px;
-}
-.backup-heading h3 {
-  margin: 0;
-  font-size: 15px;
 }
 .plan-backup .hint {
   color: var(--ink3);

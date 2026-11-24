@@ -1416,54 +1416,6 @@ em.c {
 }
 
 /* builds */
-.bsel {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  margin-bottom: 14px;
-}
-
-.bsel button {
-  --c: var(--teal);
-  border: 1px solid var(--line);
-  background: var(--surface);
-  border-radius: 999px;
-  padding: 4px 12px 4px 9px;
-  cursor: pointer;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.bsel button::before {
-  content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--c);
-}
-
-.bsel button:has(> .cv-ic)::before {
-  display: none;
-}
-
-.bsel button .cv-ic {
-  --cv-ic-size: 15px;
-}
-
-.bsel button.on {
-  background: color-mix(in srgb,var(--c) 20%,var(--surface));
-  border-color: var(--c);
-  box-shadow: inset 0 0 0 1px var(--c);
-}
-
-.bsel .sp {
-  width: 1px;
-  background: var(--line);
-  margin: 0 4px;
-}
-
 .panel {
   --c: var(--teal);
   background: var(--surface);
@@ -1517,13 +1469,13 @@ em.c {
 
 .qsteps li {
   display: grid;
-  grid-template-columns: 26px 1fr;
+  grid-template-columns: 26px minmax(0, 1fr);
+  overflow-wrap: anywhere;
   gap: 8px;
   align-items: start;
   font-size: 13.5px;
   line-height: 1.6;
   counter-increment: s;
-  animation: pin .3s both;
 }
 
 .qsteps li::before {
@@ -2348,17 +2300,6 @@ mark {
   .panel .ph h2 {
     font-size: 26px;
   }
-  .bsel,
-  .bsel-wrap {
-    margin-bottom: 8px;
-  }
-  .bsel {
-    gap: 4px;
-  }
-  .bsel button {
-    padding: 2px 9px 2px 7px;
-    font-size: 13px;
-  }
   .qcalc {
     padding: 8px 10px;
     gap: 6px;
@@ -3059,7 +3000,6 @@ mark {
 .pls-c b { color: var(--ink); font-family: var(--fn); font-size: 14px; }
 
 @container quickref-view (max-width: 860px) {
-  :is(.bsel, .bsel-wrap).is-editing { display: none; }
   .pl-grid { grid-template-columns: minmax(0, 1fr); }
   .pl-pool { position: static; max-height: none; overflow: visible; }
 }
@@ -3309,72 +3249,6 @@ mark {
 @keyframes runb-in { from { opacity: 0; transform: translateY(-6px); } }
 
 /* 流派列表 */
-.bsel button.run { box-shadow: 0 0 0 2px var(--c); }
-.bsel button.run::after { content: "本局"; font-size: 10.5px; font-weight: 700; color: #fff; background: var(--c); border-radius: 999px; padding: 0 6px; }
-.bsel .md { font-style: normal; font-size: 11px; color: var(--ink3); }
-.bsel .bk { align-self: center; font-size: 12px; color: var(--ink3); }
-.bsel button.add { border-style: dashed; color: var(--ink2); padding-left: 12px; }
-.bsel button.add::before { display: none; }
-.bsel button.add.on { border-style: solid; }
-.bsel-wrap { margin-bottom: 14px; }
-.bsel-wrap .bsel { margin-bottom: 0; }
-.bsel-drawer {
-  display: grid;
-  grid-template-rows: 1fr;
-  opacity: 1;
-  margin-bottom: 6px;
-  transition:
-    grid-template-rows 280ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 200ms ease,
-    margin-bottom 280ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-.bsel-drawer.collapsed {
-  grid-template-rows: 0fr;
-  opacity: 0;
-  margin-bottom: 0;
-  pointer-events: none;
-}
-.bsel-drawer-inner {
-  min-height: 0;
-  overflow: hidden;
-  margin-inline: -3px;
-  padding-inline: 3px;
-}
-.bsel-presets {
-  padding-block: 3px;
-  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-.bsel-drawer.collapsed .bsel-presets { transform: translateY(-6px) scale(0.985); }
-.bsel-presets button {
-  transition:
-    opacity 200ms ease calc(var(--i, 0) * 10ms),
-    transform 240ms cubic-bezier(0.22, 1, 0.36, 1) calc(var(--i, 0) * 10ms),
-    border-color .15s,
-    background-color .15s;
-}
-.bsel-drawer.collapsed .bsel-presets button {
-  opacity: 0;
-  transform: translateY(-5px) scale(0.95);
-  transition-delay: 0ms;
-}
-.bsel.bsel-bar { position: relative; }
-.bsel button.preset-fold { border-style: dashed; border-color: var(--line2); background: var(--surface2); color: var(--ink2); padding: 4px 11px; font-size: 13px; font-weight: 600; min-height: 34px; transition: border-color .15s, color .15s, background-color .15s; }
-.bsel button.preset-fold::before { display: none; }
-.bsel button.preset-fold:hover { border-color: var(--accent); color: var(--accent); }
-.bsel button.preset-fold.folded { border-style: solid; border-color: var(--teal); color: var(--teal); background: color-mix(in srgb, var(--teal) 9%, var(--surface)); }
-.bsel button.preset-fold i { font-style: normal; font-family: var(--fn); font-size: 12px; opacity: .85; }
-.preset-fold-arrow { flex: none; transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1); }
-.bsel button.preset-fold.folded .preset-fold-arrow { transform: rotate(180deg); }
-.bsel-pin-move { transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1); }
-.bsel-pin-enter-active,
-.bsel-pin-leave-active {
-  transition:
-    opacity 180ms ease,
-    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-.bsel-pin-leave-active { position: absolute; pointer-events: none; white-space: nowrap; }
-.bsel-pin-enter-from,
-.bsel-pin-leave-to { opacity: 0; transform: scale(0.9); }
 .bimp { margin-bottom: 12px; }
 .bimp-bar { display: flex; align-items: center; gap: 8px; }
 .bimp-bar .pl-paste { flex: 1; min-width: 0; }
@@ -3506,7 +3380,6 @@ mark {
   .runb .cvs { order: 3; flex: 1 1 100%; padding-left: 8px; }
   .runb-bans { order: 4; }
 }
-.bsel .ban-hit { font-style: normal; font-size: 10.5px; font-weight: 700; color: #fff; background: var(--red); border-radius: 999px; padding: 0 5px; }
 .bpick .bc-more { font: inherit; font-size: 12px; cursor: pointer; border: 1px dashed var(--line2); border-radius: 6px; padding: 2px 8px; background: var(--surface); color: var(--ink3); min-height: 28px; }
 .bpick .bc-more:hover { border-color: var(--accent); color: var(--accent); }
 .lwr.is-run-leader { border-color: var(--teal); border-left-color: var(--teal); background: color-mix(in srgb, var(--teal) 6%, var(--surface)); }
@@ -3516,13 +3389,13 @@ mark {
 .lw-act-btn:hover { border-color: var(--accent); color: var(--accent); }
 .lw-act-btn.on { border-color: var(--teal); background: var(--teal); color: #fff; font-weight: 700; }
 @media (pointer: coarse) {
-  .balt-chip, .balt-target, .pl-note-prompts button, .box-mini, .guide-mini, .runb-ban-btn, .runb-ld, .lw-act-btn, .bsel button.preset-fold { min-height: 36px; }
+  .balt-chip, .balt-target, .pl-note-prompts button, .box-mini, .guide-mini, .runb-ban-btn, .runb-ld, .lw-act-btn { min-height: 36px; }
   .runb .x { min-width: 34px; min-height: 34px; display: inline-grid; place-items: center; padding: 0; }
 }
 @media (max-height: 600px) {
   .cvtg .cv-emblem { --cv-emblem-size: 22px; padding: 3px; }
   .cv-run-picks { padding: 6px 8px; gap: 5px; }
-  .cv-rp, .cv-only-btn, .bar .run-filter-btn, .bar .run-ban-btn, .pl-starter-covs button, .bimp-bar button, .box-mini, .guide-mini, .runb-ban-btn, .runb-ld, .runb-bans .bc, .runb-bans .bc-clear, .lw-act-btn, .fxc-ban-toggle, .bpick .bc-more, .eq-craft-pill, .eq-craft-item, .empty .filter-clear, .bsel button.preset-fold { min-height: 34px; }
+  .cv-rp, .cv-only-btn, .bar .run-filter-btn, .bar .run-ban-btn, .pl-starter-covs button, .bimp-bar button, .box-mini, .guide-mini, .runb-ban-btn, .runb-ld, .runb-bans .bc, .runb-bans .bc-clear, .lw-act-btn, .fxc-ban-toggle, .bpick .bc-more, .eq-craft-pill, .eq-craft-item, .empty .filter-clear { min-height: 34px; }
   .runb .x { min-width: 34px; min-height: 34px; display: inline-grid; place-items: center; padding: 0; }
   .runb { padding: 4px 8px 4px 0; margin-bottom: 6px; gap: 4px 6px; }
   .bgrab-stage { padding: 6px 8px; gap: 5px; }
@@ -3533,11 +3406,22 @@ mark {
 @keyframes bfx-in { from { opacity: 0; transform: translateY(6px); } }
 @media (prefers-reduced-motion: reduce) { .bfx .fxc { animation: none; } }
 
-/* ---------- 矮窗口（横屏手机、挂在游戏旁的小窗）----------
- * 局内只为速查：页头和教程入口收起，搜索框缩成一个图标，整条顶栏只占一行 Tab。
- * 点图标（或按 /）展开搜索，失焦且没有内容时自动收回。 */
+:root[data-floating-window] .qhead { display: none; }
+
+/* 完整窗口才显示教程入口，窄屏和矮窗保留局内速查操作。 */
+@media (max-width: 760px), (max-height: 600px) {
+  .qhead .guide-mini { display: none; }
+}
+
+/* 极窄视口直接收起页头。其余安卓小窗按尺寸与比例兜底，避免依赖系统正确报告浮窗。 */
+@media (max-width: 360px),
+       (max-width: 960px) and (max-height: 520px) and (orientation: landscape),
+       (min-width: 480px) and (max-width: 720px) and (max-height: 840px) and (min-aspect-ratio: 5/8) {
+  .qhead { display: none; }
+}
+
+/* 矮窗口将搜索缩成图标，与栏目共用一行；点击或按 / 展开，失焦且没有内容时收回。 */
 @media (max-height:520px) {
-  :root[data-floating-window] .qhead { display: none; }
   .qbar .wrap { display: flex; align-items: center; gap: 6px; padding-top: 2px; padding-bottom: 0; }
   .tabs-wrap { order: 1; flex: 1 1 auto; min-width: 0; margin-top: 0; }
   .search-anchor { order: 2; flex: none; }
@@ -3552,7 +3436,7 @@ mark {
 }
 @media (max-height:520px) and (max-width:639px) {
   .search-anchor:has(.search:focus-within, .search.has) { flex: 1 1 auto; }
-  .qbar .wrap:has(.search:focus-within) .tabs-wrap, .qbar .wrap:has(.search.has) .tabs-wrap { display: none; }
+  .qbar .wrap:has(.search:focus-within, .search.has) .tabs-wrap { display: none; }
 }
 @media (max-width: 600px) {
   .bact { margin-left: 0; width: 100%; }
@@ -3562,11 +3446,11 @@ mark {
 @media (prefers-reduced-motion: reduce) {
   .pane[data-slide], .tabs a.on::after, .qg > .oc[data-catalog-enter], .pane .tierh, .subtab-panel { animation: none; }
   .qg > .oc[data-catalog-enter=pending] { opacity: 1; }
-  .top-tab-sort-move, .bsel-drawer, .bsel-presets, .bsel-presets button, .preset-fold-arrow, .bsel-pin-move, .bsel-pin-enter-active, .bsel-pin-leave-active, .subtab-next-enter-active, .subtab-next-leave-active, .subtab-prev-enter-active, .subtab-prev-leave-active { transition: none !important; }
+  .top-tab-sort-move, .subtab-next-enter-active, .subtab-next-leave-active, .subtab-prev-enter-active, .subtab-prev-leave-active { transition: none !important; }
 }
 :root[data-motion="reduce"] .subtab-panel { animation: none !important; }
 :root[data-motion="reduce"] .top-tab-sort-move,
-:root[data-motion="reduce"] :is(.bsel-drawer, .bsel-presets, .bsel-presets button, .preset-fold-arrow, .bsel-pin-move, .bsel-pin-enter-active, .bsel-pin-leave-active, .subtab-next-enter-active, .subtab-next-leave-active, .subtab-prev-enter-active, .subtab-prev-leave-active) { transition: none !important; }
+:root[data-motion="reduce"] :is(.subtab-next-enter-active, .subtab-next-leave-active, .subtab-prev-enter-active, .subtab-prev-leave-active) { transition: none !important; }
 
 /* Navigation retains the existing control appearance while exposing real URLs. */
 .top-tab-sort-move { transition: transform 220ms cubic-bezier(0.2, 0, 0, 1); background: color-mix(in srgb,var(--bg) 94%,var(--surface)); border-radius: 6px; }

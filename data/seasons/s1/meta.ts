@@ -5,6 +5,7 @@ export const S1_META: SeasonMeta = {
   title: '卫戍协议·规程',
   guideSubtitle: '规程 · 序列Ⅰ',
   ruleVersion: 'act3autochess.V3_1 / CN 2.7.91',
+  skland: {season: 'act3autochess', version: 'V3_1'},
   ruleSource:
     'https://github.com/Kengxxiao/ArknightsGameData/blob/6f63c14e27b847ef74b53b00fe51fc322b3cd7ff/zh_CN/gamedata/excel/activity_table.json',
   defaultCovenant: '乌萨斯',

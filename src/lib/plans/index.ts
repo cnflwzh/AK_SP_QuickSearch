@@ -4,6 +4,8 @@ export {
   MAX_EQ,
   MAX_ALT,
   MAX_NOTE,
+  MAX_STRATEGIES,
+  MAX_STAGE_ROUND,
   LAYER_SLIDER,
   MAX_LAYERS,
   usesLayers,
@@ -11,8 +13,9 @@ export {
   newSlot,
   builtinPlan,
   samePlan,
+  validStageRange,
 } from './model.ts';
-export type {PlanOp, Layers, Plan} from './model.ts';
+export type {PlanOp, Layers, Plan, PlanStage} from './model.ts';
 export {
   covenantsOf,
   RESERVE_COVENANTS,

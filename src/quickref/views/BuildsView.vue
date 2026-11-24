@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed, onUnmounted, ref, watch} from 'vue';
+import {computed, nextTick, onUnmounted, ref, shallowRef, watch} from 'vue';
 import {
   BANNABLE_COVENANTS,
   BORROW_LIMIT,
@@ -26,11 +26,13 @@ import {
   setOperatorRanks,
 } from '../../lib/box/store.ts';
 import {isFloatingWindow} from '../../lib/ui/windowMode.ts';
+import {prefersReducedMotion} from '../../lib/ui/dom.ts';
 import {avatarSrc} from '../../lib/ui/assets.ts';
 import {banReplace} from '../../lib/recommendation/index.ts';
 import {
   atLayers,
   blankPlan,
+  newId,
   covenantStats,
   decodePlan,
   equipNotes,
@@ -40,12 +42,18 @@ import {
 } from '../../lib/plans/index.ts';
 import {settings, updateSetting} from '../../lib/settings/store.ts';
 import {useQuickrefActions} from '../state.ts';
+import {useCompactPlanner} from '../planner/useCompactPlanner.ts';
 import {
   presetOf,
+  presetFormation,
   presets,
   current,
   editing,
   runKey,
+  runStageKey,
+  stageKey,
+  stageLabel,
+  hasPlanOperators,
   endRun,
   runBans,
   runBanSet,
@@ -62,12 +70,26 @@ import {
   setRun,
   toggleBan,
   addPlan,
+  saveGuidePlan,
+  applyGuideUpdate,
 } from '../planStore.ts';
+import {
+  fetchSklandGuide,
+  isCurrentGuideSeason,
+  sklandIdFromText,
+} from '../../lib/plans/skland.ts';
+import type {Plan} from '../../lib/plans/model.ts';
+import {MAX_BACKUP_BYTES, parsePlanBackup} from '../../lib/plans/backup.ts';
+import SklandGuideDetails from '../components/SklandGuideDetails.vue';
+import SklandImport from '../components/SklandImport.vue';
 import {color, fx, bonusHeadcount, bonusText} from '../format.ts';
 import Chip from '../components/Chip.vue';
 import CovenantIcon from '../components/CovenantIcon.vue';
 import OperatorTile from '../components/OperatorTile.vue';
-import PlanSummary from '../components/PlanSummary.vue';
+import PlanImportPreview from '../components/PlanImportPreview.vue';
+import BuildPicker from '../components/BuildPicker.vue';
+import BuildSwitchButton from '../components/BuildSwitchButton.vue';
+import BuildStageSwitcher from '../components/BuildStageSwitcher.vue';
 import PlanSharePanel from '../components/PlanSharePanel.vue';
 import OperatorRequestButton from '../components/OperatorRequestButton.vue';
 import SubTabs, {
@@ -79,10 +101,6 @@ import EmptyState from '../components/EmptyState.vue';
 import SectionHeading from '../components/SectionHeading.vue';
 import StatusNotice from '../components/StatusNotice.vue';
 
-const LINEUP_TABS: readonly SubTabItem<0 | 1>[] = [
-  {id: 0, label: '终盘阵容'},
-  {id: 1, label: '按等阶抓牌'},
-];
 const lineupDir = ref<SubTabDirection>('');
 /**
  * 流派：内置流派和我的流派都是预设。默认只读查看，局内扫一眼；点「编辑」进入规划器。
@@ -106,7 +124,11 @@ const PlanBackupPanel = lazyView(
 
 /** URL changes select an existing draft. Preparing an edit never writes back to the URL. */
 watch(
-  [() => currentRoute.value.params.id, () => currentRoute.value.name],
+  [
+    () => currentRoute.value.params.id,
+    () => currentRoute.value.name,
+    () => currentRoute.value.query.q,
+  ],
   () => {
     if (currentRoute.value.meta.tab !== 'bd') return;
     const key = buildKey(
@@ -132,15 +154,14 @@ watch(
 );
 onUnmounted(finishEdit);
 function selectBuild(key: string): void {
+  pickerOpen.value = false;
   closeBuildMenu();
   void navigate(buildLocation(key));
 }
 function editBuild(key: string): void {
+  pickerOpen.value = false;
   closeBuildMenu();
   void navigate(buildLocation(key, true));
-}
-function createBuild(): void {
-  editBuild(newPreset());
 }
 function duplicateBuild(key: string): void {
   const created = copyPreset(key);
@@ -151,22 +172,66 @@ function completeEdit(): void {
 }
 const actions = useQuickrefActions();
 
+// 交给新面板前先判断它是否在视野内，避免已在顶部时产生多余滚动。
+function revealDestination(target: HTMLElement | null): void {
+  if (!target) return;
+  target.focus({preventScroll: true});
+  const stickyBottom =
+    document.getElementById('qbar')?.getBoundingClientRect().bottom ?? 0;
+  const top = target.getBoundingClientRect().top;
+  if (top >= stickyBottom && top < window.innerHeight - 40) return;
+  target.scrollIntoView({
+    block: 'start',
+    behavior:
+      prefersReducedMotion() || Math.abs(top) > window.innerHeight
+        ? 'instant'
+        : 'smooth',
+  });
+}
+
+async function chooseFromPicker(key: string): Promise<void> {
+  pickerOpen.value = false;
+  await navigate(buildLocation(key));
+  await nextTick();
+  if (current.value.key === key && !editing.value)
+    revealDestination(document.getElementById('build-heading'));
+}
+
+const editorRequested = ref('');
+function createFromPicker(): void {
+  editorRequested.value = newPreset();
+  editBuild(editorRequested.value);
+}
+function onEditorReady(): void {
+  if (editorRequested.value !== current.value.key) return;
+  editorRequested.value = '';
+  revealDestination(document.getElementById('build-editor-heading'));
+}
+
 /* ---------- 列表 ---------- */
+// Wiki 分屏会改变正文宽度；横屏矮窗即使较宽也优先留空间给阵容。
+const buildWidth = ref<HTMLElement>();
+const narrowPane = useCompactPlanner(buildWidth);
+const lowWindow = window.matchMedia('(max-height: 600px)');
+const shortPane = ref(lowWindow.matches);
+function syncHeight(): void {
+  shortPane.value = lowWindow.matches;
+}
+lowWindow.addEventListener('change', syncHeight);
+onUnmounted(() => lowWindow.removeEventListener('change', syncHeight));
+const compact = computed(
+  () => narrowPane.value || shortPane.value || isFloatingWindow.value,
+);
+const pickerOpen = ref(false);
 const sortByBox = ref(false);
 const presetBoxMap = computed(() => {
   const map = new Map<string, LineupBoxAssessment>();
   if (!hasAnyBox.value) return map;
-  for (const item of presets.value) {
-    // 收起抽屉时只有当前流派、本局流派和自建流派仍展示体检结果。
-    if (
-      item.builtin &&
-      settings.collapsePresetBuilds &&
-      item.key !== current.value.key &&
-      item.key !== runKey.value
-    )
-      continue;
-    if (!item.plan.ops.length) continue;
-    const assessment = evaluateLineupBox(item.plan.ops, operatorBox);
+  // 关闭目录后，翻回合或调整阵容只需计算当前流派。
+  for (const item of pickerOpen.value ? presets.value : [current.value]) {
+    const {ops} = presetFormation(item);
+    if (!ops.length) continue;
+    const assessment = evaluateLineupBox(ops, operatorBox);
     if (assessment.coverage.total) map.set(item.key, assessment);
   }
   return map;
@@ -211,79 +276,119 @@ const listedPresets = computed(() =>
     boxBadge: presetBoxSummary(item.key),
   })),
 );
-const coreList = computed(() =>
-  sortPresetList(
-    listedPresets.value.filter((x) => x.builtin && CORE_BUILDS[x.key]),
-  ),
-);
-const mixedList = computed(() =>
-  sortPresetList(
-    listedPresets.value.filter((x) => x.builtin && !CORE_BUILDS[x.key]),
-  ),
-);
-const mine = computed(() =>
-  sortPresetList(listedPresets.value.filter((x) => !x.builtin)),
-);
-const builtinCount = computed(
-  () => coreList.value.length + mixedList.value.length,
-);
-const drawerGroups = computed(() => [
-  {list: coreList.value, offset: 0},
-  {list: mixedList.value, offset: coreList.value.length},
-]);
-const pinnedPresets = computed(() =>
-  settings.collapsePresetBuilds
-    ? listedPresets.value.filter(
-        (x) =>
-          x.builtin && (x.key === current.value.key || x.key === runKey.value),
-      )
-    : [],
+const pickerGroups = computed(() =>
+  [
+    {
+      id: 'mine' as const,
+      label: '我的流派',
+      list: listedPresets.value.filter((item) => !item.builtin),
+    },
+    {
+      id: 'presets' as const,
+      label: '预设流派',
+      list: listedPresets.value.filter((item) => item.builtin),
+    },
+  ].map(({id, label, list}) => ({
+    id,
+    label,
+    items: sortPresetList(list).map((item) => ({
+      key: item.key,
+      name: item.plan.name,
+      accent: presetColor(item),
+      modified: item.modified,
+      badge: item.boxBadge?.text,
+      badgeTitle: item.boxBadge?.title,
+      ban: banImpact.value.get(item.key),
+    })),
+  })),
 );
 function togglePresetFold(): void {
   updateSetting('collapsePresetBuilds', !settings.collapsePresetBuilds);
 }
-function toggleSortByBox(): void {
-  sortByBox.value = !sortByBox.value;
-  if (sortByBox.value && settings.collapsePresetBuilds) {
-    updateSetting('collapsePresetBuilds', false);
-  }
-}
-function pinBeforeLeave(el: Element): void {
-  const target = el as HTMLElement;
-  target.style.left = `${target.offsetLeft}px`;
-  target.style.top = `${target.offsetTop}px`;
-}
-function clearPinStyle(el: Element): void {
-  const target = el as HTMLElement;
-  target.style.left = '';
-  target.style.top = '';
-}
-type BuildMenu = 'manage' | 'actions';
-const buildMenu = ref<BuildMenu | null>(null);
-function toggleBuildMenu(menu: BuildMenu): void {
-  buildMenu.value = buildMenu.value === menu ? null : menu;
-}
+const actionsOpen = ref(false);
+watch(pickerOpen, (open) => {
+  if (open) closeBuildMenu();
+});
 function closeBuildMenu(event?: KeyboardEvent): void {
-  const open = buildMenu.value;
-  if (!open) return;
+  if (!actionsOpen.value) return;
   event?.stopPropagation();
-  // 面板折叠后会变为 inert，先让键盘焦点回到仍可操作的入口。
   if (
     event ||
-    document.getElementById(`build-${open}`)?.contains(document.activeElement)
+    document.getElementById('build-actions')?.contains(document.activeElement)
   ) {
     document
-      .getElementById(`build-${open}-toggle`)
+      .getElementById('build-actions-toggle')
       ?.focus({preventScroll: true});
   }
-  buildMenu.value = null;
+  actionsOpen.value = false;
 }
-watch([() => currentRoute.value.params.id, () => currentRoute.value.name], () =>
-  closeBuildMenu(),
+watch(
+  [() => currentRoute.value.params.id, () => currentRoute.value.name],
+  () => {
+    closeBuildMenu();
+    pickerOpen.value = false;
+  },
 );
 
 /* ---------- 查看 ---------- */
 const p = computed(() => current.value);
+const isRun = computed(() => runKey.value === p.value.key);
+const viewedStage = ref<string | null>(null);
+watch(
+  () => p.value.key,
+  () => {
+    viewedStage.value = null;
+  },
+  {flush: 'sync'},
+);
+const selectedStage = computed<string>({
+  get() {
+    const source = p.value.plan;
+    const key = isRun.value ? runStageKey.value : viewedStage.value;
+    if (key === null && !source.ops.length) {
+      const first = source.stages?.find((s) => s.ops.length);
+      if (first) return stageKey(first);
+    }
+    return source.stages?.some((s) => stageKey(s) === key) ? key! : '';
+  },
+  set(key) {
+    viewedStage.value = key;
+    if (isRun.value) setRun(p.value.key, key);
+  },
+});
+const stage = computed(() =>
+  p.value.plan.stages?.find((s) => stageKey(s) === selectedStage.value),
+);
+const formation = computed(() => stage.value ?? p.value.plan);
+function toggleCurrentRun(): void {
+  if (isRun.value) endRun();
+  else
+    setRun(
+      p.value.key,
+      formation.value.ops.length ? selectedStage.value : undefined,
+    );
+  closeBuildMenu();
+}
+const lineupTabs = computed<readonly SubTabItem<0 | 1>[]>(() => [
+  {
+    id: 0,
+    label: compact.value ? '阵容' : stage.value ? '阶段阵容' : '终盘阵容',
+  },
+  {id: 1, label: compact.value ? '抓牌' : '按等阶抓牌', title: '按等阶抓牌'},
+]);
+const stageOptions = computed(() => [
+  {id: '', label: '成型阵容', count: p.value.plan.ops.length},
+  ...(p.value.plan.stages ?? []).map((s) => ({
+    id: stageKey(s),
+    label: stageLabel(s),
+    count: s.ops.length,
+  })),
+]);
+watch(selectedStage, (key, previous) => {
+  const index = (id: string) =>
+    stageOptions.value.findIndex((item) => item.id === id);
+  lineupDir.value = index(key) > index(previous) ? 'next' : 'prev';
+});
 const base = computed(() =>
   p.value.plan.base ? buildByName(p.value.plan.base) : undefined,
 );
@@ -292,7 +397,7 @@ const coreBase = computed(() =>
 );
 const accent = computed(() => presetColor(p.value));
 const slotEntries = computed(() =>
-  p.value.plan.ops
+  formation.value.ops
     .map((slot) => ({slot, operator: OPERATOR[slot.name]}))
     .filter(
       (entry): entry is {slot: PlanOp; operator: Operator} => !!entry.operator,
@@ -347,7 +452,7 @@ const grabStages = computed(() => {
   })).filter((stage) => stage.items.length > 0);
 });
 const stats = computed(() =>
-  covenantStats(p.value.plan.ops, p.value.plan.layers),
+  covenantStats(formation.value.ops, formation.value.layers),
 );
 // 仅精锐计入的盟约由精锐人数产生，可以显示效果，但不是可被 ban 的原生盟约。
 const bannable = computed(() =>
@@ -355,11 +460,20 @@ const bannable = computed(() =>
 );
 /** 这套要用的盟约：终盘阵容里激活的 */
 const needs = computed(() => stats.value.filter((s) => s.active));
+const headerSummary = computed(
+  () =>
+    base.value?.tagline ||
+    needs.value
+      .slice(0, 3)
+      .map((s) => `${s.count} ${s.name}`)
+      .join(' · ') ||
+    (formation.value.ops.length ? `${formation.value.ops.length} 名干员` : ''),
+);
 /** 已成型盟约的效果；方案里填过层数的按层数代入 */
 const effects = computed(() =>
   needs.value.map((s) => {
     const cov = COVENANTS[s.name],
-      layers = p.value.plan.layers[s.name] ?? 0,
+      layers = formation.value.layers[s.name] ?? 0,
       head = bonusHeadcount(cov.bonus);
     return {
       ...s,
@@ -377,21 +491,35 @@ const effects = computed(() =>
   }),
 );
 const tips = computed(() =>
-  p.value.plan.note
+  formation.value.note
     .split('\n')
     .map((t) => t.trim())
     .filter(Boolean),
 );
+const longNotes = computed(
+  () => formation.value.note.length > 100 || tips.value.length > 3,
+);
+const notesExpanded = ref(false);
+watch([() => p.value.key, selectedStage], () => {
+  notesExpanded.value = false;
+});
+const currentGuide = computed(() => {
+  const guide = p.value.plan.skland;
+  return guide && isCurrentGuideSeason(guide) ? guide : undefined;
+});
 const strategies = computed(() =>
   [
-    ...new Set([p.value.plan.strategy, ...(base.value?.strategies ?? [])]),
-  ].filter((s) => STRATEGY[s]),
+    ...new Set([
+      p.value.plan.strategy,
+      ...(p.value.plan.strategyAlternates ?? []),
+    ]),
+  ].filter((s) => Object.hasOwn(STRATEGY, s)),
 );
 const primaryStrategy = computed(() => STRATEGY[p.value.plan.strategy]);
-const planEquipNotes = computed(() => equipNotes(p.value.plan.ops));
-const cost = computed(() => planCost(p.value.plan.ops));
+const planEquipNotes = computed(() => equipNotes(formation.value.ops));
+const cost = computed(() => planCost(formation.value.ops));
 const coreNames = computed(() =>
-  p.value.plan.ops.filter((s) => s.core).map((s) => s.name),
+  formation.value.ops.filter((s) => s.core).map((s) => s.name),
 );
 const assignedEquips = computed(() =>
   slotEntries.value.filter(({slot}) => slot.eq.length > 0),
@@ -399,12 +527,18 @@ const assignedEquips = computed(() =>
 const equipment = computed(() =>
   [
     ...new Set([
-      ...p.value.plan.ops.flatMap((o) => o.eq),
+      ...formation.value.ops.flatMap((o) => o.eq),
       ...(base.value?.equipment ?? []),
+      ...((stage.value
+        ? currentGuide.value?.rounds.find(
+            (row) =>
+              row.from === stage.value!.from && row.to === stage.value!.to,
+          )
+        : currentGuide.value?.formation
+      )?.equipment ?? []),
     ]),
-  ].filter((e) => EQUIP[e]),
+  ].filter((e) => Object.hasOwn(EQUIP, e)),
 );
-const isRun = computed(() => runKey.value === p.value.key);
 function remove(): void {
   removePreset(p.value.key);
   void navigate(buildLocation(current.value.key), true);
@@ -421,7 +555,7 @@ const banImpact = computed(() => {
   const map = new Map<string, number>();
   if (!runBans.value.length) return map;
   for (const item of presets.value) {
-    const count = item.plan.ops.filter((s) => isRunBannedOp(s.name)).length;
+    const count = presetFormation(item).ops.filter((s) => isRunBannedOp(s.name)).length;
     if (count > 0) map.set(item.key, count);
   }
   return map;
@@ -439,15 +573,19 @@ const visibleBanCovenants = computed(() =>
 );
 const forced = ref<Record<string, string>>({});
 watch(
-  [() => p.value.key, () => runBans.value.join()],
+  [() => p.value.key, () => runBans.value.join(), selectedStage],
   ([key], [previousKey]) => {
     forced.value = {};
     if (key !== previousKey) manualBanOpen.value = null;
   },
 );
-const currentBoxAssessment = computed(() =>
-  presetBoxMap.value.get(p.value.key),
-);
+const currentBoxAssessment = computed(() => {
+  if (formation.value === presetFormation(p.value))
+    return presetBoxMap.value.get(p.value.key);
+  if (!hasAnyBox.value) return undefined;
+  const assessment = evaluateLineupBox(formation.value.ops, operatorBox);
+  return assessment.coverage.total ? assessment : undefined;
+});
 const boxCheckOpen = ref(false);
 const hasBoxDetails = computed(() => {
   const assess = currentBoxAssessment.value;
@@ -461,7 +599,7 @@ const hasBoxDetails = computed(() => {
 });
 const hasBuildNotes = computed(
   () =>
-    tips.value.length > 0 ||
+    (!compact.value && tips.value.length > 0) ||
     Boolean(currentBoxAssessment.value && slotEntries.value.length),
 );
 const hasEquipment = computed(
@@ -502,10 +640,10 @@ function borrowMissingFromBuild(): void {
 const ban = computed(() =>
   hasRelevantBan.value
     ? banReplace(
-        p.value.plan.ops,
+        formation.value.ops,
         runBans.value,
         forced.value,
-        p.value.plan.layers,
+        formation.value.layers,
         hasAnyBox.value ? operatorBox : undefined,
       )
     : null,
@@ -514,7 +652,7 @@ const banAfter = computed(() =>
   ban.value
     ? covenantStats(
         ban.value.ops,
-        p.value.plan.layers,
+        formation.value.layers,
         [],
         runBanSet.value,
       ).filter((s) => s.active)
@@ -531,14 +669,21 @@ function pickAlt(replaces: string, name: string): void {
 function saveBan(): void {
   const result = ban.value;
   if (!result?.ops.length) return;
-  const source = p.value.plan,
-    st = STRATEGY[source.strategy];
+  const source = p.value.plan;
+  const [strategy = '', ...alternates] = [
+    source.strategy,
+    ...(source.strategyAlternates ?? []),
+  ].filter(
+    (name) =>
+      STRATEGY[name] && !runBans.value.includes(STRATEGY[name].category),
+  );
   const key = addPlan({
     ...blankPlan(`${source.name.slice(0, 13)}·替`),
     ops: JSON.parse(JSON.stringify(result.ops)),
-    strategy: st && runBans.value.includes(st.category) ? '' : source.strategy,
-    note: source.note,
-    layers: {...source.layers},
+    strategy,
+    note: formation.value.note,
+    layers: {...formation.value.layers},
+    ...(alternates.length ? {strategyAlternates: alternates} : {}),
   });
   setRun(key);
   selectBuild(key);
@@ -551,48 +696,165 @@ const activePanel = computed(
     (currentRoute.value.hash.startsWith('#p=') ? 'import' : ''),
 );
 const importOpen = computed(() => activePanel.value === 'import');
-function togglePanel(name: 'import' | 'backup' | 'share'): void {
+const libraryPanel = computed(
+  () => importOpen.value || activePanel.value === 'backup',
+);
+async function openLibraryPanel(name: 'import' | 'backup'): Promise<void> {
+  pickerOpen.value = false;
+  if (activePanel.value !== name) await updateQuery({panel: name});
+  await nextTick();
+  if (activePanel.value === name)
+    revealDestination(document.getElementById('build-library-heading'));
+}
+async function closeLibraryPanel(): Promise<void> {
+  await updateQuery({
+    panel: currentRoute.value.hash.startsWith('#p=') ? 'closed' : null,
+  });
+  await nextTick();
+  document
+    .querySelector<HTMLButtonElement>('[aria-controls="build-picker"]')
+    ?.focus({preventScroll: true});
+}
+function toggleShare(): void {
+  pickerOpen.value = false;
   closeBuildMenu();
   const closedPanel = currentRoute.value.hash.startsWith('#p=')
     ? 'closed'
     : null;
-  void updateQuery({panel: activePanel.value === name ? closedPanel : name});
+  void updateQuery({
+    panel: activePanel.value === 'share' ? closedPanel : 'share',
+  });
 }
 
 /* ---------- 导入：分享码 / 链接 ---------- */
 const importText = ref('');
+const planFile = ref<HTMLInputElement>();
+const filePlan = shallowRef<Plan>();
 const pasteError = ref('');
+const guideId = computed(() =>
+  imported.value ? null : sklandIdFromText(importText.value),
+);
 const canReadClipboard =
   typeof navigator !== 'undefined' &&
   typeof navigator.clipboard?.readText === 'function';
 const imported = computed<Decoded | null>(() =>
-  importText.value.trim() ? decodePlan(importText.value) : null,
+  filePlan.value
+    ? {plan: filePlan.value}
+    : importText.value.trim()
+      ? decodePlan(importText.value)
+      : null,
 );
+let fileRequest = 0;
+function clearFileImport(): void {
+  fileRequest++;
+  filePlan.value = undefined;
+  pasteError.value = '';
+}
+async function readPlanFile(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  clearFileImport();
+  importText.value = '';
+  const request = fileRequest;
+  try {
+    if (file.size > MAX_BACKUP_BYTES)
+      throw new Error('请选择 5 MB 以内的流派文件。');
+    const backup = parsePlanBackup(await file.text());
+    if (backup.plans.length !== 1)
+      throw new Error('包含多套流派的文件请在「备份与恢复」中导入。');
+    if (request === fileRequest) filePlan.value = backup.plans[0];
+  } catch (error) {
+    if (request === fileRequest)
+      pasteError.value =
+        error instanceof Error ? error.message : '无法读取流派文件。';
+  }
+}
+watch(importOpen, (open) => {
+  if (!open) clearFileImport();
+});
 async function pasteImport(): Promise<void> {
   pasteError.value = '';
   try {
     const text = await navigator.clipboard.readText();
-    if (text) importText.value = text;
-    else pasteError.value = '剪贴板里还没有内容。';
+    if (text) {
+      clearFileImport();
+      importText.value = text;
+    } else pasteError.value = '剪贴板里还没有内容。';
   } catch {
     pasteError.value = '浏览器未授予读取剪贴板权限，请手动粘贴。';
   }
 }
-function acceptImport(andRun = false): void {
-  const d = imported.value;
-  if (!d || (andRun && !d.plan.ops.length)) return;
-  const key = addPlan({
-    ...blankPlan(d.plan.name || '导入的流派'),
-    ops: d.plan.ops,
-    strategy: d.plan.strategy,
-    note: d.plan.note,
-    layers: d.plan.layers,
-  });
+function saveImport(next: Plan, andRun: boolean): void {
+  let key: string;
+  try {
+    key = saveGuidePlan(next);
+  } catch {
+    return; // 存储层已显示空间不足或跨标签冲突，保留当前预览供重试。
+  }
   if (andRun) setRun(key);
   // Only explicit import consumes the fragment; preview survives WeChat -> browser handoff.
   void navigate({path: buildLocation(key), query: {}, hash: ''}, true);
   importText.value = '';
+  clearFileImport();
   pasteError.value = '';
+}
+function acceptImport(andRun = false): void {
+  const d = imported.value;
+  if (!d || (andRun && !hasPlanOperators(d.plan))) return;
+  // 导入一份独立副本，不复用文件里的本机 ID 或覆盖同名内置流派。
+  const next: Plan = {
+    ...d.plan,
+    id: newId(),
+    updated: Date.now(),
+    name: d.plan.name || '导入的流派',
+  };
+  delete next.base;
+  saveImport(next, andRun);
+}
+const pulling = ref(false);
+const pullNotice = ref('');
+const pullFailed = ref(false);
+let pullRequest: AbortController | undefined;
+function resetPull(): void {
+  pullRequest?.abort();
+  pullRequest = undefined;
+  pulling.value = false;
+  pullNotice.value = '';
+}
+watch([() => p.value.key, () => currentRoute.value.fullPath], resetPull);
+onUnmounted(resetPull);
+async function pullGuide(): Promise<void> {
+  const {key, plan} = p.value;
+  if (!plan.skland || pulling.value) return;
+  const controller = new AbortController();
+  pullRequest = controller;
+  pulling.value = true;
+  pullFailed.value = false;
+  pullNotice.value = '';
+  try {
+    const guide = await fetchSklandGuide(plan.skland.id, controller.signal);
+    if (controller.signal.aborted || p.value.key !== key) return;
+    const result = applyGuideUpdate(key, guide);
+    if (result.status === 'copy') {
+      await navigate(buildLocation(result.key));
+      routeNotice.value = '已保留本地修改，现在查看独立保存的森空岛新版。';
+    } else {
+      pullNotice.value =
+        result.status === 'unchanged'
+          ? '已是森空岛最新版本。'
+          : '已更新本地攻略和阵容。';
+    }
+  } catch (err) {
+    if (!controller.signal.aborted) {
+      pullFailed.value = true;
+      pullNotice.value =
+        err instanceof Error ? err.message : '更新失败，请稍后重试。';
+    }
+  } finally {
+    if (pullRequest === controller) pulling.value = false;
+  }
 }
 watch(
   () => currentRoute.value.hash,
@@ -603,311 +865,124 @@ watch(
 );
 </script>
 <template>
-  <div
-    :class="[
-      'bsel-wrap',
-      {'is-editing': editing && !importOpen && activePanel !== 'backup'},
-    ]"
-    @keydown.esc="closeBuildMenu">
-    <div
-      :class="['bsel-drawer', {collapsed: settings.collapsePresetBuilds}]"
-      :inert="settings.collapsePresetBuilds"
-      :aria-hidden="settings.collapsePresetBuilds ? 'true' : undefined">
-      <div class="bsel-drawer-inner">
-        <div id="build-presets" class="bsel bsel-presets">
-          <template v-for="(group, gi) in drawerGroups" :key="gi">
-            <span v-if="gi > 0" class="sp"></span>
-            <button
-              v-for="(x, idx) in group.list"
-              :key="x.key"
-              type="button"
-              :class="{on: x.key === p.key, run: x.key === runKey}"
-              :style="{'--c': presetColor(x), '--i': group.offset + idx}"
-              :data-bd="x.key"
-              :aria-pressed="x.key === p.key"
-              @click="selectBuild(x.key)">
-              <CovenantIcon v-if="CORE_BUILDS[x.key]" :name="x.key" />
-              {{ x.plan.name }}
-              <i v-if="x.modified" class="md" title="已修改">✎</i>
-              <i
-                v-if="x.boxBadge"
-                :class="['box-fit-pill', x.boxBadge.tone]"
-                :title="x.boxBadge.title">
-                {{ x.boxBadge.text }}
-              </i>
-              <i
-                v-if="banImpact.get(x.key)"
-                class="ban-hit"
-                :title="`本局禁池缺 ${banImpact.get(x.key)} 人`">
-                -{{ banImpact.get(x.key) }}
-              </i>
-            </button>
-          </template>
-        </div>
-      </div>
-    </div>
-    <div class="bsel bsel-bar">
-      <button
-        type="button"
-        :class="['preset-fold', {folded: settings.collapsePresetBuilds}]"
-        :aria-expanded="!settings.collapsePresetBuilds"
-        aria-controls="build-presets"
-        @click="togglePresetFold">
-        <span>
-          {{ settings.collapsePresetBuilds ? '预设流派' : '收起预设' }}
-        </span>
-        <i>{{ builtinCount }}</i>
-        <svg
-          class="preset-fold-arrow"
-          viewBox="0 0 12 12"
-          width="11"
-          height="11"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true">
-          <path d="M2.5 7.5 6 4l3.5 3.5" />
-        </svg>
-      </button>
-      <TransitionGroup
-        name="bsel-pin"
-        @before-leave="pinBeforeLeave"
-        @leave-cancelled="clearPinStyle">
-        <button
-          v-for="x in pinnedPresets"
-          :key="`pin:${x.key}`"
-          type="button"
-          :class="{on: x.key === p.key, run: x.key === runKey}"
-          :style="{'--c': presetColor(x)}"
-          :data-bd="x.key"
-          :aria-pressed="x.key === p.key"
-          @click="selectBuild(x.key)">
-          <CovenantIcon v-if="CORE_BUILDS[x.key]" :name="x.key" />
-          {{ x.plan.name }}
-          <i v-if="x.modified" class="md" title="已修改">✎</i>
-          <i
-            v-if="x.boxBadge"
-            :class="['box-fit-pill', x.boxBadge.tone]"
-            :title="x.boxBadge.title">
-            {{ x.boxBadge.text }}
-          </i>
-          <i
-            v-if="banImpact.get(x.key)"
-            class="ban-hit"
-            :title="`本局禁池缺 ${banImpact.get(x.key)} 人`">
-            -{{ banImpact.get(x.key) }}
-          </i>
-        </button>
-        <span key="sp-mine" class="sp"></span>
-        <span key="bk-mine" class="bk">我的</span>
-        <button
-          v-for="x in mine"
-          :key="x.key"
-          type="button"
-          :class="['my', {on: x.key === p.key, run: x.key === runKey}]"
-          style="--c: var(--accent)"
-          :data-bd="x.key"
-          :aria-pressed="x.key === p.key"
-          @click="selectBuild(x.key)">
-          {{ x.plan.name }}
-          <i
-            v-if="x.boxBadge"
-            :class="['box-fit-pill', x.boxBadge.tone]"
-            :title="x.boxBadge.title">
-            {{ x.boxBadge.text }}
-          </i>
-          <i
-            v-if="banImpact.get(x.key)"
-            class="ban-hit"
-            :title="`本局禁池缺 ${banImpact.get(x.key)} 人`">
-            -{{ banImpact.get(x.key) }}
-          </i>
-        </button>
-        <button
-          id="build-manage-toggle"
-          key="act-manage"
-          type="button"
-          :class="[
-            'add',
-            'build-manage-pill',
-            {
-              on:
-                buildMenu === 'manage' ||
-                importOpen ||
-                activePanel === 'backup' ||
-                sortByBox,
-            },
-          ]"
-          :aria-expanded="buildMenu === 'manage'"
-          aria-controls="build-manage"
-          @click="toggleBuildMenu('manage')">
-          <svg
-            class="build-action-icon"
-            viewBox="0 0 20 20"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.65"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true">
-            <rect x="3" y="4" width="14" height="12" rx="2" />
-            <path d="M7 8h6M7 12h4" />
-          </svg>
-          管理流派
-          <svg
-            class="build-drawer-chevron"
-            viewBox="0 0 12 12"
-            width="11"
-            height="11"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true">
-            <path d="M2.5 4.5 6 8l3.5-3.5" />
-          </svg>
-        </button>
-      </TransitionGroup>
-    </div>
+  <div ref="buildWidth">
+    <BuildPicker
+      :collapse-presets="settings.collapsePresetBuilds"
+      :open="pickerOpen"
+      :groups="pickerGroups"
+      :current-key="p.key"
+      :run-key="runKey"
+      :has-box="hasAnyBox"
+      :sort-by-box="sortByBox"
+      @close="pickerOpen = false"
+      @select="chooseFromPicker"
+      @create="createFromPicker"
+      @import="openLibraryPanel('import')"
+      @backup="openLibraryPanel('backup')"
+      @toggle-presets="togglePresetFold"
+      @sort="sortByBox = !sortByBox" />
 
-    <div
-      id="build-manage"
-      :class="[
-        'build-drawer',
-        'bsel-manage-drawer',
-        {open: buildMenu === 'manage'},
-      ]"
-      :inert="buildMenu !== 'manage'"
-      :aria-hidden="buildMenu !== 'manage' ? 'true' : undefined">
-      <div class="build-drawer-inner">
-        <div class="build-fold build-actions bsel-manage-fold">
-          <button
-            type="button"
-            class="build-control build-icon-label"
-            @click="createBuild">
-            <svg
-              class="build-action-icon"
-              viewBox="0 0 20 20"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.65"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true">
-              <path d="M10 4.5v11M4.5 10h11" />
-            </svg>
-            新建
-          </button>
-          <button
-            type="button"
-            class="build-control build-icon-label"
-            :class="{on: importOpen}"
-            :aria-expanded="importOpen"
-            :aria-controls="importOpen ? 'build-import' : undefined"
-            @click="togglePanel('import')">
-            <svg
-              class="build-action-icon"
-              viewBox="0 0 20 20"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.65"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true">
-              <path
-                d="M10 3.5v8m-3-3 3 3 3-3M4 11.5v4a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-4" />
-            </svg>
-            导入
-          </button>
-          <button
-            type="button"
-            class="build-control build-icon-label"
-            :class="{on: activePanel === 'backup'}"
-            :aria-expanded="activePanel === 'backup'"
-            :aria-controls="
-              activePanel === 'backup' ? 'build-backup' : undefined
-            "
-            @click="togglePanel('backup')">
-            <svg
-              class="build-action-icon"
-              viewBox="0 0 20 20"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.65"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true">
-              <rect x="3.5" y="5" width="13" height="11.5" rx="1.5" />
-              <path d="M3.5 8.5h13M8 12h4" />
-            </svg>
-            备份与恢复
-          </button>
-          <button
-            v-if="hasAnyBox"
-            type="button"
-            :class="['build-control', {on: sortByBox}]"
-            :aria-pressed="sortByBox"
-            title="按当前账号 Box 完整度与自持激活率排序流派"
-            @click="toggleSortByBox">
-            {{ sortByBox ? '✓ 按 Box 适配度' : '按 Box 适配度' }}
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <StatusNotice
-    v-if="saveErrorMessage"
-    tone="warning"
-    :message="saveErrorMessage" />
-
-  <PlanBackupPanel
-    v-if="activePanel === 'backup'"
-    id="build-backup"
-    class="b-panel-in" />
-
-  <section v-if="importOpen" id="build-import" class="pl-panel bimp b-panel-in">
-    <div class="bimp-bar">
-      <input
-        v-model="importText"
-        class="pl-paste"
-        placeholder="粘贴分享码、链接或整段攻略文案"
-        aria-label="分享码" />
-      <button v-if="canReadClipboard" type="button" @click="pasteImport">
-        粘贴
-      </button>
-    </div>
-    <StatusNotice v-if="pasteError" tone="warning" :message="pasteError" />
-    <template v-if="imported">
-      <PlanSummary
-        :ops="imported.plan.ops"
-        :strategy="imported.plan.strategy"
-        :note="imported.plan.note"
-        :layers="imported.plan.layers"
-        :title="imported.plan.name || '导入的流派'" />
-      <div class="pl-row">
-        <button type="button" @click="acceptImport(false)">存为我的流派</button>
-        <button
-          type="button"
-          class="pri"
-          :disabled="!imported.plan.ops.length"
-          @click="acceptImport(true)">
-          导入并设为本局
-        </button>
-      </div>
-    </template>
     <StatusNotice
-      v-else-if="importText.trim()"
+      v-if="saveErrorMessage"
       tone="warning"
-      message="认不出这个分享码" />
-  </section>
+      :message="saveErrorMessage" />
 
-  <PlannerView v-if="editing" @done="completeEdit" />
+    <Transition name="build-tool">
+      <section
+        v-if="libraryPanel"
+        class="build-tool"
+        aria-labelledby="build-library-heading">
+        <div class="build-tool-clip">
+          <div :key="activePanel" class="build-tool-content">
+            <div class="build-panel-heading">
+              <h2 id="build-library-heading" tabindex="-1">
+                {{ importOpen ? '导入流派' : '备份与恢复' }}
+              </h2>
+              <button
+                type="button"
+                class="build-control"
+                @click="closeLibraryPanel">
+                收起
+              </button>
+            </div>
+            <PlanBackupPanel
+              v-if="activePanel === 'backup'"
+              id="build-backup" />
 
-  <div v-else class="build-frame" :style="{'--c': accent}">
+            <section v-if="importOpen" id="build-import" class="pl-panel bimp">
+              <div class="bimp-bar">
+                <input
+                  v-model="importText"
+                  class="pl-paste"
+                  placeholder="粘贴分享码、森空岛链接或整段分享文案"
+                  aria-label="流派分享码或链接"
+                  @input="clearFileImport" />
+                <button
+                  v-if="canReadClipboard"
+                  type="button"
+                  @click="pasteImport">
+                  粘贴
+                </button>
+                <button type="button" @click="planFile?.click()">
+                  导入文件
+                </button>
+                <input
+                  ref="planFile"
+                  hidden
+                  type="file"
+                  accept=".json,application/json"
+                  aria-label="选择流派 JSON 文件"
+                  @change="readPlanFile" />
+              </div>
+              <StatusNotice
+                v-if="pasteError"
+                tone="warning"
+                :message="pasteError" />
+              <SklandImport v-if="guideId" :id="guideId" @accept="saveImport" />
+              <template v-else-if="imported">
+                <PlanImportPreview :plan="imported.plan" />
+                <div class="pl-row">
+                  <button type="button" @click="acceptImport(false)">
+                    存为我的流派
+                  </button>
+                  <button
+                    type="button"
+                    class="pri"
+                    :disabled="!hasPlanOperators(imported.plan)"
+                    @click="acceptImport(true)">
+                    导入并设为本局
+                  </button>
+                </div>
+              </template>
+              <StatusNotice
+                v-else-if="importText.trim()"
+                tone="warning"
+                message="认不出这个分享码" />
+            </section>
+          </div>
+        </div>
+      </section>
+    </Transition>
+  </div>
+  <PlannerView
+    v-if="editing"
+    :key="p.key"
+    class="build-page-in"
+    @vue:mounted="onEditorReady"
+    @done="completeEdit">
+    <template #library>
+      <BuildSwitchButton
+        :open="pickerOpen"
+        :name="p.plan.name"
+        @click="pickerOpen = true" />
+    </template>
+  </PlannerView>
+
+  <div
+    v-else
+    :key="p.key"
+    :class="['build-frame', 'build-page-in', {'build-compact': compact}]"
+    :style="{'--c': accent}">
     <header class="build-toolbar" @keydown.esc="closeBuildMenu">
       <div class="build-masthead">
         <div class="build-identity">
@@ -924,27 +999,32 @@ watch(
                 <path d="M7 8h6M7 12h4" />
               </svg>
             </span>
-            <h2 class="build-name">{{ p.plan.name }}</h2>
+            <h2 id="build-heading" class="build-name" tabindex="-1">
+              {{ p.plan.name }}
+            </h2>
           </div>
-          <div v-if="base?.tagline || p.modified" class="build-caption">
-            <span v-if="base?.tagline">{{ base.tagline }}</span>
+          <div v-if="headerSummary || p.modified" class="build-caption">
+            <span v-if="headerSummary">{{ headerSummary }}</span>
             <span v-if="p.modified" class="build-status">已修改</span>
           </div>
         </div>
-
         <div class="build-primary-actions">
+          <BuildSwitchButton
+            :open="pickerOpen"
+            :name="p.plan.name"
+            @click="pickerOpen = true" />
           <button
             v-if="isRun && needs.length"
             type="button"
             class="build-control build-run"
             @click="actions.openCovenant(needs[0].name)">
-            去盟约抓牌
+            {{ compact ? '去抓牌' : '去盟约抓牌' }}
           </button>
           <button
-            v-if="p.plan.ops.length"
+            v-if="(!compact && isRun) || (!isRun && hasPlanOperators(p.plan))"
             type="button"
             :class="['build-control', {'build-run': !isRun}]"
-            @click="isRun ? endRun() : setRun(p.key)">
+            @click="toggleCurrentRun">
             <svg
               v-if="!isRun"
               viewBox="0 0 16 16"
@@ -952,14 +1032,16 @@ watch(
               aria-hidden="true">
               <path d="M5 3.5v9l7-4.5z" />
             </svg>
-            {{ isRun ? '结束本局' : '本局打这套' }}
+            {{ isRun ? '结束本局' : '设为本局' }}
           </button>
           <button
-            v-if="!p.builtin && !isRun"
+            v-if="
+              !p.builtin && !isRun && (!compact || !hasPlanOperators(p.plan))
+            "
             type="button"
             :class="[
               'build-control build-icon-label',
-              {'build-run': !p.plan.ops.length},
+              {'build-run': !hasPlanOperators(p.plan)},
             ]"
             @click="editBuild(p.key)">
             <svg
@@ -980,9 +1062,10 @@ watch(
             id="build-actions-toggle"
             type="button"
             class="build-control build-icon-label build-more"
-            :aria-expanded="buildMenu === 'actions'"
+            aria-label="更多流派操作"
+            :aria-expanded="actionsOpen"
             aria-controls="build-actions"
-            @click="toggleBuildMenu('actions')">
+            @click="actionsOpen = !actionsOpen">
             <svg
               class="build-action-icon"
               viewBox="0 0 20 20"
@@ -992,8 +1075,9 @@ watch(
               <circle cx="10" cy="10" r="1.5" />
               <circle cx="15.5" cy="10" r="1.5" />
             </svg>
-            更多
+            <span v-if="!compact">更多</span>
             <svg
+              v-if="!compact"
               class="build-drawer-chevron"
               viewBox="0 0 12 12"
               width="11"
@@ -1013,23 +1097,34 @@ watch(
 
     <div
       id="build-actions"
-      :class="[
-        'build-drawer',
-        'build-actions-drawer',
-        {open: buildMenu === 'actions'},
-      ]"
-      :inert="buildMenu !== 'actions'"
-      :aria-hidden="buildMenu !== 'actions' ? 'true' : undefined"
+      :class="['build-drawer', 'build-actions-drawer', {open: actionsOpen}]"
+      :inert="!actionsOpen"
+      :aria-hidden="!actionsOpen ? 'true' : undefined"
       @keydown.esc="closeBuildMenu">
       <div class="build-drawer-inner">
         <div class="build-fold build-actions build-actions-fold">
+          <button
+            v-if="isRun && compact"
+            type="button"
+            class="build-control"
+            @click="toggleCurrentRun">
+            结束本局
+          </button>
+          <button
+            v-if="p.plan.skland"
+            type="button"
+            class="build-control"
+            :disabled="pulling"
+            @click="pullGuide">
+            {{ pulling ? '正在拉取…' : '拉取更新' }}
+          </button>
           <button
             type="button"
             class="build-control build-icon-label"
             :class="{on: activePanel === 'share'}"
             :aria-expanded="activePanel === 'share'"
             :aria-controls="activePanel === 'share' ? 'build-share' : undefined"
-            @click="togglePanel('share')">
+            @click="toggleShare">
             <svg
               class="build-action-icon"
               viewBox="0 0 20 20"
@@ -1047,7 +1142,7 @@ watch(
             分享
           </button>
           <button
-            v-if="p.builtin || isRun"
+            v-if="p.builtin || isRun || (compact && hasPlanOperators(p.plan))"
             type="button"
             class="build-control build-icon-label"
             @click="editBuild(p.key)">
@@ -1110,44 +1205,225 @@ watch(
             盟约禁选
           </button>
           <template
-            v-if="coreNames.length && coreNames.length < p.plan.ops.length">
+            v-if="coreNames.length && coreNames.length < formation.ops.length">
             <OperatorRequestButton
               :names="coreNames"
               :build-name="p.plan.name"
               label="求核心" />
             <OperatorRequestButton
-              :names="p.plan.ops.map((slot) => slot.name)"
+              :names="formation.ops.map((slot) => slot.name)"
               :build-name="p.plan.name"
               label="求整队" />
           </template>
           <OperatorRequestButton
             v-else
-            :names="p.plan.ops.map((slot) => slot.name)"
+            :names="formation.ops.map((slot) => slot.name)"
             :build-name="p.plan.name" />
           <ConfirmButton
             v-if="p.modified"
             label="恢复默认"
             confirm-label="确认恢复"
             tone="neutral"
-            :reset-key="`${p.key}:${buildMenu === 'actions'}`"
+            :reset-key="`${p.key}:${actionsOpen}`"
             @confirm="restore" />
           <ConfirmButton
             v-if="!p.builtin"
             label="删除"
             confirm-label="确认删除"
-            :reset-key="`${p.key}:${buildMenu === 'actions'}`"
+            :reset-key="`${p.key}:${actionsOpen}`"
             @confirm="remove" />
         </div>
       </div>
     </div>
 
     <div class="build-detail" @keydown.esc="closeBuildMenu">
+      <StatusNotice
+        v-if="pullNotice"
+        :tone="pullFailed ? 'warning' : 'info'"
+        :message="pullNotice" />
       <PlanSharePanel
         v-if="activePanel === 'share'"
         id="build-share"
         class="b-panel-in"
         :plan="p.plan" />
 
+      <section class="build-roster" aria-label="当前阵容">
+        <div
+          v-if="p.plan.stages?.length || slotEntries.length"
+          class="formation-tools">
+          <BuildStageSwitcher
+            v-if="p.plan.stages?.length"
+            v-model="selectedStage"
+            :items="stageOptions"
+            label="查看阵容阶段" />
+          <strong v-else class="formation-title">成型阵容</strong>
+          <SubTabs
+            v-if="slotEntries.length"
+            v-model="lineupMode"
+            :items="lineupTabs"
+            :level="3"
+            inline
+            aria-label="阵容视图"
+            attr="bdl"
+            @change="(_, dir) => (lineupDir = dir)" />
+        </div>
+        <div
+          v-if="slotEntries.length"
+          :key="`${p.key}/${selectedStage}/${lineupMode}`"
+          :class="{'subtab-panel': !!lineupDir}"
+          :data-dir="lineupDir || undefined">
+          <template v-if="lineupMode === 0">
+            <div
+              class="tiles build-lineup"
+              :style="{'--build-count': slotEntries.length}">
+              <OperatorTile
+                v-for="entry in slotEntries"
+                :key="entry.operator.name"
+                :operator="entry.operator"
+                :slot-meta="entry.slot"
+                show-tier />
+            </div>
+            <div v-if="withAlts.length" class="balt">
+              <span class="k">过渡 / 备选</span>
+              <div class="balt-list">
+                <span
+                  v-for="{slot} in withAlts"
+                  :key="slot.name"
+                  class="balt-row">
+                  <button
+                    v-for="altName in slot.alt"
+                    :key="altName"
+                    type="button"
+                    class="balt-chip"
+                    :data-t="OPERATOR[altName]?.tier"
+                    :data-op="altName"
+                    @click="actions.openDetail('op', altName)">
+                    <img
+                      v-if="avatarSrc(altName)"
+                      :src="avatarSrc(altName)"
+                      alt=""
+                      width="22"
+                      height="22"
+                      loading="lazy" />
+                    <i class="tn">
+                      {{ TIER_LABELS[OPERATOR[altName]?.tier ?? 0] }}
+                    </i>
+                    <b>{{ altName }}</b>
+                  </button>
+                  <span class="balt-to">→ 替</span>
+                  <button
+                    type="button"
+                    class="balt-target"
+                    @click="actions.openDetail('op', slot.name)">
+                    {{ slot.name }}
+                  </button>
+                </span>
+              </div>
+            </div>
+          </template>
+          <div v-else class="bgrab-stages">
+            <section
+              v-for="stage in grabStages"
+              :key="stage.label"
+              class="bgrab-stage">
+              <header>
+                <b>{{ stage.label }}</b>
+                <span class="tag">{{ stage.range }}</span>
+              </header>
+              <div class="bgrab-items">
+                <button
+                  v-for="item in stage.items"
+                  :key="item.operator.name"
+                  type="button"
+                  :class="[
+                    'bgrab-card',
+                    {core: item.slot?.core, alt: !item.slot},
+                  ]"
+                  :data-t="item.operator.tier"
+                  :data-op="item.operator.name"
+                  @click="actions.openDetail('op', item.operator.name)">
+                  <img
+                    v-if="avatarSrc(item.operator.name)"
+                    :src="avatarSrc(item.operator.name)"
+                    alt=""
+                    width="32"
+                    height="32"
+                    loading="lazy" />
+                  <span class="bgrab-info">
+                    <span class="bgrab-nm">
+                      <i class="tn">{{ TIER_LABELS[item.operator.tier] }}</i>
+                      <b>
+                        {{ item.slot?.core ? '★ ' : ''
+                        }}{{ item.operator.name }}
+                      </b>
+                    </span>
+                    <small v-if="item.slot" class="bgrab-sub">
+                      <template v-if="item.slot.elite">精锐</template>
+                      <template v-if="item.slot.elite && item.slot.eq.length">
+                        ·
+                      </template>
+                      <template v-if="item.slot.eq.length">
+                        {{ item.slot.eq.join('/') }}
+                      </template>
+                      <template v-if="!item.slot.elite && !item.slot.eq.length">
+                        主力
+                      </template>
+                    </small>
+                    <small v-else class="bgrab-sub alt">
+                      ⇄ 过渡/替{{ item.replaces.join('·') }}
+                    </small>
+                  </span>
+                </button>
+              </div>
+            </section>
+          </div>
+        </div>
+        <EmptyState v-else message="还没有干员，点「编辑」排阵容" />
+        <div v-if="slotEntries.length" class="build-summary cnt">
+          <span v-if="lineupMode === 0 && coreBase" class="build-core">
+            核心
+          </span>
+          <span>
+            <b>{{ slotEntries.length }}</b>
+            人
+          </span>
+          <span>
+            招募
+            <b>{{ cost.recruit }}</b>
+          </span>
+          <span v-if="cost.elites">
+            精锐
+            <b>{{ cost.elites }}</b>
+          </span>
+          <span
+            v-if="lineupMode === 0 && coreNames.length"
+            class="build-legend">
+            <i>★</i>
+            核心位
+          </span>
+        </div>
+      </section>
+      <section
+        v-if="compact && tips.length"
+        class="formation-notes"
+        aria-label="当前阶段打法要点">
+        <div class="formation-note-heading">
+          <h3>打法要点</h3>
+          <button
+            v-if="longNotes"
+            type="button"
+            :aria-expanded="notesExpanded"
+            aria-controls="formation-notes-body"
+            @click="notesExpanded = !notesExpanded">
+            {{ notesExpanded ? '收起' : '展开全文' }}
+          </button>
+        </div>
+        <div
+          id="formation-notes-body"
+          :class="{'notes-preview': longNotes && !notesExpanded}">
+          <p v-for="(tip, index) in tips" :key="index">{{ tip }}</p>
+        </div>
+      </section>
       <div v-if="slotEntries.length" class="bneed">
         <span v-if="needs.length" class="k">需要盟约</span>
         <button
@@ -1289,163 +1565,12 @@ watch(
         </p>
       </div>
 
-      <div>
-        <div class="bsec-head">
-          <div v-if="slotEntries.length" class="build-summary cnt">
-            <span v-if="lineupMode === 0 && coreBase" class="build-core">
-              核心
-            </span>
-            <span>
-              <b>{{ slotEntries.length }}</b>
-              人
-            </span>
-            <span>
-              招募
-              <b>{{ cost.recruit }}</b>
-            </span>
-            <span v-if="cost.elites">
-              精锐
-              <b>{{ cost.elites }}</b>
-            </span>
-            <span
-              v-if="lineupMode === 0 && coreNames.length"
-              class="build-legend">
-              <i>★</i>
-              核心位
-            </span>
-          </div>
-          <SubTabs
-            v-if="slotEntries.length"
-            v-model="lineupMode"
-            :items="LINEUP_TABS"
-            :level="3"
-            inline
-            aria-label="阵容视图"
-            attr="bdl"
-            @change="(_, dir) => (lineupDir = dir)" />
-        </div>
-        <div
-          v-if="slotEntries.length"
-          :key="lineupMode"
-          :class="{'subtab-panel': !!lineupDir}"
-          :data-dir="lineupDir || undefined">
-          <template v-if="lineupMode === 0">
-            <div
-              class="tiles build-lineup"
-              :style="{'--build-count': slotEntries.length}">
-              <OperatorTile
-                v-for="entry in slotEntries"
-                :key="entry.operator.name"
-                :operator="entry.operator"
-                :slot-meta="entry.slot"
-                show-tier />
-            </div>
-            <div v-if="withAlts.length" class="balt">
-              <span class="k">过渡 / 备选</span>
-              <div class="balt-list">
-                <span
-                  v-for="{slot} in withAlts"
-                  :key="slot.name"
-                  class="balt-row">
-                  <button
-                    v-for="altName in slot.alt"
-                    :key="altName"
-                    type="button"
-                    class="balt-chip"
-                    :data-t="OPERATOR[altName]?.tier"
-                    :data-op="altName"
-                    @click="actions.openDetail('op', altName)">
-                    <img
-                      v-if="avatarSrc(altName)"
-                      :src="avatarSrc(altName)"
-                      alt=""
-                      width="22"
-                      height="22"
-                      loading="lazy" />
-                    <i class="tn">
-                      {{ TIER_LABELS[OPERATOR[altName]?.tier ?? 0] }}
-                    </i>
-                    <b>{{ altName }}</b>
-                  </button>
-                  <span class="balt-to">→ 替</span>
-                  <button
-                    type="button"
-                    class="balt-target"
-                    @click="actions.openDetail('op', slot.name)">
-                    {{ slot.name }}
-                  </button>
-                </span>
-              </div>
-            </div>
-          </template>
-          <div v-else class="bgrab-stages">
-            <section
-              v-for="stage in grabStages"
-              :key="stage.label"
-              class="bgrab-stage">
-              <header>
-                <b>{{ stage.label }}</b>
-                <span class="tag">{{ stage.range }}</span>
-              </header>
-              <div class="bgrab-items">
-                <button
-                  v-for="item in stage.items"
-                  :key="item.operator.name"
-                  type="button"
-                  :class="[
-                    'bgrab-card',
-                    {core: item.slot?.core, alt: !item.slot},
-                  ]"
-                  :data-t="item.operator.tier"
-                  :data-op="item.operator.name"
-                  @click="actions.openDetail('op', item.operator.name)">
-                  <img
-                    v-if="avatarSrc(item.operator.name)"
-                    :src="avatarSrc(item.operator.name)"
-                    alt=""
-                    width="32"
-                    height="32"
-                    loading="lazy" />
-                  <span class="bgrab-info">
-                    <span class="bgrab-nm">
-                      <i class="tn">{{ TIER_LABELS[item.operator.tier] }}</i>
-                      <b>
-                        {{ item.slot?.core ? '★ ' : ''
-                        }}{{ item.operator.name }}
-                      </b>
-                    </span>
-                    <small v-if="item.slot" class="bgrab-sub">
-                      <template v-if="item.slot.elite">精锐</template>
-                      <template v-if="item.slot.elite && item.slot.eq.length">
-                        ·
-                      </template>
-                      <template v-if="item.slot.eq.length">
-                        {{ item.slot.eq.join('/') }}
-                      </template>
-                      <template v-if="!item.slot.elite && !item.slot.eq.length">
-                        主力
-                      </template>
-                    </small>
-                    <small v-else class="bgrab-sub alt">
-                      ⇄ 过渡/替{{ item.replaces.join('·') }}
-                    </small>
-                  </span>
-                </button>
-              </div>
-            </section>
-          </div>
-        </div>
-        <EmptyState v-else message="还没有干员，点「编辑」排阵容" />
-      </div>
       <div v-if="hasBuildNotes || hasLoadout" class="bgrid">
         <div v-if="hasBuildNotes" class="bgrid-main">
-          <div v-if="tips.length" class="bgrid-sec">
+          <div v-if="!compact && tips.length" class="bgrid-sec">
             <SectionHeading title="打法要点" :level="5" :accent="accent" />
-            <ol class="qsteps">
-              <li
-                v-for="(tip, index) in tips"
-                :key="index"
-                :style="{animationDelay: index * 0.06 + 's'}">
+            <ol :key="selectedStage" class="qsteps b-panel-in">
+              <li v-for="(tip, index) in tips" :key="index">
                 <span>{{ tip }}</span>
               </li>
             </ol>
@@ -1654,6 +1779,10 @@ watch(
           </div>
         </div>
       </div>
+      <SklandGuideDetails
+        v-if="p.plan.skland"
+        :key="p.key"
+        :guide="p.plan.skland" />
       <details
         v-if="effects.length"
         class="bfx bfx-fold"
@@ -1700,31 +1829,6 @@ watch(
 </template>
 
 <style scoped>
-.bsel button[data-bd] {
-  min-height: 34px;
-  max-width: 100%;
-  overflow-wrap: anywhere;
-}
-.bsel button.build-manage-pill {
-  min-height: 34px;
-  padding: 4px 11px;
-  font-size: 13px;
-  font-weight: 600;
-  transition:
-    border-color 150ms ease,
-    color 150ms ease,
-    background-color 150ms ease;
-}
-.bsel button.build-manage-pill:hover,
-.bsel button.build-manage-pill[aria-expanded='true'] {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-.bsel button.build-manage-pill.on {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
-}
 .build-drawer-chevron {
   flex: none;
   margin-left: 1px;
@@ -1735,7 +1839,7 @@ watch(
   transform: rotate(180deg);
 }
 
-/* 通用折叠抽屉动效：管理流派、更多操作与 Box 体检共用 */
+/* 通用折叠抽屉动效：更多操作与 Box 体检共用 */
 .build-drawer {
   display: grid;
   grid-template-rows: 0fr;
@@ -1763,9 +1867,6 @@ watch(
 .build-drawer.open .build-fold,
 .build-drawer.open .b-box-body {
   transform: translateY(0);
-}
-.bsel-manage-drawer.open {
-  margin-top: 8px;
 }
 .build-actions-drawer {
   padding-inline: var(--build-inset);
@@ -1820,11 +1921,10 @@ watch(
 }
 .build-title {
   display: inline-flex;
-  max-width: 100%;
-  min-height: 34px;
   align-items: center;
   gap: 7px;
-  color: var(--ink);
+  max-width: 100%;
+  vertical-align: top;
 }
 .build-title :deep(.cv-emblem),
 .build-emblem {
@@ -1838,8 +1938,8 @@ watch(
   border-radius: 7px;
 }
 .build-emblem {
-  background: color-mix(in srgb, var(--c) 12%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--c) 22%, var(--line));
+  background: color-mix(in srgb, var(--c) 12%, var(--surface));
   color: var(--c);
 }
 .build-emblem svg {
@@ -1849,18 +1949,14 @@ watch(
 .build-name {
   margin: 0;
   min-width: 0;
-  color: inherit;
-  font: 400 28px / 1.12 var(--fd);
+  color: var(--ink);
+  font: 400 28px / 1.18 var(--fd);
   overflow-wrap: anywhere;
-}
-.build-name,
-.build-caption {
-  word-break: normal;
+  text-wrap: balance;
 }
 .build-caption {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: 2px 7px;
   margin: 2px 0 0 41px;
   color: var(--ink2);
@@ -1962,6 +2058,181 @@ watch(
   min-width: 0;
   padding: 10px var(--build-inset) 16px;
 }
+.build-roster {
+  min-width: 0;
+}
+.formation-tools,
+.build-panel-heading,
+.formation-note-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.formation-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin-bottom: 8px;
+}
+.formation-title {
+  font-size: 14px;
+}
+.build-roster > .build-summary {
+  margin-top: 7px;
+  font-size: 12px;
+}
+.build-panel-heading {
+  margin: 0 0 6px;
+}
+.build-panel-heading h2 {
+  margin: 0;
+  font-size: 14px;
+}
+.build-tool {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+.build-tool-clip {
+  min-height: 0;
+}
+.build-tool-enter-active .build-tool-clip,
+.build-tool-leave-active .build-tool-clip {
+  overflow: clip;
+}
+.build-tool-content {
+  padding-bottom: 8px;
+}
+.build-tool-content :deep(.bimp) {
+  margin-bottom: 0;
+  animation: none;
+}
+.build-name,
+.build-panel-heading h2,
+.build-page-in :deep(.pl-bar) {
+  scroll-margin-top: calc(var(--qbar-height, 90px) + 10px);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :global(:root:not([data-motion='reduce']) .build-tool-enter-active),
+  :global(:root:not([data-motion='reduce']) .build-tool-leave-active) {
+    transition:
+      grid-template-rows 200ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 150ms ease;
+  }
+  .build-tool-enter-from,
+  .build-tool-leave-to {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+  .build-page-in,
+  .build-tool-content {
+    animation: build-content-arrive 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+@keyframes build-content-arrive {
+  from {
+    opacity: 0.35;
+    transform: translateY(6px);
+  }
+}
+:global(:root[data-motion='reduce'] .build-page-in),
+:global(:root[data-motion='reduce'] .build-tool-content) {
+  animation: none;
+}
+:global(:root[data-motion='reduce'] .build-tool) {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.build-compact .build-masthead {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.build-compact .build-toolbar {
+  padding: 5px var(--build-inset);
+}
+.build-compact .build-identity {
+  flex: 1 1 185px;
+}
+.build-compact .build-primary-actions {
+  flex-wrap: nowrap;
+  gap: 5px;
+}
+.build-compact .build-title :deep(.cv-emblem),
+.build-compact .build-emblem {
+  --cv-emblem-size: 22px;
+  width: 27px;
+  height: 27px;
+}
+.build-compact .build-caption {
+  margin-inline-start: 34px;
+  font-size: 11px;
+}
+.build-compact .build-name {
+  font-size: clamp(18px, 4.5vw, 22px);
+}
+.build-compact .build-more {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+}
+.build-compact .build-detail {
+  gap: 10px;
+  padding-top: 7px;
+}
+.formation-note-heading button:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+.formation-notes {
+  min-width: 0;
+  padding: 8px 10px;
+  border-inline-start: 3px solid var(--c);
+  border-radius: 0 6px 6px 0;
+  background: color-mix(in srgb, var(--c) 5%, var(--surface));
+}
+.formation-note-heading h3 {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink);
+}
+.formation-note-heading button {
+  min-height: 34px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  color: var(--teal);
+  cursor: pointer;
+}
+.formation-notes p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.notes-preview {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+@media (hover: hover) {
+  .formation-note-heading button:hover {
+    background: color-mix(in srgb, var(--teal) 8%, var(--surface));
+  }
+}
+.build-control:active:not(:disabled),
+.formation-note-heading button:active {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, currentColor 25%, transparent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :global(:root:not([data-motion='reduce']) .formation-note-heading button) {
+    transition:
+      background-color 150ms ease,
+      box-shadow 150ms ease;
+  }
+}
 .build-detail .bneed {
   gap: 5px 6px;
   margin: 0;
@@ -2052,6 +2323,15 @@ watch(
 .build-lineup :deep(.dots) {
   margin-top: auto;
 }
+/* 紧凑名单保留完整姓名。九人阶段在 390px 竖屏可以排成两行，在 640px 横窗能排一行。 */
+.build-compact .build-lineup {
+  --build-tile-min: 58px;
+  gap: 4px;
+}
+.build-compact .build-lineup :deep(> .tile) {
+  padding: 4px 2px 3px;
+  gap: 3px;
+}
 
 /* 阵容区与打法/策略/配装区的层级分隔与易读性增强 */
 .build-detail .bgrid {
@@ -2129,9 +2409,6 @@ watch(
     gap: 8px;
     padding-top: 7px;
   }
-  .build-name {
-    font-size: 25px;
-  }
   .build-lineup :deep(.tile-avatar > img) {
     width: 46px;
     height: 46px;
@@ -2140,26 +2417,15 @@ watch(
     padding-top: 9px;
   }
 }
-@media (pointer: coarse) {
-  .bsel button.build-manage-pill {
-    min-height: 36px;
-  }
-}
 @container quickref-view (max-width: 520px) {
   .build-control {
     padding-inline: 8px;
     font-size: 12.5px;
   }
-  .build-caption {
-    margin-left: 0;
-  }
 }
 @container quickref-view (max-width: 390px) {
   .build-masthead {
     gap: 5px 6px;
-  }
-  .build-name {
-    font-size: 23px;
   }
   .build-control {
     padding-inline: 7px;
@@ -2169,28 +2435,6 @@ watch(
   }
 }
 
-.box-fit-pill {
-  font-style: normal;
-  font-family: var(--fn);
-  font-size: 10.5px;
-  font-weight: 700;
-  line-height: 1.35;
-  padding: 0 5px;
-  border-radius: 999px;
-  margin-left: 2px;
-}
-.box-fit-pill.warn {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: var(--accent);
-}
-.box-fit-pill.ok {
-  background: color-mix(in srgb, var(--teal) 14%, transparent);
-  color: var(--teal);
-}
-.bsel button.on .box-fit-pill {
-  background: color-mix(in srgb, currentColor 18%, transparent);
-  color: inherit;
-}
 .b-box-strip {
   display: grid;
   margin: 0;
@@ -2387,8 +2631,7 @@ watch(
   .build-drawer,
   .build-drawer .build-fold,
   .build-drawer .b-box-body,
-  .build-control,
-  .bsel button.build-manage-pill {
+  .build-control {
     transition: none;
   }
   .b-panel-in {
@@ -2400,8 +2643,7 @@ watch(
 :global(:root[data-motion='reduce'] .build-drawer),
 :global(:root[data-motion='reduce'] .build-drawer .build-fold),
 :global(:root[data-motion='reduce'] .build-drawer .b-box-body),
-:global(:root[data-motion='reduce'] .build-control),
-:global(:root[data-motion='reduce'] .bsel button.build-manage-pill) {
+:global(:root[data-motion='reduce'] .build-control) {
   transition: none !important;
 }
 :global(:root[data-motion='reduce'] .b-panel-in) {

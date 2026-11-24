@@ -305,9 +305,16 @@ function buildDocument(build: SearchBuild): SearchDocument {
       plan &&
       [
         plan.strategy,
-        ...plan.ops.flatMap((slot) => [slot.name, ...slot.alt, ...slot.eq]),
+        ...(plan.strategyAlternates ?? []),
+        ...[plan, ...(plan.stages ?? [])].flatMap((section) =>
+          section.ops.flatMap((slot) => [slot.name, ...slot.alt, ...slot.eq]),
+        ),
       ].filter(Boolean),
-    body: plan && normalize(plan.note),
+    body:
+      plan &&
+      normalize(
+        [plan.note, ...(plan.stages ?? []).map((s) => s.note)].join(' '),
+      ),
   };
 }
 

@@ -24,13 +24,14 @@ import {
   unpackSharePayload,
 } from '../src/lib/plans/shareCodec.ts';
 import {TEXT_CODE_GROUPS} from '../src/lib/plans/shareTextCodebook.ts';
+import {canShareViaQr} from '../src/lib/plans/sharing.ts';
 
 const layerNames = ALL_COVENANTS.filter(usesLayers);
 const empty = () => ({name: '', note: '', ops: [], strategy: '', layers: {}});
 const base64 = (bytes) => Buffer.from(bytes).toString('base64url');
 function roundTrip(plan) {
   const code = encodePlan(plan);
-  assert.match(code, /^WS[ABCEFGIJKMNO][A-Za-z0-9_-]+$/);
+  assert.match(code, /^WS[ABCEFGIJKMNOQRSUVWYZacde][A-Za-z0-9_-]+$/);
   assert.deepEqual(decodePlan(code)?.plan, plan);
   return code;
 }
@@ -78,6 +79,144 @@ test('full roster preserves order, elite and core flags, two equipment and three
   const original = structuredClone(plan);
   roundTrip(plan);
   assert.deepEqual(plan, original, 'encoding must not mutate the saved plan');
+});
+
+test('published eight-member, 240-unit share code remains byte-for-byte stable', () => {
+  // 原协议在扩容前生成的码，覆盖 core、重复装备、备选和 UTF-16 说明边界。
+  const code =
+    'WSNa_B8wNDAw-DGyNyiIMAQwdjA3nD63JMJdw_901VQWLtnhaDSbMHuDdV7GEd5w40HAA';
+  const names = [
+    '阿米娅',
+    'W',
+    '艾丝黛尔',
+    '蓝毒',
+    '星源',
+    '拉普兰德',
+    '幽灵鲨',
+    '蛇屠箱',
+  ];
+  const plan = {
+    ...empty(),
+    name: '旧版满编',
+    strategy: '阿米娅',
+    note: '逐回合配装😀'.repeat(40).slice(0, 240),
+    ops: names.map((name, i) => ({
+      ...newSlot(name),
+      core: i === 0,
+      elite: i % 2 === 1,
+      eq: i === 2 ? ['维式重锤', '维式重锤'] : [],
+      alt: i === 3 ? ['华法琳'] : [],
+    })),
+  };
+  assert.equal(encodePlan(plan), code);
+  assert.deepEqual(decodePlan(`/#p=${code.slice(2)}`)?.plan, plan);
+});
+
+test('extended shares preserve 20 editable slots per stage and ordered strategy alternatives', () => {
+  const ops = OPERATORS.slice(0, 20).map((op, i) => ({
+    ...newSlot(op.name),
+    core: i % 3 === 0,
+    elite: i % 2 === 0,
+    eq: [EQUIPMENT[i].name, EQUIPMENT[i].name],
+    alt: OPERATORS.slice(20 + i, 23 + i).map((o) => o.name),
+  }));
+  const note = '\ud800 前排😀\n'.repeat(350).slice(0, MAX_NOTE);
+  const early = {
+    from: 1,
+    to: 3,
+    ops: structuredClone(ops).reverse(),
+    layers: {[layerNames[0]]: 9999},
+    note,
+  };
+  const late = {
+    ...structuredClone(early),
+    from: 90,
+    to: 99,
+    note: '另一个方案：/#p=AAAAA',
+  };
+  late.ops[0].eq = [];
+  const plan = {
+    ...empty(),
+    name: '分段分享',
+    note,
+    ops,
+    strategy: STRATEGIES[0].name,
+    strategyAlternates: STRATEGIES.slice(1, 5).map((s) => s.name),
+    stages: [early, late],
+    layers: {[layerNames[0]]: 123},
+  };
+  const code = roundTrip(plan);
+  const guide = formatPlanShareText(plan);
+  assert.match(guide, /备选策略：/);
+  assert.match(guide, /【第 1–3 回合】/);
+  assert.match(guide, /【终盘阵容】/);
+  assert.deepEqual(decodePlan(guide)?.plan, plan);
+  const decoded = decodePlan(`https://example.org/#p=${code.slice(2)}`).plan;
+  decoded.stages[0].ops[0].eq.pop();
+  assert.deepEqual(decoded.ops.at(-1).eq, ops.at(-1).eq);
+  assert.equal(decodePlan(code.slice(0, -1)), null);
+});
+
+test('largest supported round set and long incompressible notes have a complete non-QR share', () => {
+  let state = 12345;
+  const nextNote = () =>
+    Array.from({length: MAX_NOTE}, () => {
+      state = (Math.imul(1664525, state) + 1013904223) >>> 0;
+      return String.fromCharCode(0x4e00 + (state % 20000));
+    }).join('');
+  const plan = {
+    ...empty(),
+    note: nextNote(),
+    stages: Array.from({length: 99}, (_, i) => ({
+      from: i + 1,
+      to: i + 1,
+      ops: [],
+      layers: {},
+      note: nextNote(),
+    })),
+  };
+  const code = encodePlan(plan);
+  assert.ok(code.length > 65536, 'exercise chunked base64 conversion');
+  assert.equal(canShareViaQr(`https://example.org/#p=${code.slice(2)}`), false);
+  const restored = decodePlan(code)?.plan;
+  assert.equal(restored?.note, plan.note);
+  assert.equal(restored.stages.length, 99);
+  assert.ok(
+    restored.stages.every(
+      (stage, i) =>
+        stage.from === i + 1 &&
+        stage.to === i + 1 &&
+        stage.note === plan.stages[i].note,
+    ),
+  );
+  assert.equal(canShareViaQr('a'.repeat(2331)), true);
+  assert.equal(canShareViaQr('a'.repeat(2332)), false);
+  assert.equal(canShareViaQr(''), false);
+});
+
+test('extended codes reject invalid ranges, oversized lineups and incorrect member references', () => {
+  const plan = empty();
+  const stage = {from: 1, to: 2, ops: [], note: '', layers: {}};
+  assert.throws(() =>
+    encodePlan({...plan, stages: [stage, {...stage, from: 2}]}),
+  );
+  assert.throws(() =>
+    encodePlan({...plan, stages: [{...stage, note: 'a'.repeat(MAX_NOTE + 1)}]}),
+  );
+  const malformed = (count, noteLength, tail = () => {}) => {
+    const writer = new BitWriter();
+    writer.write(0, 5); // Name, primary strategy, alternatives, stages
+    writer.write(0, 6);
+    writer.write(0, 3);
+    writer.write(0, 7);
+    writer.write(noteLength, 11);
+    writer.write(count, 5);
+    tail(writer);
+    return 'WS' + packSharePayload(writer.finish(), 1, false, true);
+  };
+  assert.equal(decodePlan(malformed(21, 0)), null);
+  assert.equal(decodePlan(malformed(0, MAX_NOTE + 1)), null);
+  assert.equal(decodePlan(malformed(1, 0, (w) => w.write(1, 1))), null);
 });
 
 test('sparse and dense layers preserve values at every bit-width boundary', () => {
@@ -274,7 +413,7 @@ test('out-of-range roster fields are rejected instead of partially imported', ()
     malformed(9, 0, 0, 0),
     malformed(0, 63, 0, 0),
     malformed(0, 0, 17, 0),
-    malformed(0, 0, 0, MAX_NOTE + 1),
+    malformed(0, 0, 0, 241),
     malformed(1, 0, 0, 0, (w) => w.write(255, 8)),
     malformed(1, 0, 0, 0, (w) => {
       w.write(0, 8);

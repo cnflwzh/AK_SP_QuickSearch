@@ -32,6 +32,7 @@ import {
   isRunBannedOp,
   presetsUsing,
   quickTargetPreset,
+  quickTargetOps,
   runAltTargets,
   runEquipMaterials,
   runEquipOwners,
@@ -115,20 +116,16 @@ const opAltTargets = computed(() =>
 const inQuickBuild = computed(
   () =>
     !!operator.value &&
-    !!quickTargetPreset.value?.plan.ops.some(
-      (slot) => slot.name === operator.value!.name,
-    ),
+    quickTargetOps.value.some((slot) => slot.name === operator.value!.name),
 );
 const quickBuildFull = computed(
-  () =>
-    !!quickTargetPreset.value &&
-    quickTargetPreset.value.plan.ops.length >= MAX_OPS,
+  () => !!quickTargetPreset.value && quickTargetOps.value.length >= MAX_OPS,
 );
 const quickBuildLabel = computed(() => {
   const target = quickTargetPreset.value;
   if (!target) return '＋ 用TA建流派';
   if (inQuickBuild.value) return '✓ 已在流派 · 移出';
-  if (target.plan.ops.length >= MAX_OPS)
+  if (quickTargetOps.value.length >= MAX_OPS)
     return `流派已满 ${MAX_OPS}/${MAX_OPS}`;
   const shortName =
     target.plan.name.length > 5
@@ -329,7 +326,7 @@ onBeforeUnmount(() => dialog.value?.close());
                 :disabled="!inQuickBuild && quickBuildFull"
                 :title="
                   quickTargetPreset
-                    ? `流派「${quickTargetPreset.plan.name}」（${quickTargetPreset.plan.ops.length}/${MAX_OPS}）`
+                    ? `流派「${quickTargetPreset.plan.name}」（${quickTargetOps.length}/${MAX_OPS}）`
                     : '新建我的流派并加入这名干员'
                 "
                 @click="onToggleQuickBuild">
@@ -493,11 +490,7 @@ onBeforeUnmount(() => dialog.value?.close());
             </div>
           </div>
           <div
-            v-if="
-              equipment &&
-              quickTargetPreset &&
-              quickTargetPreset.plan.ops.length
-            "
+            v-if="equipment && quickTargetPreset && quickTargetOps.length"
             class="sh-sec sh-eq-assign">
             <SectionHeading
               :title="`配给「${quickTargetPreset.plan.name}」`"
@@ -505,7 +498,7 @@ onBeforeUnmount(() => dialog.value?.close());
               :level="5" />
             <div class="row">
               <button
-                v-for="slot in quickTargetPreset.plan.ops"
+                v-for="slot in quickTargetOps"
                 :key="slot.name"
                 type="button"
                 :class="['sh-eq-slot', {on: slot.eq.includes(equipment.name)}]"

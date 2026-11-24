@@ -581,6 +581,8 @@ export interface SeasonMeta {
   readonly title: string;
   readonly guideSubtitle: string;
   readonly ruleVersion: string;
+  /** 森空岛攻略使用的活动与数据版本，只有匹配时才转入本局规划。 */
+  readonly skland?: {readonly season: string; readonly version: string};
   readonly ruleSource: string;
   readonly defaultCovenant: string;
   readonly defaultBuild: string;

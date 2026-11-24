@@ -39,6 +39,7 @@ export function createRunPreference(
     reserve,
     mainCovenant: run.mainCovenant,
     strategy: run.strategy,
+    round: run.round,
     unavailableNames,
   });
 }

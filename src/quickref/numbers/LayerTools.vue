@@ -22,7 +22,7 @@ import {
 import {synthesisTier} from '../../lib/numbers/numberTools.ts';
 import {prefersReducedMotion} from '../../lib/ui/dom.ts';
 import {color} from '../format.ts';
-import {run, runStats} from '../planStore.ts';
+import {run, runStageKey, runFormation, runStats} from '../planStore.ts';
 import CovenantIcon from '../components/CovenantIcon.vue';
 import SectionHeading from '../components/SectionHeading.vue';
 import Segmented from '../components/Segmented.vue';
@@ -61,7 +61,7 @@ const sectionTabs: readonly SubTabItem<MatchOverviewSection>[] = [
 ];
 
 watch(
-  () => run.value?.key ?? '',
+  () => (run.value ? `${run.value.key}/${runStageKey.value}` : ''),
   (key) => {
     if (!key) {
       layerState.lastAutoRunKey = '';
@@ -87,7 +87,7 @@ watch(
         : HEADCOUNT_BREAKPOINTS.some((h) => h.covenant === picked.name)
           ? 'headcount'
           : 'threshold';
-    layerState.count = run.value?.plan.layers[picked.name] ?? 0;
+    layerState.count = runFormation.value?.layers[picked.name] ?? 0;
   },
   {immediate: true},
 );

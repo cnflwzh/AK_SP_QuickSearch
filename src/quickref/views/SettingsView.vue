@@ -95,7 +95,7 @@ const MODULE_TOGGLES = [
 const HABIT_TOGGLES = [
   {
     key: 'collapsePresetBuilds',
-    title: '折叠「流派」页的预设流派',
+    title: '在「切换流派」抽屉中折叠预设流派',
   },
   {
     key: 'defaultOperatorElite',

@@ -68,8 +68,11 @@ export function defaultLineupGoal(covenant: string): LineupGoal {
 }
 
 /** 至少两名本家才自动确定方向；同人数先看用户的核心标记，仍相同则不强行选边。 */
-export function inferPrimaryCovenant(ops: readonly PlanOp[]): string {
-  const candidates = covenantStats(ops)
+export function inferPrimaryCovenant(
+  ops: readonly PlanOp[],
+  layers: Layers = {},
+): string {
+  const candidates = covenantStats(ops, layers)
     .filter((stat) => stat.core && stat.members.length >= 2)
     .map((stat) => ({
       name: stat.name,

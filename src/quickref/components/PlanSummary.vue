@@ -9,6 +9,7 @@ const props = withDefaults(
   defineProps<{
     ops: readonly PlanOp[];
     strategy: string;
+    strategyAlternates?: readonly string[];
     note?: string;
     layers?: Readonly<Record<string, number>>;
     title?: string;
@@ -79,9 +80,15 @@ const cost = computed(() => planCost(props.ops));
       </span>
     </div>
     <div v-if="STRATEGY[strategy]" class="pls-st" :data-st="strategy">
+      <span v-if="strategyAlternates?.length">
+        策略 {{ 1 + strategyAlternates.length }} · 首选
+      </span>
       <img :src="portraitSrc(strategy)" alt="" width="22" height="22" />
       {{ strategy }}
     </div>
+    <p v-if="strategyAlternates?.length" class="pls-note">
+      备选策略 · {{ strategyAlternates.join('、') }}
+    </p>
     <p v-if="note" class="pls-note">{{ note }}</p>
     <PlanCovenants :stats="stats" :layers="layers" :compact="compact" />
     <div class="pls-c">

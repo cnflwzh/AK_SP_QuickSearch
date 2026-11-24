@@ -93,8 +93,17 @@ interface BorrowPlan {
   readonly roles: readonly CombatRole[];
 }
 
-/** 只搜索本阵容的缺口，八人满编最多 256 种组合。依次比较基础职能、总职能、
- * 占用名额、核心人数。仍相同时沿用阵容次序，避免一键借入仅提供重复职能的人。 */
+function bitCount(mask: number): number {
+  let count = 0;
+  while (mask) {
+    mask &= mask - 1;
+    count++;
+  }
+  return count;
+}
+
+/** 按未覆盖的职能选一组足以提供该职能的本体。依次比较基础职能、总职能、
+ * 占用名额、核心人数。仍相同时按原站位掩码从小到大，保留旧方案的并列顺序。 */
 function bestRoleBorrowPlan(
   candidates: readonly PlanOp[],
   risks: readonly SubstituteRoleRisk[],
@@ -102,8 +111,6 @@ function bestRoleBorrowPlan(
   limit: number,
 ): BorrowPlan {
   if (!risks.length || limit < 1) return {names: [], roles: []};
-  const maskCount = 1 << candidates.length;
-  const sizes = new Uint8Array(maskCount);
   const coreMask = candidates.reduce(
     (mask, slot, i) => (slot.core ? mask | (1 << i) : mask),
     0,
@@ -113,27 +120,51 @@ function bestRoleBorrowPlan(
     // 一个基础职能优先于所有非基础职能之和。
     value: essential ? risks.length + 1 : 1,
   }));
+  // 先满足基础职能、优先试来源少的缺口，以便尽早得到可剪枝的完整方案。
+  const searchOrder = [...goals].sort(
+    (a, b) => b.value - a.value || a.options.length - b.options.length,
+  );
   let bestMask = 0;
   let bestScore = 0;
-  for (let mask = 1; mask < maskCount; mask++) {
-    sizes[mask] = sizes[mask >>> 1] + (mask & 1);
-    if (sizes[mask] > limit) continue;
-    let score = 0;
-    for (const {options, value} of goals) {
-      if (options.some((required) => (mask & required) === required))
-        score += value;
+  let bestSize = 0;
+  let bestCoreCount = 0;
+  function search(index: number, mask: number, possibleScore: number): void {
+    const size = bitCount(mask);
+    if (size > limit || possibleScore < bestScore) return;
+    if (possibleScore === bestScore && size > bestSize) return;
+    if (index === searchOrder.length) {
+      const coreCount = bitCount(mask & coreMask);
+      if (
+        possibleScore > bestScore ||
+        size < bestSize ||
+        (size === bestSize &&
+          (coreCount > bestCoreCount ||
+            (coreCount === bestCoreCount && mask < bestMask)))
+      ) {
+        bestMask = mask;
+        bestScore = possibleScore;
+        bestSize = size;
+        bestCoreCount = coreCount;
+      }
+      return;
     }
-    const sameSize = sizes[mask] === sizes[bestMask];
-    if (
-      score > bestScore ||
-      (score === bestScore &&
-        (sizes[mask] < sizes[bestMask] ||
-          (sameSize && sizes[mask & coreMask] > sizes[bestMask & coreMask])))
-    ) {
-      bestMask = mask;
-      bestScore = score;
+    const {options, value} = searchOrder[index];
+    if (options.some((required) => (mask & required) === required)) {
+      search(index + 1, mask, possibleScore);
+      return;
     }
+    // 任一最省名额的解都是已覆盖职能各选一个来源的并集，无需枚举所有干员子集。
+    if (size < limit) {
+      for (const required of options)
+        search(index + 1, mask | required, possibleScore);
+    }
+    search(index + 1, mask, possibleScore - value);
   }
+  search(
+    0,
+    0,
+    goals.reduce((sum, goal) => sum + goal.value, 0),
+  );
   return {
     names: candidates
       .filter((_, i) => bestMask & (1 << i))
@@ -147,10 +178,10 @@ function bestRoleBorrowPlan(
 }
 
 /**
- * 返回已部署阵容的职能及来源。stats 可传入已按实际层数和人数计算的盟约状态。
+ * 返回传入阵容的职能及来源。stats 可传入已按指定层数和人数计算的盟约状态。
  * 有当前赛季 Box 时，标记依赖未借本体的来源。替补继承盟约与特质，原型的技能和
  * 部署/攻击条件未在赛季职能表中收录，所以这类来源需确认。无条件装备仍然生效。
- * borrowLimit 是本次可用的助战名额，缺省只诊断；输入使用游戏的八人部署上限。
+ * borrowLimit 是本次可用的助战名额，缺省只诊断。规划草案的所有位置均可参与诊断。
  */
 export function diagnoseLineup(
   ops: readonly PlanOp[],

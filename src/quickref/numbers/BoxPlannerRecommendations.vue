@@ -14,7 +14,7 @@ import {
   setOperatorRanks,
 } from '../../lib/box/store.ts';
 import {avatarSrc} from '../../lib/ui/assets.ts';
-import {presets} from '../planStore.ts';
+import {presetFormation, presets} from '../planStore.ts';
 import {useQuickrefActions} from '../state.ts';
 import CovenantIcon from '../components/CovenantIcon.vue';
 import EmptyState from '../components/EmptyState.vue';
@@ -38,13 +38,13 @@ const errorMsg = ref('');
 
 const planSources = computed<readonly BoxPlanSource[]>(() =>
   presets.value
-    .filter((item) => item.plan.ops.length > 0)
     .map((item) => ({
       key: item.key,
       name: item.plan.name,
       builtin: item.builtin,
-      ops: item.plan.ops,
-    })),
+      ops: presetFormation(item).ops,
+    }))
+    .filter((item) => item.ops.length > 0),
 );
 
 const selectedBuildSet = computed(() => new Set(selectedBuilds.value));

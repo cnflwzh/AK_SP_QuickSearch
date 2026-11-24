@@ -1,6 +1,14 @@
 /** 浏览器方案存档适配。读写与默认记录生成留在推荐计算模块之外。 */
-import { STRATEGY, buildByName } from '../../../data/index.ts';
-import { MAX_NOTE, cleanLayers, cleanOps, type Plan } from './model.ts';
+import {STRATEGY, buildByName} from '../../../data/index.ts';
+import {
+  MAX_NOTE,
+  cleanLayers,
+  cleanOps,
+  cleanStages,
+  cleanStrategyAlternates,
+  type Plan,
+} from './model.ts';
+import {isSklandGuide, migrateLegacyGuidePlan} from './skland.ts';
 /* ---------- 本地存档 ---------- */
 
 const KEY = 'wsq.plans',
@@ -41,7 +49,12 @@ function clean(value: unknown): Plan | null {
     typeof value.base === 'string' && buildByName(value.base)
       ? value.base
       : undefined;
-  return {
+  const strategy =
+    typeof value.strategy === 'string' &&
+    Object.hasOwn(STRATEGY, value.strategy)
+      ? value.strategy
+      : '';
+  return migrateLegacyGuidePlan({
     id: typeof value.id === 'string' && value.id ? value.id : newId(),
     name:
       typeof value.name === 'string' && value.name
@@ -51,16 +64,22 @@ function clean(value: unknown): Plan | null {
       typeof value.updated === 'number' && Number.isFinite(value.updated)
         ? value.updated
         : Date.now(),
-    strategy:
-      typeof value.strategy === 'string' &&
-      Object.hasOwn(STRATEGY, value.strategy)
-        ? value.strategy
-        : '',
+    strategy,
+    ...(Array.isArray(value.strategyAlternates)
+      ? {
+          strategyAlternates: cleanStrategyAlternates(
+            strategy,
+            value.strategyAlternates,
+          ),
+        }
+      : {}),
+    ...(Array.isArray(value.stages) ? {stages: cleanStages(value.stages)} : {}),
     note: typeof value.note === 'string' ? value.note.slice(0, MAX_NOTE) : '',
     layers: cleanLayers(value.layers),
     ops: cleanOps(value.ops, base ? buildByName(base)!.carries : []),
-    ...(base ? { base } : {}),
-  };
+    ...(isSklandGuide(value.skland) ? {skland: value.skland} : {}),
+    ...(base ? {base} : {}),
+  });
 }
 /** 读取当前原始存档，用于判断另一个标签页是否已保存。 */
 export const readPlanSnapshot = (): string | null => read(KEY);
