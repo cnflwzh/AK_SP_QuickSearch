@@ -157,4 +157,5 @@ npm run dev             # 启动 http://127.0.0.1:5173
   ```bash
   npx wrangler@4.160.0 deploy
   ```
+- **Cloudflare 开发预览**　推送到 `develop` 后，Workers Builds 会运行 `npm run build` 和 `npx wrangler@4.160.0 preview`。每次成功构建都会更新同一个[开发预览地址](https://develop-ak-sp-quicksearch.cnflwzh.workers.dev)。`main` 继续用于正式部署。
 - **缓存头**：静态资源缓存策略定义在 [`public/_headers`](../public/_headers)。
