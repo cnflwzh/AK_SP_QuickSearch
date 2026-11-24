@@ -1,14 +1,5 @@
 import {reactive} from 'vue';
-import type {CreditTargetKind} from '../../../data/types.ts';
-import {
-  COMMON_LAYER_COVENANTS,
-  CREDIT,
-  type SHOP_MODE_IDS,
-} from '../../../data/index.ts';
-import {
-  defaultCreditTarget,
-  type CreditMode,
-} from '../../lib/numbers/numberTools.ts';
+import {COMMON_LAYER_COVENANTS, type SHOP_MODE_IDS} from '../../../data/index.ts';
 
 export type LayerSection = 'threshold' | 'cycle' | 'headcount';
 export type MatchOverviewSection = 'all' | 'layers' | 'dispatch';
@@ -28,19 +19,6 @@ interface NumberToolsState {
     level: number;
     shopMode: ShopMode;
   };
-  credit: {
-    mode: CreditMode;
-    jointDifficulty: number;
-    soloLevel: number;
-    roundsCleared: number;
-    defeatedLeader: boolean;
-    battleEarned: number;
-    objectiveEarned: number;
-    limitedSpend: number;
-    balance: number;
-    targetKind: CreditTargetKind;
-    targetCredit: number;
-  };
   roundDifficulty: number;
 }
 
@@ -56,19 +34,6 @@ const state = reactive<NumberToolsState>({
   economy: {
     level: 4,
     shopMode: 'advanced',
-  },
-  credit: {
-    mode: 'joint',
-    jointDifficulty: 1,
-    soloLevel: 15,
-    roundsCleared: CREDIT.length,
-    defeatedLeader: true,
-    battleEarned: 0,
-    objectiveEarned: 0,
-    limitedSpend: 0,
-    balance: 0,
-    targetKind: 'battle',
-    targetCredit: defaultCreditTarget(),
   },
   roundDifficulty: 1,
 });

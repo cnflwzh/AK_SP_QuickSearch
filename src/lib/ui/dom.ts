@@ -1,14 +1,5 @@
 /** DOM 与 HTML 字符串工具，两个页面共用 */
 
-export const $ = <T extends Element = HTMLElement>(
-  selector: string,
-  root: ParentNode = document,
-) => root.querySelector<T>(selector)!;
-export const $$ = <T extends Element = HTMLElement>(
-  selector: string,
-  root: ParentNode = document,
-) => [...root.querySelectorAll<T>(selector)];
-
 /** Read the current OS preference or user reduced-motion setting at use time. */
 export const prefersReducedMotion = (): boolean =>
   document.documentElement.dataset.motion === 'reduce' ||

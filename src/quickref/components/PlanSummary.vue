@@ -6,6 +6,7 @@ import {covenantStats, planCost, type PlanOp} from '../../lib/plans/index.ts';
 import PlanCovenants from './PlanCovenants.vue';
 import type {PlanIcon} from '../../lib/plans/model.ts';
 import PlanEmblem from './PlanEmblem.vue';
+import GlossaryText from './GlossaryText.vue';
 /** 只读的阵容概览：导入预览与对比共用。highlight 中的干员加框（对比时标出两边不同的人） */
 const props = withDefaults(
   defineProps<{
@@ -95,7 +96,7 @@ const cost = computed(() => planCost(props.ops));
     <p v-if="strategyAlternates?.length" class="pls-note">
       备选策略 · {{ strategyAlternates.join('、') }}
     </p>
-    <p v-if="note" class="pls-note">{{ note }}</p>
+    <p v-if="note" class="pls-note"><GlossaryText :text="note" /></p>
     <PlanCovenants :stats="stats" :layers="layers" :compact="compact" />
     <div class="pls-c">
       <span>

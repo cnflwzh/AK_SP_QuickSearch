@@ -6,11 +6,10 @@ export interface PrtsArticle {
   name: string;
   url: string;
   html: string;
-  revision: number;
 }
 
 interface ParseResponse {
-  parse?: { title?: string; text?: { '*': string }; revid?: number };
+  parse?: { title?: string; text?: { '*': string } };
   error?: { info?: string };
 }
 
@@ -24,7 +23,7 @@ async function requestArticle(origin: string, name: string, signal: AbortSignal)
   signal.throwIfAborted();
   const endpoint = new URL('/api.php', origin);
   endpoint.search = new URLSearchParams({
-    action: 'parse', page: name, prop: 'text|revid', format: 'json', origin: '*', redirects: '1',
+    action: 'parse', page: name, prop: 'text', format: 'json', origin: '*', redirects: '1',
     useskin: READER_SKIN,
   }).toString();
   const response = await fetch(endpoint, { credentials: 'omit', signal });
@@ -32,7 +31,7 @@ async function requestArticle(origin: string, name: string, signal: AbortSignal)
   const result = await response.json() as ParseResponse;
   const html = result.parse?.text?.['*'];
   if (typeof html !== 'string' || !html.trim()) throw new Error(result.error?.info || 'PRTS returned an empty article');
-  return { name, url: operatorWikiUrl(result.parse?.title || name), html, revision: result.parse?.revid ?? 0 };
+  return { name, url: operatorWikiUrl(result.parse?.title || name), html };
 }
 
 /**

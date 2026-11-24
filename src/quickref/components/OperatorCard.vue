@@ -10,6 +10,7 @@ import {fx} from '../format.ts';
 import {useQuickrefActions} from '../state.ts';
 import {inRun, isRunBannedOp, runAltTargets, runSlotMap} from '../planStore.ts';
 import Chip from './Chip.vue';
+import GlossaryText from './GlossaryText.vue';
 import {useWikiPanel} from '../wikiPanel.ts';
 /** 干员目录和搜索结果通过 showWikiLink 开启同一套 Wiki 角标。 */
 const props = defineProps<{
@@ -87,14 +88,17 @@ const wikiSelected = computed(
                 :name="name"
                 static />
             </div>
-            <span class="op-type-label">{{ operator.type }}</span>
+            <GlossaryText
+              class="op-type-label"
+              :text="operator.type"
+              :focusable="false" />
             <span v-if="eliteMatched" class="tag a op-elite-hit">精锐词条</span>
           </div>
         </div>
       </div>
       <div
         class="tx op-tx"
-        v-html="fx(showElite ? operator.elite : operator.trait)"></div>
+        v-html="fx(showElite ? operator.elite : operator.trait, false)"></div>
     </NavigationLink>
     <PrtsLink
       v-if="showWikiLink"

@@ -3,9 +3,6 @@ import {
   SEASON_META,
 } from '../../../../data/index.ts';
 
-/** 当前客户端静态规则；不是服务端发牌概率模型。来源见 ADVISOR_RULE_SOURCE。 */
-export const ADVISOR_RULE_VERSION = SEASON_META.ruleVersion;
-export const ADVISOR_RULE_SOURCE = SEASON_META.ruleSource;
 export const ADVISOR_MODES = [
   {id: 'unknown', label: '未指定模式（手动录入缺席盟约）'},
   {id: 'restricted', label: '规程1–4 / 联合标准 / 极速'},

@@ -3,6 +3,7 @@ import {
   CORE_BUILDS, MIXED_BUILDS, COVENANTS, OPERATOR, TIERS, TIER_LABELS, rosterOf, lineupCovenantCount,
 } from '../../../data/index';
 import { html, range } from '../../lib/ui/dom';
+import {glossaryHtml} from '../../lib/ui/glossaryText';
 import { op, eq, st, cv, avatar, color } from '../chips';
 
 function sparkline(name: string) {
@@ -53,14 +54,14 @@ export function drawBuild(name: string) {
         <p class="lab">ROSTER · 按等阶</p>
         <div class="tierrows">${tierRows}</div>
         <p class="lab" style="margin-top:16px">盟约效果</p>
-        <div style="font-size:13px;color:var(--ink2)">${covenant.effect}</div>
-        <div style="font-size:13px;margin-top:4px">${covenant.bonus}</div>
+        <div style="font-size:13px;color:var(--ink2)">${glossaryHtml(covenant.effect)}</div>
+        <div style="font-size:13px;margin-top:4px">${glossaryHtml(covenant.bonus)}</div>
       </div>
       <div>
         <p class="lab">终局 8 人</p>
         <div class="fin">${lineup}</div>
         <p class="lab" style="margin-top:16px">运营</p>
-        <ol class="steps">${build.tips.map(t => `<li>${t}</li>`)}</ol>
+        <ol class="steps">${build.tips.map(t => `<li>${glossaryHtml(t)}</li>`)}</ol>
         <p class="lab" style="margin-top:16px">推荐附加盟约 · 阵容人数 / 激活人数</p>
         <div class="row">${build.addons.map(n => html`<span class="row" data-key="${n}">${cv(n)}<span class="tag">${lineupCovenantCount(build.lineup, n)} / ${COVENANTS[n].need}</span></span>`)}</div>
         <p class="lab" style="margin-top:12px">策略</p>
@@ -81,7 +82,7 @@ export function mixedBuilds() {
     <div class="row">${b.lineup.map(n => op(n))}</div>
     <div class="row mt">${b.strategies.map(st)}</div>
     <div class="row mt">${b.equipment.map(n => eq(n))}</div>
-    <ol class="steps mt" style="--c:var(--accent)">${b.tips.map(t => `<li>${t}</li>`)}</ol>
+    <ol class="steps mt" style="--c:var(--accent)">${b.tips.map(t => `<li>${glossaryHtml(t)}</li>`)}</ol>
   </div>`).join('');
  return out.hyb;
 }

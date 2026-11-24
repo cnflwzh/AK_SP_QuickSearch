@@ -3,6 +3,7 @@ import {
   OPERATORS, OPERATOR, EQUIP, DISPATCH_LEVELS, DISPATCH_BY_MODE, TIER_STATS, TIER_LABELS, TIERS, EQUIPMENT_COMBOS,
 } from '../../../data/index';
 import { html, range } from '../../lib/ui/dom';
+import {glossaryHtml} from '../../lib/ui/glossaryText';
 import { avatarSrc } from '../../lib/ui/assets';
 import { op, eq, st, cv, avatar, tierBadge } from '../chips';
 
@@ -123,9 +124,9 @@ function poolDetails(out: Record<string, string>) {
   const after = ['角峰', '深靛', '雪猎'];
   const strip = (names: readonly string[], cls = '') => names.map(n => poolAvatar(n, cls)).join('');
   out.rfx = html`
-    <span class="tag a">刷新 −1</span>
+    <span class="tag a">${glossaryHtml('刷新')} −1</span>
     <div class="ms">${strip(before)}<span class="ar">▶</span>${strip(after)}<span class="cnt">整排换新</span></div>
-    <span class="tag t">冻结 ❄</span>
+    <span class="tag t">${glossaryHtml('冻结商店')} ❄</span>
     <div class="ms">${strip(before, 'lk')}<span class="ar">▶ 下回合</span>${strip(before, 'lk')}<span class="cnt">原样保留</span></div>
     <span class="tag">不冻结</span>
     <div class="ms">${strip(before)}<span class="ar">▶ 下回合</span>${strip(after)}<span class="cnt">自动换新</span></div>`;

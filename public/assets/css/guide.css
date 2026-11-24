@@ -841,10 +841,6 @@ nav.top a.on {
   background: transparent;
 }
 
-.bench .b.tmp {
-  border-color: color-mix(in srgb,var(--red) 50%,transparent);
-}
-
 .bench .b.el {
   border: 2px solid var(--accent);
   background: var(--accent-soft);
@@ -944,13 +940,6 @@ nav.top a.on {
 .fstack {
   display: flex;
   gap: 4px;
-}
-
-.arr {
-  font-family: var(--fn);
-  color: var(--accent);
-  font-size: 22px;
-  animation: beat 5s infinite both;
 }
 
 @keyframes beat {

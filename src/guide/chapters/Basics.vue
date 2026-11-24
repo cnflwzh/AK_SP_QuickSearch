@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Markup from '../components/Markup';
+import GlossaryText from '../../quickref/components/GlossaryText.vue';
 import Segmented from '../components/Segmented.vue';
 import {computed, ref} from 'vue';
 import {MODES, CREDIT_MILESTONES} from '../../../data/index';
@@ -30,8 +31,8 @@ const credits = computed(() => creditChart(creditMode.value));
       <b>休整期</b>
       <ul>
         <li>每回合发资金</li>
-        <li>招募 / 出售 / 刷新 / 冻结</li>
-        <li>升级调度中心</li>
+        <li><GlossaryText text="招募 / 出售 / 刷新 / 冻结商店" /></li>
+        <li><GlossaryText text="升级调度中心（升本）" /></li>
         <li>布阵 · 装备</li>
       </ul>
     </div>
@@ -42,7 +43,7 @@ const credits = computed(() => creditChart(creditMode.value));
         <li>按阵型自动部署</li>
         <li>技能自动释放</li>
         <li>限时清怪</li>
-        <li>漏怪扣目标生命</li>
+        <li><GlossaryText text="漏怪扣目标生命" /></li>
       </ul>
     </div>
     <div>

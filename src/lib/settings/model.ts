@@ -18,7 +18,7 @@ export type ContentTabId = (typeof CONTENT_TAB_IDS)[number];
 
 export const CUSTOMIZABLE_TOOL_IDS = [
   'match-reference',
-  'credit',
+  'glossary',
   'dealer',
   'excuse',
   'apology',

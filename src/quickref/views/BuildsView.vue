@@ -82,6 +82,7 @@ import {isPlanShareHash, planShareSource} from '../../lib/plans/shareInput.ts';
 import type {Plan} from '../../lib/plans/model.ts';
 import {MAX_BACKUP_BYTES, parsePlanBackup} from '../../lib/plans/backup.ts';
 import SklandGuideDetails from '../components/SklandGuideDetails.vue';
+import GlossaryText from '../components/GlossaryText.vue';
 import SklandImport from '../components/SklandImport.vue';
 import {color, fx, bonusHeadcount, bonusText} from '../format.ts';
 import Chip from '../components/Chip.vue';
@@ -1424,7 +1425,9 @@ watch(
         <div
           id="formation-notes-body"
           :class="{'notes-preview': longNotes && !notesExpanded}">
-          <p v-for="(tip, index) in tips" :key="index">{{ tip }}</p>
+          <p v-for="(tip, index) in tips" :key="index">
+            <GlossaryText :text="tip" :focusable="!longNotes || notesExpanded" />
+          </p>
         </div>
       </section>
       <div v-if="slotEntries.length" class="bneed">
@@ -1574,7 +1577,7 @@ watch(
             <SectionHeading title="打法要点" :level="5" :accent="accent" />
             <ol :key="selectedStage" class="qsteps b-panel-in">
               <li v-for="(tip, index) in tips" :key="index">
-                <span>{{ tip }}</span>
+                <GlossaryText :text="tip" />
               </li>
             </ol>
           </div>
@@ -1776,7 +1779,7 @@ watch(
                 :key="index"
                 :class="note.kind">
                 <b>{{ note.op }}</b>
-                {{ note.text }}
+                <GlossaryText :text="note.text" />
               </li>
             </ul>
           </div>
@@ -2223,10 +2226,6 @@ watch(
 .build-detail .bneed .c {
   min-height: 34px;
 }
-.build-detail .bsec-head {
-  gap: 6px 12px;
-  margin-bottom: 7px;
-}
 .build-summary {
   display: flex;
   flex-wrap: wrap;
@@ -2409,9 +2408,6 @@ watch(
   }
   .build-control {
     padding-inline: 7px;
-  }
-  .build-detail .bsec-head {
-    justify-content: flex-start;
   }
 }
 

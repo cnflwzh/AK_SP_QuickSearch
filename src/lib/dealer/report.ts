@@ -350,7 +350,6 @@ export function buildDealerPosterModel(options: {
         ? `今日同题 #${tag}`
         : `自由拷打 ${stats.roundsCleared} 轮`,
     hintBadge,
-    summaryLine: `揪出串场 ${defeated} 次 · 误判 ${stats.mistakes} 次 · 最高 ${stats.maxCombo} 连 · 准确率 ${accuracy}%`,
     spoilerNotice: '🔒 考题防剧透',
     grade,
     rank,

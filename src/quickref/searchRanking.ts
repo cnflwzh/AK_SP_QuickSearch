@@ -11,7 +11,6 @@ import {
   operatorRolesAtElite,
   rolesForTraining,
   type Bounty,
-  type EnemyTerm,
   type Equipment,
   type Leader,
   type Operator,
@@ -19,6 +18,7 @@ import {
   type Strategy,
 } from '../../data/index.ts';
 import {leaderGlossaryTerms} from '../lib/leaders/leader.ts';
+import {searchGlossary} from '../lib/glossary.ts';
 import {nameScore, normalize} from '../lib/ui/match.ts';
 import type {Plan} from '../lib/plans/model.ts';
 
@@ -225,10 +225,6 @@ const strategyDocument = indexByItem((item: Strategy) => ({
   terms: [item.skill, item.category],
   body: normalize(item.effect),
 }));
-const glossaryDocument = indexByItem((entry: EnemyTerm) => ({
-  name: entry.term,
-  body: normalize(entry.desc),
-}));
 
 /** 按名称、词条、正文依次给悬赏敌人评分；仅供悬赏目录逐项调用。 */
 export function bountyMatchScore(item: Bounty, query: string): number {
@@ -276,20 +272,6 @@ function ranked<T>(
     .map((item) => ({item, score: query.score(describe(item))}))
     .filter(({score}) => score > 0)
     .sort((a, b) => b.score - a.score || tieBreak?.(a.item, b.item) || 0);
-}
-
-/** 返回匹配的敌人词条；全局结果只在词条名称命中时展示独立的词典解释。 */
-export function matchingEnemyTerms(
-  input: string | SearchQuery,
-  includeDescription = true,
-): EnemyTerm[] {
-  const query = typeof input === 'string' ? prepareSearchQuery(input) : input;
-  const describe = includeDescription
-    ? glossaryDocument
-    : (entry: EnemyTerm) => ({name: entry.term});
-  return ranked(Object.values(ENEMY_GLOSSARY), describe, query).map(
-    ({item}) => item,
-  );
 }
 
 type SearchBuild = {key: string} & (
@@ -418,7 +400,7 @@ export function searchResults(
     leaders,
     trainings,
     bounties,
-    glossary: matchingEnemyTerms(query, false),
+    glossary: query.text ? searchGlossary(query.text, false) : [],
     order: sections.map((section) => section.key),
     top: sections[0]?.target ?? null,
   };

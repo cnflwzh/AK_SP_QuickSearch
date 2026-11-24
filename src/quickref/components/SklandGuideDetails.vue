@@ -13,6 +13,7 @@ import {avatarSrc, equipIconSrc} from '../../lib/ui/assets.ts';
 import BuildStageSwitcher from './BuildStageSwitcher.vue';
 import CovenantIcon from './CovenantIcon.vue';
 import EmptyState from './EmptyState.vue';
+import GlossaryText from './GlossaryText.vue';
 import SectionHeading from './SectionHeading.vue';
 import StatusNotice from './StatusNotice.vue';
 
@@ -152,7 +153,7 @@ const importLimits = computed(() => {
         <dl v-if="guide.scope || guide.strategies.length" class="guide-facts">
           <template v-if="guide.scope">
             <dt>适用范围</dt>
-            <dd class="scope">{{ guide.scope }}</dd>
+            <dd class="scope"><GlossaryText :text="guide.scope" /></dd>
           </template>
           <template v-if="guide.strategies.length">
             <dt>推荐策略</dt>
@@ -215,7 +216,7 @@ const importLimits = computed(() => {
           </section>
           <section v-if="lineup.idea" class="idea">
             <SectionHeading title="运营思路" :level="5" variant="bar" />
-            <p>{{ lineup.idea }}</p>
+            <p><GlossaryText :text="lineup.idea" /></p>
           </section>
           <div
             v-if="lineup.bonds.length || lineup.equipment.length"

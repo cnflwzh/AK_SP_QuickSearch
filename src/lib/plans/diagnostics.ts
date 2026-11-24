@@ -36,8 +36,6 @@ export interface SubstituteRoleRisk {
 export interface LineupDiagnostics {
   readonly entries: readonly RoleCoverageEntry[];
   readonly missingEssential: readonly RoleCoverageEntry[];
-  /** 已有来源，且至少有一项不依赖待确认的替补能力。 */
-  readonly coveredCount: number;
   readonly substituteRisks: readonly SubstituteRoleRisk[];
   readonly borrowPlan: BorrowPlan;
 }
@@ -307,9 +305,6 @@ export function diagnoseLineup(
     missingEssential: entries.filter(
       (entry) => entry.essential && !entry.providers.length,
     ),
-    coveredCount: entries.filter(
-      (entry) => entry.providers.length && !entry.substituteOnly,
-    ).length,
     substituteRisks,
     borrowPlan: bestRoleBorrowPlan(
       candidates,

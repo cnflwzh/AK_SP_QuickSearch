@@ -13,8 +13,7 @@ import {
 import {isSklandGuide, migrateLegacyGuidePlan} from './skland.ts';
 /* ---------- 本地存档 ---------- */
 
-const KEY = 'wsq.plans',
-  CURRENT = 'wsq.plan';
+const KEY = 'wsq.plans';
 const BEFORE_ROUND_LIMIT = 'wsq.plans.beforeRoundLimit';
 const read = (key: string): string | null => {
   try {
@@ -150,7 +149,3 @@ export function savePlanSnapshot(snapshot: string): boolean {
 /** 序列化并写入全部方案，返回是否成功。 */
 export const savePlans = (plans: readonly Plan[]): boolean =>
   savePlanSnapshot(JSON.stringify(plans));
-export const loadCurrent = (): string => read(CURRENT) ?? '';
-export const saveCurrent = (id: string): void => {
-  write(CURRENT, id);
-};

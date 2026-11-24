@@ -1707,37 +1707,6 @@ function handleResetAll(): void {
   font-size: 12px;
   resize: vertical;
 }
-.settings-alert {
-  margin: 0;
-  padding: 8px 10px;
-  border-radius: 6px;
-  border-left: 3px solid var(--red);
-  background: color-mix(in srgb, var(--red) 10%, var(--surface2));
-  color: var(--red);
-  font-size: 13px;
-}
-.settings-status {
-  margin: 0;
-  padding: 8px 10px;
-  border-radius: 6px;
-  border-left: 3px solid var(--teal);
-  background: color-mix(in srgb, var(--teal) 10%, var(--surface2));
-  color: var(--teal);
-  font-size: 13px;
-}
-.settings-danger-btn {
-  min-height: 36px;
-  width: fit-content;
-  color: var(--red);
-  border-color: color-mix(in srgb, var(--red) 45%, var(--line));
-}
-.settings-danger-solid {
-  min-height: 36px;
-  background: var(--red);
-  border-color: var(--red);
-  color: #fff;
-  font-weight: 600;
-}
 
 @container quickref-view (max-width: 820px) {
   .settings-grid,

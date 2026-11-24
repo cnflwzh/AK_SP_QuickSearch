@@ -3,6 +3,7 @@ import {computed, ref, watch} from 'vue';
 import type {Shared} from '../../lib/plans/sharing.ts';
 import {stageKey, stageLabel} from '../planStore.ts';
 import PlanSummary from './PlanSummary.vue';
+import GlossaryText from './GlossaryText.vue';
 import BuildStageSwitcher from './BuildStageSwitcher.vue';
 
 const props = withDefaults(
@@ -58,7 +59,7 @@ watch(
       :key="selected"
       :open="lineup.note.length <= 240">
       <summary>运营思路</summary>
-      <p>{{ lineup.note }}</p>
+      <p><GlossaryText :text="lineup.note" /></p>
     </details>
   </div>
 </template>

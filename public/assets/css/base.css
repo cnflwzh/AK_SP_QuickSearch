@@ -874,7 +874,7 @@ body > footer .foot-content {
   outline: 2px solid #168a9a;
   outline-offset: -2px;
 }
-:root[data-debug-bounds] :is(.qhead, .tabs-wrap, .picker-head, .picker-filters, .picker-list, .picker-actions, .guide-main, .build-toolbar) {
+:root[data-debug-bounds] :is(.qhead, .tabs-wrap, .picker-head, .picker-filters, .picker-list, .picker-actions, #guide-content, .build-toolbar) {
   outline: 1px dashed #d67915;
   outline-offset: -1px;
 }
@@ -1411,6 +1411,20 @@ dialog.about::backdrop {
   font-size: 11px;
 }
 
+.glossary-term {
+  text-decoration: underline dotted color-mix(in srgb, currentColor 48%, transparent);
+  text-underline-offset: .2em;
+  cursor: help;
+}
+.glossary-term:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+:root[data-peek="off"] .glossary-term:not([tabindex]) {
+  text-decoration: none;
+  cursor: inherit;
+}
 .pk-term-desc {
   font-size: 12.5px;
   line-height: 1.55;
@@ -1426,15 +1440,15 @@ dialog.about::backdrop {
 
 /* 触屏：长按用于速览，关掉系统的长按菜单、选字和放大镜 */
 @media (pointer:coarse) {
-  [data-op], [data-eq], [data-st], [data-cv], [data-term], .cv, em.c,
-  [data-op] *, [data-eq] *, [data-st] *, [data-cv] *, [data-term] * {
+  [data-op], [data-eq], [data-st], [data-cv], [data-term], [data-glossary-term], .cv, em.c,
+  [data-op] *, [data-eq] *, [data-st] *, [data-cv] *, [data-term] *, [data-glossary-term] * {
     -webkit-touch-callout: none;
     -webkit-user-select: none;
     user-select: none;
   }
 }
 
-/* ---------- 领袖：伤害类型、能力文本（速览卡片与速查页领袖标签共用，src/lib/leader.ts） ---------- */
+/* ---------- 领袖：伤害类型、能力文本（速览卡片与速查页领袖标签共用） ---------- */
 .ldt {
   --c: var(--ink2);
   display: inline-block;
@@ -1549,10 +1563,10 @@ em.ls {
 :root[data-font="large"] :is(.q-search-input, .q-select-trigger, .q-select-opt) {
   font-size: 15px;
 }
-:root[data-font="large"] .subtab {
+:root[data-font="large"] .subtabs-btn {
   font-size: 15px;
 }
-:root[data-font="large"] .subtabs-l3 .subtab {
+:root[data-font="large"] .subtabs.is-l3 .subtabs-btn {
   font-size: 14px;
 }
 :root[data-font="large"] .seg button {
@@ -1563,9 +1577,7 @@ em.ls {
   .ef,
   .sr,
   .nt-excuse-text,
-  .cv-fx,
   .bfx,
-  .bnote,
   .lws,
   .lwc,
   .lwe,
@@ -1579,13 +1591,9 @@ em.ls {
 :root[data-font="large"] :is(
   .oc .h b,
   .op-name,
-  .cvc h3,
-  .lwr-name,
   .lwd-h h3,
-  .bc-name,
   .settings-row-info b,
   .bx-name,
-  .rs-name,
   .tr-item-main b,
   .tr-detail-desc,
   .bty-name-row b,
@@ -1595,12 +1603,6 @@ em.ls {
 }
 :root[data-font="large"] :is(
   .oc .op-tx,
-  .dt-box,
-  .dt-tx,
-  .st-tx,
-  .eq-tx,
-  .cv-desc,
-  .lwd-desc,
   .lwd-pf-cell span,
   .lwd-pf-note,
   .lwd-gloss-pin p,
@@ -1612,9 +1614,6 @@ em.ls {
   .nt-match-foot,
   .settings-row-info small,
   .settings-note,
-  .rs-desc,
-  .rs-sub,
-  .bx-summary-note,
   .tr-intel-box p,
   .tr-role-notes,
   .ccg-chip,
@@ -1627,7 +1626,7 @@ em.ls {
 ) {
   font-size: 14px;
 }
-:root[data-font="large"] :is(.settings-card h2, .sec-h, .nt-section-title) {
+:root[data-font="large"] :is(.settings-card h2, .nt-section-title) {
   font-size: 17px;
 }
 :root[data-font="large"] :is(.tr-role-btn, .bty-role-btn, .bty-expand-btn, .bty-when) {

@@ -4,7 +4,7 @@ import {whileVisible} from '../../lib/ui/visibility';
 import {jointDefense} from '../chapters/enemiesView';
 import Markup from './Markup';
 // Keep the same SVG nodes so whileVisible can resume animation if the OS preference changes.
-const content = jointDefense(false);
+const content = jointDefense();
 let dispose: (() => void) | undefined;
 onMounted(() => {
   const svg = document.querySelector<SVGSVGElement>('#joint');

@@ -1,5 +1,5 @@
 /**
- * 生成 data/pinyin.ts：干员、盟约、装备、策略、流派名称的拼音，供速查页搜索使用。
+ * 生成 data/pinyin.ts：为赛季实体以及通用攻略术语和别名生成搜索拼音。
  *
  *   npm install
  *   npm run pinyin
@@ -10,6 +10,8 @@
  */
 import {writeFileSync} from 'node:fs';
 import {pinyin} from 'pinyin-pro';
+import {format, resolveConfig} from 'prettier';
+import {ENEMY_TERM_ALIASES, GAME_TERMS} from '../data/gameTerms.ts';
 import {
   OPERATORS,
   ADDITIONAL_OPERATORS,
@@ -62,6 +64,10 @@ const names = [
     ...TRAINING.map((t) => t.name),
     ...trainingExtraTerms,
     ...COMBAT_ROLE_LABELS,
+    ...GAME_TERMS.flatMap(({term, aliases}) => [term, ...aliases]),
+    ...Object.keys(ENEMY_GLOSSARY).flatMap(
+      (term) => ENEMY_TERM_ALIASES[term] ?? [],
+    ),
   ]),
 ];
 
@@ -92,9 +98,8 @@ const body = entries
   )
   .join('\n');
 
-writeFileSync(
-  new URL('../data/pinyin.ts', import.meta.url),
-  `import type { PinyinIndex } from './types.ts';
+const destination = new URL('../data/pinyin.ts', import.meta.url);
+const source = `import type { PinyinIndex } from './types.ts';
 
 /**
  * 名称拼音，音节以空格分隔；有多种读法时为数组，第一种为标准读法。
@@ -103,6 +108,12 @@ writeFileSync(
 export const PINYIN: PinyinIndex = {
 ${body}
 };
-`,
+`;
+writeFileSync(
+  destination,
+  await format(source, {
+    ...(await resolveConfig(destination)),
+    parser: 'typescript',
+  }),
 );
 console.log(`data/pinyin.ts  ${entries.length} names`);

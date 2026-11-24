@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Markup from '../components/Markup';
+import GlossaryText from '../../quickref/components/GlossaryText.vue';
 import Segmented from '../components/Segmented.vue';
 import SelectInput, {
   type SelectEntry,
@@ -30,7 +31,7 @@ const eliteOperatorOptions: readonly SelectEntry<string>[] = TIERS.map(
   <div class="chap-h">
     <span class="no">02</span>
     <div>
-      <h2>招募与升本</h2>
+      <h2><GlossaryText text="招募与升本" /></h2>
       <p class="en">RECRUIT · UPGRADE</p>
     </div>
   </div>
@@ -63,7 +64,7 @@ const eliteOperatorOptions: readonly SelectEntry<string>[] = TIERS.map(
       </div>
       <div>
         <b>0</b>
-        <span>冻结</span>
+        <GlossaryText text="冻结商店" />
         <small>保留剩余栏位</small>
       </div>
     </div>
@@ -152,7 +153,7 @@ const eliteOperatorOptions: readonly SelectEntry<string>[] = TIERS.map(
         <ul class="ul">
           <li>比当前调度中心高一阶，3 选 1</li>
           <li>0 资金</li>
-          <li>不能刷新、不能冻结</li>
+          <li><GlossaryText text="不能刷新、不能锁店" /></li>
           <li>当回合不选即作废</li>
           <li>奖励最高Ⅵ阶；四本合成可拿Ⅴ阶</li>
         </ul>
@@ -228,7 +229,7 @@ const eliteOperatorOptions: readonly SelectEntry<string>[] = TIERS.map(
       </div>
     </div>
     <div class="card">
-      <h4>刷新与冻结</h4>
+      <h4><GlossaryText text="刷新（D 牌）与锁店" /></h4>
       <Markup as="div" class="rf" id="rfx" :html="content.rfx" />
       <Markup as="div" id="rfChips" class="mt" :html="content.rfChips" />
     </div>

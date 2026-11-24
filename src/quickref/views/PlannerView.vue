@@ -73,6 +73,7 @@ import ConfirmButton from '../components/ConfirmButton.vue';
 import CovenantIcon from '../components/CovenantIcon.vue';
 import PlanCovenants from '../components/PlanCovenants.vue';
 import PlanSummary from '../components/PlanSummary.vue';
+import GlossaryText from '../components/GlossaryText.vue';
 import PlanSharePanel from '../components/PlanSharePanel.vue';
 import PlannerSheet from '../components/PlannerSheet.vue';
 import PlanIconPicker from '../components/PlanIconPicker.vue';
@@ -1633,8 +1634,8 @@ const shared = computed(() => plan.value.ops.length - onlyMine.value.size);
           <ul v-if="notes.length" class="pl-notes">
             <li v-for="(n, i) in notes" :key="i" :class="n.kind">
               <b>{{ n.op }}</b>
-              {{ n.text }}
-              <span v-if="n.result" v-html="fx(n.result)"></span>
+              <GlossaryText :text="n.text" />
+              <span v-if="n.result" class="pl-note-result" v-html="fx(n.result)"></span>
             </li>
           </ul>
         </section>

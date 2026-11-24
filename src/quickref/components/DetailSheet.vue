@@ -45,6 +45,7 @@ import {
 } from '../planStore.ts';
 import Chip from './Chip.vue';
 import CovenantIcon from './CovenantIcon.vue';
+import GlossaryText from './GlossaryText.vue';
 import PrtsLink from './PrtsLink.vue';
 import OperatorRequestButton from './OperatorRequestButton.vue';
 import SectionHeading from './SectionHeading.vue';
@@ -287,7 +288,7 @@ onBeforeUnmount(() => dialog.value?.close());
               <span v-if="operator.stars" class="stars">
                 {{ '★'.repeat(operator.stars) }}
               </span>
-              <span class="op-dh-type">{{ operator.type }}</span>
+              <GlossaryText class="op-dh-type" :text="operator.type" />
               <span v-if="opBanned" class="tag r">本局禁池</span>
               <span v-if="opRunSlot" class="tag t">
                 {{ opRunSlot.core ? '★ 本局核心' : '✓ 本局主力' }}
@@ -423,15 +424,20 @@ onBeforeUnmount(() => dialog.value?.close());
         </div>
         <div class="sh-b">
           <div v-if="operator && stats" class="cmp2">
-            <div
-              v-html="
-                `<div class='lb'><span class='tag'>初始</span><small>${stats.base}</small></div>${fx(operator.trait)}`
-              "></div>
-            <div
-              class="el"
-              v-html="
-                `<div class='lb'><span class='tag a'>精锐</span><small>${stats.elite}</small></div>${fx(operator.elite)}`
-              "></div>
+            <div>
+              <div class="lb">
+                <span class="tag">初始</span>
+                <small>{{ stats.base }}</small>
+              </div>
+              <span v-html="fx(operator.trait)"></span>
+            </div>
+            <div class="el">
+              <div class="lb">
+                <GlossaryText class="tag a" text="精锐" />
+                <small>{{ stats.elite }}</small>
+              </div>
+              <span v-html="fx(operator.elite)"></span>
+            </div>
           </div>
           <div v-else-if="equipment" class="cmp2">
             <div

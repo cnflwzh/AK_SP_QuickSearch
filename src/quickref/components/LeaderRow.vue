@@ -9,6 +9,7 @@ import {useQuickrefActions} from '../state.ts';
 /** 领袖列表的一行：点开进入详情。生命条按同难度全部领袖的最大值缩放 */
 import {leaderDestination} from '../../router/navigation.ts';
 import NavigationLink from './NavigationLink.vue';
+import GlossaryText from './GlossaryText.vue';
 const props = defineProps<{leader: Leader; mode: number; index?: number}>();
 const {openLeader} = useQuickrefActions();
 const hp = computed(() => props.leader.hp[props.mode]);
@@ -38,14 +39,15 @@ const isRunLeader = computed(() => runLeaderKey.value === props.leader.name);
           v-for="damage in leader.damage"
           :key="damage"
           :class="['ldt', damageClass(damage)]">
-          {{ damage }}
+          <GlossaryText :text="damage" :focusable="false" />
         </i>
-        <i v-if="patrols(leader)" class="lwb pt">巡逻</i>
-        <i v-if="leader.hiddenCore" class="lwb hc">隐秘核心</i>
+        <i v-if="patrols(leader)" class="lwb pt"><GlossaryText text="巡逻" :focusable="false" /></i>
+        <i v-if="leader.hiddenCore" class="lwb hc"><GlossaryText text="隐秘核心" :focusable="false" /></i>
       </span>
-      <span class="lwr-sub">
-        {{ leader.profile.attackMode }} · {{ leader.profile.targeting }}
-      </span>
+      <GlossaryText
+        class="lwr-sub"
+        :focusable="false"
+        :text="`${leader.profile.attackMode} · ${leader.profile.targeting}`" />
     </span>
     <span class="lwr-hp">
       <b>{{ wan(hp) }}</b>

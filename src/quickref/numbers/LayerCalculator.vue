@@ -17,6 +17,7 @@ import {covenantId} from '../../router/entities.ts';
 import {covenantLocation} from '../../router/navigation.ts';
 import {color, fx} from '../format.ts';
 import CovenantIcon from '../components/CovenantIcon.vue';
+import GlossaryText from '../components/GlossaryText.vue';
 import NumberInput from './NumberInput.vue';
 
 const props = defineProps<{name: string}>();
@@ -139,7 +140,7 @@ function setLayers(value: number | null): void {
             }}{{ scaling.unit }}
           </small>
           <small v-if="SCALING_CONDITIONS[name]?.[index]" class="nt-condition">
-            {{ SCALING_CONDITIONS[name][index] }}
+            <GlossaryText :text="SCALING_CONDITIONS[name][index]" />
           </small>
         </div>
       </div>
@@ -153,7 +154,7 @@ function setLayers(value: number | null): void {
             {{ point.layers }}
             <small>层</small>
           </span>
-          <span>{{ point.effect }}</span>
+          <GlossaryText :text="point.effect" />
           <small>
             {{
               layers >= point.layers ? '已达成' : `差 ${point.layers - layers}`
@@ -162,7 +163,7 @@ function setLayers(value: number | null): void {
         </div>
       </div>
       <div v-if="cycle" class="nt-cycle">
-        <span>每 {{ cycle.every }} 层 · {{ cycle.reward }}</span>
+        <span>每 {{ cycle.every }} 层 · <GlossaryText :text="cycle.reward" /></span>
         <b>
           下一档 {{ cycle.target }} 层
           <small>还差 {{ cycle.remaining }}</small>

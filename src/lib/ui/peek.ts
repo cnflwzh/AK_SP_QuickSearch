@@ -1,11 +1,8 @@
 /**
- * 速览卡片：干员 / 盟约 / 装备 / 策略 / 领袖的小卡片。
+ * 速览卡片：在速查与教程正文中查看实体和术语。
  *   - 鼠标：停留片刻显示，移开收起
- *   - 键盘：已有入口获得键盘焦点时显示，Escape 收起；不增加额外 Tab 停靠点
- *   - 触屏：长按显示，松手后卡片保留，下一次点按任意位置收起；
- *     短按照常打开详情 / 跳转，滑动会取消长按
- *   - 识别规则见 resolve()：带 data-op / data-eq / data-st / data-ld / data-cv 的元素，
- *     以及文字恰好是盟约名的 .cv 标签和效果文本里的 【盟约】（em.c）
+ *   - 键盘：聚焦入口显示，Escape 收起。正文中的独立术语也支持回车或空格。
+ *   - 触屏：长按预览，滑动取消长按。短按独立术语显示解释，链接内短按继续跳转。
  *   - 卡片用 popover 放进顶层，详情弹窗里的芯片也能正常显示
  * 两个页面共用，只依赖 data/。
  */
@@ -26,6 +23,11 @@ import {
   type EnemyTerm,
 } from '../../../data/index.ts';
 import {esc, html, wan} from './dom.ts';
+import {
+  findGlossaryTerm,
+  GLOSSARY_KIND_LABELS,
+  type GlossaryEntry,
+} from '../glossary.ts';
 import {
   avatarSrc,
   covenantIconHtml,
@@ -200,23 +202,20 @@ function leaderCard(name: string): string {
   `;
 }
 
-const TERM_KIND_LABEL: Readonly<Record<EnemyTerm['kind'], string>> = {
-  unit: '单位',
-  status: '状态',
-  mechanic: '机制',
-};
-const TERM_KIND_COLOR: Readonly<Record<EnemyTerm['kind'], string>> = {
+const TERM_KIND_COLOR = {
   unit: 'var(--teal)',
   status: 'var(--red)',
   mechanic: 'var(--accent)',
+  recruit: 'var(--accent)',
+  lineup: 'var(--accent)',
 };
 
-function enemyTermCard(entry: EnemyTerm): string {
+function termCard(entry: EnemyTerm | GlossaryEntry): string {
   return html`
     <div class="pk-h pk-cvh" style="--c:${TERM_KIND_COLOR[entry.kind]}">
       <div>
         <div class="pk-meta">
-          <span>${TERM_KIND_LABEL[entry.kind]}解析</span>
+          <span>${esc(GLOSSARY_KIND_LABELS[entry.kind])}</span>
         </div>
         <b class="pk-name">${esc(entry.term)}</b>
       </div>
@@ -228,12 +227,16 @@ function enemyTermCard(entry: EnemyTerm): string {
 /* ---------- 识别目标 ---------- */
 
 const TARGET =
-  '[data-op],[data-eq],[data-st],[data-ld],[data-cv],[data-term],.cv,em.c';
+  '[data-op],[data-eq],[data-st],[data-ld],[data-cv],[data-term],[data-glossary-term],.cv,em.c';
 
 /** 元素 → [卡片 HTML 生成函数, 名称]；不是可速览的目标时返回 null */
 type CardContent = [render: (name: string) => string, name: string];
 function resolve(el: HTMLElement): CardContent | null {
   const d = el.dataset;
+  if (d.glossaryTerm) {
+    const entry = findGlossaryTerm(d.glossaryTerm);
+    return entry ? [() => termCard(entry), entry.term] : null;
+  }
   if (d.op) return OPERATOR[d.op] ? [operatorCard, d.op] : null;
   if (d.eq) return EQUIP[d.eq] ? [equipmentCard, d.eq] : null;
   if (d.st) return STRATEGY[d.st] ? [strategyCard, d.st] : null;
@@ -241,7 +244,7 @@ function resolve(el: HTMLElement): CardContent | null {
   if (d.term) {
     const leaderName = el.closest<HTMLElement>('[data-leader]')?.dataset.leader;
     const entry = resolveEnemyTerm(d.term, ENEMY_GLOSSARY, LEADERS, leaderName);
-    return entry ? [() => enemyTermCard(entry), entry.term] : null;
+    return entry ? [() => termCard(entry), entry.term] : null;
   }
   const name = d.cv || (el.textContent || '').trim();
   return COVENANTS[name] ? [covenantCard, name] : null;
@@ -420,6 +423,23 @@ function onFocusOut(event: FocusEvent): void {
   if (event.target === keyboardTarget) hide();
 }
 
+// 正文中可独立操作的词也可点按。卡片或导航链接内的词只接受悬停和长按，
+// 短按与回车继续交给原来的控件。显式查词无需开启自动悬停预览。
+function openInlineDefinition(event: Event, keyboard: boolean): boolean {
+  const term =
+    event.target instanceof Element
+      ? event.target.closest<HTMLElement>('[data-glossary-term][role="button"]')
+      : null;
+  if (!term) return false;
+  const content = resolve(term);
+  if (!content) return false;
+  hide();
+  current = term;
+  if (keyboard) keyboardTarget = term;
+  show(term, content);
+  return true;
+}
+
 function onKeyDown(event: KeyboardEvent): void {
   if (event.key === 'Escape' && isShown()) {
     hide();
@@ -427,7 +447,10 @@ function onKeyDown(event: KeyboardEvent): void {
     event.preventDefault();
     event.stopPropagation();
   } else if (event.key === 'Enter' || event.key === ' ') {
-    hide();
+    if (openInlineDefinition(event, true)) {
+      event.preventDefault();
+      event.stopPropagation();
+    } else hide();
   }
 }
 
@@ -496,7 +519,7 @@ function onPointerMove(e: PointerEvent) {
 }
 
 function onClick(e: MouseEvent) {
-  if (!swallowClick) return;
+  if (!swallowClick && !openInlineDefinition(e, false)) return;
   swallowClick = false;
   e.preventDefault();
   e.stopPropagation();

@@ -44,8 +44,6 @@ export {
   blankPlan,
   loadPlans,
   savePlans,
-  loadCurrent,
-  saveCurrent,
 } from './storage.ts';
 export {
   defaultLineupGoal,

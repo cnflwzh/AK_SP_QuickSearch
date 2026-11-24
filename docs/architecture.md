@@ -30,7 +30,7 @@
 - `?q=<关键词>`：全局搜索视图（挂载 `SearchView.vue`，通过 `v-show` 保留背景页状态与滚动位置）
 - `?card=<kind>-<id>`：在当前页面之上打开 `DetailSheet.vue` 详情弹窗，关闭时返回原背景视图
 - `/operators?roster=<avatar>`：定位自选或替补干员名单中的对应条目
-- `/tools?tool=<id>`：「小工具」页的当前二级子工具，对局速查使用 `match-reference`
+- `/tools?tool=<id>`：「小工具」页的当前二级子工具，术语词典使用 `glossary`，对局速查使用 `match-reference`
 - `?group=core|addon`：「速览」页的盟约分类筛选
 - `/enemies?kind=bounty|normal`：「敌人」页切换悬赏敌人 / 普通敌人二级视图（默认 Boss）
 - `/enemies/<id>?round=hidden&skill=<label>`：「Boss 详情」页的隐秘核心与技能范围选中态
@@ -48,7 +48,7 @@
 | `src/lib/box/` | 个人干员练度与助战借用（按赛季隔离） | 区分自持练度（`0` 未练精 0、`1` 精一、`2` 精二、`3` 精二 60）、已借用（`-2`）与未持有（`-1`）；`initBoxStorageSync()` 支持多标签页 `storage` 事件实时同步 |
 | `src/lib/settings/` | 主题、卡片密度、字号、减弱动效、模块开关、栏目排序、隐藏工具 | 响应式同步至 `<html>` 属性（`data-theme`、`data-font`、`data-motion="reduce"`、`data-hide-footer`），支持完整 JSON 配置（可附带流派与练度）导出与导入 |
 | `src/quickref/recentStore.ts` | 最近查看历史 | 记录用户近期打开过的干员、装备、策略、盟约与领袖，聚焦搜索框时展示 |
-| `src/quickref/numbers/useNumberToolsState.ts` | 小工具会话输入 | 在 `KeepAlive` 与子工具切换期间保持层数、调度等级与认证效率等计算器输入状态 |
+| `src/quickref/numbers/useNumberToolsState.ts` | 小工具会话输入 | 在子工具和页面切换期间保持层数、调度等级与回合难度等输入状态 |
 
 ---
 
@@ -65,7 +65,7 @@
 - **`src/lib/recommendation/`**：
   - 静态流派补位推荐与「局内抓取」实时抓取建议引擎（`live/runAdvisor.ts`、`advisorRules.ts`）
 - **`src/lib/numbers/`**：
-  - 层数门槛与循环奖励计算、各模式/调度中心等级出牌池统计与合成概率、刷牌预算、认证效率与里程碑换算（`numberTools.ts`、`creditTools.ts`）
+  - 层数门槛与循环奖励计算、各模式/调度中心等级出牌池统计与合成概率、刷牌预算（`numberTools.ts`），图解教程使用的单局回合收益与领袖奖励（`creditTools.ts`）
 - **`src/lib/dealer/`**：
   - 「痛扁发牌」7 种题型生成器、每日同题确定性种子、实战局面最优解出题（复用实时推荐引擎验证无歧义）、错题本熟练度与连对掌握机制
 - **`src/lib/leaders/`**：
@@ -88,7 +88,7 @@
 | `routing.test.mjs` / `search-ranking.test.mjs` / `recent-store.test.mjs` | 路由实体编解码、搜索排序、实战职能匹配与最近记录 |
 | `planner-presets.test.mjs` / `planner-share.test.mjs` / `plan-backup.test.mjs` / `plan-store.test.mjs` | 流派预设、禁池替换、分享码往返、备份恢复与持久化 |
 | `diagnostics.test.mjs` / `planner-recommendations.test.mjs` / `run-advisor.test.mjs` / `advisor-capacity.test.mjs` / `advisor-strategy.test.mjs` | 实战职能诊断与局内抓取实时推荐 |
-| `number-tools.test.mjs` / `leader-movement.test.mjs` | 层数门槛、刷新预算、认证计算与领袖路径寻路 |
+| `number-tools.test.mjs` / `leader-movement.test.mjs` | 层数门槛、刷新预算、图解教程的单局回合认证收益与领袖路径寻路 |
 | `dealer-game.test.mjs` / `dealer-session.test.mjs` / `dealer-extensions.test.mjs` | 痛扁发牌出题、每日同题持久化、错题本与局面决策题 |
 | `settings.test.mjs` | 设置同步、配置备份解析与回滚 |
 

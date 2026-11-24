@@ -1,8 +1,7 @@
 import { LEADERS, BOUNTIES, DECISION_ROUNDS } from '../../../data/index';
 import { html, range, wan } from '../../lib/ui/dom';
-/** Format the joint-defense SVG; omit moving dots when reduced motion is requested. */
-export function jointDefense(prefersReducedMotion: boolean) {
- const out: Record<string, string> = {};
+/** 生成联防示意 SVG；组件通过 whileVisible 控制播放和减弱动效。 */
+export function jointDefense(): string {
   const PLAYERS: [string, string, boolean][] = [['玩家 A', '完美', true], ['玩家 B', '漏 3', false], ['玩家 C', '漏 5', false], ['玩家 D', '完美', true]];
   let s = '';
   PLAYERS.forEach(([name, result, perfect], i) => {
@@ -22,7 +21,6 @@ export function jointDefense(prefersReducedMotion: boolean) {
   [1, 2].forEach(i => {
     const y = 49 + i * 52;
     s += `<path id="jp${i}" d="M132,${y} C250,${y} 280,110 400,110" fill="none" stroke="var(--red)" stroke-dasharray="4 4" opacity=".6"/>`;
-    if (prefersReducedMotion) return;
     const leaked = i === 1 ? 3 : 5;
     for (let k = 0; k < leaked; k++) {
       s += `<circle class="joint-enemy" r="4.5" fill="var(--red)"><animateMotion dur="2.6s" begin="${k * .45}s" repeatCount="indefinite"><mpath href="#jp${i}"/></animateMotion></circle>`;
@@ -33,8 +31,7 @@ export function jointDefense(prefersReducedMotion: boolean) {
     const y = 49 + i * 52;
     s += `<path d="M132,${y} C240,${y} 300,${i ? 190 : 150} ${i ? 465 : 405},${i ? 176 : 138}" fill="none" stroke="var(--green)" stroke-width="1.5" marker-end="url(#ah)" opacity=".8"/>`;
   });
-  out.joint = `<desc id="joint-defense-description">${PLAYERS.map(([name, result]) => `${name}：${result}`).join('；')}。漏怪合并到联防战场，由完美通关的玩家 A 和 D 清理。</desc>` + s;
-return out.joint;
+  return `<desc id="joint-defense-description">${PLAYERS.map(([name, result]) => `${name}：${result}`).join('；')}。漏怪合并到联防战场，由完美通关的玩家 A 和 D 清理。</desc>` + s;
 }
 /** Format leader and hidden-core HP bars for the difficulty index. */
 export function leaderHp(mode: number) {

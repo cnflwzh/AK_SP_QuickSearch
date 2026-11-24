@@ -4,6 +4,7 @@ import {
   COMBAT_ROLE_IDS,
   LEADERS,
   LEADER_BATTLEFIELDS,
+  NUMBER_TOOLS,
   OPERATOR_TYPES,
   STRATEGY_CATEGORIES,
 } from '../../data/index.ts';
@@ -179,7 +180,10 @@ export function normalizeQuery(
   }
   if (tab === 'nu') {
     // 路由只标识工具子页；计算输入和本局记录由工具维护，不进入导航历史。
-    keep('tool', ['advisor', 'credit', 'dealer', 'excuse', 'apology']);
+    keep(
+      'tool',
+      NUMBER_TOOLS.map((tool) => tool.id).filter((id) => id !== 'match-reference'),
+    );
   }
   if (tab === 'bd') {
     keep(

@@ -75,7 +75,6 @@ export const saveErrorMessage = computed(
       ? '本局设置只在当前页面生效，请检查浏览器存储空间和权限。'
       : ''),
 );
-export const saveError = computed(() => !!saveErrorMessage.value);
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let dirty = false;
 let failedDraftWrite = false;
@@ -305,13 +304,6 @@ export function finishEdit(): void {
   if (edited?.base && samePlan(edited, BUILTIN.get(edited.base)!))
     plans.splice(plans.indexOf(edited), 1);
 }
-/** 规划器内部：正在编辑的阵容 */
-export const planOps = computed(() => plan.value.ops);
-export const inPlan = computed(() => new Set(planOps.value.map((o) => o.name)));
-export const planStats = computed(() =>
-  covenantStats(planOps.value, plan.value.layers),
-);
-
 /* ---------- 本局 ---------- */
 const read = (key: string): string => {
   try {

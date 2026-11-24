@@ -210,7 +210,4 @@ function restoreBackup(): void {
   border-color: var(--accent);
   color: var(--accent-ink);
 }
-.backup-message {
-  font-size: 13px;
-}
 </style>
