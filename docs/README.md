@@ -134,7 +134,7 @@ npm run dev             # 启动 http://127.0.0.1:5173
    - 只读取暂存区内容（`git show :<path>`），绝不改写工作区或破坏部分暂存（partial staging）。
    - 对暂存的 `.ts` / `.vue` / `.js` / `.mjs` 文件依次校验 Prettier 格式与 ESLint 零警告。
 2. **GitHub Actions CI（`.github/workflows/ci.yml`）**：
-   - 在 `main` 分支的 `push` 和 `pull_request` 上自动运行 `Validate site` 任务：
+   - 推送到 `develop`、`main` 或向这两个分支发起 PR 时，自动运行 `Validate site` 任务：
      1. `npm ci`
      2. `npm run lint`
      3. `npm test`
@@ -143,6 +143,23 @@ npm run dev             # 启动 http://127.0.0.1:5173
    - 编辑 `data/seasons/<season>/*.ts` → 补充图片资源 → 运行 `npm run pinyin` → 运行 `npm run check` → 确认无误后提交。
 
 ---
+
+## 从开发预览发布到正式站
+
+日常在 `develop` 上创建签名提交（`git commit -S`）并推送。用手机验收[开发预览](https://develop-ak-sp-quicksearch.cnflwzh.workers.dev)后，记下该版本的完整 SHA。页脚版本号的 `title` 包含完整 SHA，也可以在 GitHub 的对应提交页复制。之后即使 `develop` 有新提交，也能只发布验收过的版本。
+
+仓库所有者在本地登录 GitHub CLI 后，执行以下命令。将 `<SHA>` 替换为验收版本的 40 位提交号。
+
+```bash
+node scripts/release.mjs --check <SHA>
+node scripts/release.mjs <SHA>
+```
+
+发布脚本核对该 SHA 对应的 `develop` 推送 CI、`Validate site` 任务和 GitHub 签名，然后把 `main` 快进到这个提交，同时创建 `release/YYYYMMDD-短SHA` 标签（日期为 UTC）。发布前 `develop` 可以领先；发布到其最新版本后，两条分支会指向同一个提交。GitHub 对 `main` 独立执行发布者限制、必需检查、线性历史、禁止强推和禁止删除。
+
+`develop` 同样启用了线性历史、禁止强推和禁止删除。日常更新本地分支可用 `git pull --ff-only`。
+
+**回滚已上线的改动**。如果两条分支已对齐，在 `develop` 上运行 `git revert -S <要撤销的提交>` 并推送，再按上面的流程验收并发布撤销提交。若 `develop` 已有未上线的改动，先确认发布范围，直接发布最新 `develop` 会把这些改动一起上线。用 `git tag --list 'release/*'` 可查到各次正式版本。
 
 ## 构建与部署
 
