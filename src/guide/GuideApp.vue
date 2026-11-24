@@ -21,7 +21,9 @@ import SkipLink from '../lib/ui/SkipLink.vue';
 import PwaInstallNotice from '../lib/ui/PwaInstallNotice.vue';
 import ViewportSizeBadge from '../lib/ui/ViewportSizeBadge.vue';
 import {settings} from '../lib/settings/store.ts';
+import {recordDiagnosticError, useComponentErrorDiagnostics} from '../lib/runtime/diagnosticErrors.ts';
 
+useComponentErrorDiagnostics();
 const props = defineProps<{
   ready: () => void;
   failed: (error: unknown) => void;
@@ -106,6 +108,7 @@ function loadChapter(id: string): Promise<void> {
       pending.delete(id);
       busy[id] = false;
       errors[id] = true;
+      recordDiagnosticError(`教程章节加载失败（${id}）`, error);
       console.error('Chapter initialization failed', id, error);
       throw error;
     });

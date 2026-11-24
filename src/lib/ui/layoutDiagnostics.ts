@@ -3,7 +3,8 @@ import {navigationLayout} from './windowMode.ts';
 /** 调试信息沿用顶栏的分档结果，并报告用户设置和分屏后的实际可见状态。 */
 export function readNavigationLayout(): string {
   const bar = document.querySelector('.qbar');
-  if (!bar) return document.body.dataset.page === 'diff' ? '赛季更新对比' : '图解教程';
+  if (!bar)
+    return document.body.dataset.page === 'diff' ? '赛季更新对比' : '图解教程';
   const title = document.querySelector('.qhead');
   const layout = navigationLayout.value;
   return [
@@ -13,14 +14,23 @@ export function readNavigationLayout(): string {
   ].join(' · ');
 }
 
-/** 在点击复制时采集实际视口、窗口模式和构建版本，生成可粘贴的诊断文本。 */
-export function layoutReport(): string {
+export type DiagnosticRow = readonly [label: string, value: string | number];
+
+/** 读取当下的 CSS 视口和导航状态，供设置面板及复制报告共用。 */
+export function layoutRows(): DiagnosticRow[] {
   const viewport = window.visualViewport;
   const content = document.querySelector('#view, main');
   const mode =
-    ['standalone', 'fullscreen', 'picture-in-picture', 'minimal-ui'].find(
-      (name) => matchMedia(`(display-mode: ${name})`).matches,
-    ) ?? 'browser';
+    [
+      'window-controls-overlay',
+      'fullscreen',
+      'picture-in-picture',
+      'standalone',
+      'minimal-ui',
+    ].find((name) => matchMedia(`(display-mode: ${name})`).matches) ??
+    ((navigator as Navigator & {standalone?: boolean}).standalone
+      ? 'standalone'
+      : 'browser');
   return [
     ['布局视口', `${innerWidth} × ${innerHeight} CSS px`],
     [
@@ -50,7 +60,18 @@ export function layoutReport(): string {
       document.querySelector('[data-build-version]')?.textContent?.trim() ||
         '本地开发',
     ],
-  ]
-    .map(([label, value]) => `${label}：${value}`)
-    .join('\n');
+  ];
+}
+
+/** 将带标签的诊断值转成可直接粘贴的逐行文本。 */
+export function formatRows(rows: readonly DiagnosticRow[]): string {
+  return rows.map(([label, value]) => `${label}：${value}`).join('\n');
+}
+
+/** 点击复制时采集当前布局、浏览器 UA 和构建版本。 */
+export function layoutReport(): string {
+  return formatRows([
+    ...layoutRows(),
+    ['浏览器 UA', navigator.userAgent || '浏览器未提供'],
+  ]);
 }

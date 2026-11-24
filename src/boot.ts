@@ -4,7 +4,10 @@ import {finishInitialNotice} from './lib/ui/initialNotice.ts';
 import {initWindowMode} from './lib/ui/windowMode.ts';
 import {initSettingsDom} from './lib/settings/store.ts';
 import {initInstallPrompt} from './lib/runtime/installPrompt.ts';
+import {initDiagnosticErrors, recordDiagnosticError} from './lib/runtime/diagnosticErrors.ts';
 
+const disposeDiagnostics = initDiagnosticErrors();
+import.meta.hot?.dispose(disposeDiagnostics);
 const disposeInstallPrompt = initInstallPrompt();
 import.meta.hot?.dispose(disposeInstallPrompt);
 initWindowMode();
@@ -115,6 +118,7 @@ try {
     .then((module) => module.loadDeferredAssets())
     .catch(() => {});
 } catch (error) {
+  recordDiagnosticError('页面启动失败', error);
   clearTimeout(slow);
   document.getElementById('app')?.removeAttribute('aria-busy');
   if (screen) screen.dataset.state = 'error';

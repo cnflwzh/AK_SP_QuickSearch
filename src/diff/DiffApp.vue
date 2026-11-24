@@ -18,6 +18,7 @@ import {
   type VisualDiffEntry,
 } from './comparison.ts';
 import {settings} from '../lib/settings/store.ts';
+import {useComponentErrorDiagnostics} from '../lib/runtime/diagnosticErrors.ts';
 import {prefersReducedMotion} from '../lib/ui/dom.ts';
 import {normalize} from '../lib/ui/match.ts';
 import {matchesComparisonName} from './search.ts';
@@ -39,6 +40,8 @@ import SubTabs, {
 } from '../quickref/components/SubTabs.vue';
 import DiffCardList from './DiffCardList.vue';
 import SeasonDiffInfographic from './SeasonDiffInfographic.vue';
+
+useComponentErrorDiagnostics();
 
 type DiffTab = 'infographic' | DiffFilterCategory;
 type StatusFilter = 'changed' | DiffStatus | 'all';

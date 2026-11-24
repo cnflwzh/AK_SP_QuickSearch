@@ -49,6 +49,7 @@ import Segmented from '../components/Segmented.vue';
 import SelectInput, {type SelectOption} from '../components/SelectInput.vue';
 import ConfirmButton from '../components/ConfirmButton.vue';
 import CopyButton from '../components/CopyButton.vue';
+import DeveloperDiagnostics from '../components/DeveloperDiagnostics.vue';
 import ViewportBreakpointEditor from '../components/ViewportBreakpointEditor.vue';
 import StatusNotice from '../components/StatusNotice.vue';
 import '../workbench.css';
@@ -1215,7 +1216,7 @@ function handleResetAll(): void {
           <label class="settings-toggle-row">
             <span class="settings-row-info">
               <b>开发者模式</b>
-              <small>在左上角实时显示页面宽高（CSS 像素）。</small>
+              <small>显示实时窗口尺寸，查看浏览器、PWA、缓存和错误诊断。</small>
             </span>
             <input
               type="checkbox"
@@ -1250,7 +1251,10 @@ function handleResetAll(): void {
             </label>
           </template>
         </div>
-        <ViewportBreakpointEditor v-if="settings.developerMode" />
+        <template v-if="settings.developerMode">
+          <DeveloperDiagnostics />
+          <ViewportBreakpointEditor />
+        </template>
       </section>
     </div>
     <LiveStatus :message="statusMessage || errorMessage" />

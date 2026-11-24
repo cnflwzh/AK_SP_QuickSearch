@@ -23,6 +23,7 @@ import {
 import {OWNABLE_OPERATORS} from '../lib/box/model.ts';
 import {boxSeasonCount, boxStorageWriteFailed, initBoxStorageSync} from '../lib/box/store.ts';
 import {prefersReducedMotion} from '../lib/ui/dom.ts';
+import {useComponentErrorDiagnostics} from '../lib/runtime/diagnosticErrors.ts';
 import ViewportSizeBadge from '../lib/ui/ViewportSizeBadge.vue';
 import {
   settings,
@@ -76,6 +77,7 @@ import {provideWikiPanel} from './wikiPanel.ts';
 import SkipLink from '../lib/ui/SkipLink.vue';
 import PwaInstallNotice from '../lib/ui/PwaInstallNotice.vue';
 
+useComponentErrorDiagnostics();
 const wikiPanel = provideWikiPanel();
 const DetailSheet = lazyView(() => import('./components/DetailSheet.vue'));
 const SearchView = lazyView(() => import('./views/SearchView.vue'));

@@ -11,6 +11,7 @@ import {
   LEADERS,
 } from '../../data/index.ts';
 import {lazyView} from '../lib/ui/lazyView.ts';
+import {recordDiagnosticError} from '../lib/runtime/diagnosticErrors.ts';
 import {isPlanShareHash} from '../lib/plans/shareInput.ts';
 import {covenantName, detailFromId} from './entities.ts';
 import {
@@ -289,7 +290,8 @@ router.afterEach((to, from, failure) => {
     }
   }
 });
-router.onError((_error: unknown, to: RouteLocationNormalized) => {
+router.onError((error: unknown, to: RouteLocationNormalized) => {
+  recordDiagnosticError(`切换页面失败（${to.path}）`, error);
   navigationError.value = {destination: to.fullPath};
 });
 
