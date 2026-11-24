@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { realpathSync, existsSync, lstatSync, copyFileSync } from 'node:fs';
+import { realpathSync, existsSync, lstatSync, copyFileSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
@@ -8,6 +8,15 @@ import { writeRouteEntries } from './scripts/build-route-entries.ts';
 
 const root = import.meta.dirname;
 const dist = resolve(root, 'dist');
+const edgeManifestName = 'manifest-edge.webmanifest';
+
+/** 桌面 Edge 使用系统标题栏。清单与原件同目录，保留已有安装的应用 ID、启动地址和图标。 */
+function edgeManifest(): string {
+  const manifest = JSON.parse(readFileSync(resolve(root, 'public/manifest.webmanifest'), 'utf8'));
+  manifest.id ??= manifest.start_url;
+  delete manifest.display_override;
+  return JSON.stringify(manifest);
+}
 // Vite clears outDir. Never follow a local junction/symlink outside this checkout.
 if (existsSync(dist) && (lstatSync(dist).isSymbolicLink() || realpathSync(dist) !== dist)) {
   throw new Error('dist must be a real directory inside this checkout.');
@@ -19,6 +28,25 @@ if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(commit)) throw new Error('Cannot de
 export default defineConfig({
   base: '/',
   plugins: [vue({ template: { compilerOptions: { whitespace: 'preserve' } } }), {
+    name: 'edge-pwa-native-titlebar',
+    configureServer(server) {
+      server.middlewares.use('/' + edgeManifestName, (_req, res) => {
+        res.setHeader('Content-Type', 'application/manifest+json');
+        res.end(edgeManifest());
+      });
+    },
+    generateBundle() {
+      this.emitFile({type: 'asset', fileName: edgeManifestName, source: edgeManifest()});
+    },
+    transformIndexHtml() {
+      // 三个入口在页面脚本启动前选择清单。移动版 Edge 使用 EdgA 或 EdgiOS 标记。
+      return [{
+        tag: 'script',
+        injectTo: 'head',
+        children: `if (/\\bEdg\\//.test(navigator.userAgent)) document.querySelector('link[rel="manifest"]').href = '/${edgeManifestName}';`,
+      }];
+    },
+  }, {
     name: 'site-build-metadata',
     transformIndexHtml: {
       order: 'post',

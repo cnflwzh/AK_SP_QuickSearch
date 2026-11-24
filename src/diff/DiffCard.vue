@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed, ref} from 'vue';
+import {computed} from 'vue';
 import type {Covenant} from '../../data/index.ts';
 import type {
   EntitySideSnapshot,
@@ -16,7 +16,9 @@ const props = defineProps<{
   covenants: Readonly<Record<string, Covenant>>;
 }>();
 
-const expandedContext = ref(false);
+const expandedContext = defineModel<boolean>('expandedContext', {
+  required: true,
+});
 
 const STATUS_META = {
   added: {label: '+ 新增', cls: 'is-added'},
@@ -38,23 +40,21 @@ const SUBKIND_LABEL = {
 const statusInfo = computed(() => STATUS_META[props.entry.status]);
 const unifiedSide = computed(() => props.entry.right ?? props.entry.left);
 
-const visibleRows = computed<readonly VisualDiffRow[]>(() => {
-  if (
-    props.entry.status !== 'modified' ||
-    expandedContext.value ||
-    props.entry.unchangedCount <= 1
-  ) {
-    return props.entry.rows;
-  }
-  return props.entry.rows.filter((row) => row.changed);
+const foldableCount = computed(() => {
+  const {status, unchangedCount} = props.entry;
+  if (status === 'unchanged') return unchangedCount;
+  return status === 'modified' && unchangedCount > 1 ? unchangedCount : 0;
 });
-
-const hiddenContextCount = computed(() =>
-  props.entry.status === 'modified' &&
-  !expandedContext.value &&
-  props.entry.unchangedCount > 1
-    ? props.entry.unchangedCount
-    : 0,
+const visibleRows = computed<readonly VisualDiffRow[]>(() =>
+  foldableCount.value && !expandedContext.value
+    ? props.entry.rows.filter((row) => row.changed)
+    : props.entry.rows,
+);
+const showFoldHint = computed(
+  () =>
+    props.entry.status === 'modified' &&
+    foldableCount.value > 0 &&
+    !expandedContext.value,
 );
 
 function leftRowHtml(row: VisualDiffRow): string {
@@ -94,15 +94,13 @@ function sideIconClass(side: EntitySideSnapshot): string {
         {{ entry.changedCount }} 项变更
       </span>
       <button
-        v-if="entry.status === 'modified' && entry.unchangedCount > 1"
+        v-if="foldableCount"
         type="button"
         class="df-context-btn"
         :aria-expanded="expandedContext"
         @click="expandedContext = !expandedContext">
         {{
-          expandedContext
-            ? '收起未变字段'
-            : `展开 ${hiddenContextCount} 项未变字段`
+          expandedContext ? '收起未变字段' : `展开 ${foldableCount} 项未变字段`
         }}
       </button>
     </header>
@@ -313,11 +311,11 @@ function sideIconClass(side: EntitySideSnapshot): string {
 
       <!-- 折叠行提示条（Git @@ Hunk 风格） -->
       <button
-        v-if="hiddenContextCount > 0"
+        v-if="showFoldHint"
         type="button"
         class="df-hunk-fold"
         @click="expandedContext = true">
-        @@ 展开其余 {{ hiddenContextCount }} 项未变动属性 @@
+        @@ 展开其余 {{ foldableCount }} 项未变动属性 @@
       </button>
     </div>
 
@@ -395,11 +393,11 @@ function sideIconClass(side: EntitySideSnapshot): string {
       </template>
 
       <button
-        v-if="hiddenContextCount > 0"
+        v-if="showFoldHint"
         type="button"
         class="df-hunk-fold"
         @click="expandedContext = true">
-        @@ 展开其余 {{ hiddenContextCount }} 项未变动属性 @@
+        @@ 展开其余 {{ foldableCount }} 项未变动属性 @@
       </button>
     </div>
   </article>

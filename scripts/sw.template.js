@@ -36,7 +36,7 @@ async function fetchSiteResource(request, options) {
   const response = await fetch(request, options);
   if (response.ok && response.headers.get('content-type')?.includes('text/html')) {
     const url = new URL(typeof request === 'string' ? request : request.url);
-    if (url.pathname.startsWith('/assets/') || url.pathname === '/manifest.webmanifest')
+    if (url.pathname.startsWith('/assets/') || url.pathname.endsWith('.webmanifest'))
       return new Response(null, {status: 404, statusText: 'Not Found'});
   }
   return response;

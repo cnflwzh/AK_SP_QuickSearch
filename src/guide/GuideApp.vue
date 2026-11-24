@@ -18,6 +18,7 @@ import {chapterForAnchor, placeholders} from './placeholders.ts';
 import {iconSvg} from './icons.ts';
 import Markup from './components/Markup.ts';
 import SkipLink from '../lib/ui/SkipLink.vue';
+import PwaInstallNotice from '../lib/ui/PwaInstallNotice.vue';
 import ViewportSizeBadge from '../lib/ui/ViewportSizeBadge.vue';
 import {settings} from '../lib/settings/store.ts';
 
@@ -371,6 +372,7 @@ onBeforeUnmount(() => {
   </nav>
 
   <main id="guide-content" class="wrap" tabindex="-1" aria-label="图解教程内容">
+    <PwaInstallNotice />
     <section
       v-for="id in ids"
       :key="id"

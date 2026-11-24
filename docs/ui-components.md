@@ -188,7 +188,7 @@
   @dismiss="notice = ''" />
 ```
 
-- `tone`: `'info' | 'success' | 'warning' | 'danger'`；`warning` / `danger` 自动声明 `role="alert"`，其余为 `role="status"`。
+- `tone` 支持 `'info' | 'accent' | 'success' | 'warning' | 'danger'`。`accent` 用站点强调色呈现普通提示。`warning` 和 `danger` 使用 `role="alert"`，其余使用 `role="status"`。
 
 ---
 

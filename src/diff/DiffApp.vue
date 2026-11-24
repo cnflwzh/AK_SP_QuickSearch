@@ -22,6 +22,7 @@ import {prefersReducedMotion} from '../lib/ui/dom.ts';
 import {normalize} from '../lib/ui/match.ts';
 import {matchesComparisonName} from './search.ts';
 import SkipLink from '../lib/ui/SkipLink.vue';
+import PwaInstallNotice from '../lib/ui/PwaInstallNotice.vue';
 import ViewportSizeBadge from '../lib/ui/ViewportSizeBadge.vue';
 import CopyButton from '../quickref/components/CopyButton.vue';
 import EmptyState from '../quickref/components/EmptyState.vue';
@@ -36,7 +37,7 @@ import SubTabs, {
   type SubTabDirection,
   type SubTabItem,
 } from '../quickref/components/SubTabs.vue';
-import DiffCard from './DiffCard.vue';
+import DiffCardList from './DiffCardList.vue';
 import SeasonDiffInfographic from './SeasonDiffInfographic.vue';
 
 type DiffTab = 'infographic' | DiffFilterCategory;
@@ -471,6 +472,7 @@ onUnmounted(() => {
     class="wrap df-main"
     tabindex="-1"
     aria-label="赛季更新对比内容">
+    <PwaInstallNotice />
     <StatusNotice
       v-if="missingVersion"
       tone="warning"
@@ -718,34 +720,26 @@ onUnmounted(() => {
             :accent="section.accent"
             variant="bar"
             :level="2" />
-          <div class="df-list">
-            <DiffCard
-              v-for="entry in section.items"
-              :key="entry.key"
-              :entry="entry"
-              :from-label="fromVersion.label"
-              :to-label="toVersion.label"
-              :view-mode="viewMode"
-              :covenants="comparison.mergedCovenants" />
-          </div>
+          <DiffCardList
+            :entries="section.items"
+            :from-label="fromVersion.label"
+            :to-label="toVersion.label"
+            :view-mode="viewMode"
+            :covenants="comparison.mergedCovenants" />
         </section>
       </div>
 
       <!-- 单一分类视图 -->
-      <div
+      <DiffCardList
         v-else
         :key="`${activeTab}:${fromId}:${toId}`"
-        :class="['df-list', {'subtab-panel': !!panelDir}]"
-        :data-dir="panelDir || undefined">
-        <DiffCard
-          v-for="entry in filteredEntries"
-          :key="entry.key"
-          :entry="entry"
-          :from-label="fromVersion.label"
-          :to-label="toVersion.label"
-          :view-mode="viewMode"
-          :covenants="comparison.mergedCovenants" />
-      </div>
+        :class="{'subtab-panel': !!panelDir}"
+        :data-dir="panelDir || undefined"
+        :entries="filteredEntries"
+        :from-label="fromVersion.label"
+        :to-label="toVersion.label"
+        :view-mode="viewMode"
+        :covenants="comparison.mergedCovenants" />
     </template>
   </main>
 </template>

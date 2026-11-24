@@ -3,7 +3,10 @@ import {prefersReducedMotion} from './lib/ui/dom.ts';
 import {finishInitialNotice} from './lib/ui/initialNotice.ts';
 import {initWindowMode} from './lib/ui/windowMode.ts';
 import {initSettingsDom} from './lib/settings/store.ts';
+import {initInstallPrompt} from './lib/runtime/installPrompt.ts';
 
+const disposeInstallPrompt = initInstallPrompt();
+import.meta.hot?.dispose(disposeInstallPrompt);
 initWindowMode();
 initSettingsDom();
 

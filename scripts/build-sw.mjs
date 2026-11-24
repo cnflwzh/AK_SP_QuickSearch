@@ -16,7 +16,7 @@ function filesUnder(directory, prefix = '') {
 export function generateServiceWorker(directory) {
   if (!existsSync(resolve(directory, 'index.html'))) throw new Error('Build the site before generating its service worker.');
   const files = filesUnder(directory);
-  const core = files.filter(name => name !== 'sw.js' && (/\.(?:html|js|css)$/.test(name) || name === 'manifest.webmanifest' || name.startsWith('assets/icons/')));
+  const core = files.filter(name => name !== 'sw.js' && (/\.(?:html|js|css|webmanifest)$/.test(name) || name.startsWith('assets/icons/')));
   const images = files.filter(name => name.startsWith('assets/img/'));
   const template = readFileSync(resolve(root, 'scripts/sw.template.js'), 'utf8');
   const digest = createHash('sha1').update(template);

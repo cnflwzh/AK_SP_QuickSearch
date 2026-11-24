@@ -2,7 +2,7 @@
 withDefaults(
   defineProps<{
     message?: string;
-    tone?: 'info' | 'success' | 'warning' | 'danger';
+    tone?: 'info' | 'accent' | 'success' | 'warning' | 'danger';
     dismissible?: boolean;
   }>(),
   {
@@ -54,7 +54,8 @@ defineEmits<{dismiss: []}>();
 .q-notice.is-success {
   --qn-c: var(--green);
 }
-.q-notice.is-warning {
+.q-notice.is-warning,
+.q-notice.is-accent {
   --qn-c: var(--accent);
 }
 .q-notice.is-danger {

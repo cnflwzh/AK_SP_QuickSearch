@@ -74,6 +74,7 @@ import {activeBreakpoints, isFloatingWindow, navigationLayout} from '../lib/ui/w
 import BoxOnboardingDialog from './components/BoxOnboardingDialog.vue';
 import {provideWikiPanel} from './wikiPanel.ts';
 import SkipLink from '../lib/ui/SkipLink.vue';
+import PwaInstallNotice from '../lib/ui/PwaInstallNotice.vue';
 
 const wikiPanel = provideWikiPanel();
 const DetailSheet = lazyView(() => import('./components/DetailSheet.vue'));
@@ -786,6 +787,9 @@ onUnmounted(() => {
           {{ routeNotice }}
           <button type="button" @click="routeNotice = ''">关闭</button>
         </div>
+        <PwaInstallNotice
+          v-if="!showingRouteStatus && !renderedQuery"
+          :in-settings="currentRoute.meta.tab === 'se'" />
         <div
           class="pane"
           :data-key="renderedQuery ? 'search' : state.tab"
