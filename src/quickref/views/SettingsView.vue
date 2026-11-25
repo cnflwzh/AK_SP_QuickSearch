@@ -46,7 +46,11 @@ import {
 import {PAGE_LABELS} from '../../router/location.ts';
 import {navigate} from '../../router/navigation.ts';
 import {plans, restorePlanBackup} from '../planStore.ts';
-import {compareMirrorBackup} from '../../lib/settings/mirrorBackup.ts';
+import {
+  commitMirrorBackup,
+  exportMirrorBackup,
+  previewMirrorBackup,
+} from '../mirrorBackupStore.ts';
 import {useMirrorBackup} from '../components/useMirrorBackup.ts';
 import SectionHeading from '../components/SectionHeading.vue';
 import Segmented from '../components/Segmented.vue';
@@ -498,7 +502,9 @@ const includeBoxInExport = ref(true);
 const importPlansFromBackup = ref(true);
 const importBoxFromBackup = ref(true);
 const importPageSettings = ref(true);
-const mirrorPreview = ref(false);
+const mirrorPreview = shallowRef<ReturnType<typeof previewMirrorBackup> | null>(
+  null,
+);
 const mirrorSection = ref<HTMLElement>();
 const previewSection = ref<HTMLElement>();
 const showPasteBox = ref(false);
@@ -511,12 +517,7 @@ const errorMessage = ref('');
 const statusMessage = ref('');
 let readRequest = 0;
 
-const mirrorChanges = computed(() => {
-  const backup = pendingBackup.value;
-  return mirrorPreview.value && backup
-    ? compareMirrorBackup(backup, settings, plans, exportOperatorBox())
-    : null;
-});
+const mirrorChanges = computed(() => mirrorPreview.value?.changes);
 
 const {
   peer,
@@ -525,10 +526,7 @@ const {
   failed: mirrorFailed,
   start: openMirror,
   cancel: cancelMirror,
-} = useMirrorBackup(
-  () => serializeSettingsBackup(settings, plans, exportOperatorBox()),
-  receiveMirrorBackup,
-);
+} = useMirrorBackup(exportMirrorBackup, receiveMirrorBackup);
 
 function startMirror(direction: 'send' | 'fetch') {
   clearNotices();
@@ -539,9 +537,12 @@ function receiveMirrorBackup(text: string): void {
   if (pendingBackup.value || readingFile.value)
     throw new Error('接收页还有待处理的配置，请先完成或取消，再重试。');
   clearNotices();
-  loadBackupText(text, peer?.name ?? '另一站');
-  mirrorPreview.value = true;
-  const changes = mirrorChanges.value!;
+  const backup = parseSettingsBackup(text);
+  const preview = previewMirrorBackup(backup);
+  pendingBackup.value = backup;
+  pendingSourceName.value = peer?.name ?? '另一站';
+  mirrorPreview.value = preview;
+  const {changes} = preview;
   importPageSettings.value = changes.settings > 0;
   importPlansFromBackup.value = changes.plans > 0;
   importBoxFromBackup.value = changes.newOperators + changes.upgrades > 0;
@@ -555,6 +556,7 @@ function receiveMirrorBackup(text: string): void {
     statusMessage.value = '本站已包含另一站的设置、流派和练度。';
   } else if (changes.empty) {
     confirmImportBackup();
+    if (errorMessage.value) throw new Error(errorMessage.value);
   } else {
     // 空白站点的默认偏好不能无声重置已有配置；其余分组可独立勾选。
     importPageSettings.value = !!changes.settings && !changes.incomingDefault;
@@ -615,6 +617,7 @@ const previewSummary = computed(() => {
 function clearNotices(): void {
   errorMessage.value = '';
   statusMessage.value = '';
+  mirrorMessage.value = '';
   exportTextFallback.value = '';
 }
 
@@ -681,7 +684,7 @@ async function copySettingsText(): Promise<void> {
 
 function loadBackupText(text: string, sourceLabel: string): void {
   pendingBackup.value = parseSettingsBackup(text);
-  mirrorPreview.value = false;
+  mirrorPreview.value = null;
   importPageSettings.value = true;
   pendingSourceName.value = sourceLabel;
   importPlansFromBackup.value = (pendingBackup.value.plans?.length ?? 0) > 0;
@@ -741,34 +744,44 @@ function confirmImportBackup(): void {
     const incomingBox = importBoxFromBackup.value
       ? pendingBackup.value.box
       : undefined;
-    const commitBox = incomingBox ? prepareBoxImport(incomingBox) : undefined;
     const messages: string[] = [];
-    if (importPlansFromBackup.value && incomingPlans?.length) {
-      const merged = restorePlanBackup(incomingPlans);
+    let merged;
+    if (mirrorPreview.value) {
+      merged = commitMirrorBackup(mirrorPreview.value, pendingBackup.value, {
+        settings: importPageSettings.value,
+        plans: importPlansFromBackup.value,
+        box: importBoxFromBackup.value,
+      });
+    } else {
+      const commitBox = incomingBox ? prepareBoxImport(incomingBox) : undefined;
+      if (importPlansFromBackup.value && incomingPlans?.length)
+        merged = restorePlanBackup(incomingPlans);
+      commitBox?.();
+      const savedSettings =
+        !importPageSettings.value ||
+        applySettings(pendingBackup.value.settings);
+      if (!savedSettings || (commitBox && boxStorageWriteFailed.value)) {
+        errorMessage.value =
+          '当前页面已应用所选内容，但本机存储写入失败。请保持页面打开，导出配置或释放空间后重试。';
+        return;
+      }
+    }
+    if (merged) {
       messages.push(`新增流派 ${merged.additions.length} 套`);
       if (merged.skipped) messages.push(`跳过重复 ${merged.skipped} 套`);
       if (merged.conflicts)
         messages.push(`冲突保留副本 ${merged.conflicts} 套`);
     }
-    if (commitBox && incomingBox) {
-      commitBox();
+    if (incomingBox) {
       messages.push(`合并 ${Object.keys(incomingBox).length} 名干员练度`);
     }
-    // 流派落盘可能因空间或权限失败，先完成它，避免报错后界面设置已部分应用。
-    const savedSettings =
-      !importPageSettings.value || applySettings(pendingBackup.value.settings);
     if (importPageSettings.value) messages.unshift('已应用页面设置');
-    if (!savedSettings || (commitBox && boxStorageWriteFailed.value)) {
-      errorMessage.value =
-        '当前页面已应用所选内容，但本机存储写入失败。请保持页面打开，导出配置或释放空间后重试。';
-      return;
-    }
     statusMessage.value = messages.length
       ? messages.join('，') + '。'
       : '已保留本站存档。';
     pendingBackup.value = null;
     pendingSourceName.value = '';
-    mirrorPreview.value = false;
+    mirrorPreview.value = null;
     pasteText.value = '';
     showPasteBox.value = false;
   } catch (cause) {
@@ -782,7 +795,7 @@ function cancelImportPreview(): void {
   readingFile.value = false;
   pendingBackup.value = null;
   pendingSourceName.value = '';
-  mirrorPreview.value = false;
+  mirrorPreview.value = null;
 }
 
 function handleToggleTool(id: CustomizableToolId): void {
@@ -1235,7 +1248,7 @@ function handleResetAll(): void {
                 的独立页面中使用。
               </p>
               <StatusNotice
-                v-if="mirrorMessage"
+                v-if="mirrorMessage && mirrorMessage !== errorMessage"
                 :tone="mirrorFailed ? 'warning' : 'info'"
                 :message="mirrorMessage" />
             </section>

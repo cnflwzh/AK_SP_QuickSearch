@@ -34,7 +34,7 @@ import {
   type Plan,
   type PlanStage,
 } from '../lib/plans/index.ts';
-import {readPlanSnapshot, savePlanSnapshot} from '../lib/plans/storage.ts';
+import {PLANS_STORAGE_KEY, readPlanSnapshot, savePlanSnapshot} from '../lib/plans/storage.ts';
 import {effectivePlanIcon, MAX_STAGE_ROUND} from '../lib/plans/model.ts';
 import {guidePlanFields, isCurrentGuideSeason, matchesGuidePlan, type SklandGuide} from '../lib/plans/skland.ts';
 import {isBanned} from '../lib/recommendation/index.ts';
@@ -45,8 +45,8 @@ let storedSnapshot = readPlanSnapshot();
 
 /** 用户的方案：自建流派和内置流派的修改版 */
 // 旧版规划页会自动建一个空的“我的阵容”，没动过的就不带进流派列表
-export const plans = reactive<Plan[]>(
-  loadPlans(storedSnapshot).filter(
+function userPlans(records: Plan[]): Plan[] {
+  return records.filter(
     (p) =>
       p.ops.length ||
       p.note ||
@@ -57,8 +57,9 @@ export const plans = reactive<Plan[]>(
       Object.keys(p.layers).length ||
       p.base ||
       p.name !== '我的阵容',
-  ),
-);
+  );
+}
+export const plans = reactive<Plan[]>(userPlans(loadPlans(storedSnapshot)));
 
 /* ---------- 存档：连续修改合并写入，离页时立即落盘 ---------- */
 const planWriteError = ref('');
@@ -114,6 +115,21 @@ export function flushSave(force = false): void {
   for (const [key, pending] of pendingRunWrites) {
     if (key !== 'wsq.run') write(key, pending.value, pending);
   }
+}
+/** 交接前校验原始存档并采用其他标签页的最新版本。发送时可携带仅在本页的草稿；接收前须先保存它。 */
+export function refreshMirrorPlans(carryDraft = false): string | null {
+  const latest = localStorage.getItem(PLANS_STORAGE_KEY);
+  const records = userPlans(loadPlans(latest, true));
+  if (JSON.stringify(toRaw(plans)) !== lastSavedSnapshot) {
+    if (carryDraft && latest === storedSnapshot) return latest;
+    if (!persistPlans(plans)) throw new Error(saveErrorMessage.value);
+  } else if (latest !== storedSnapshot) {
+    plans.length = 0;
+    for (const record of records) plans.push(record);
+    storedSnapshot = latest;
+    lastSavedSnapshot = JSON.stringify(toRaw(plans));
+  }
+  return storedSnapshot;
 }
 function scheduleSave(): void {
   dirty = true;

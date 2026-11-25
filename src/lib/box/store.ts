@@ -100,14 +100,14 @@ export function rankOfOperator(nameOrAvatar: string): BoxRank {
   return key ? boxRankOf(operatorBox, key) : -1;
 }
 
-function validateBorrowLimit(next: Readonly<OperatorBox>): void {
+function validateBorrowLimit(next: Readonly<OperatorBox>, previous: Readonly<OperatorBox>): void {
   const selected = BORROWABLE_SIX_STARS.filter(
     (op) => next[op.avatar] === BOX_RANK_BORROWED,
   );
   // 旧版本允许超额。保留原选择供用户逐步纠正，但不能在超额时新增借用。
   if (
     selected.length > BORROW_LIMIT &&
-    selected.some((op) => operatorBox[op.avatar] !== BOX_RANK_BORROWED)
+    selected.some((op) => previous[op.avatar] !== BOX_RANK_BORROWED)
   ) {
     throw new Error(
       `本次操作会选入 ${selected.length} 名助战，上限为 ${BORROW_LIMIT} 名。请缩小选择范围或先取消部分借用。`,
@@ -148,12 +148,13 @@ export function setOperatorRank(nameOrAvatar: string, rank: BoxRank): boolean {
   return setOperatorRanks([nameOrAvatar], rank) > 0;
 }
 
-/** 先验证名额，再返回同步提交函数，供配置恢复在流派保存成功后一次应用 Box。 */
-export function prepareBoxImport(
+/** 基于指定的原 Box 计算导入结果；超出助战名额时抛错，整个过程不修改原数据。 */
+export function buildBoxImport(
+  previous: Readonly<OperatorBox>,
   entries: Readonly<OperatorBox>,
   mode: 'merge' | 'replace' = 'merge',
-): () => void {
-  const next: OperatorBox = {...operatorBox};
+): OperatorBox {
+  const next: OperatorBox = {...previous};
   if (mode === 'replace') {
     // 外部名单一般仅覆盖本季，其他赛季记录保留；备份明确提供的键可更新。
     for (const op of OWNABLE_OPERATORS) delete next[op.avatar];
@@ -162,8 +163,23 @@ export function prepareBoxImport(
     if (mode === 'merge') mergeBoxRank(next, key, rank);
     else next[key] = rank;
   }
-  validateBorrowLimit(next);
+  validateBorrowLimit(next, previous);
+  return next;
+}
+
+/** 先验证名额，再返回同步提交函数，供配置恢复在流派保存成功后一次应用 Box。 */
+export function prepareBoxImport(
+  entries: Readonly<OperatorBox>,
+  mode: 'merge' | 'replace' = 'merge',
+): () => void {
+  const next = buildBoxImport(operatorBox, entries, mode);
   return () => replaceBoxState(next);
+}
+
+/** 将已成功保存的 Box 同步到当前页，避免重复写入。 */
+export function acceptStoredBox(next: OperatorBox): void {
+  replaceBoxState(next, false);
+  boxStorageWriteFailed.value = false;
 }
 
 /** 导入一批练度。合并保留较高自持练度，覆盖替换本季；超出助战名额时不写入。 */

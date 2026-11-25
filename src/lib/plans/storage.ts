@@ -13,7 +13,7 @@ import {
 import {isSklandGuide, migrateLegacyGuidePlan} from './skland.ts';
 /* ---------- 本地存档 ---------- */
 
-const KEY = 'wsq.plans';
+export const PLANS_STORAGE_KEY = 'wsq.plans';
 const BEFORE_ROUND_LIMIT = 'wsq.plans.beforeRoundLimit';
 const read = (key: string): string | null => {
   try {
@@ -86,7 +86,7 @@ function clean(value: unknown): Plan | null {
   });
 }
 /** 读取当前原始存档，用于判断另一个标签页是否已保存。 */
-export const readPlanSnapshot = (): string | null => read(KEY);
+export const readPlanSnapshot = (): string | null => read(PLANS_STORAGE_KEY);
 
 /** 只保留涉及超限回合的旧记录，供玩家从备份面板取回原始阵容和备注。 */
 function legacyRoundRecords(snapshot: string | null): string | null {
@@ -112,11 +112,15 @@ function legacyRoundRecords(snapshot: string | null): string | null {
 export const originalRoundRecords = (): string | null =>
   read(BEFORE_ROUND_LIMIT) ?? legacyRoundRecords(readPlanSnapshot());
 
-/** 解析给定存档或当前本地存档，跳过损坏的记录。 */
-export function loadPlans(snapshot = readPlanSnapshot()): Plan[] {
+/** 解析给定存档。普通浏览容许损坏记录；交接使用 strict，在原始 JSON 或记录结构损坏时抛错。 */
+export function loadPlans(
+  snapshot = readPlanSnapshot(),
+  strict = false,
+): Plan[] {
   try {
     const list: unknown = JSON.parse(snapshot ?? '[]');
-    if (!Array.isArray(list)) return [];
+    if (!Array.isArray(list) || (strict && !list.every(record)))
+      throw new Error('流派存档格式无效');
     const ids = new Set<string>(),
       bases = new Set<string>();
     return list
@@ -130,7 +134,9 @@ export function loadPlans(snapshot = readPlanSnapshot()): Plan[] {
         ids.add(p.id);
         return p;
       });
-  } catch {
+  } catch (cause) {
+    if (strict)
+      throw new Error('本站流派存档损坏，已停止交接并保留原始存档。', {cause});
     return [];
   }
 }
@@ -142,7 +148,7 @@ export function savePlanSnapshot(snapshot: string): boolean {
     const original = legacyRoundRecords(previous);
     if (original && !write(BEFORE_ROUND_LIMIT, original)) return false;
   }
-  if (!write(KEY, snapshot)) return false;
+  if (!write(PLANS_STORAGE_KEY, snapshot)) return false;
   checkedSnapshot = snapshot;
   return true;
 }

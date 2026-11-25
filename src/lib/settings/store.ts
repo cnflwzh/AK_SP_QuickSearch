@@ -22,6 +22,7 @@ function readStoredSettings(): UserSettings {
 }
 
 export const settings = reactive<UserSettings>(readStoredSettings());
+export let settingsStorageWriteFailed = false;
 
 function writeStoredSettings(current: UserSettings): boolean {
   try {
@@ -92,6 +93,7 @@ function replaceSettings(next: unknown, persist = true): boolean {
     clean.showFooter !== settings.showFooter;
   Object.assign(settings, clean);
   const saved = !persist || writeStoredSettings(settings);
+  settingsStorageWriteFailed = !saved;
   if (domChanged) applySettingsToDom(settings);
   return saved;
 }
@@ -106,6 +108,11 @@ export function updateSetting<K extends keyof UserSettings>(
 /** 归一化并应用整份设置，返回是否成功保存至本机。 */
 export function applySettings(raw: unknown): boolean {
   return replaceSettings(raw);
+}
+
+/** 将已持久化的设置应用到当前页和主题，避免再次写盘。 */
+export function acceptStoredSettings(current: UserSettings): void {
+  replaceSettings(current, false);
 }
 
 export function resetAllSettings(): void {
