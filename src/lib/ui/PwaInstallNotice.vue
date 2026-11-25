@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import {computed, ref, useId, watch} from 'vue';
-import {getInstallGuide} from '../runtime/installGuide.ts';
 import {
   dismissInstallHint,
+  installGuide as guide,
   installGuideAvailable,
   installHintDismissed,
   installHintDisabled,
@@ -12,7 +12,6 @@ import {
 import StatusNotice from '../../quickref/components/StatusNotice.vue';
 
 const props = defineProps<{inSettings?: boolean}>();
-const guide = getInstallGuide(navigator);
 const stepsId = useId();
 const expanded = ref(false);
 const explanation = ref<HTMLDialogElement>();
@@ -52,7 +51,10 @@ async function install() {
 </script>
 
 <template>
-  <div v-if="visible" class="install-notice" @click.capture="interacted = true">
+  <div
+    v-if="guide && visible"
+    class="install-notice"
+    @click.capture="interacted = true">
     <StatusNotice
       tone="accent"
       :dismissible="!inSettings"

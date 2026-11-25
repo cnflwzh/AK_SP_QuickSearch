@@ -78,6 +78,18 @@
 
 ---
 
+### PWA 安装引导白名单
+
+速查、设置、教程和赛季对比共用 `src/lib/runtime/installGuide.ts` 的正向匹配结果，开发者诊断也显示该结果。只有已收录的浏览器与平台组合才显示横幅。原生安装事件只启用「立即安装」按钮。核对安装方式时需同时查看平台安装文档和兼容数据库。[MDN 安装支持](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable#browser_support) · [Can I use 安装事件兼容表](https://caniuse.com/mdn-api_window_beforeinstallprompt_event)
+
+| 平台 | 可显示引导的浏览器 |
+|---|---|
+| Windows | Chrome、Edge、Firefox 150+。Firefox 普通发行版从 143 起提供任务栏网页应用，Microsoft Store 版从 150 起提供。网页无法区分安装渠道，统一采用 150。[Mozilla 说明](https://support.mozilla.org/en-US/kb/web-apps-firefox-windows) |
+| macOS | Chrome、Edge，以及可确认支持「添加到程序坞」的 Safari。Safari 17/18 同时支持旧系统，仅在能确认 macOS 14+ 时显示。Safari 26 起支持的 macOS 均已具备该功能。[Apple 说明](https://support.apple.com/en-us/104996) · [WebKit 版本说明](https://webkit.org/blog/17333/webkit-features-in-safari-26-0/) |
+| Linux / ChromeOS | Chrome；Linux 上也支持 Edge。Chrome 需提供明确的 `Google Chrome` 品牌提示。[Chrome 安装支持](https://developer.chrome.com/blog/new-in-chrome-73) |
+| Android | Chrome、Edge、Firefox、三星浏览器。引导采用对应浏览器的菜单，添加到主屏幕后由设备和浏览器决定启动方式。[Firefox 安装步骤](https://support.mozilla.org/en-US/kb/use-web-apps-firefox-android) · [三星开发文档](https://developer.samsung.com/browser/android/web-developer-guide.html) |
+| iOS / iPadOS | Safari，包括以桌面模式浏览的 iPad。能识别实际系统版本为 16.4+ 时，也支持从 Chrome、Edge、Firefox 的系统共享菜单添加。[MDN 安装支持](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable#browser_support) |
+
 ## 5. 单元测试体系（`tests/`）
 
 所有测试均为 Node.js 原生 `node:test` + `node:assert`，可直接通过 `npm test` 执行（当前 20 个测试文件、100+ 用例）：

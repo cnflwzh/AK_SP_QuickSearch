@@ -1,6 +1,6 @@
-import {getInstallGuide} from '../runtime/installGuide.ts';
 import {
   canPromptInstall,
+  installGuide,
   installHintDisabled,
   installHintDismissed,
 } from '../runtime/installPrompt.ts';
@@ -40,7 +40,10 @@ export function environmentRows(): DiagnosticRow[] {
           : '无或未知',
     ],
     ['最大触点数', navigator.maxTouchPoints ?? unavailable],
-    ['匹配的安装引导', getInstallGuide(navigator).device],
+    [
+      '匹配的安装引导',
+      installGuide.value?.device ?? '无，此环境不展示安装横幅',
+    ],
     [
       '安装清单',
       document

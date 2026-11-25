@@ -1,4 +1,5 @@
 import {computed, shallowRef} from 'vue';
+import {getInstallGuide, type InstallGuide} from './installGuide.ts';
 
 interface InstallPromptEvent extends Event {
   prompt(): Promise<unknown>;
@@ -8,6 +9,7 @@ interface InstallPromptEvent extends Event {
 const dismissalKey = 'wsq.pwa.hint.dismissed';
 const disabledKey = 'wsq.pwa.hint.disabled';
 const pending = shallowRef<InstallPromptEvent>();
+export const installGuide = shallowRef<InstallGuide | null>(null);
 export const installGuideAvailable = shallowRef(false);
 export const installHintDismissed = shallowRef(false);
 export const installHintDisabled = shallowRef(false);
@@ -30,6 +32,7 @@ export function dismissInstallHint(
 /** 在各页面开始挂载前捕获安装事件。返回值用于热更新时移除监听。 */
 export function initInstallPrompt(): () => void {
   if (window.top !== window || !window.isSecureContext) return () => {};
+  installGuide.value = getInstallGuide(navigator);
   const appMode = window.matchMedia(
     '(display-mode: standalone), (display-mode: minimal-ui), (display-mode: window-controls-overlay)',
   );
@@ -37,7 +40,8 @@ export function initInstallPrompt(): () => void {
   function syncMode() {
     const ios = navigator as Navigator & {standalone?: boolean};
     const inApp = appMode.matches || ios.standalone === true;
-    installGuideAvailable.value = !inApp && !justInstalled;
+    installGuideAvailable.value =
+      !!installGuide.value && !inApp && !justInstalled;
     if (inApp || justInstalled) {
       pending.value = undefined;
       dismissInstallHint('outside-settings');
@@ -80,6 +84,8 @@ export function initInstallPrompt(): () => void {
     window.removeEventListener('storage', onStorage);
     appMode.removeEventListener('change', syncMode);
     pending.value = undefined;
+    installGuideAvailable.value = false;
+    installGuide.value = null;
   };
 }
 
