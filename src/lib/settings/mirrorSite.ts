@@ -22,3 +22,8 @@ export const mirrorEntryToken =
         location.hash,
       )?.[1]
     : undefined;
+
+// 路由会清理设置页的查询参数。提前保留发起方向，仅用于断开连接后的引导。
+export const mirrorEntryDirection = mirrorEntryToken
+  ? new URLSearchParams(location.search).get('mirror-action')
+  : null;

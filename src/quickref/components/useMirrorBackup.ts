@@ -1,6 +1,10 @@
 import {onBeforeUnmount, onDeactivated, onMounted, ref} from 'vue';
 import {useRouter} from 'vue-router';
-import {mirrorEntryToken, mirrorPeer} from '../../lib/settings/mirrorSite.ts';
+import {
+  mirrorEntryDirection,
+  mirrorEntryToken,
+  mirrorPeer,
+} from '../../lib/settings/mirrorSite.ts';
 
 const channel = 'wsq.mirror.backup.v1';
 type Direction = 'send' | 'fetch';
@@ -25,6 +29,7 @@ export function useMirrorBackup(
   const busy = ref(false);
   const message = ref('');
   const failed = ref(false);
+  const recovery = ref<'fetch' | 'manual' | null>(null);
   let exchange: Exchange | undefined;
   let timer: number | undefined;
 
@@ -38,6 +43,18 @@ export function useMirrorBackup(
     stop();
     message.value = note;
     failed.value = error;
+    recovery.value = null;
+  }
+  function handleDetachedWindow() {
+    if (!peer) return;
+    const note =
+      mirrorEntryDirection === 'fetch'
+        ? `当前窗口无法将存档传回${peer.name}。可以在这里点「复制配置文本」，再回到${peer.name}点「粘贴文本导入」。存档较大时可用配置文件。`
+        : mirrorEntryDirection === 'send'
+          ? `当前窗口未能连接到${peer.name}。如果链接打开了已安装的 PWA，可以直接在这里取回存档。`
+          : `当前窗口未能连接到${peer.name}。如果你刚从另一站点了「携带存档切换」，可以在这里取回存档。`;
+    finish(note, true);
+    recovery.value = mirrorEntryDirection === 'fetch' ? 'manual' : 'fetch';
   }
   function post(type: string, text?: string) {
     if (!exchange || !peer) return;
@@ -103,13 +120,25 @@ export function useMirrorBackup(
     exchange = active;
     busy.value = true;
     failed.value = false;
+    recovery.value = null;
     message.value = '正在连接另一站，请保持两个页面打开。';
     window.addEventListener('message', onMessage);
     const deadline = Date.now() + 45_000;
     timer = window.setInterval(() => {
       if (active.other.closed || Date.now() >= deadline) {
+        if (active.child && active.phase === 'command') {
+          handleDetachedWindow();
+          return;
+        }
+        if (!active.child && active.phase === 'send' && peer) {
+          finish(
+            `连接已中断。如果${peer.name}已在独立应用中打开，请在该应用的「站点间存档交接」中从本站取回存档。也可以允许浏览器打开新窗口后重试。`,
+            true,
+          );
+          return;
+        }
         finish(
-          '连接已中断。请确认两个站点都能打开，并允许浏览器打开新窗口后重试。',
+          '连接已中断。请允许浏览器打开新窗口后重试。若两端都打开了独立应用，可以从存档所在站复制配置文本，到接收站粘贴导入，或使用配置文件。',
           true,
         );
       }
@@ -127,9 +156,9 @@ export function useMirrorBackup(
     if (!peer || exchange) return;
     try {
       const token = crypto.randomUUID();
-      // 必须在用户点击时同步打开。存档只经 postMessage 传输，链接中只有随机会话编号。
+      // 同步打开；查询参数只标识方向，保留旧版可识别的会话片段，存档仍只经 postMessage 传输。
       const other = window.open(
-        peer.origin + '/settings#mirror-backup=' + token,
+        `${peer.origin}/settings?mirror-action=${direction}#mirror-backup=${token}`,
         '_blank',
       );
       if (!other)
@@ -147,11 +176,8 @@ export function useMirrorBackup(
     )
       return;
     void router.replace({hash: ''});
-    if (!window.opener) {
-      finish(
-        '浏览器未保留与原站的窗口连接，请在同一浏览器中重试或使用配置文件。',
-        true,
-      );
+    if (!window.opener || window.opener.closed) {
+      handleDetachedWindow();
       return;
     }
     begin({
@@ -164,5 +190,5 @@ export function useMirrorBackup(
   });
   onDeactivated(cancel);
   onBeforeUnmount(cancel);
-  return {peer, busy, message, failed, start, cancel};
+  return {peer, busy, message, failed, recovery, start, cancel};
 }

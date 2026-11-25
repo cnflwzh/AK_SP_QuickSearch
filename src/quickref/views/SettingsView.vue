@@ -5,6 +5,7 @@ import {
   onBeforeUnmount,
   ref,
   shallowRef,
+  watch,
   type ComponentPublicInstance,
 } from 'vue';
 import {NUMBER_TOOLS, SEASON_META, SEASONS} from '../../../data/index.ts';
@@ -524,9 +525,18 @@ const {
   busy: mirrorBusy,
   message: mirrorMessage,
   failed: mirrorFailed,
+  recovery: mirrorRecovery,
   start: openMirror,
   cancel: cancelMirror,
 } = useMirrorBackup(exportMirrorBackup, receiveMirrorBackup);
+
+watch(
+  mirrorRecovery,
+  (action) => {
+    if (action) mirrorSection.value?.focus();
+  },
+  {flush: 'post'},
+);
 
 function startMirror(direction: 'send' | 'fetch') {
   clearNotices();
@@ -618,6 +628,7 @@ function clearNotices(): void {
   errorMessage.value = '';
   statusMessage.value = '';
   mirrorMessage.value = '';
+  mirrorRecovery.value = null;
   exportTextFallback.value = '';
 }
 
@@ -1228,6 +1239,7 @@ function handleResetAll(): void {
                     携带存档切换到{{ peer.name }}
                   </button>
                   <button
+                    v-if="mirrorRecovery !== 'fetch'"
                     type="button"
                     class="btn"
                     :disabled="mirrorBusy || !!pendingBackup || readingFile"
@@ -1248,7 +1260,26 @@ function handleResetAll(): void {
                 的独立页面中使用。
               </p>
               <StatusNotice
-                v-if="mirrorMessage && mirrorMessage !== errorMessage"
+                v-if="peer && mirrorRecovery === 'fetch'"
+                tone="warning">
+                <span class="mirror-recovery">
+                  <span>{{ mirrorMessage }}</span>
+                  <button
+                    type="button"
+                    class="btn p"
+                    :disabled="mirrorBusy || !!pendingBackup || readingFile"
+                    @click="startMirror('fetch')">
+                    从{{ peer.name }}取回存档
+                  </button>
+                  <span class="settings-box-note">
+                    若仍无法连接，可在{{
+                      peer.name
+                    }}点「复制配置文本」，再回这里点「粘贴文本导入」。大存档也可用配置文件。
+                  </span>
+                </span>
+              </StatusNotice>
+              <StatusNotice
+                v-else-if="mirrorMessage && mirrorMessage !== errorMessage"
                 :tone="mirrorFailed ? 'warning' : 'info'"
                 :message="mirrorMessage" />
             </section>
@@ -1839,6 +1870,14 @@ function handleResetAll(): void {
 }
 .settings-preview {
   border-color: color-mix(in srgb, var(--teal) 55%, var(--line));
+}
+.mirror-recovery {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+}
+.mirror-recovery .btn {
+  min-height: 36px;
 }
 .settings-preview b {
   font-size: 13.5px;
