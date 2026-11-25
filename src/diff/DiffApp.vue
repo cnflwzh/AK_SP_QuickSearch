@@ -9,7 +9,6 @@ import {
   watchEffect,
 } from 'vue';
 import {COMPARISON_VERSIONS} from '../../data/comparison/index.ts';
-import {buildSeasonDiffInfographic} from './infographic.ts';
 import {
   buildSeasonVisualComparison,
   type DiffCategory,
@@ -39,7 +38,11 @@ import SubTabs, {
   type SubTabItem,
 } from '../quickref/components/SubTabs.vue';
 import DiffCardList from './DiffCardList.vue';
-import SeasonDiffInfographic from './SeasonDiffInfographic.vue';
+import {lazyView} from '../lib/ui/lazyView.ts';
+
+const SeasonDiffInfographic = lazyView(
+  () => import('./SeasonDiffInfographic.vue'),
+);
 
 useComponentErrorDiagnostics();
 
@@ -157,10 +160,6 @@ function applyPreset(from: string, to: string): void {
 
 const comparison = computed(() =>
   buildSeasonVisualComparison(fromVersion.value.season, toVersion.value.season),
-);
-
-const infographic = computed(() =>
-  buildSeasonDiffInfographic(comparison.value),
 );
 
 const diffMeterBlocks = computed<readonly ('add' | 'mod' | 'del' | 'idle')[]>(
@@ -293,6 +292,7 @@ const showTierSelect = computed(
 
 const showCovenantSelect = computed(() => activeTab.value !== 'rules');
 
+const normalizedEntryText = new WeakMap<VisualDiffEntry, string>();
 function matchesQuery(
   entry: VisualDiffEntry,
   normalizedQuery: string,
@@ -302,7 +302,12 @@ function matchesQuery(
   for (const cov of entry.covenants) {
     if (matchesComparisonName(cov, normalizedQuery)) return true;
   }
-  return normalize(entry.searchText).includes(normalizedQuery);
+  let text = normalizedEntryText.get(entry);
+  if (text === undefined) {
+    text = normalize(entry.searchText);
+    normalizedEntryText.set(entry, text);
+  }
+  return text.includes(normalizedQuery);
 }
 
 const matchingEntries = computed(() => {
@@ -660,7 +665,7 @@ onUnmounted(() => {
       :class="{'subtab-panel': !!panelDir}"
       :data-dir="panelDir || undefined">
       <SeasonDiffInfographic
-        :data="infographic"
+        :comparison="comparison"
         :from-label="fromVersion.label"
         :to-label="toVersion.label"
         :total-changes="comparison.totals.totalChanges"

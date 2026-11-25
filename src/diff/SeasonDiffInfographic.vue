@@ -1,36 +1,32 @@
 <script setup lang="ts">
 import {computed, ref, watch} from 'vue';
-import {round1, wan} from '../lib/ui/dom.ts';
-import type {
-  CovenantCurveSeries,
-  CovenantRosterNode,
-  SeasonDiffInfographic as InfographicData,
-} from './infographic.ts';
-import type {DiffCategory} from './comparison.ts';
+import {wan} from '../lib/ui/dom.ts';
+import type {CovenantRosterNode} from './infographic.ts';
+import {buildSeasonDiffInfographic} from './infographic.ts';
+import type {DiffCategory, SeasonVisualComparison} from './comparison.ts';
 import EmptyState from '../quickref/components/EmptyState.vue';
 import SectionHeading from '../quickref/components/SectionHeading.vue';
-import SelectInput, {
-  type SelectOption,
-} from '../quickref/components/SelectInput.vue';
-import LineChart, {type LineChartDataset} from './LineChart.vue';
+import CovenantCurvePanel from './CovenantCurvePanel.vue';
 
 const props = defineProps<{
-  data: InfographicData;
+  comparison: SeasonVisualComparison;
   fromLabel: string;
   toLabel: string;
   totalChanges: number;
 }>();
+
+const data = computed(() => buildSeasonDiffInfographic(props.comparison));
 
 const emit = defineEmits<{
   selectCategory: [category: DiffCategory | 'all'];
   inspectEntity: [category: DiffCategory, name: string];
 }>();
 
-/* ---------- 盟约叠层折线图状态（由 SelectInput + 翻页控制，任意数量盟约均不溢出） ---------- */
+// 左侧盟约矩阵与右侧曲线选择器共享当前选中项。
 const activeCurveName = ref('');
 
 watch(
-  () => props.data.covenantCurves,
+  () => data.value.covenantCurves,
   (curves) => {
     if (!curves.some((c) => c.name === activeCurveName.value)) {
       activeCurveName.value = curves[0]?.name ?? '';
@@ -40,39 +36,8 @@ watch(
 );
 
 const curveNameSet = computed(
-  () => new Set(props.data.covenantCurves.map((c) => c.name)),
+  () => new Set(data.value.covenantCurves.map((c) => c.name)),
 );
-
-const curveSelectOptions = computed<readonly SelectOption<string>[]>(() =>
-  props.data.covenantCurves.map((c) => {
-    const deltaTag =
-      c.deltaAt100 === 0
-        ? '100层持平'
-        : `100层 ${c.deltaAt100 > 0 ? '+' : ''}${c.deltaAt100}${c.unit}`;
-    return {
-      value: c.name,
-      label: `${c.name} · ${c.metricLabel}（${deltaTag}）`,
-    };
-  }),
-);
-
-const activeCurveIndex = computed(() => {
-  const idx = props.data.covenantCurves.findIndex(
-    (c) => c.name === activeCurveName.value,
-  );
-  return idx >= 0 ? idx : 0;
-});
-
-const activeCurve = computed<CovenantCurveSeries | undefined>(
-  () => props.data.covenantCurves[activeCurveIndex.value],
-);
-
-function stepCurve(delta: -1 | 1): void {
-  const list = props.data.covenantCurves;
-  if (list.length <= 1) return;
-  const nextIdx = (activeCurveIndex.value + delta + list.length) % list.length;
-  activeCurveName.value = list[nextIdx].name;
-}
 
 function onClickCovenantNode(node: CovenantRosterNode): void {
   if (curveNameSet.value.has(node.name)) {
@@ -82,70 +47,17 @@ function onClickCovenantNode(node: CovenantRosterNode): void {
   emit('inspectEntity', 'covenants', node.name);
 }
 
-const activeCurveDatasets = computed<readonly LineChartDataset[]>(() => {
-  const c = activeCurve.value;
-  if (!c) return [];
-  return [
-    {
-      label: `${props.fromLabel}（原来）`,
-      data: c.beforeValues,
-      color: 'var(--ink3)',
-      dashed: true,
-    },
-    {
-      label: `${props.toLabel}（更新后）`,
-      data: c.afterValues,
-      color: c.color,
-      fillToIndex: 0,
-    },
-  ];
-});
-
-const curveSnapshots = computed(() => {
-  const c = activeCurve.value;
-  if (!c) return [];
-  return [0, 100, 200].map((layer) => {
-    const idx = Math.round(layer / 10);
-    const before = c.beforeValues[idx] ?? 0;
-    const after = c.afterValues[idx] ?? 0;
-    const delta = round1(after - before);
-    return {layer, before, after, delta};
-  });
-});
-
-const curveMilestoneNotes = computed<readonly string[]>(() => {
-  const c = activeCurve.value;
-  if (!c) return [];
-  const notes: string[] = [];
-  if (c.beforeCycleEvery !== c.afterCycleEvery) {
-    const cycle = (every: number | null) =>
-      every === null ? '无' : `每 ${every} 层`;
-    notes.push(
-      `循环奖励周期：${cycle(c.beforeCycleEvery)} → ${cycle(c.afterCycleEvery)}`,
-    );
-  }
-  if (
-    c.beforeBreakpoints.join(',') !== c.afterBreakpoints.join(',') &&
-    (c.beforeBreakpoints.length || c.afterBreakpoints.length)
-  ) {
-    notes.push(
-      `层数门槛：${c.beforeBreakpoints.join('/') || '无'} 层 → ${c.afterBreakpoints.join('/') || '无'} 层`,
-    );
-  }
-  return notes;
-});
-
 /* ---------- 干员等阶柱高度归一化 ---------- */
 const maxTierCount = computed(() =>
   Math.max(
     1,
-    ...props.data.operatorTiers.flatMap((t) => [t.beforeCount, t.afterCount]),
+    ...data.value.operatorTiers.flatMap((t) => [t.beforeCount, t.afterCount]),
   ),
 );
 
 /* ---------- 策略生命哑铃图坐标映射 ---------- */
 const hpRange = computed(() => {
-  const vals = props.data.strategyDeltas.flatMap((s) =>
+  const vals = data.value.strategyDeltas.flatMap((s) =>
     [s.beforeHp, s.afterHp].filter((v): v is number => v !== null),
   );
   if (!vals.length) return {min: 20, max: 46, ticks: [20, 25, 30, 35, 40, 45]};
@@ -165,7 +77,7 @@ function hpPct(hp: number): number {
 const maxDispatchCost = computed(() =>
   Math.max(
     1,
-    ...props.data.dispatchSteps.flatMap((d) => [
+    ...data.value.dispatchSteps.flatMap((d) => [
       d.beforeCost ?? 0,
       d.afterCost ?? 0,
     ]),
@@ -176,7 +88,7 @@ const maxDispatchCost = computed(() =>
 const maxLeaderPct = computed(() =>
   Math.max(
     15,
-    ...props.data.leaderDeltas.map((l) => Math.abs(l.deltaPercent ?? 0)),
+    ...data.value.leaderDeltas.map((l) => Math.abs(l.deltaPercent ?? 0)),
   ),
 );
 </script>
@@ -432,7 +344,7 @@ const maxLeaderPct = computed(() =>
         title="盟约轮换图谱与叠层收益折线图"
         :count="`${data.covenantNodes.length} 个盟约变动`"
         :desc="
-          activeCurve
+          data.covenantCurves.length
             ? '点选盟约或切换下拉框，轻触曲线查看各层差值'
             : '点选盟约查看词条对比'
         "
@@ -449,7 +361,8 @@ const maxLeaderPct = computed(() =>
         </template>
       </SectionHeading>
 
-      <div :class="['ig-cov-layout', {'is-single': !activeCurve}]">
+      <div
+        :class="['ig-cov-layout', {'is-single': !data.covenantCurves.length}]">
         <!-- 左：变动盟约徽章卡片矩阵 -->
         <div class="ig-cov-matrix">
           <div
@@ -458,7 +371,7 @@ const maxLeaderPct = computed(() =>
             :class="[
               'ig-cov-node',
               `is-${node.status}`,
-              {'is-selected': activeCurve?.name === node.name},
+              {'is-selected': activeCurveName === node.name},
             ]"
             :style="{'--c': node.color}">
             <button
@@ -501,84 +414,13 @@ const maxLeaderPct = computed(() =>
           </div>
         </div>
 
-        <!-- 右：0–200 层 Chart.js 折线对比图 -->
-        <div v-if="activeCurve" class="ig-curve-box">
-          <div class="ig-curve-head">
-            <SelectInput
-              v-model="activeCurveName"
-              class="ig-curve-select"
-              :options="curveSelectOptions"
-              aria-label="选择盟约查看叠层折线对比" />
-
-            <div
-              v-if="data.covenantCurves.length > 1"
-              class="ig-curve-pager"
-              role="group"
-              aria-label="切换上下一条盟约曲线">
-              <button
-                type="button"
-                class="ig-pager-btn"
-                aria-label="上一盟约曲线"
-                @click="stepCurve(-1)">
-                ‹
-              </button>
-              <span class="ig-pager-idx">
-                {{ activeCurveIndex + 1 }}/{{ data.covenantCurves.length }}
-              </span>
-              <button
-                type="button"
-                class="ig-pager-btn"
-                aria-label="下一盟约曲线"
-                @click="stepCurve(1)">
-                ›
-              </button>
-            </div>
-
-            <button
-              type="button"
-              class="ig-more-link"
-              @click="emit('inspectEntity', 'covenants', activeCurve.name)">
-              词条 ▸
-            </button>
-          </div>
-
-          <!-- 关键层数节点快照 -->
-          <div class="ig-snap-strip">
-            <div
-              v-for="snap in curveSnapshots"
-              :key="snap.layer"
-              class="ig-snap-pill">
-              <span class="ig-snap-lv">{{ snap.layer }}层</span>
-              <span class="ig-snap-val">
-                <em>{{ snap.before }}</em>
-                →
-                <b>{{ snap.after }}{{ activeCurve.unit }}</b>
-              </span>
-              <span
-                v-if="snap.delta !== 0"
-                :class="['ig-delta-chip', snap.delta > 0 ? 'up' : 'down']">
-                {{ snap.delta > 0 ? '+' : '' }}{{ snap.delta
-                }}{{ activeCurve.unit }}
-              </span>
-            </div>
-          </div>
-
-          <div v-if="curveMilestoneNotes.length" class="ig-ms-notes">
-            <span
-              v-for="note in curveMilestoneNotes"
-              :key="note"
-              class="ig-ms-tag">
-              {{ note }}
-            </span>
-          </div>
-
-          <LineChart
-            :labels="activeCurve.layers"
-            :datasets="activeCurveDatasets"
-            x-suffix="层"
-            :y-suffix="activeCurve.unit"
-            :aria-label="`${activeCurve.name} 0至200层${activeCurve.metricLabel}更新前后折线对比图`" />
-        </div>
+        <CovenantCurvePanel
+          v-if="data.covenantCurves.length"
+          v-model="activeCurveName"
+          :curves="data.covenantCurves"
+          :from-label="fromLabel"
+          :to-label="toLabel"
+          @inspect="(name) => emit('inspectEntity', 'covenants', name)" />
       </div>
     </section>
 
@@ -1070,7 +912,7 @@ const maxLeaderPct = computed(() =>
 }
 
 /* 通用小型按钮与角标 */
-.ig-more-link {
+:deep(.ig-more-link) {
   flex: none;
   min-height: 34px;
   padding: 4px 10px;
@@ -1083,12 +925,12 @@ const maxLeaderPct = computed(() =>
   cursor: pointer;
   white-space: nowrap;
 }
-.ig-more-link:hover {
+:deep(.ig-more-link:hover) {
   border-color: var(--accent);
   color: var(--accent);
 }
 
-.ig-delta-chip {
+:deep(.ig-delta-chip) {
   font-family: var(--fn);
   font-size: 11.5px;
   font-weight: 700;
@@ -1096,11 +938,11 @@ const maxLeaderPct = computed(() =>
   border-radius: 999px;
   white-space: nowrap;
 }
-.ig-delta-chip.up {
+:deep(.ig-delta-chip.up) {
   background: var(--df-add-bg-strong);
   color: var(--df-add-ink);
 }
-.ig-delta-chip.down {
+:deep(.ig-delta-chip.down) {
   background: var(--df-del-bg-strong);
   color: var(--df-del-ink);
 }
@@ -1497,125 +1339,6 @@ const maxLeaderPct = computed(() =>
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.ig-curve-box {
-  padding: 10px 12px;
-  border-radius: 9px;
-  border: 1px solid var(--line);
-  background: var(--surface2);
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-}
-
-.ig-curve-head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  max-width: 100%;
-}
-
-.ig-curve-select {
-  flex: 1 1 160px;
-  min-width: 0;
-}
-
-.ig-curve-pager {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid var(--line2);
-  border-radius: 7px;
-  background: var(--surface);
-  overflow: hidden;
-}
-
-.ig-pager-btn {
-  min-width: 30px;
-  min-height: 34px;
-  padding: 0 6px;
-  border: 0;
-  background: transparent;
-  color: var(--ink2);
-  font-family: var(--fn);
-  font-size: 15px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.ig-pager-btn:hover {
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.ig-pager-idx {
-  padding: 0 5px;
-  font-family: var(--fn);
-  font-size: 11.5px;
-  color: var(--ink3);
-  white-space: nowrap;
-}
-
-@container diff-view (max-width: 460px) {
-  .ig-curve-head {
-    flex-wrap: wrap;
-  }
-  .ig-curve-select {
-    flex-basis: 100%;
-  }
-}
-
-.ig-snap-strip {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-  min-width: 0;
-}
-
-@container diff-view (max-width: 440px) {
-  .ig-snap-strip {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-.ig-snap-pill {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  font-family: var(--fn);
-  font-size: 12px;
-  min-width: 0;
-}
-.ig-snap-lv {
-  color: var(--ink3);
-  font-weight: 600;
-}
-.ig-snap-val em {
-  font-style: normal;
-  color: var(--ink3);
-}
-
-.ig-ms-notes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.ig-ms-tag {
-  font-size: 11.5px;
-  padding: 2px 8px;
-  border-radius: 5px;
-  background: var(--accent-soft);
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
-  color: var(--ink);
 }
 
 /* 3. Ⅰ–Ⅵ 阶干员柱图 */
