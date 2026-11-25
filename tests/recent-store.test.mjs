@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   MAX_RECENT_ITEMS,
+  RECENT_STORAGE_KEY,
   clearRecent,
   isValidRecentItem,
   recentItems,
@@ -62,4 +63,31 @@ test('recentStore validates entities, deduplicates, moves latest to front, and c
 
   clearRecent();
   assert.equal(recentItems.value.length, 0);
+});
+
+test('记录最近查看前重读其他标签页的写入与清空', () => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const disk = new Map();
+  const storage = {
+    getItem: (key) => disk.get(key) ?? null,
+    setItem: (key, value) => disk.set(key, value),
+  };
+  Object.defineProperty(globalThis, 'localStorage', {value: storage, configurable: true});
+  try {
+    clearRecent();
+    recordRecent('op', '拜松');
+    disk.set(RECENT_STORAGE_KEY, JSON.stringify([{kind: 'cv', name: '炎'}]));
+    recordRecent('op', '乌啾');
+    assert.deepEqual(recentItems.value, [
+      {kind: 'op', name: '乌啾'},
+      {kind: 'cv', name: '炎'},
+    ]);
+    disk.delete(RECENT_STORAGE_KEY);
+    recordRecent('op', '拜松');
+    assert.deepEqual(recentItems.value, [{kind: 'op', name: '拜松'}]);
+  } finally {
+    clearRecent();
+    if (original === undefined) delete globalThis.localStorage;
+    else Object.defineProperty(globalThis, 'localStorage', original);
+  }
 });

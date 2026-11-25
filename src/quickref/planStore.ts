@@ -6,6 +6,7 @@
  * - “本局”：玩家开局前选一套要打的流派；盟约 / 效果 / 干员各页据此高亮。
  * - 本局被 ban 的盟约由玩家自己勾，只用于给出替代方案。
  */
+import {commitStorageChanges, readStoredItem, seasonStorageKey} from '../lib/season/storage.ts';
 import {computed, reactive, ref, toRaw, watch} from 'vue';
 import {
   BUILD_NAMES,
@@ -20,6 +21,8 @@ import {
   isBannableCovenant,
 } from '../../data/index.ts';
 import {color} from './format.ts';
+import {lineupEquipment, stageKey, stageOf} from '../lib/plans/lineup.ts';
+export {stageKey, stageLabel} from '../lib/plans/lineup.ts';
 import {
   MAX_EQ,
   MAX_OPS,
@@ -33,12 +36,16 @@ import {
   type CovenantStat,
   type Plan,
   type PlanStage,
-} from '../lib/plans/index.ts';
+} from '../lib/plans/core.ts';
 import {PLANS_STORAGE_KEY, readPlanSnapshot, savePlanSnapshot} from '../lib/plans/storage.ts';
 import {effectivePlanIcon, MAX_STAGE_ROUND} from '../lib/plans/model.ts';
 import {guidePlanFields, isCurrentGuideSeason, matchesGuidePlan, type SklandGuide} from '../lib/plans/skland.ts';
 import {isBanned} from '../lib/recommendation/index.ts';
 import {mergePlanBackup, type PlanBackupMerge} from '../lib/plans/backup.ts';
+const RUN_KEY = seasonStorageKey('wsq.run');
+const RUN_STAGE_KEY = seasonStorageKey('wsq.runStage');
+const LEADER_KEY = seasonStorageKey('wsq.leader');
+const BANS_KEY = seasonStorageKey('wsq.bans');
 // The route adapter selects a preset; this store does not depend on the browser router.
 const selectedPresetKey = ref(BUILD_NAMES[0]);
 let storedSnapshot = readPlanSnapshot();
@@ -69,9 +76,11 @@ interface PendingRunWrite {
 }
 const pendingRunWrites = new Map<string, PendingRunWrite>();
 const runWriteFailed = ref(false);
+const selectionWriteError = ref('');
 export const saveErrorMessage = computed(
   () =>
     planWriteError.value ||
+    selectionWriteError.value ||
     (runWriteFailed.value
       ? '本局设置只在当前页面生效，请检查浏览器存储空间和权限。'
       : ''),
@@ -110,15 +119,12 @@ export function flushSave(force = false): void {
   clearTimeout(saveTimer);
   saveTimer = undefined;
   if (dirty || force) dirty = !persistPlans(plans);
-  const runSelection = pendingRunWrites.get('wsq.run');
-  if (runSelection) write('wsq.run', runSelection.value, runSelection);
-  for (const [key, pending] of pendingRunWrites) {
-    if (key !== 'wsq.run') write(key, pending.value, pending);
-  }
+  if (pendingSelection) saveSelection(pendingSelection);
+  for (const [key, pending] of pendingRunWrites) write(key, pending.value, pending);
 }
 /** 交接前校验原始存档并采用其他标签页的最新版本。发送时可携带仅在本页的草稿；接收前须先保存它。 */
 export function refreshMirrorPlans(carryDraft = false): string | null {
-  const latest = localStorage.getItem(PLANS_STORAGE_KEY);
+  const latest = readStoredItem(PLANS_STORAGE_KEY);
   const records = userPlans(loadPlans(latest, true));
   if (JSON.stringify(toRaw(plans)) !== lastSavedSnapshot) {
     if (carryDraft && latest === storedSnapshot) return latest;
@@ -142,7 +148,25 @@ const saveOnExit = (): void => flushSave(true);
 const saveOnHidden = (): void => {
   if (document.visibilityState === 'hidden') saveOnExit();
 };
+let externalChangePending = false;
+function refreshIdlePlans(): void {
+  if (!externalChangePending || editing.value) return;
+  // Vue 的深监听可能还没执行，序列化对照可以识别同一事件循环内刚写的草稿。
+  if (JSON.stringify(toRaw(plans)) !== lastSavedSnapshot) return;
+  try {
+    refreshMirrorPlans();
+    externalChangePending = false;
+  } catch {
+    // 外部损坏或读取受限时保留当前显示和下一次保存的冲突保护。
+  }
+}
+function syncStoredPlans(event: StorageEvent): void {
+  if (event.key !== null && event.key !== PLANS_STORAGE_KEY) return;
+  externalChangePending = true;
+  refreshIdlePlans();
+}
 if (typeof window !== 'undefined') {
+  window.addEventListener('storage', syncStoredPlans);
   window.addEventListener('pagehide', saveOnExit);
   document.addEventListener('visibilitychange', saveOnHidden);
 }
@@ -281,15 +305,9 @@ export function restorePreset(name: string): void {
 
 /* ---------- 编辑 ---------- */
 export const editingId = ref('');
-/** 空键表示成型阵容，区间键由回合组成，可随本机存档恢复。 */
-export const stageKey = (stage: Pick<PlanStage, 'from' | 'to'>): string =>
-  `${stage.from}-${stage.to}`;
-export const stageLabel = (stage: Pick<PlanStage, 'from' | 'to'>): string =>
-  stage.from === stage.to ? `第 ${stage.from} 回合` : `第 ${stage.from}–${stage.to} 回合`;
 export const hasPlanOperators = (plan: Pick<Plan, 'ops' | 'stages'>): boolean =>
   !!(plan.ops.length || plan.stages?.some(stage => stage.ops.length));
 export const editingStageKey = ref('');
-const stageOf = (plan: Plan, key: string) => plan.stages?.find(stage => stageKey(stage) === key);
 const FALLBACK = blankPlan();
 /** 正在编辑的方案；规划器只在编辑时挂载 */
 export const plan = computed<Plan>(
@@ -319,6 +337,7 @@ export function finishEdit(): void {
   editingId.value = '';
   if (edited?.base && samePlan(edited, BUILTIN.get(edited.base)!))
     plans.splice(plans.indexOf(edited), 1);
+  refreshIdlePlans();
 }
 /* ---------- 本局 ---------- */
 const read = (key: string): string => {
@@ -335,15 +354,6 @@ function write(key: string, value: string, retry?: PendingRunWrite): void {
     previous = localStorage.getItem(key);
     if (previous !== value) {
       if (retry && previous !== retry.previous) return;
-      // 阶段只属于当前流派；流派 ID 写入失败时，先保留上次已保存流派的阶段。
-      if (
-        key === 'wsq.runStage' &&
-        (localStorage.getItem('wsq.run') ?? '') !== runKey.value
-      ) {
-        pendingRunWrites.set(key, retry ?? {value, previous});
-        runWriteFailed.value = true;
-        return;
-      }
       localStorage.setItem(key, value);
     }
     pendingRunWrites.delete(key);
@@ -354,7 +364,7 @@ function write(key: string, value: string, retry?: PendingRunWrite): void {
 }
 const storedBans = ((): string[] => {
   try {
-    const v: unknown = JSON.parse(read('wsq.bans') || '[]');
+    const v: unknown = JSON.parse(read(BANS_KEY) || '[]');
     return Array.isArray(v)
       ? [
           ...new Set(
@@ -370,27 +380,66 @@ const storedBans = ((): string[] => {
   }
 })();
 
-const storedRun = read('wsq.run');
+const storedRun = read(RUN_KEY);
 export const runKey = ref(presetOf(storedRun) ? storedRun : '');
-const savedStageKey = read('wsq.runStage');
+const savedStageKey = read(RUN_STAGE_KEY);
 const [savedFrom, savedTo] = savedStageKey.split('-').map(Number);
 const playableKey = savedTo > MAX_STAGE_ROUND ? `${savedFrom}-${MAX_STAGE_ROUND}` : savedStageKey;
 export const runStageKey = ref(presetOf(storedRun)?.plan.stages?.some(s => stageKey(s) === playableKey) ? playableKey : '');
 /** 本局被 ban 的盟约（玩家自己勾的，用于替代推荐、图鉴禁池隐藏与真实抓牌概率） */
 export const runBans = ref<string[]>(storedBans);
 export const runBanSet = computed(() => new Set(runBans.value));
-const storedLeader = read('wsq.leader');
+const storedLeader = read(LEADER_KEY);
 export const runLeaderKey = ref(
   Object.hasOwn(LEADER, storedLeader) ? storedLeader : '',
 );
-const stopRun = watch(runKey, (key) => write('wsq.run', key), {flush: 'sync'});
-const stopRunStage = watch(runStageKey, (key) => write('wsq.runStage', key), {flush: 'sync'});
+interface RunSelectionWrite {
+  run: string;
+  stage: string;
+  stageOnly: boolean;
+  base?: {run: string | null; stage: string | null};
+}
+let pendingSelection: RunSelectionWrite | undefined;
+let choosingRun = false;
+/** 流派与阶段共同提交。重试须仍匹配上次的两个原始值，防止阶段写入另一场对局。 */
+function saveSelection(intent: RunSelectionWrite): void {
+  const retry = pendingSelection === intent;
+  pendingSelection = intent;
+  try {
+    const current = {run: readStoredItem(RUN_KEY), stage: readStoredItem(RUN_STAGE_KEY)};
+    if ((current.run ?? '') !== intent.run || (current.stage ?? '') !== intent.stage) {
+      const previous = intent.base;
+      if ((intent.stageOnly && (current.run ?? '') !== intent.run) ||
+          (retry && (previous ? current.run !== previous.run || current.stage !== previous.stage :
+            current.run !== null || current.stage !== null))) {
+        selectionWriteError.value = '其他标签页已更新本局设置，已保留其选择。本页可重新选择流派和阶段。';
+        return;
+      }
+      intent.base = current;
+      commitStorageChanges([
+        {key: RUN_KEY, before: current.run, after: intent.run || (current.run === null ? null : '')},
+        {key: RUN_STAGE_KEY, before: current.stage, after: intent.stage || (current.stage === null ? null : '')},
+      ], () => undefined);
+    }
+    pendingSelection = undefined;
+    selectionWriteError.value = '';
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : '';
+    selectionWriteError.value = `本局设置只在当前页面生效。${detail}`;
+  }
+}
+const stopRun = watch(runKey, () => {
+  if (!choosingRun) saveSelection({run: runKey.value, stage: runStageKey.value, stageOnly: false});
+}, {flush: 'sync'});
+const stopRunStage = watch(runStageKey, () => {
+  if (!choosingRun) saveSelection({run: runKey.value, stage: runStageKey.value, stageOnly: true});
+}, {flush: 'sync'});
 const stopBans = watch(
   runBans,
-  (bans) => write('wsq.bans', JSON.stringify(bans)),
+  (bans) => write(BANS_KEY, JSON.stringify(bans)),
   {deep: true, flush: 'sync'},
 );
-const stopLeader = watch(runLeaderKey, (key) => write('wsq.leader', key), {
+const stopLeader = watch(runLeaderKey, (key) => write(LEADER_KEY, key), {
   flush: 'sync',
 });
 export const run = computed(() =>
@@ -419,13 +468,15 @@ export function setRun(key: string, stage?: string): void {
       : undefined;
   const nextStage = preferred ?? fallback;
   const nextStageKey = nextStage ? stageKey(nextStage) : '';
-  // 再次选择相同值不会触发 watch，仍允许玩家主动重试上次失败的选择。
-  if (runKey.value === key && pendingRunWrites.has('wsq.run'))
-    write('wsq.run', key);
-  runKey.value = key;
-  if (runStageKey.value === nextStageKey && pendingRunWrites.has('wsq.runStage'))
-    write('wsq.runStage', nextStageKey);
-  runStageKey.value = nextStageKey;
+  // 绑定的观察者也服务编辑器直接修改阶段的入口；整组选择只提交一次。
+  choosingRun = true;
+  try {
+    runKey.value = key;
+    runStageKey.value = nextStageKey;
+  } finally {
+    choosingRun = false;
+  }
+  saveSelection({run: key, stage: nextStageKey, stageOnly: false});
   if (!key) runBans.value = [];
 }
 export function setRunLeader(name: string): void {
@@ -504,15 +555,8 @@ export const runEquipOwners = computed(() => {
   }
   return map;
 });
-export const runEquipRecommended = computed(
-  () =>
-    new Set(
-      [
-        ...runOps.value.flatMap((o) => o.eq),
-        ...(runBaseBuild.value?.equipment ?? []),
-        ...(runGuideLineup.value?.equipment ?? []),
-      ].filter((e) => Object.hasOwn(EQUIP, e)),
-    ),
+export const runEquipRecommended = computed(() =>
+  lineupEquipment(runOps.value, runBaseBuild.value?.equipment, runGuideLineup.value?.equipment),
 );
 export const runEquipMaterials = computed(() => {
   const map = new Map<string, string[]>();
@@ -688,6 +732,7 @@ if (import.meta.hot)
     stopRunStage();
     stopBans();
     stopLeader();
+    window.removeEventListener('storage', syncStoredPlans);
     window.removeEventListener('pagehide', saveOnExit);
     document.removeEventListener('visibilitychange', saveOnHidden);
   });

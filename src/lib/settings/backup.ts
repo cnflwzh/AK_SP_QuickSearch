@@ -1,4 +1,6 @@
-import {normalizeOperatorBox, type OperatorBox} from '../box/model.ts';
+import {SEASON_META} from '../../../data/index.ts';
+import {checkBackupSeason} from '../season/storage.ts';
+import {BOX_RANK_BORROWED, normalizeOperatorBox, type OperatorBox} from '../box/model.ts';
 import {
   MAX_BACKUP_BYTES,
   planBackupVersion,
@@ -10,12 +12,13 @@ import type {Plan} from '../plans/model.ts';
 import {normalizeSettings, type UserSettings} from './model.ts';
 
 export const SETTINGS_BACKUP_FORMAT = 'weishu-quickref-settings';
-export const SETTINGS_BACKUP_VERSION = 3;
+export const SETTINGS_BACKUP_VERSION = 4;
 export const MAX_SETTINGS_BACKUP_BYTES = MAX_BACKUP_BYTES;
 
 export interface SettingsBackup {
   format: typeof SETTINGS_BACKUP_FORMAT;
-  version: 1 | 2 | typeof SETTINGS_BACKUP_VERSION;
+  version: 1 | 2 | 3 | typeof SETTINGS_BACKUP_VERSION;
+  season?: string;
   exportedAt: string;
   settings: UserSettings;
   plans?: Plan[];
@@ -35,7 +38,10 @@ export function serializeSettingsBackup(
   const cleanBox = box ? normalizeOperatorBox(box) : undefined;
   const backup: SettingsBackup = {
     format: SETTINGS_BACKUP_FORMAT,
-    version: planBackupVersion(plans),
+    version: plans?.length || (cleanBox && Object.values(cleanBox).includes(BOX_RANK_BORROWED))
+      ? planBackupVersion(plans)
+      : 1,
+    season: SEASON_META.id,
     exportedAt: new Date().toISOString(),
     settings: cleanSettings,
     ...(plans ? {plans: writeBackupPlans(plans)} : {}),
@@ -70,6 +76,7 @@ export function parseSettingsBackup(text: string): SettingsBackup {
   if (
     value.version !== 1 &&
     value.version !== 2 &&
+    value.version !== 3 &&
     value.version !== SETTINGS_BACKUP_VERSION
   ) {
     throw new Error('此配置版本暂不支持，请更新页面后重新导出。');
@@ -81,6 +88,10 @@ export function parseSettingsBackup(text: string): SettingsBackup {
   ) {
     throw new Error('配置文件数据不完整，请重新导出。');
   }
+  // 空流派列表和账号自持练度可跨季交接。只有实际的阵容或助战选择需要同季。
+  if ((Array.isArray(value.plans) && value.plans.length) ||
+      (isRecord(value.box) && Object.values(value.box).includes(BOX_RANK_BORROWED)))
+    checkBackupSeason(value.version === 4 ? value.season ?? null : value.season);
   const plans =
     value.plans !== undefined ? readBackupPlans(value.plans) : undefined;
   let box: OperatorBox | undefined;
@@ -93,6 +104,7 @@ export function parseSettingsBackup(text: string): SettingsBackup {
   return {
     format: SETTINGS_BACKUP_FORMAT,
     version: value.version,
+    season: SEASON_META.id,
     exportedAt: value.exportedAt,
     settings: normalizeSettings(value.settings),
     ...(plans ? {plans} : {}),

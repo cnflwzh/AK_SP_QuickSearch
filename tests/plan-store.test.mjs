@@ -26,6 +26,7 @@ test('preset storage retains configured drafts, flushes on exit and follows cros
   globalThis.localStorage = {
     getItem: (key) => values.get(key) ?? null,
     setItem: (key, value) => values.set(key, value),
+    removeItem: (key) => values.delete(key),
   };
   const store = await import('../src/quickref/planStore.ts');
   assert.deepEqual(
@@ -216,6 +217,18 @@ test('preset storage retains configured drafts, flushes on exit and follows cros
   store.endRun();
   assert.equal(values.get('wsq.runStage'), '');
 
+  // run 可写但阶段失败时，两键都恢复原字节。
+  const beforeSelection = [values.get('wsq.run'), values.get('wsq.runStage')];
+  localStorage.setItem = (key, value) => {
+    if (key === 'wsq.runStage') throw new Error('Quota exceeded');
+    return setItem(key, value);
+  };
+  store.setRun(stagedKey, '5-9');
+  assert.deepEqual([values.get('wsq.run'), values.get('wsq.runStage')], beforeSelection);
+  assert.match(store.saveErrorMessage.value, /本局设置只在当前页面生效/);
+  localStorage.setItem = setItem;
+  store.endRun();
+
   // 阵容本身可能刚好存得下，而随后的本局 ID / 阶段写入超出配额。
   localStorage.setItem = (key, value) => {
     if (key === 'wsq.run' || key === 'wsq.runStage')
@@ -256,4 +269,23 @@ test('preset storage retains configured drafts, flushes on exit and follows cros
 
   await nextTick();
   store.flushSave();
+
+  // storage 事件到达时即使 Vue 的深监听尚未执行，也必须保留草稿。
+  function remoteWrite(raw) {
+    values.set('wsq.plans', raw);
+    const event = Object.assign(new Event('storage'), {key: 'wsq.plans'});
+    window.dispatchEvent(event);
+  }
+  store.finishEdit();
+  store.flushSave(true);
+  const external = blankPlan('外部版本');
+  remoteWrite(JSON.stringify([external]));
+  assert.equal(store.plans[0].id, external.id);
+  store.plans[0].note = '本地未保存';
+  const nextRemote = JSON.stringify([{...external, note: '另一页已保存'}]);
+  remoteWrite(nextRemote);
+  store.flushSave(true);
+  assert.equal(store.plans[0].note, '本地未保存');
+  assert.equal(values.get('wsq.plans'), nextRemote);
+  assert.match(store.saveErrorMessage.value, /其他标签页/);
 });

@@ -15,7 +15,8 @@ data/
 ├── pinyin.ts                     由 scripts/gen_pinyin.mjs 自动生成的拼音表（勿手改）
 ├── LICENSE.md                    数据许可：CC BY-NC-SA 3.0
 └── seasons/
-    ├── registry.ts               赛季注册表（SEASONS / getSeason）
+    ├── catalog.ts                设置页显示的轻量赛季清单
+    ├── registry.ts               对比页使用的完整赛季对象（SEASONS / getSeason）
     └── s1/                       序列Ⅰ「卫戍协议·规程」数据
         ├── index.ts              汇总导出 S1_SEASON: SeasonDefinition
         ├── meta.ts               赛季元信息、默认盟约/流派、分享编码干员表与拼音覆写
@@ -49,6 +50,9 @@ data/
   - 固定商店概率、阵容推荐与分享编码只读取 `OPERATORS`，自选与替补按身份通过 `ADDITIONAL_OPERATORS` 与 `SELECTION_LIMITS` 独立提供。
 - **装备（`equipment.ts`）**：`roles`（提供给阵容诊断与对策反查的实战职能）、`mechanics`（如赋予同伴盟约、增加部署上限等）。
 - **策略（`strategies.ts`）**：`advisor` 字段配置局内抓取推荐的策略打分规则。
+- 装备和策略的 `shareId` 是稳定正整数，范围为 1–65535。两类分别编号，增补时不得复用下架条目的编号。更换图标不影响分享码。干员槽位与 `shareLayerIds` 的盟约槽位仅在末尾追加，退出者保留位置。S1 旧码沿用最初 22 个盟约槽的位图，其他赛季或超出旧位宽的方案使用带赛季标识的新码。
+- Box 短码 `WB` 及 `#b=` 链接使用 `meta.boxShare` 的槽位表。S1 沿用已发布的无赛季头格式。其他赛季将赛季 ID 写入校验覆盖的包头，只有赛季和 1–15 的码表版本均匹配才能导入。每季最多 511 个槽位，保留下架干员的原位置，新干员追加在末尾。
+- 筛选分类使用稳定的 `id` 和展示用的 `label`。教学示例干员、筛选盟约和阵容在 `rules.recruitExamples` 设置。
 - **赛季元信息（`meta.ts`）**：`defaultCovenant`、`defaultBuild`、`roundLimits`、`tierBasePrices`、`shareOperatorIds`（分享短码顺序，已发布赛季切勿重排旧条目，只可在末尾追加）、`pinyinOverrides`。
 
 ---
@@ -100,11 +104,13 @@ npm run pinyin
 ## 6. 新增或切换赛季流程
 
 1. 复制 `data/seasons/s1/` 结构新建 `data/seasons/<season>/`，按 `SeasonDefinition` 补全全部数据文件并在 `index.ts` 导出赛季对象。
-2. 在 `data/seasons/registry.ts` 中注册新赛季。
+2. 在 `data/seasons/catalog.ts` 登记轻量元信息，在 `data/seasons/registry.ts` 登记供对比页加载的完整对象。赛季 ID 使用字母、数字、下划线或连字符。
 3. 将 `data/season.ts` 中的 `CURRENT_SEASON` 指向新赛季对象。
 4. 补齐对应图片资源至 `public/assets/img/`。
 5. 运行 `npm run pinyin` 重新生成拼音索引。
 6. 运行 `npm run check`，确认 `tests/season-architecture.test.mjs`、`tests/box.test.mjs` 与全量单测、类型检查和生产构建全部通过。
+
+无赛季后缀的历史存档和无赛季标识的旧备份属于 S1。后续赛季使用独立的流派、本局和工具进度。Box 自持练度按账号共享，助战选择按赛季保存。
 
 ## 7. 赛季更新对比
 

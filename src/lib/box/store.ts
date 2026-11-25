@@ -1,4 +1,5 @@
 import {computed, reactive, shallowRef} from 'vue';
+import {commitStorageChanges} from '../season/storage.ts';
 import {BORROW_LIMIT} from '../../../data/index.ts';
 import {
   BORROWABLE_SIX_STARS,
@@ -12,14 +13,17 @@ import {
   type BoxRank,
   type OperatorBox,
 } from './model.ts';
-
-export const BOX_STORAGE_KEY = 'wsq.box.v1';
+import {
+  BOX_STORAGE_KEY,
+  borrowStorageKey,
+  readBoxSnapshot,
+  boxStorageChanges,
+} from './persistence.ts';
+export {BOX_STORAGE_KEY} from './persistence.ts';
 
 function readStoredBox(): OperatorBox {
   try {
-    const raw = localStorage.getItem(BOX_STORAGE_KEY);
-    if (!raw) return {};
-    return normalizeOperatorBox(JSON.parse(raw));
+    return readBoxSnapshot().box;
   } catch {
     return {};
   }
@@ -30,14 +34,23 @@ export const boxStorageWriteFailed = shallowRef(false);
 
 function writeStoredBox(box: Readonly<OperatorBox>): void {
   try {
-    localStorage.setItem(BOX_STORAGE_KEY, JSON.stringify(box));
-    boxStorageWriteFailed.value = false;
+    const snapshot = readBoxSnapshot();
+    const next = {...snapshot.box};
+    for (const key of new Set([...Object.keys(savedView), ...Object.keys(box)])) {
+      if (savedView[key] === box[key]) continue;
+      if (Object.hasOwn(box, key)) next[key] = box[key];
+      else delete next[key];
+    }
+    validateBorrowLimit(next, snapshot.box);
+    commitStorageChanges(boxStorageChanges(snapshot, next), () => undefined);
+    acceptStoredBox(next);
   } catch {
     boxStorageWriteFailed.value = true;
   }
 }
 
-export const operatorBox = reactive<OperatorBox>(readStoredBox());
+let savedView = readStoredBox();
+export const operatorBox = reactive<OperatorBox>({...savedView});
 
 function replaceBoxState(next: OperatorBox, persist = true): void {
   for (const key of Object.keys(operatorBox)) {
@@ -178,6 +191,7 @@ export function prepareBoxImport(
 
 /** 将已成功保存的 Box 同步到当前页，避免重复写入。 */
 export function acceptStoredBox(next: OperatorBox): void {
+  savedView = {...next};
   replaceBoxState(next, false);
   boxStorageWriteFailed.value = false;
 }
@@ -204,7 +218,12 @@ export function initBoxStorageSync(): void {
   if (boxStorageListening || typeof window === 'undefined') return;
   boxStorageListening = true;
   window.addEventListener('storage', (event) => {
-    if (event.key !== null && event.key !== BOX_STORAGE_KEY) return;
-    replaceBoxState(readStoredBox(), false);
+    if (event.key !== null && event.key !== BOX_STORAGE_KEY && event.key !== borrowStorageKey()) return;
+    if (boxStorageWriteFailed.value) return;
+    try {
+      acceptStoredBox(readBoxSnapshot().box);
+    } catch {
+      // 读取失败时保留已有视图，等待下一次成功更新。
+    }
   });
 }

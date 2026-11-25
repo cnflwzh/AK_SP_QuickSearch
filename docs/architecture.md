@@ -46,7 +46,7 @@
 |---|---|---|
 | `src/quickref/state.ts` | 部分筛选与当前实体 | 集中维护当前 Tab、盟约、流派、领袖、难度、筛选条件，并通过 `provide/inject`（`useQuickrefActions`）向子组件暴露跨页动作 |
 | `src/quickref/planStore.ts` | 自建/修改流派、本局流派、本局领袖、本局禁池 | 维护内置流派与用户方案合并视图，派生 `runStat`、`inRunAny`、`runBans`、`runEquipRecommended` 等全站联动状态；页面退出时通过 `flushSave` 刷盘 |
-| `src/lib/box/` | 个人干员练度与助战借用（按赛季隔离） | 区分自持练度（`0` 未练精 0、`1` 精一、`2` 精二、`3` 精二 60）、已借用（`-2`）与未持有（`-1`）；`initBoxStorageSync()` 支持多标签页 `storage` 事件实时同步 |
+| `src/lib/box/` | 跨赛季自持练度、各赛季助战借用 | 自持练度从 `0`（精 0）到 `3`（精二 60）。本季已借用显示 `-2`，未持有显示 `-1`。`initBoxStorageSync()` 监听其他标签页的更新。 |
 | `src/lib/settings/` | 主题、卡片密度、字号、减弱动效、模块开关、栏目排序、隐藏工具 | 响应式同步至 `<html>` 属性（`data-theme`、`data-font`、`data-motion="reduce"`、`data-hide-footer`），支持完整 JSON 配置（可附带流派与练度）导出与导入 |
 | `src/quickref/recentStore.ts` | 最近查看历史 | 记录用户近期打开过的干员、装备、策略、盟约与领袖，聚焦搜索框时展示 |
 | `src/quickref/numbers/useNumberToolsState.ts` | 小工具会话输入 | 在子工具和页面切换期间保持层数、调度等级与回合难度等输入状态 |
@@ -92,7 +92,7 @@
 
 ## 5. 单元测试体系（`tests/`）
 
-所有测试均为 Node.js 原生 `node:test` + `node:assert`，可直接通过 `npm test` 执行（当前 20 个测试文件、100+ 用例）：
+核心逻辑测试使用 Node.js 原生 `node:test` 和 `node:assert`，通过 `npm test` 执行。
 
 | 测试文件 | 验证重点 |
 |---|---|

@@ -1,6 +1,9 @@
 /** 流派备份文件的读写与合并；不读写浏览器存储，也不修改传入的方案。 */
+import {checkBackupSeason} from '../season/storage.ts';
 import {
   OPERATOR,
+  SEASON_META,
+  LEGACY_SEASON_ID,
   EQUIP,
   STRATEGY,
   COVENANTS,
@@ -26,13 +29,14 @@ import {newId} from './storage.ts';
 import {isSklandGuide, migrateLegacyGuidePlan, sklandUrl} from './skland.ts';
 
 const BACKUP_FORMAT = 'weishu-quickref-builds';
-type BackupVersion = 1 | 2 | 3;
+type BackupVersion = 1 | 2 | 3 | 4;
 export const MAX_BACKUP_BYTES = 5 * 1024 * 1024;
 
 /** version 标识文件结构；plans 包括自建流派和用户修改过的预设。 */
 export interface PlanBackup {
   format: typeof BACKUP_FORMAT;
   version: BackupVersion;
+  season?: string;
   exportedAt: string;
   plans: Plan[];
 }
@@ -200,6 +204,7 @@ export function needsExtendedPlanBackup(plan: Plan): boolean {
 
 /** 只在需要时提高导出版本，防止旧版读取带图标的备份时静默丢弃图标。 */
 export function planBackupVersion(plans: readonly Plan[] = []): BackupVersion {
+  if (SEASON_META.id !== LEGACY_SEASON_ID) return 4;
   if (plans.some((plan) => plan.icon)) return 3;
   return plans.some(needsExtendedPlanBackup) ? 2 : 1;
 }
@@ -233,6 +238,7 @@ export function serializePlanBackup(plans: readonly Plan[]): string {
   const backup: PlanBackup = {
     format: BACKUP_FORMAT,
     version: planBackupVersion(plans),
+    season: SEASON_META.id,
     exportedAt: new Date().toISOString(),
     plans: writeBackupPlans(plans),
   };
@@ -260,7 +266,7 @@ export function parsePlanBackup(text: string): PlanBackup {
   }
   if (!isRecord(value) || value.format !== BACKUP_FORMAT)
     throw new Error('这不是卫戍速查的流派备份文件。');
-  if (value.version !== 1 && value.version !== 2 && value.version !== 3)
+  if (value.version !== 1 && value.version !== 2 && value.version !== 3 && value.version !== 4)
     throw new Error('此备份版本暂不支持，请更新页面后重试。');
   if (
     !Array.isArray(value.plans) ||
@@ -269,8 +275,10 @@ export function parsePlanBackup(text: string): PlanBackup {
   ) {
     throw new Error('备份文件数据不完整，请重新导出。');
   }
+  checkBackupSeason(value.version === 4 ? value.season ?? null : value.season);
   return {
     format: BACKUP_FORMAT,
+    season: SEASON_META.id,
     version: value.version,
     exportedAt: value.exportedAt,
     plans: readBackupPlans(value.plans),

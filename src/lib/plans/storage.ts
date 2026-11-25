@@ -1,3 +1,4 @@
+import {seasonStorageKey} from '../season/storage.ts';
 /** 浏览器方案存档适配。读写与默认记录生成留在推荐计算模块之外。 */
 import {STRATEGY, buildByName} from '../../../data/index.ts';
 import {
@@ -13,8 +14,8 @@ import {
 import {isSklandGuide, migrateLegacyGuidePlan} from './skland.ts';
 /* ---------- 本地存档 ---------- */
 
-export const PLANS_STORAGE_KEY = 'wsq.plans';
-const BEFORE_ROUND_LIMIT = 'wsq.plans.beforeRoundLimit';
+export const PLANS_STORAGE_KEY = seasonStorageKey('wsq.plans');
+const BEFORE_ROUND_LIMIT = seasonStorageKey('wsq.plans.beforeRoundLimit');
 const read = (key: string): string | null => {
   try {
     return localStorage.getItem(key);

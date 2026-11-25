@@ -1,3 +1,4 @@
+import {seasonStorageKey} from '../lib/season/storage.ts';
 import {readonly, ref} from 'vue';
 import {
   COVENANTS,
@@ -14,7 +15,7 @@ export interface RecentItem {
   readonly name: string;
 }
 
-export const RECENT_STORAGE_KEY = 'wsq.recent.v1';
+export const RECENT_STORAGE_KEY = seasonStorageKey('wsq.recent.v1');
 export const MAX_RECENT_ITEMS = 8;
 
 const VALID_KINDS: readonly RecentKind[] = ['op', 'eq', 'st', 'cv', 'ld'];
@@ -60,33 +61,44 @@ export function sanitizeRecentList(raw: unknown): RecentItem[] {
   return result;
 }
 
-function readStoredRecent(): RecentItem[] {
+function readStoredRecent(fallback: RecentItem[] = []): RecentItem[] {
   try {
     const raw = localStorage.getItem(RECENT_STORAGE_KEY);
     if (!raw) return [];
     return sanitizeRecentList(JSON.parse(raw));
   } catch {
-    return [];
+    return fallback;
   }
 }
 
+let unsavedRecent = false;
 function writeStoredRecent(items: readonly RecentItem[]): void {
   try {
     localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(items));
+    unsavedRecent = false;
   } catch {
-    /* 隐私模式或存储受限时保持当前会话有效。 */
+    unsavedRecent = true;
   }
 }
 
 const recentList = ref<RecentItem[]>(readStoredRecent());
 export const recentItems = readonly(recentList);
+function syncRecent(event: StorageEvent): void {
+  if (!unsavedRecent && (event.key === RECENT_STORAGE_KEY || event.key === null))
+    recentList.value = readStoredRecent(recentList.value);
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', syncRecent);
+  import.meta.hot?.dispose(() => window.removeEventListener('storage', syncRecent));
+}
 
 /** 记录用户主动查看的条目并置顶去重；无效实体忽略。 */
 export function recordRecent(kind: RecentKind, name: string): void {
   if (!isValidRecentItem(kind, name)) return;
+  const previous = unsavedRecent ? recentList.value : readStoredRecent(recentList.value);
   const next = [
     {kind, name},
-    ...recentList.value.filter(
+    ...previous.filter(
       (item) => !(item.kind === kind && item.name === name),
     ),
   ].slice(0, MAX_RECENT_ITEMS);
@@ -95,7 +107,6 @@ export function recordRecent(kind: RecentKind, name: string): void {
 }
 
 export function clearRecent(): void {
-  if (!recentList.value.length) return;
   recentList.value = [];
   writeStoredRecent([]);
 }

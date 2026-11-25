@@ -89,7 +89,7 @@ export const BOX_RANK_META: Readonly<Record<BoxRank, BoxRankMeta>> = {
   [3]: BOX_RANK_LIST[5],
 };
 
-const AVATAR_KEY_RE = /^char_\d+_[a-zA-Z0-9_]+$/;
+export const AVATAR_KEY_RE = /^char_\d+_[a-zA-Z0-9_]+$/;
 
 /** 固定调配池中的可持有干员，用于区分预设、借用与替补。 */
 export const BOX_OPERATORS: readonly Operator[] = OPERATORS.filter(

@@ -1,7 +1,7 @@
-import {normalizeOperatorBox} from '../lib/box/model.ts';
+import {commitStorageChanges, readStoredItem, type StorageChange} from '../lib/season/storage.ts';
+import {readBoxSnapshot, boxStorageChanges} from '../lib/box/persistence.ts';
 import {
   acceptStoredBox,
-  BOX_STORAGE_KEY,
   boxStorageWriteFailed,
   buildBoxImport,
   exportOperatorBox,
@@ -22,7 +22,7 @@ import {
 import {plans, refreshMirrorPlans, restorePlanBackup} from './planStore.ts';
 
 function readObject(key: string, label: string) {
-  const raw = localStorage.getItem(key);
+  const raw = readStoredItem(key);
   try {
     const value: unknown = raw === null ? {} : JSON.parse(raw);
     if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -37,13 +37,13 @@ function readObject(key: string, label: string) {
 
 function readMirrorState(carryDraft = false) {
   const preferences = readObject(SETTINGS_STORAGE_KEY, '设置');
-  const roster = readObject(BOX_STORAGE_KEY, 'Box');
+  const roster = readBoxSnapshot();
   return {
     rawPlans: refreshMirrorPlans(carryDraft),
     rawSettings: preferences.raw,
-    rawBox: roster.raw,
+    roster,
     settings: normalizeSettings(preferences.value),
-    box: normalizeOperatorBox(roster.value),
+    box: roster.box,
   };
 }
 
@@ -83,7 +83,7 @@ export function commitMirrorBackup(
   backup: SettingsBackup,
   selected: Selection,
 ) {
-  const pending: {key: string; before: string | null; after: string}[] = [];
+  const pending: StorageChange[] = [];
   const nextBox =
     selected.box && backup.box
       ? buildBoxImport(
@@ -93,12 +93,7 @@ export function commitMirrorBackup(
           backup.box,
         )
       : undefined;
-  if (nextBox)
-    pending.push({
-      key: BOX_STORAGE_KEY,
-      before: preview.rawBox,
-      after: JSON.stringify(nextBox),
-    });
+  if (nextBox) pending.push(...boxStorageChanges(preview.roster, nextBox));
   if (selected.settings)
     pending.push({
       key: SETTINGS_STORAGE_KEY,
@@ -110,46 +105,12 @@ export function commitMirrorBackup(
     throw new Error(
       '其他标签页已更新流派或本页草稿已改变，请取消预览后重新取回。',
     );
-  for (const {key, before} of pending) {
-    if (localStorage.getItem(key) !== before)
-      throw new Error('本站设置或 Box 已更新，请取消预览后重新取回。');
-  }
-
-  const written: typeof pending = [];
-  let merged;
-  try {
-    for (const change of pending) {
-      if (change.after === change.before) continue;
-      localStorage.setItem(change.key, change.after);
-      written.push(change);
-    }
-    if (selected.plans && backup.plans?.length) {
-      if (localStorage.getItem(PLANS_STORAGE_KEY) !== preview.rawPlans)
-        throw new Error('其他标签页已更新流派，请取消预览后重新取回。');
-      merged = restorePlanBackup(backup.plans);
-    }
-  } catch (cause) {
-    // 逐项回到原始字节（包括原本不存在的键）。其他标签页已改写的值归该页所有。
-    let rollbackFailed = false;
-    for (const {key, before, after} of written.reverse()) {
-      try {
-        if (localStorage.getItem(key) !== after) continue;
-        if (before === null) localStorage.removeItem(key);
-        else localStorage.setItem(key, before);
-      } catch {
-        rollbackFailed = true;
-      }
-    }
-    if (rollbackFailed)
-      throw new Error(
-        '本机存储写入失败，部分内容未能撤回。请保留来源站存档，恢复存储权限后重新取回。',
-        {cause},
-      );
-    const reason = cause instanceof Error ? cause.message : '';
-    throw new Error(`本机存储写入失败，请检查空间或权限后重试。${reason}`, {
-      cause,
-    });
-  }
+  const merged = commitStorageChanges(pending, () => {
+    if (!selected.plans || !backup.plans?.length) return undefined;
+    if (readStoredItem(PLANS_STORAGE_KEY) !== preview.rawPlans)
+      throw new Error('其他标签页已更新流派，请取消预览后重新取回。');
+    return restorePlanBackup(backup.plans);
+  });
   if (nextBox) acceptStoredBox(nextBox);
   if (selected.settings) acceptStoredSettings(backup.settings);
   return merged;
