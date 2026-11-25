@@ -30,16 +30,17 @@ const {run, goal, unavailableNames, poolConflicts} = advisor;
 const inactiveCovenants = computed(() => effectiveBans(run.value));
 const layerCovenants = ALL_COVENANTS.filter(usesLayers);
 const layerSelection = ref(layerCovenants[0] ?? '');
-/** 规则层给出原有错误提示，失焦后把被拒绝的输入恢复到本局记录。 */
+/** 提交编辑后回读本局记录，规则层拒绝或修正输入时也显示实际保存值。 */
 function commitNumber(
   event: Event,
-  previous: number | null | undefined,
+  readCurrent: () => number | null | undefined,
   update: (value: number | null) => void,
 ): void {
   const input = event.target as HTMLInputElement;
   const valid = input.validity.valid;
   update(input.value === '' && valid ? null : input.valueAsNumber);
-  if (!valid) input.value = previous == null ? '' : String(previous);
+  const current = readCurrent();
+  input.value = current == null ? '' : String(current);
 }
 function updatePersonnelDocument(value: string): void {
   advisor.setPersonnelDocumentUsed(value === 'true');
@@ -169,7 +170,7 @@ const layerCovenantOptions: readonly SelectOption<string>[] =
           step="1"
           placeholder="未知"
           :value="run.round ?? ''"
-          @change="commitNumber($event, run.round, advisor.setRound)" />
+          @change="commitNumber($event, () => run.round, advisor.setRound)" />
       </label>
       <label v-if="strategyUsesAdvisorCommand(run.strategy)">
         本次主动指令
@@ -197,7 +198,7 @@ const layerCovenantOptions: readonly SelectOption<string>[] =
           step="1"
           placeholder="未知"
           :value="run.acquisitionsThisRound ?? ''"
-          @change="commitNumber($event, run.acquisitionsThisRound, advisor.setAcquisitionsThisRound)" />
+          @change="commitNumber($event, () => run.acquisitionsThisRound, advisor.setAcquisitionsThisRound)" />
       </label>
       <label>
         可用资金
@@ -209,7 +210,7 @@ const layerCovenantOptions: readonly SelectOption<string>[] =
           step="1"
           placeholder="未知"
           :value="run.funds ?? ''"
-          @change="commitNumber($event, run.funds, advisor.setFunds)" />
+          @change="commitNumber($event, () => run.funds, advisor.setFunds)" />
       </label>
       <label>
         记录盟约层数
@@ -228,7 +229,7 @@ const layerCovenantOptions: readonly SelectOption<string>[] =
           step="1"
           placeholder="未知"
           :value="run.layers[layerSelection] ?? ''"
-          @change="commitNumber($event, run.layers[layerSelection], (value) => advisor.setLayer(layerSelection, value))" />
+          @change="commitNumber($event, () => run.layers[layerSelection], (value) => advisor.setLayer(layerSelection, value))" />
       </label>
     </div>
     <p class="ra-muted">
