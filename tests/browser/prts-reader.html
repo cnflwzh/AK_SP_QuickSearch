@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>PRTS 阅读文档回归</title>
+<output aria-live="polite">检查中</output>
+<script type="module">
+  import {createPrtsReaderDocument} from '/src/lib/prts/prtsArticle.ts';
+
+  // 真实 CSSOM、DOMPurify 与浏览器 HTML 序列化共同决定返回结果。
+  // 使用本地正文样本，避免依赖 PRTS 当前版本、网络与站点可用性。
+  const output = document.querySelector('output');
+  const check = (condition, message) => {
+    if (!condition) throw new Error(message);
+  };
+  try {
+    const result = createPrtsReaderDocument({
+      name: '样本',
+      url: 'https://prts.wiki/w/' + encodeURIComponent('样本'),
+      html: `<div class="mw-parser-output">
+        <style data-mw-deduplicate="TemplateStyles:r123">
+          .sample-card { color: navy; }
+          @media (min-width: 300px) { .sample-table { display: table; } }
+          @font-face { font-family: ignored-font; src: local(Arial); }
+        </style>
+        <style>.unmarked-sample { color: gray; }</style>
+        <h2 id="特性">特性</h2>
+        <table class="sample-table"><tr><td>部署费用 &lt; 10</td></tr></table>
+        <a href="#特性">正文内跳转</a>
+        <h2 id="干员档案">干员档案</h2><p>档案示例</p>
+        <h2 id="技能">技能</h2><p>保留章节</p>
+      </div>`,
+    }, '.reader-credit { display: block; }', 14);
+    const doc = new DOMParser().parseFromString(result.html, 'text/html');
+    check(doc.querySelector('td')?.textContent === '部署费用 < 10', '正文表格及文字');
+    check(doc.querySelector('[data-reader-anchor]')?.getAttribute('target') === '_blank', '章节链接');
+    check(!doc.getElementById('干员档案') && doc.getElementById('技能'), '章节边界');
+    check(doc.querySelectorAll('style').length === 1 &&
+      doc.querySelector('style').textContent.includes('reader-credit'), '本站阅读样式');
+    check(!result.html.includes('.sample-card') && !result.html.includes('.unmarked-sample'), '模板样式与 HTML 分开传递');
+    check(result.templateCss.includes('.sample-card') && result.templateCss.includes('@media'), '保留展示规则');
+    check(!result.templateCss.includes('ignored-font') && !result.templateCss.includes('.unmarked-sample'), '仅采纳模板展示规则');
+    check(doc.querySelector('meta[http-equiv="Content-Security-Policy"]')?.content.includes("script-src 'none'"), '阅读文档 CSP');
+    output.value = '通过';
+    output.dataset.result = 'pass';
+  } catch (error) {
+    output.value = String(error);
+    output.dataset.result = 'fail';
+    throw error;
+  }
+</script>
+</html>

@@ -4,6 +4,7 @@ import {operatorWikiUrl} from '../../lib/prts/prts.ts';
 import {
   createPrtsReaderDocument,
   fetchPrtsArticle,
+  type PrtsReaderDocument,
 } from '../../lib/prts/prtsArticle.ts';
 import readerStyles from '../wikiReader.css?raw';
 
@@ -13,7 +14,7 @@ const props = defineProps<{
   topInset: number;
 }>();
 const frame = ref<HTMLIFrameElement | null>(null);
-const sourceDocument = ref('');
+const sourceDocument = ref<PrtsReaderDocument | null>(null);
 const state = ref<'loading' | 'ready' | 'original'>('loading');
 const originalUrl = computed(
   () => `${operatorWikiUrl(props.operatorName)}#${encodeURIComponent('特性')}`,
@@ -118,6 +119,13 @@ function onFrameLoaded(): void {
   frameEvents?.abort();
   frameEvents = new AbortController();
   const options = {signal: frameEvents.signal};
+  // 文档已完成 HTML 解析。外部模板规则只作为 CSS 文本进入此 iframe，
+  // 并排在本站阅读器样式前面，使宽表、目录和半屏适配保持优先。
+  if (sourceDocument.value.templateCss) {
+    const templateStyle = document.createElement('style');
+    templateStyle.textContent = sourceDocument.value.templateCss;
+    document.head.insertBefore(templateStyle, document.head.querySelector('style'));
+  }
   document.documentElement.style.setProperty(
     '--reader-top',
     `${props.topInset}px`,
@@ -187,7 +195,7 @@ watch(
     onCleanup(() => controller.abort());
     frameEvents?.abort();
     cancelAnimationFrame(layoutFrame);
-    sourceDocument.value = '';
+    sourceDocument.value = null;
     state.value = 'loading';
     pinnedSection = '特性';
     try {
@@ -241,7 +249,7 @@ onBeforeUnmount(() => {
       v-if="sourceDocument"
       key="article"
       ref="frame"
-      :srcdoc="sourceDocument"
+      :srcdoc="sourceDocument.html"
       :title="`${operatorName} · PRTS Wiki 正文`"
       :class="{ready: state === 'ready'}"
       sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
@@ -264,7 +272,7 @@ onBeforeUnmount(() => {
   position: relative;
   height: 100%;
   min-height: 0;
-  background: #fff;
+  background: var(--surface);
 }
 .prts-reader.is-original {
   box-sizing: border-box;

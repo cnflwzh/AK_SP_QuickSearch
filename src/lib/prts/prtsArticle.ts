@@ -19,24 +19,33 @@ const READER_SKIN = 'vector';
 const articleCache = new Map<string, { article: PrtsArticle; savedAt: number }>();
 
 /** 从指定的 PRTS 官方站点读取正文；网络、HTTP 或解析接口未返回正文时抛出错误。 */
-async function requestArticle(origin: string, name: string, signal: AbortSignal): Promise<PrtsArticle> {
+async function requestArticle(origin: string, name: string, signal: AbortSignal, timeoutMs: number): Promise<PrtsArticle> {
   signal.throwIfAborted();
   const endpoint = new URL('/api.php', origin);
   endpoint.search = new URLSearchParams({
     action: 'parse', page: name, prop: 'text', format: 'json', origin: '*', redirects: '1',
     useskin: READER_SKIN,
   }).toString();
-  const response = await fetch(endpoint, { credentials: 'omit', signal });
-  if (!response.ok) throw new Error(`PRTS returned HTTP ${response.status}`);
-  const result = await response.json() as ParseResponse;
-  const html = result.parse?.text?.['*'];
-  if (typeof html !== 'string' || !html.trim()) throw new Error(result.error?.info || 'PRTS returned an empty article');
-  return { name, url: operatorWikiUrl(result.parse?.title || name), html };
+  const attempt = new AbortController();
+  const cancel = () => attempt.abort(signal.reason);
+  signal.addEventListener('abort', cancel, { once: true });
+  const timeout = setTimeout(() => attempt.abort(new DOMException('PRTS request timed out', 'TimeoutError')), timeoutMs);
+  try {
+    const response = await fetch(endpoint, { credentials: 'omit', signal: attempt.signal });
+    if (!response.ok) throw new Error(`PRTS returned HTTP ${response.status}`);
+    const result = await response.json() as ParseResponse;
+    const html = result.parse?.text?.['*'];
+    if (typeof html !== 'string' || !html.trim()) throw new Error(result.error?.info || 'PRTS returned an empty article');
+    return { name, url: operatorWikiUrl(result.parse?.title || name), html };
+  } finally {
+    clearTimeout(timeout);
+    signal.removeEventListener('abort', cancel);
+  }
 }
 
 /**
  * 按完整干员名获取匿名公开正文，最近六篇在当前会话中缓存十分钟。
- * 主站请求失败时尝试官方移动站；两次请求共用二十秒时限与取消信号。
+ * 主站最多等待九秒，失败时把二十秒总预算的余量留给官方移动站。
  * 切换干员或关闭阅读器时通过 signal 取消；网络或接口异常会抛出 Error。
  */
 export async function fetchPrtsArticle(name: string, signal: AbortSignal): Promise<PrtsArticle> {
@@ -48,29 +57,21 @@ export async function fetchPrtsArticle(name: string, signal: AbortSignal): Promi
     return cached.article;
   }
 
-  const request = new AbortController();
-  const cancel = () => request.abort(signal.reason);
-  signal.addEventListener('abort', cancel, { once: true });
-  const timeout = setTimeout(() => request.abort(new DOMException('PRTS request timed out', 'TimeoutError')), 20_000);
+  const deadline = performance.now() + 20_000;
+  let article: PrtsArticle;
   try {
-    let article: PrtsArticle;
-    try {
-      article = await requestArticle('https://prts.wiki', name, request.signal);
-    } catch {
-      // 部分手机请求收到的主站响应缺少 CORS 头，官方移动接口仍可读取。
-      // 按实际请求失败回退，不依赖 UA；关闭侧栏或超时后不再启动备用请求。
-      request.signal.throwIfAborted();
-      article = await requestArticle('https://m.prts.wiki', name, request.signal);
-    }
-    request.signal.throwIfAborted();
-    articleCache.delete(name);
-    articleCache.set(name, { article, savedAt: Date.now() });
-    while (articleCache.size > CACHE_LIMIT) articleCache.delete(articleCache.keys().next().value!);
-    return article;
-  } finally {
-    clearTimeout(timeout);
-    signal.removeEventListener('abort', cancel);
+    article = await requestArticle('https://prts.wiki', name, signal, 9_000);
+  } catch (error) {
+    signal.throwIfAborted();
+    const remaining = deadline - performance.now();
+    if (remaining <= 0) throw error;
+    article = await requestArticle('https://m.prts.wiki', name, signal, remaining);
   }
+  signal.throwIfAborted();
+  articleCache.delete(name);
+  articleCache.set(name, { article, savedAt: Date.now() });
+  while (articleCache.size > CACHE_LIMIT) articleCache.delete(articleCache.keys().next().value!);
+  return article;
 }
 
 function originalLink(document: Document, url: string, section: string, label: string): HTMLAnchorElement {
@@ -137,6 +138,35 @@ function renumberContents(list: Element, prefix = ''): void {
   });
 }
 
+/** HTML 只携带本站样式。经过筛选的模板 CSS 由父页面在正文就绪后作为 CSS 文本应用。 */
+export interface PrtsReaderDocument {
+  html: string;
+  templateCss: string;
+}
+
+/** 只保留 MediaWiki TemplateStyles 的展示规则，忽略导入、字体及未知规则。 */
+function templateRules(parsed: Document): string {
+  if (typeof CSSStyleSheet === 'undefined' || !CSSStyleSheet.prototype.replaceSync) return '';
+  const sheet = new CSSStyleSheet();
+  const rules: string[] = [];
+  for (const style of parsed.querySelectorAll('style[data-mw-deduplicate]')) {
+    if (!(style instanceof HTMLStyleElement) ||
+        !/^TemplateStyles:r\d+$/.test(style.getAttribute('data-mw-deduplicate') ?? '')) continue;
+    // 新建且未挂载的样式表不会加载 @import。仅允许普通规则及其媒体/支持查询。
+    sheet.replaceSync(style.textContent ?? '');
+    for (const rule of sheet.cssRules) {
+      if (rule instanceof CSSStyleRule && !rule.cssRules?.length) rules.push(rule.cssText);
+      else if (rule instanceof CSSMediaRule || rule instanceof CSSSupportsRule) {
+        const children = [...rule.cssRules].filter(
+          (child): child is CSSStyleRule => child instanceof CSSStyleRule && !child.cssRules?.length,
+        );
+        if (children.length) rules.push(`@${rule instanceof CSSMediaRule ? 'media' : 'supports'} ${rule.conditionText}{${children.map(child => child.cssText).join('\n')}}`);
+      }
+    }
+  }
+  return rules.join('\n');
+}
+
 /**
  * PRTS 的范围格子通过 SVG use 引用当前图中的 rect。
  * 将局部图形引用展开后再清理，避免 base URL 和重复 ID 让格子引用到其他图或原站。
@@ -192,16 +222,14 @@ function replaceFormulaIcons(document: Document): void {
 
 /**
  * 生成只含正文的隔离阅读文档。去掉原站脚本、导航和编辑入口，保留表格、图片及模板样式。
- * 返回值仅用于禁用脚本的 sandbox iframe；styles 是本站维护的阅读器 CSS。
+ * html 仅用于禁用脚本的 sandbox iframe；styles 是本站维护的阅读器 CSS。
  */
-export function createPrtsReaderDocument(article: PrtsArticle, styles: string, topInset: number): string {
+export function createPrtsReaderDocument(article: PrtsArticle, styles: string, topInset: number): PrtsReaderDocument {
   const parsed = new DOMParser().parseFromString(article.html, 'text/html');
   removeExcludedSections(parsed);
   inlineRangeShapes(parsed);
   replaceFormulaIcons(parsed);
-  // 模板样式在 iframe 内隔离；去掉立绘专用字体，避免额外下载大字体文件。
-  const templateStyles = [...parsed.querySelectorAll('style')]
-    .map(style => style.textContent ?? '').filter(css => !/@font-face/i.test(css));
+  const templateCss = templateRules(parsed);
 
   parsed.querySelectorAll('.mw-editsection, .ak-pathnav, .prts-pathnav2, .navbox, .catlinks, .printfooter, .charimg-m, #equip-selector')
     .forEach(element => element.remove());
@@ -253,7 +281,8 @@ export function createPrtsReaderDocument(article: PrtsArticle, styles: string, t
   }
   for (const link of parsed.querySelectorAll<HTMLAnchorElement>('a[href]')) normalizeLink(link, article.url);
 
-  const body = DOMPurify.sanitize(parsed.body.innerHTML, {
+  const body = DOMPurify.sanitize(parsed.body, {
+    RETURN_DOM_FRAGMENT: true,
     USE_PROFILES: { html: true, svg: true },
     FORBID_TAGS: ['script', 'style', 'link', 'meta', 'base', 'iframe', 'object', 'embed', 'form', 'canvas'],
     FORBID_ATTR: ['autofocus', 'srcdoc', 'formaction', 'ping'],
@@ -271,18 +300,16 @@ export function createPrtsReaderDocument(article: PrtsArticle, styles: string, t
   stylesheet.rel = 'stylesheet';
   stylesheet.href = `https://prts.wiki/load.php?lang=zh-cn&modules=site.styles&only=styles&skin=${READER_SKIN}`;
   document.head.append(policy, base, stylesheet);
-  for (const css of [...templateStyles, styles]) {
-    const style = document.createElement('style');
-    style.textContent = css;
-    document.head.append(style);
-  }
+  const readerStyle = document.createElement('style');
+  readerStyle.textContent = styles;
+  document.head.append(readerStyle);
   document.documentElement.style.setProperty('--reader-top', `${Math.max(0, topInset)}px`);
-  document.getElementById('mw-content-text')!.innerHTML = body;
+  document.getElementById('mw-content-text')!.replaceChildren(body);
   const credit = document.createElement('footer');
   credit.className = 'reader-credit';
   const source = originalLink(document, article.url, '', 'PRTS Wiki 原文');
   normalizeLink(source, article.url);
   credit.append(source);
   document.getElementById('content')!.append(credit);
-  return `<!doctype html>${document.documentElement.outerHTML}`;
+  return { html: `<!doctype html>${document.documentElement.outerHTML}`, templateCss };
 }
