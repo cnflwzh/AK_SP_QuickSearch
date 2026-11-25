@@ -2969,48 +2969,12 @@ nav.top a.on i {
   line-height: 1.45;
 }
 
-.btabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+.guide-build-tabs {
   margin-bottom: 14px;
 }
-
-.btabs button {
-  border: 1px solid var(--line2);
-  background: var(--surface);
-  border-radius: 999px;
-  min-height: 36px;
-  padding: 5px 13px 5px 10px;
-  cursor: pointer;
-  font-size: 13.5px;
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  transition:
-    background-color 0.16s ease,
-    border-color 0.16s ease,
-    color 0.16s ease;
-}
-
-.btabs button:hover:not(.on) {
-  border-color: var(--c);
-}
-
-.btabs button .cv-ic {
+.guide-build-tabs .cv-ic {
   --cv-ic-size: 16px;
-  --cv-ink: var(--c);
-}
-
-.btabs button.on {
-  background: var(--c);
-  color: #fff;
-  border-color: var(--c);
-}
-
-.btabs button.on .cv-ic {
-  --cv-ink: #fff;
+  margin-inline-end: 4px;
 }
 
 .bp {
@@ -3702,21 +3666,6 @@ nav.top a.on i {
     min-height: 36px;
     padding: 5px 12px;
   }
-  .btabs {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-    padding-bottom: 2px;
-  }
-  .btabs::-webkit-scrollbar {
-    display: none;
-  }
-  .btabs button {
-    flex: none;
-    min-height: 34px;
-    padding: 3px 11px;
-    font-size: 12.5px;
-  }
   .role-pills {
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -3731,6 +3680,11 @@ nav.top a.on i {
     min-height: 34px;
     font-size: 12px;
   }
+}
+
+@media (min-width: 620px) and (max-width: 960px) and (max-height: 600px) {
+  .hero { grid-template-columns: minmax(0, 1fr) minmax(144px, 26%); }
+  .hero-actions { gap: 6px; margin-top: 10px; }
 }
 
 /* ---------- 减弱动效：同时遵循系统设置与站点 data-motion="reduce" ---------- */
@@ -3801,7 +3755,6 @@ nav.top a.on i {
     .trig button,
     .pos > div,
     .starter-btn,
-    .btabs button,
     .role-pill,
     .wf-card
   ) {

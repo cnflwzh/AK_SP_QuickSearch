@@ -10,6 +10,9 @@
 :is(.run-advisor, .ra-overlay) button:disabled { opacity: .45; cursor: not-allowed; }
 :is(.run-advisor, .ra-overlay) .q-select { max-width: 100%; }
 :is(.run-advisor, .ra-overlay) .btn { font-size: 12px; min-height: 32px; padding: 5px 10px; white-space: nowrap; }
+@media (pointer: coarse), (max-height: 600px) {
+  :is(.run-advisor, .ra-overlay) .btn { min-height: 34px; }
+}
 .ra-text-button { border: 0; padding: 4px 2px; min-height: 30px; color: var(--teal); background: transparent; font: inherit; font-size: 12px; white-space: nowrap; }
 .ra-text-button:not(:disabled):hover { text-decoration: underline; }
 .ra-icon-button { display: inline-grid; place-items: center; width: 32px; height: 32px; flex: 0 0 32px; border: 0; border-radius: 5px; color: var(--ink3); background: transparent; font-size: 21px; }
@@ -200,9 +203,6 @@
 .ra-overlay-body { padding: 14px 16px; overflow-y: auto; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--line2) transparent; overscroll-behavior: contain; }
 .ra-overlay.wide .ra-overlay-body { height: min(72dvh, 640px, calc(var(--ra-viewport-height, 100dvh) - 100px)); display: flex; flex-direction: column; }
 html:has(dialog.ra-overlay[open]) { overflow: hidden; }
-.ra-reset-confirmation { display: grid; gap: 16px; font-size: 13px; line-height: 1.8; }
-.ra-reset-actions { display: flex; justify-content: flex-end; gap: 8px; }
-.ra-reset-actions .btn { min-height: 36px; }
 
 /* ---------- 选择器 ---------- */
 .ra-picker { display: flex; flex: 1; flex-direction: column; min-height: 0; gap: 6px; }
@@ -295,6 +295,10 @@ html:has(dialog.ra-overlay[open]) { overflow: hidden; }
 }
 /* 矮窗口（安卓横屏小窗、横屏手机）：压缩弹层页眉、控件和卡片，尽量多显示候选。 */
 @media (max-height: 600px) {
+  .ra-field-grid { gap: 4px; padding: 4px; }
+  .ra-field-grid .ra-slot { height: 80px; gap: 1px; padding-block: 3px; }
+  .ra-field-grid .ra-slot-portrait { width: 36px; height: 36px; }
+  .ra-toolbar-actions { flex-wrap: wrap; }
   .ra-overlay { max-height: calc(var(--ra-viewport-height, 100dvh) - 8px); }
   .ra-overlay-header { padding: 4px 6px 4px 12px; }
   .ra-overlay-header h2 { font-size: 14px; }
@@ -317,6 +321,15 @@ html:has(dialog.ra-overlay[open]) { overflow: hidden; }
 
 .ra-run-context label { flex-basis: 130px; }
 .ra-run-context input { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; color: var(--ink); font: inherit; }
+@media (pointer: coarse), (max-height: 600px) {
+  :is(.run-advisor, .ra-overlay) :is(.ra-text-button, .ra-icon-button, .ra-check, .ra-pick-info),
+  .ra-side-heading .btn,
+  .ra-picker-selected button { min-height: 34px; }
+  :is(.run-advisor, .ra-overlay) :is(.ra-icon-button, .ra-pick-info) { min-width: 34px; }
+}
+@media (pointer: coarse) {
+  .ra-run-context input { font-size: 16px; }
+}
 .ra-score-breakdown { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin: 6px 0 10px; }
 .ra-score-breakdown > div { min-width: 0; padding: 4px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
 .ra-score-breakdown dt { font-size: 10px; color: var(--ink3); }

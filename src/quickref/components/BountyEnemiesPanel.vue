@@ -642,6 +642,9 @@ function resetFilters(): void {
   }
 }
 
+@media (pointer: coarse) {
+  .bty-role-btn, .bty-expand-btn { min-height: 34px; }
+}
 @container quickref-view (max-width: 540px) {
   .bty-search {
     flex-basis: 100%;

@@ -2152,6 +2152,11 @@ mark {
     box-shadow: 0 0 0 2px var(--accent);
   }
 }
+:root[data-motion="reduce"] :is(.tile, .sr).flash {
+  animation: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
 
 
 /* ---------- 领袖标签（views/EnemiesView.vue · components/Leader*.vue） ---------- */
@@ -3170,8 +3175,12 @@ mark {
 .lw-act-btn:hover { border-color: var(--accent); color: var(--accent); }
 .lw-act-btn.on { border-color: var(--teal); background: var(--teal); color: #fff; font-weight: 700; }
 @media (pointer: coarse) {
+  .fxc-ban-toggle, .bpick .bc-more, .eq-craft-item { min-height: 34px; }
   .balt-chip, .balt-target, .pl-note-prompts button, .box-mini, .guide-mini, .runb-ban-btn, .runb-ld, .lw-act-btn { min-height: 36px; }
   .runb .x { min-width: 34px; min-height: 34px; display: inline-grid; place-items: center; padding: 0; }
+}
+@media (pointer: coarse), (max-height: 600px) {
+  .bpk .alts button, .search .x { min-width: 34px; min-height: 34px; }
 }
 @media (max-height: 600px) {
   .cvtg .cv-emblem { --cv-emblem-size: 22px; padding: 3px; }
@@ -3218,7 +3227,6 @@ mark {
 .top-tab-sort-move { transition: transform 220ms cubic-bezier(0.2, 0, 0, 1); background: color-mix(in srgb,var(--bg) 94%,var(--surface)); border-radius: 6px; }
 .tabs a, a.cv, a.op, a.eq, a.st, a.lwr, a.oc, a.tile { text-decoration: none; }
 .tabs a { font-family: inherit; }
-.route-message { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 
 /* 干员与策略卡片：用户选择紧凑布局，或在浮窗中使用自动密度。 */
 :root:is([data-density="compact"], [data-floating-window][data-density="auto"]) .qg {

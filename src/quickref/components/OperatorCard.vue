@@ -240,4 +240,7 @@ const wikiSelected = computed(
 .operator-card-wiki:hover {
   opacity: 1;
 }
+@media (pointer: coarse), (max-height: 600px) {
+  .operator-card-wiki { min-height: 36px; }
+}
 </style>

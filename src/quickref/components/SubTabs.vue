@@ -24,6 +24,8 @@ const props = withDefaults(
     items: readonly SubTabItem<T>[];
     level?: 2 | 3;
     label?: string;
+    /** 所有选项共用的内容面板 ID，供读屏关联。 */
+    panelId?: string;
     attr?: string;
     inline?: boolean;
     overflow?: 'auto' | 'scroll' | 'wrap';
@@ -206,6 +208,7 @@ function onKeydown(event: KeyboardEvent): void {
           :disabled="item.disabled"
           :title="item.title"
           :aria-selected="item.id === model"
+          :aria-controls="panelId"
           :tabindex="index === tabStopIndex ? 0 : -1"
           :class="[
             'subtabs-btn',
@@ -216,6 +219,7 @@ function onKeydown(event: KeyboardEvent): void {
           ]"
           v-bind="attr ? {[`data-${attr}`]: String(item.id)} : undefined"
           @click="select(item.id)">
+          <slot name="icon" :item="item" />
           <span class="subtabs-label">{{ item.label }}</span>
           <i
             v-if="item.count !== undefined && item.count !== ''"

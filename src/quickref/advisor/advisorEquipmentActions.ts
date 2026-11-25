@@ -1,5 +1,5 @@
 import { EQUIPMENT } from '../../../data/index.ts';
-import { MAX_EQ } from '../../lib/plans/index.ts';
+import { MAX_EQ, newId } from '../../lib/plans/core.ts';
 import { MAX_RECORDED_EQUIPMENT } from '../../lib/recommendation/live/advisorState.ts';
 import { type AdvisorRun } from '../../lib/recommendation/live/advisorTypes.ts';
 import { type AdvisorChange } from './advisorSession.ts';
@@ -44,7 +44,7 @@ export function createAdvisorEquipmentActions(change: AdvisorChange) {
       if (draft.equipment.length >= MAX_RECORDED_EQUIPMENT) {
         return `最多记录${MAX_RECORDED_EQUIPMENT}件装备，请先移除多余记录`;
       }
-      const id = crypto.randomUUID();
+      const id = crypto.randomUUID?.() ?? newId();
       draft.equipment.push({ id, name, holder: '', advanced: false });
       if (holder) {
         return assignEquipmentInDraft(draft, id, holder);

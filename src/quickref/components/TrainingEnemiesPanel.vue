@@ -178,6 +178,9 @@ const activeRoleNotes = computed(() =>
 </template>
 
 <style scoped>
+.tr-item, .tr-detail {
+  --tr-text: color-mix(in srgb, var(--tr-c, var(--teal)) 42%, var(--ink));
+}
 .tr-shell {
   display: grid;
   grid-template-columns: 268px minmax(0, 1fr);
@@ -241,7 +244,7 @@ const activeRoleNotes = computed(() =>
   color: var(--ink);
 }
 .tr-item.on .tr-item-main b {
-  color: var(--tr-c, var(--teal));
+  color: var(--tr-text);
 }
 .tr-item-main small {
   font-size: 11px;
@@ -264,7 +267,7 @@ const activeRoleNotes = computed(() =>
   padding: 0 5px;
   border-radius: 4px;
   background: color-mix(in srgb, var(--tr-c, var(--teal)) 11%, var(--surface2));
-  color: var(--tr-c, var(--teal));
+  color: var(--tr-text);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -299,7 +302,7 @@ const activeRoleNotes = computed(() =>
 .tr-badge {
   padding: 2px 10px;
   border-radius: 6px;
-  background: var(--tr-c, var(--teal));
+  background: color-mix(in srgb, var(--tr-c, var(--teal)) 75%, black);
   color: #fff;
   font-size: 14px;
   font-weight: 700;
@@ -323,7 +326,7 @@ const activeRoleNotes = computed(() =>
   padding: 1px 7px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--tr-c, var(--teal)) 12%, var(--surface2));
-  color: var(--tr-c, var(--teal));
+  color: var(--tr-text);
 }
 .tr-wave-meta {
   font-size: 11px;
@@ -355,7 +358,7 @@ const activeRoleNotes = computed(() =>
   color: var(--ink3);
 }
 .tr-intel-box.counter small {
-  color: var(--tr-c, var(--teal));
+  color: var(--tr-text);
 }
 .tr-intel-box p {
   margin: 0;
@@ -410,11 +413,11 @@ const activeRoleNotes = computed(() =>
 }
 .tr-role-btn:hover {
   border-color: var(--tr-c, var(--teal));
-  color: var(--tr-c, var(--teal));
+  color: var(--tr-text);
 }
 .tr-role-btn.on {
   border-color: var(--tr-c, var(--teal));
-  background: var(--tr-c, var(--teal));
+  background: color-mix(in srgb, var(--tr-c, var(--teal)) 75%, black);
   color: #fff;
 }
 .tr-role-notes {
@@ -434,8 +437,11 @@ const activeRoleNotes = computed(() =>
   gap: 5px;
 }
 .tr-role-notes b {
-  color: var(--tr-c, var(--teal));
+  color: var(--tr-text);
   font-weight: 700;
+}
+@media (pointer: coarse) {
+  .tr-role-btn { min-height: 34px; }
 }
 
 /* 手机与窄栏：顶部紧凑 3×3 直选格（~112px），对策内容紧贴下方一屏可见 */

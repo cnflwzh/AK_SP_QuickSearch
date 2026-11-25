@@ -23,6 +23,7 @@ import {
   type EnemyTerm,
 } from '../../../data/index.ts';
 import {esc, html, wan} from './dom.ts';
+import {tokenizeTrait} from './traitText.ts';
 import {
   findGlossaryTerm,
   GLOSSARY_KIND_LABELS,
@@ -58,13 +59,13 @@ const color = (name: string) => covenantColor(name, 'var(--teal)');
 
 /** 效果文本：数字加粗，<时机> 和 【盟约】 上色 */
 const fx = (text: string) =>
-  esc(text)
-    .replace(/(\d+(?:\.\d+)?%?)/g, '<b>$1</b>')
-    .replace(/&lt;([^&]+?)&gt;/g, '<em class="pk-k">$1</em>')
-    .replace(
-      /【([^】]+)】/g,
-      (_, name) => `<em class="pk-c" style="--c:${color(name)}">${name}</em>`,
-    );
+  tokenizeTrait(text).map(part => {
+    const label = esc(part.text);
+    if (part.kind === 'trigger') return `<em class="pk-k">${label}</em>`;
+    if (part.kind === 'covenant') return `<em class="pk-c" style="--c:${esc(color(part.text))}">${label}</em>`;
+    if (part.kind === 'num') return `<b>${label}</b>`;
+    return label;
+  }).join('');
 
 const covenantTag = (name: string) =>
   `<span class="pk-cv" style="--c:${color(name)}">${covenantIconHtml(name)}${esc(name)}</span>`;
@@ -260,6 +261,8 @@ let showTimer: ReturnType<typeof setTimeout>;
 let hideTimer: ReturnType<typeof setTimeout>;
 let describedTarget: HTMLElement | null = null;
 let keyboardTarget: HTMLElement | null = null;
+let overPreview = false;
+let previewBounds: DOMRectReadOnly | undefined;
 
 function ensureCard() {
   if (card?.isConnected) return card;
@@ -301,8 +304,9 @@ function place(target: HTMLElement, preferAbove: boolean) {
     else left = clamp(r.left, MARGIN, maxLeft); // 实在放不下：贴边显示
   }
 
-  card.style.top = Math.max(MARGIN, top) + 'px';
-  card.style.left = Math.max(MARGIN, left) + 'px';
+  previewBounds = new DOMRect(Math.max(MARGIN, left), Math.max(MARGIN, top), w, h);
+  card.style.top = previewBounds.top + 'px';
+  card.style.left = previewBounds.left + 'px';
 }
 
 /** Remove only our description token; other help text belongs to the caller. */
@@ -334,7 +338,9 @@ function show(
     (target.closest('dialog[open]') || document.body).appendChild(card);
   }
   card.classList.add('on');
+  card.classList.toggle('scrollable', card.scrollHeight > card.clientHeight);
   place(target, preferAbove);
+  document.addEventListener('pointermove', trackPreviewHover, {passive: true});
   const ids = new Set(
     (trigger.getAttribute('aria-describedby') || '')
       .split(/\s+/)
@@ -346,6 +352,9 @@ function show(
 }
 
 function hide() {
+  document.removeEventListener('pointermove', trackPreviewHover);
+  overPreview = false;
+  previewBounds = undefined;
   clearTimeout(showTimer);
   clearTimeout(hideTimer);
   clearDescription();
@@ -371,9 +380,30 @@ function targetOf(e: Event): [HTMLElement, CardContent] | null {
 
 /* ---------- 鼠标：悬停 ---------- */
 
+/** 展示卡可穿透点击，同时保留鼠标停在文字上阅读的时间。 */
+function pointerOverPreview(e: PointerEvent): boolean {
+  const rect = previewBounds;
+  return !!rect && e.clientX >= rect.left && e.clientX < rect.right &&
+    e.clientY >= rect.top && e.clientY < rect.bottom;
+}
+
+function trackPreviewHover(e: PointerEvent): void {
+  if (e.pointerType !== 'mouse') return;
+  const inside = pointerOverPreview(e);
+  if (inside) clearTimeout(hideTimer);
+  else if (overPreview && e.target instanceof Node && !current?.contains(e.target)) {
+    if (targetOf(e)) onPointerOver(e);
+    else {
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(hide, HIDE_DELAY);
+    }
+  }
+  overPreview = inside;
+}
+
 function onPointerOver(e: PointerEvent) {
   if (e.pointerType !== 'mouse') return;
-  if (e.target instanceof Node && card?.contains(e.target)) {
+  if (pointerOverPreview(e)) {
     clearTimeout(hideTimer);
     return;
   }
@@ -396,6 +426,7 @@ function onPointerOver(e: PointerEvent) {
 function onPointerOut(e: PointerEvent) {
   if (e.pointerType !== 'mouse' || !current) return;
   if (keyboardTarget === document.activeElement) return;
+  if (e.relatedTarget && pointerOverPreview(e)) return;
   const insidePreview = (node: EventTarget | null) =>
     node instanceof Node && (current?.contains(node) || card?.contains(node));
   if (insidePreview(e.relatedTarget) || !insidePreview(e.target)) return;
@@ -454,7 +485,8 @@ function onKeyDown(event: KeyboardEvent): void {
   }
 }
 
-function onScroll(): void {
+function onScroll(event: Event): void {
+  if (event.target instanceof Node && card?.contains(event.target)) return;
   cancelPress();
   // Tabbing can scroll a card into view after focusin; retain and reposition its preview.
   if (keyboardTarget === document.activeElement && current && isShown())
@@ -470,15 +502,18 @@ let swallowClick = false; // 长按松手、或收起卡片的那次点按，不
 
 function cancelPress() {
   if (!press) return;
+  document.removeEventListener('pointermove', onPointerMove);
   clearTimeout(press.timer);
   press = null;
 }
 
 function onPointerDown(e: PointerEvent) {
+  cancelPress();
+  swallowClick = false;
+  // 超高卡片保留原生滚动，点在其他位置才收起它。
+  if (isShown() && e.target instanceof Node && card.contains(e.target)) return;
   // Wiki 链接使用浏览器原生点击与长按菜单，不消耗一次触摸来关闭速览。
   if (e.target instanceof Element && e.target.closest('[data-prts-link]')) {
-    cancelPress();
-    swallowClick = false;
     hide();
     return;
   }
@@ -486,8 +521,6 @@ function onPointerDown(e: PointerEvent) {
     hide();
     return;
   }
-  swallowClick = false;
-  cancelPress();
   // 卡片开着时，这次点按只用来收起卡片
   if (isShown()) {
     hide();
@@ -501,13 +534,14 @@ function onPointerDown(e: PointerEvent) {
     x: e.clientX,
     y: e.clientY,
     timer: setTimeout(() => {
-      press = null;
+      cancelPress();
       current = el;
       swallowClick = true;
       show(el, found, true);
       navigator.vibrate?.(10);
     }, LONG_PRESS),
   };
+  document.addEventListener('pointermove', onPointerMove, {passive: true});
 }
 
 function onPointerMove(e: PointerEvent) {
@@ -519,7 +553,7 @@ function onPointerMove(e: PointerEvent) {
 }
 
 function onClick(e: MouseEvent) {
-  if (!swallowClick && !openInlineDefinition(e, false)) return;
+  if (!(swallowClick && e.detail !== 0) && !openInlineDefinition(e, false)) return;
   swallowClick = false;
   e.preventDefault();
   e.stopPropagation();
@@ -547,12 +581,11 @@ export function initPeek(): () => void {
     capture: true,
     signal,
   });
-  document.addEventListener('pointermove', onPointerMove, {
-    passive: true,
-    signal,
-  });
   document.addEventListener('pointerup', cancelPress, {signal});
-  document.addEventListener('pointercancel', cancelPress, {signal});
+  document.addEventListener('pointercancel', () => {
+    cancelPress();
+    swallowClick = false;
+  }, {signal});
   document.addEventListener('click', onClick, {capture: true, signal});
   document.addEventListener('contextmenu', onContextMenu, {signal});
   document.addEventListener('focusin', onFocusIn, {signal});

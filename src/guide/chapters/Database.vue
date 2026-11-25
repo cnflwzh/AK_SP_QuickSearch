@@ -14,6 +14,9 @@ import {
 } from '../../../data/index.ts';
 import LiveStatus from '../../lib/ui/LiveStatus.vue';
 import {nameScore, normalize} from '../../lib/ui/match.ts';
+import {avatarSrc} from '../../lib/ui/assets.ts';
+import {tokenizeTrait, traitLabel} from '../../lib/ui/traitText.ts';
+import CovenantIcon from '../../quickref/components/CovenantIcon.vue';
 import EmptyState from '../../quickref/components/EmptyState.vue';
 import SearchInput from '../../quickref/components/SearchInput.vue';
 import Segmented from '../../quickref/components/Segmented.vue';
@@ -21,7 +24,7 @@ import SelectInput, {
   type SelectOption,
 } from '../../quickref/components/SelectInput.vue';
 import SubTabs, {type SubTabItem} from '../../quickref/components/SubTabs.vue';
-import {avatar, cv, eq} from '../chips.ts';
+import {color, eq} from '../chips.ts';
 import Markup from '../components/Markup.ts';
 import {ROLE_ICONS, iconSvg, type GuideIconName} from '../icons.ts';
 
@@ -143,8 +146,12 @@ const visibleOperators = computed(() =>
     : operators.value.slice(0, INITIAL_LIMIT),
 );
 
-const traitHtml = (text: string) =>
-  text.replace(/<([^>]+)>/g, '<b style="color:var(--accent)">$1</b> ');
+const visibleRows = computed(() =>
+  visibleOperators.value.map(operator => ({
+    operator,
+    trait: tokenizeTrait(elite.value ? operator.elite : operator.trait),
+  })),
+);
 
 const workflows: readonly {
   step: string;
@@ -311,14 +318,21 @@ const workflows: readonly {
   <template v-else>
     <div class="dbg" id="dbg">
       <div
-        v-for="operator in visibleOperators"
+        v-for="{operator, trait} in visibleRows"
         :key="operator.name"
         class="dbc"
         :data-key="operator.name"
         :data-op="operator.name"
         :data-t="operator.tier">
         <div class="t">
-          <Markup :html="avatar(operator.name)" />
+          <img
+            class="ava"
+            :src="avatarSrc(operator.name)"
+            alt=""
+            width="80"
+            height="80"
+            loading="lazy"
+            decoding="async" />
           <i>{{ TIER_LABELS[operator.tier] }}</i>
           <b>{{ operator.name }}</b>
           <span class="s">
@@ -326,10 +340,15 @@ const workflows: readonly {
           </span>
         </div>
         <div class="row">
-          <Markup
+          <span
             v-for="name in operator.covenants"
             :key="name"
-            :html="cv(name)" />
+            class="cv"
+            :data-key="`cv:${name}`"
+            :data-cv="name"
+            :style="{'--c': color(name)}">
+            <CovenantIcon :name="name" />{{ name }}
+          </span>
           <span class="tag">{{ operator.type }}</span>
           <span
             v-for="r in operatorRolesAtElite(operator, elite)"
@@ -338,10 +357,12 @@ const workflows: readonly {
             {{ r }}
           </span>
         </div>
-        <Markup
-          as="div"
-          class="tx"
-          :html="traitHtml(elite ? operator.elite : operator.trait)" />
+        <div class="tx">
+          <template v-for="(part, index) in trait" :key="index">
+            <b v-if="part.kind === 'trigger'" class="trait-trigger">{{ part.text }}</b>
+            <template v-else>{{ traitLabel(part) }}</template>
+          </template>
+        </div>
       </div>
     </div>
   </template>
@@ -427,3 +448,10 @@ const workflows: readonly {
       hasFilter ? `职能与干员筛选结果：${operators.length} 名干员` : ''
     " />
 </template>
+
+<style scoped>
+.trait-trigger {
+  color: var(--accent);
+  margin-inline-end: .25em;
+}
+</style>

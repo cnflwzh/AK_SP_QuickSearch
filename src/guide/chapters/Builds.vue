@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import {ref} from 'vue';
 import {CORE_COVENANTS, SEASON_META} from '../../../data/index.ts';
-import {covenantIconHtml} from '../../lib/ui/assets.ts';
+import CovenantIcon from '../../quickref/components/CovenantIcon.vue';
+import SubTabs from '../../quickref/components/SubTabs.vue';
 import {color, emblem} from '../chips.ts';
 import Markup from '../components/Markup.ts';
 import {iconSvg} from '../icons.ts';
@@ -32,6 +33,7 @@ const selected = ref(
       : (CORE_COVENANTS[0] ?? '')),
 );
 const mixed = mixedBuilds();
+const buildTabs = CORE_COVENANTS.map((name) => ({id: name, label: name}));
 </script>
 <template>
   <div class="chap-h">
@@ -71,21 +73,19 @@ const mixed = mixedBuilds();
     </button>
   </div>
 
-  <div class="btabs" id="btabs" role="group" aria-label="核心盟约流派">
-    <button
-      v-for="name in CORE_COVENANTS"
-      :key="name"
-      type="button"
-      :style="{'--c': color(name)}"
-      :data-n="name"
-      :class="{on: selected === name}"
-      :aria-pressed="selected === name"
-      aria-controls="bpanel"
-      @click="selected = name">
-      <Markup :html="covenantIconHtml(name)" />
-      {{ name }}
-    </button>
-  </div>
+  <SubTabs
+    id="btabs"
+    v-model="selected"
+    class="guide-build-tabs"
+    :items="buildTabs"
+    :level="3"
+    attr="n"
+    panel-id="bpanel"
+    aria-label="核心盟约流派">
+    <template #icon="{item}">
+      <CovenantIcon :name="item.label" :style="{'--cv-ink': color(item.label)}" />
+    </template>
+  </SubTabs>
   <Markup as="div" id="bpanel" :html="drawBuild(selected)" />
 
   <h3 class="bh">

@@ -186,6 +186,10 @@ function syncNativeValue(): void {
 
 function handleNativeChange(event: Event): void {
   const select = event.target as HTMLSelectElement;
+  if (select.value === '') {
+    syncNativeValue();
+    return;
+  }
   const idx = Number(select.value);
   const picked = Number.isInteger(idx) ? flatOptions.value[idx] : undefined;
   if (!picked || picked.disabled) {
@@ -573,6 +577,9 @@ defineExpose({focus});
         :disabled="disabled"
         :aria-label="resolvedLabel"
         @change="handleNativeChange">
+        <option v-if="selectedIndex < 0" value="" disabled>
+          {{ placeholder ?? '请选择' }}
+        </option>
         <template v-for="(entry, eIdx) in renderEntries" :key="eIdx">
           <optgroup
             v-if="entry.kind === 'group'"

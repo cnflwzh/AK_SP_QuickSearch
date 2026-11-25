@@ -33,6 +33,7 @@ import AdvisorPicker from './AdvisorPicker.vue';
 import AdvisorRecommendations from './AdvisorRecommendations.vue';
 import AdvisorDeployments from './AdvisorDeployments.vue';
 import AdvisorPoolSettings from './AdvisorPoolSettings.vue';
+import ConfirmButton from '../components/ConfirmButton.vue';
 import SubTabs, {
   type SubTabDirection,
   type SubTabItem,
@@ -81,7 +82,6 @@ const storageTabs = computed<readonly SubTabItem<'reserve' | 'equipment'>[]>(
 const selection = ref<AdvisorSelection | null>(null);
 const inspectorOpen = ref(false);
 const poolSettingsOpen = ref(false);
-const newRunConfirmationOpen = ref(false);
 const suspendedForDetails = ref(false);
 type PickerTarget =
   'strategy' | 'deployed' | 'reserve' | 'equipment' | 'shop' | 'excluded';
@@ -269,7 +269,6 @@ function releaseTransientUi(): void {
   picker.value = null;
   poolSettingsOpen.value = false;
   inspectorOpen.value = false;
-  newRunConfirmationOpen.value = false;
   suspendedForDetails.value = false;
 }
 onDeactivated(releaseTransientUi);
@@ -310,7 +309,6 @@ function closeOverlay(): void {
   picker.value = null;
   poolSettingsOpen.value = false;
   inspectorOpen.value = false;
-  newRunConfirmationOpen.value = false;
 }
 /** 录完商店后，窄屏把建议栏滚到眼前；宽屏建议栏常驻，无需滚动。 */
 async function revealAdvice(): Promise<void> {
@@ -364,10 +362,6 @@ async function openDetails(
   await openCard(kind, name);
   if (!queryText(currentRoute.value.query, 'card'))
     suspendedForDetails.value = false;
-}
-function requestNewRun(): void {
-  if (hasRunData.value) newRunConfirmationOpen.value = true;
-  else startNewRun();
 }
 function startNewRun(): void {
   clearSelection();
@@ -444,11 +438,18 @@ function startNewRun(): void {
           <span aria-hidden="true">↶</span>
           撤销
         </button>
+        <ConfirmButton
+          v-if="hasRunData"
+          label="新开一局"
+          confirm-label="清空本局并新开"
+          cancel-label="保留本局"
+          title="清空本局阵容、装备、商店和禁用设置。新开后可撤销一次。"
+          @confirm="startNewRun" />
         <button
+          v-else
           type="button"
           class="ra-text-button ra-new-run"
-          aria-haspopup="dialog"
-          @click="requestNewRun">
+          @click="startNewRun">
           新开一局
         </button>
       </div>
@@ -696,42 +697,17 @@ function startNewRun(): void {
     </div>
 
     <AdvisorOverlay
-      v-if="
-        picker ||
-        poolSettingsOpen ||
-        newRunConfirmationOpen ||
-        (inspectorOpen && selection)
-      "
+      v-if="picker || poolSettingsOpen || (inspectorOpen && selection)"
       :open="!suspendedForDetails"
       :can-go-back="canReturnToPanel"
       :title="
-        newRunConfirmationOpen
-          ? '新开一局'
-          : picker
-            ? pickerTitle
-            : poolSettingsOpen
-              ? '本局方向与禁用'
-              : selectedTitle
+        picker ? pickerTitle : poolSettingsOpen ? '本局方向与禁用' : selectedTitle
       "
       :wide="!!picker || poolSettingsOpen"
       @close="closeOverlay"
       @back="picker = null">
-      <div v-if="newRunConfirmationOpen" class="ra-reset-confirmation">
-        <p>
-          清空本局的阵容、装备、商店和禁用设置，重新从 1
-          本开始？新开后仍可撤销一次。
-        </p>
-        <div class="ra-reset-actions">
-          <button type="button" class="btn" @click="closeOverlay">
-            保留本局
-          </button>
-          <button type="button" class="btn p" @click="startNewRun">
-            确认新开
-          </button>
-        </div>
-      </div>
       <AdvisorPicker
-        v-else-if="picker"
+        v-if="picker"
         :key="picker.target"
         :kind="pickerKind"
         :selected="selectedPickerNames"

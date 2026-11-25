@@ -792,6 +792,18 @@ input[type=range] {
   border: 0;
 }
 
+.route-message {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
 .skip-link {
   position: fixed;
   top: max(8px, env(safe-area-inset-top));
@@ -1350,6 +1362,7 @@ dialog.about::backdrop {
   display: none;
   width: max-content;
   max-width: min(340px, calc(100vw - 16px));
+  max-height: calc(100dvh - 16px);
   padding: 10px 12px;
   background: var(--surface);
   color: var(--ink);
@@ -1360,14 +1373,15 @@ dialog.about::backdrop {
   line-height: 1.55;
   text-align: left;
   pointer-events: none;
-  overflow: visible;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .peek.on {
   display: block;
-  pointer-events: auto;
   animation: pkin .12s ease-out both;
 }
+.peek.on.scrollable { pointer-events: auto; }
 
 @keyframes pkin {
   from {

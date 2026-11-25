@@ -6,6 +6,7 @@ import {settings} from '../../lib/settings/index.ts';
 import {color} from '../format.ts';
 import {useQuickrefActions} from '../state.ts';
 import CovenantIcon from './CovenantIcon.vue';
+import ConfirmButton from './ConfirmButton.vue';
 import {
   clearBans,
   current,
@@ -109,14 +110,12 @@ function onEndRun(): void {
         <span>{{ runLeader.name }}</span>
         <i v-if="runLeader.hiddenCore" title="有隐秘核心">隐</i>
       </button>
-      <button
-        type="button"
-        class="x"
-        title="结束本局（清空本局流派、禁池与领袖）"
-        aria-label="结束本局"
-        @click="onEndRun">
-        ✕
-      </button>
+      <ConfirmButton
+        label="结束本局"
+        confirm-label="确认结束"
+        title="清空本局流派、禁池与领袖标记"
+        :reset-key="runKey"
+        @confirm="onEndRun" />
     </span>
     <div
       v-if="banPickerOpen"
@@ -135,13 +134,11 @@ function onEndRun(): void {
         <CovenantIcon :name="name" />
         {{ name }}
       </button>
-      <button
+      <ConfirmButton
         v-if="runBans.length"
-        type="button"
-        class="bc-clear"
-        @click="clearBans()">
-        清空
-      </button>
+        label="清空禁池"
+        confirm-label="确认清空"
+        @confirm="clearBans" />
     </div>
   </div>
 </template>

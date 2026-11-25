@@ -22,7 +22,7 @@
 .nt-threshold-list { grid-row: 1; }
 .nt-cycle-list { grid-row: 2; }
 .nt-headcount-list { grid-row: 3; }
-.nt-layer-detail { grid-column: 2; grid-row: 1 / 4; position: sticky; top: 108px; max-height: calc(100dvh - 120px); overflow-y: auto; border-radius: 8px; }
+.nt-layer-detail { grid-column: 2; grid-row: 1 / 4; position: sticky; top: calc(var(--qbar-height, 96px) + 12px); max-height: calc(100dvh - var(--qbar-height, 96px) - 24px); overflow-y: auto; border-radius: 8px; }
 .nt-headcount-list .nt-heading { flex-wrap: wrap; }
 .numbers-tools .nt-headcount-list > p { margin-bottom: 8px; }
 .numbers-tools .nt-threshold-list { padding: 0; overflow: clip; }
@@ -147,7 +147,7 @@
 .nt-dealer-board-pill.funds { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 12%, var(--surface2)); color: var(--accent); }
 .nt-dealer-board-pill.funds b { color: var(--accent); }
 .nt-dealer-board-strat { min-height: 34px; padding: 2px 9px; border-radius: 6px; border: 1px solid color-mix(in srgb, #2563eb 38%, var(--line)); background: color-mix(in srgb, #2563eb 8%, var(--surface2)); color: var(--ink); font-size: 12px; cursor: pointer; transition: border-color .12s, color .12s; }
-.nt-dealer-board-strat:hover { border-color: #2563eb; color: #2563eb; }
+.nt-dealer-board-strat:hover { border-color: #2563eb; color: color-mix(in srgb, #2563eb 45%, var(--ink)); }
 .nt-dealer-board-covs { display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-left: auto; }
 .nt-dealer-board-cov {
   --c: var(--teal); --cv-ic-size: 12px;

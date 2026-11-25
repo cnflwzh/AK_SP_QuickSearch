@@ -16,6 +16,7 @@ import {
   matchesOperatorTrigger,
 } from '../../../data/index.ts';
 import {round1} from '../../lib/ui/dom.ts';
+import {tokenizeTrait, traitLabel} from '../../lib/ui/traitText.ts';
 import GlossaryText from '../../quickref/components/GlossaryText.vue';
 import Segmented from '../../quickref/components/Segmented.vue';
 import SelectInput, {
@@ -52,7 +53,8 @@ const covFilterTabs: readonly SubTabItem<CovenantFilter>[] = [
 const filteredCovenantHtml = computed(() => covenantGrid(covFilter.value));
 const reserveNames = [...RESERVE_COVENANTS];
 
-const traitText = (text: string) => text.replace(/<[^>]+>/g, '');
+const traitText = (text: string) =>
+  tokenizeTrait(text).filter(part => part.kind !== 'trigger').map(traitLabel).join('');
 const trigger = ref(4);
 const triggerElite = ref(false);
 const triggerLists = computed(() =>
