@@ -1,0 +1,54 @@
+/* Inline before the shared CSS arrives. Low specificity lets base.css take over. */
+:where(html) {
+  background: #edf1f0;
+  color: #122220;
+}
+:where(html[data-theme='dark']) {
+  background: #0a1214;
+  color: #e1eae8;
+}
+@media (prefers-color-scheme: dark) {
+  :where(html:not([data-theme='light'])) {
+    background: #0a1214;
+    color: #e1eae8;
+  }
+}
+:where(body.is-loading > :not(#load-screen):not(script)) {
+  visibility: hidden;
+}
+:where(#load-screen) {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  font:
+    500 14px/1.6 system-ui,
+    sans-serif;
+}
+:where(.load-core) {
+  width: 74px;
+  height: 74px;
+  margin-inline: auto;
+  color: #b46a07;
+}
+:where(.load-squad) {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+:where(
+  .load-slow,
+  .load-error,
+  .load-retry,
+  #load-screen[data-state] .load-pending
+) {
+  display: none;
+}
+:where(
+  #load-screen[data-state='error'] .load-error,
+  #load-screen[data-state] .load-retry,
+  #load-screen[data-state='slow'] .load-slow
+) {
+  display: inline-block;
+}

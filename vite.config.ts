@@ -5,6 +5,8 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { generateServiceWorker } from './scripts/build-sw.mjs';
 import { writeRouteEntries } from './scripts/build-route-entries.ts';
+import {publishStyles} from './scripts/build-styles.ts';
+import {checkHostingRules} from './scripts/sync-hosting.mjs';
 
 const root = import.meta.dirname;
 const dist = resolve(root, 'dist');
@@ -38,13 +40,13 @@ export default defineConfig({
     generateBundle() {
       this.emitFile({type: 'asset', fileName: edgeManifestName, source: edgeManifest()});
     },
-    transformIndexHtml() {
+    transformIndexHtml(html) {
       // 三个入口在页面脚本启动前选择清单。移动版 Edge 使用 EdgA 或 EdgiOS 标记。
-      return [{
-        tag: 'script',
-        injectTo: 'head',
-        children: `if (/\\bEdg\\//.test(navigator.userAgent)) document.querySelector('link[rel="manifest"]').href = '/${edgeManifestName}';`,
-      }];
+      // The critical rules precede every sheet. A single capture listener covers all
+      // generated module scripts, including failures before the boot module can run.
+      const critical = readFileSync(resolve(root, 'src/boot-screen.css'), 'utf8');
+      const startup = `{const m=document.querySelector('link[rel="manifest"]');if(m&&/\\bEdg\\//.test(navigator.userAgent))m.href='/${edgeManifestName}';addEventListener('error',e=>{if(e.target?.matches?.('script[type="module"],link[data-site-style]')){const fail=()=>document.getElementById('load-screen')?.setAttribute('data-state','error');if(document.body)fail();else document.addEventListener('DOMContentLoaded',fail,{once:true})}},true)}`;
+      return html.replace('<!-- boot-screen -->', `<style>${critical}</style><script>${startup}</script>`);
     },
   }, {
     name: 'site-build-metadata',
@@ -52,23 +54,22 @@ export default defineConfig({
       order: 'post',
       handler(html) {
         return html.replace('<code class="build-version" data-build-version hidden></code>',
-          `<code class="build-version" data-build-version title="Git commit ${commit}" aria-label="构建版本 ${commit.slice(0, 7)}">${commit.slice(0, 7)}</code>`)
-          // The boot module cannot handle its own download failure. Keep the existing retry overlay.
-          .replace(/<script type="module"([^>]+)>/g,
-            `<script type="module"$1 onerror="document.getElementById('load-screen')?.setAttribute('data-state','error')">`);
+          `<code class="build-version" data-build-version title="Git commit ${commit}" aria-label="构建版本 ${commit.slice(0, 7)}">${commit.slice(0, 7)}</code>`);
       },
     },
   }, {
     name: 'site-offline-output',
     apply: 'build',
-    closeBundle() {
+    buildStart() { checkHostingRules(); },
+    writeBundle() {
       copyFileSync(resolve(root, 'LICENSE'), resolve(dist, 'LICENSE'));
+      publishStyles(dist);
+      if (process.env.WSQ_STATIC_ROUTES === '1') writeRouteEntries(dist);
       generateServiceWorker(dist);
-      // All route entries serve the same versioned shell already in the offline manifest.
-      writeRouteEntries(dist);
     },
   }],
   build: {
+    assetsDir: 'assets/bundles',
     target: 'es2022',
     rolldownOptions: { input: { index: resolve(root, 'index.html'), guide: resolve(root, 'guide.html'), diff: resolve(root, 'diff.html') } },
   },

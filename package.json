@@ -18,6 +18,7 @@
     "hooks:install": "node scripts/install-hooks.mjs"
   },
   "devDependencies": {
+    "lightningcss": "1.33.0",
     "@types/node": "26.6.6",
     "@vitejs/plugin-vue": "6.0.10",
     "pinyin-pro": "3.29.5",

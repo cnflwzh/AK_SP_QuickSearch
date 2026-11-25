@@ -16,10 +16,14 @@ const CORE_CACHE = 'wsq-core-' + VERSION;
 const IMAGE_CACHE = 'wsq-img-__IMAGE_VERSION__';
 const FONT_CACHE = 'wsq-font-local-v1';
 const ALLOWED = new Set([...CORE, ...IMAGES].map(path => new URL(path, self.registration.scope).href));
+const fontPaths = /*FONT_PATHS*/[];
+const FONTS = new Set(fontPaths.map(path => new URL(path, self.registration.scope).href));
 const APP_SHELL = new URL('index.html', self.registration.scope).href;
 const GUIDE_SHELL = new URL('guide.html', self.registration.scope).href;
 const DIFF_SHELL = new URL('diff.html', self.registration.scope).href;
-const isAppPath = path => /^\/(?:index(?:\.html)?\/?|(?:overview|builds|covenants|operators|equipment|strategies|enemies|tools|settings|box)(?:\/.*)?)?$/.test(path);
+const appPaths = /*APP_PATHS*/[];
+const appRoute = new RegExp('^(?:' + appPaths.map(path => path.replace(':id', '[^/]+')).join('|') + ')/?$');
+const isAppPath = path => path === '/' || path === '/index.html' || appRoute.test(path);
 const isGuidePath = path => /^\/guide(?:\.html)?\/?$/.test(path);
 
 /** All quick-reference URLs share one shell; filters must not create unbounded HTML cache entries. */
@@ -45,6 +49,7 @@ async function fetchSiteResource(request, options) {
 async function storeResponse(cache, url, response) {
   if (!response.ok) return;
   const shell = navigationShell(url);
+  if (!shell && !ALLOWED.has(url.href) && !FONTS.has(url.href)) return;
   if (shell && !response.headers.get('content-type')?.includes('text/html')) return;
   await cache.put(shell || url.href, await stripRedirect(response));
 }
@@ -93,7 +98,7 @@ self.addEventListener('message', event => {
         if (url.origin !== location.origin) return false;
         return !!navigationShell(url) || ALLOWED.has(url.href)
           || ALLOWED.has(new URL(alternatePath(url.pathname), url).href)
-          || /^\/assets\/fonts\/[a-z]+(?:-ui)?-[a-f0-9]{16}\.woff2$/.test(url.pathname);
+          || FONTS.has(url.href);
       } catch { return false; }
     });
     let next = 0;
@@ -120,6 +125,9 @@ self.addEventListener('activate', event => {
     for (const key of keys) {
       if (key.startsWith('wsq-') && !keep.includes(key)) await caches.delete(key);
     }
+    const fonts = await caches.open(FONT_CACHE);
+    await Promise.all((await fonts.keys()).filter(request => !FONTS.has(request.url))
+      .map(request => fonts.delete(request)));
     await self.clients.claim();
   })());
 });
@@ -133,7 +141,8 @@ async function cacheFirst(event, name, searchPrevious = false) {
   if (hit) return hit;
   const previous = searchPrevious && await caches.match(request, options).catch(() => undefined);
   const response = previous || await fetchSiteResource(request);
-  if (cache && response.ok) event.waitUntil(cache.put(request, response.clone()).catch(() => {}));
+  if (cache && response.ok && (ALLOWED.has(request.url) || FONTS.has(request.url)))
+    event.waitUntil(cache.put(request, response.clone()).catch(() => {}));
   return response;
 }
 
@@ -162,7 +171,7 @@ self.addEventListener('fetch', event => {
     event.respondWith(cacheFirst(event, FONT_CACHE));
   } else if (url.pathname.includes('/assets/img/') || url.pathname.includes('/assets/icons/')) {
     event.respondWith(cacheFirst(event, IMAGE_CACHE));
-  } else if (/^\/assets\/[^/]+-[\w-]{8}\.(?:js|css)$/.test(url.pathname)) {
+  } else if (url.pathname.startsWith('/assets/bundles/') || /^\/assets\/[^/]+-[\w-]{8,}\.(?:js|css)$/.test(url.pathname)) {
     event.respondWith(cacheFirst(event, CORE_CACHE, true));
   } else {
     event.respondWith(networkFirst(event));

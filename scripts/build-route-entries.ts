@@ -7,11 +7,11 @@ import {
   MIXED_BUILD_IDS,
 } from '../data/index.ts';
 import {buildId} from '../src/router/entities.ts';
-import {PAGE_PATHS} from '../src/router/location.ts';
+import {BOX_PATH, PAGE_PATHS} from '../src/router/paths.ts';
 
 /** Emit clean-URL and directory entries in the completed build for hosts without history rewrites. */
 export function writeRouteEntries(directory: string): void {
-  const paths = new Set([...Object.values(PAGE_PATHS), '/box']);
+  const paths = new Set<string>([...Object.values(PAGE_PATHS), BOX_PATH]);
   for (const id of Object.keys(COVENANT_IDS))
     paths.add(`${PAGE_PATHS.cv}/${id}`);
   for (const leader of LEADERS) paths.add(`${PAGE_PATHS.ld}/${leader.id}`);

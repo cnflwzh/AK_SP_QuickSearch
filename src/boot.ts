@@ -48,6 +48,18 @@ const painted = () =>
     else requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
   });
 try {
+  // The system-font loading screen can paint before these high-priority sheets.
+  // Keep the app covered until its styles are ready, including on cached visits.
+  const styles = [...document.querySelectorAll<HTMLLinkElement>('link[data-site-style]')];
+  await Promise.all(styles.map((link) => new Promise<void>((resolve, reject) => {
+    const failed = () => reject(new Error('Page stylesheet unavailable: ' + link.href));
+    if (link.dataset.failed) failed();
+    else if (link.media === 'all') resolve();
+    else {
+      link.addEventListener('load', () => resolve(), {once: true});
+      link.addEventListener('error', failed, {once: true});
+    }
+  })));
   if (import.meta.env.DEV && 'serviceWorker' in navigator) {
     // An earlier production preview may have registered a worker on this localhost port.
     try {
@@ -101,12 +113,14 @@ try {
   performance.mark('app-ready');
   await painted();
   // 速览是附加交互，模块下载或初始化失败时仍可使用页面和详情。
-  import('./lib/ui/peek.ts')
-    .then((module) => {
-      const dispose = module.initPeek();
-      import.meta.hot?.dispose(dispose);
-    })
-    .catch((error) => console.warn('Hover previews unavailable', error));
+  if (document.body.dataset.page !== 'diff') {
+    import('./lib/ui/peek.ts')
+      .then((module) => {
+        const dispose = module.initPeek();
+        import.meta.hot?.dispose(dispose);
+      })
+      .catch((error) => console.warn('Hover previews unavailable', error));
+  }
   // 统计下载独立于启动流程，网络不可达时也不影响速查和教程使用。
   if (import.meta.env.PROD && import.meta.env.VITE_GA_MEASUREMENT_ID?.trim()) {
     import('./lib/runtime/analytics.ts')

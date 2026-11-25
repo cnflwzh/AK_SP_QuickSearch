@@ -1,230 +1,333 @@
-// 与 Service Worker 共用内容哈希缓存；不依赖可能与实际文件脱节的 localStorage 标记。
 const FONT_CACHE = 'wsq-font-local-v1';
-const NETWORK_FONT_BUDGET_MS = 700;
 const FAMILIES = [
   'Noto Sans SC',
   'ZCOOL QingKe HuangYou',
   'Saira Condensed',
 ] as const;
-type FontFamily = (typeof FAMILIES)[number];
+type Family = (typeof FAMILIES)[number];
+type Samples = Map<Family, number[]>;
 
-// 一个字包覆盖全部已发布界面文字，包括首屏尚未出现的盟约和流派标题。
-// 由 scripts/subset_interface_font.py 从本地原始字库生成，避免预载整套 92 个分片。
-const INTERFACE_FONT_PREFIX = 'zcoolqingkehuangyou-ui-';
+// A system-installed Noto may have the same name as the bundled one. Keep the
+// document's chosen fallback stable even when the declaration sheet arrives late.
+const screenFamily = (family: Family) => 'WSQ Screen ' + family;
+function selectScreenFamilies() {
+  const style = document.documentElement.style;
+  const body = '"' + screenFamily('Noto Sans SC') + '",system-ui,sans-serif';
+  style.setProperty('--fb', body);
+  style.setProperty(
+    '--fd',
+    '"' + screenFamily('ZCOOL QingKe HuangYou') + '",' + body,
+  );
+  style.setProperty(
+    '--fn',
+    '"' + screenFamily('Saira Condensed') + '",' + body,
+  );
+}
 
-interface FontSource {
-  face: FontFace;
+interface Source {
+  family: Family;
   url: string;
-  interfaceSubset: boolean;
+  descriptors: FontFaceDescriptors;
+  /** Range left for later routes after excluding characters already on screen. */
+  remaining: string;
+  used: boolean;
 }
 
-/** 去掉 CSS 引号及空白差异，匹配 CSS 规则和浏览器 FontFace 描述。 */
-function faceKey(
-  family: string,
-  weight: string,
-  style: string,
-  range: string,
-): string {
-  return [family.replace(/["']/g, ''), weight, style, range]
-    .map((value) => value.replace(/\s/g, '').toLowerCase())
-    .join('|');
-}
-
-function familyOf(face: FontFace): string {
-  return face.family.replace(/["']/g, '');
-}
-
-/** 收集本站界面优先字包及首屏实际使用的其他分片，不下载未使用的字形。 */
-function currentSources(): FontSource[] {
-  const urls = new Map<string, string>();
-  for (const sheet of document.styleSheets) {
-    if (!sheet.href || new URL(sheet.href).pathname !== '/assets/css/fonts.css')
-      continue;
-    try {
-      for (const rule of sheet.cssRules) {
-        if (!(rule instanceof CSSFontFaceRule)) continue;
-        const style = rule.style;
-        const source = style
-          .getPropertyValue('src')
-          .match(/url\(["']?([^"')]+)["']?\)/)?.[1];
-        if (!source) continue;
-        const url = new URL(source, sheet.href);
-        if (url.origin !== location.origin) continue;
-        urls.set(
-          faceKey(
-            style.getPropertyValue('font-family'),
-            style.getPropertyValue('font-weight') || 'normal',
-            style.getPropertyValue('font-style') || 'normal',
-            style.getPropertyValue('unicode-range') || 'U+0-10FFFF',
-          ),
-          url.href,
-        );
-      }
-    } catch {
-      /* 受限样式表不会阻止页面使用系统字体。 */
+/** Read text from the mounted app under its visibility mask, including form placeholders. */
+function currentCharacters(): Samples {
+  const points = new Map(FAMILIES.map((family) => [family, new Set<number>()]));
+  const collect = (element: Element, value: string) => {
+    if (!value.trim() || element.closest('script,style,noscript,#load-screen'))
+      return;
+    const stack = getComputedStyle(element).fontFamily;
+    for (const [family, codes] of points) {
+      if (stack.includes(family))
+        for (const char of value) codes.add(char.codePointAt(0)!);
     }
+  };
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode())
+    if (node.parentElement) collect(node.parentElement, node.nodeValue || '');
+  for (const input of document.querySelectorAll<
+    HTMLInputElement | HTMLTextAreaElement
+  >('input,textarea'))
+    collect(input, input.value || input.placeholder);
+  return new Map(
+    [...points].map(([family, codes]) => [
+      family,
+      [...codes].sort((a, b) => a - b),
+    ]),
+  );
+}
+
+/** Split each CSS unicode interval around the first screen's codepoints, retaining unseen glyphs. */
+function remainingRange(
+  range: string,
+  codes: number[],
+): {remaining: string; used: boolean} {
+  if (!codes.length) return {remaining: range, used: false};
+  const spans: string[] = [];
+  let used = false;
+  const span = (a: number, b: number) =>
+    'U+' + a.toString(16) + (a === b ? '' : '-' + b.toString(16));
+  for (const part of range.split(',')) {
+    const [start, end] = part.trim().slice(2).split('-');
+    let low = parseInt(start.replaceAll('?', '0'), 16);
+    const high = parseInt((end || start).replaceAll('?', 'F'), 16);
+    // Ranges and text are both sorted. Locate the first possibly overlapping codepoint.
+    let left = 0,
+      right = codes.length;
+    while (left < right) {
+      const mid = (left + right) >>> 1;
+      if (codes[mid] < low) left = mid + 1;
+      else right = mid;
+    }
+    if (left === codes.length || codes[left] > high) {
+      spans.push(part);
+      continue;
+    }
+    for (let i = left; i < codes.length && codes[i] <= high; i++) {
+      used = true;
+      if (low < codes[i]) spans.push(span(low, codes[i] - 1));
+      low = codes[i] + 1;
+    }
+    if (low <= high) spans.push(span(low, high));
   }
-  return [...document.fonts].flatMap((face) => {
-    if (!FAMILIES.includes(familyOf(face) as FontFamily)) return [];
-    const url = urls.get(
-      faceKey(face.family, face.weight, face.style, face.unicodeRange),
-    );
-    if (!url) return [];
-    const interfaceSubset = new URL(url).pathname.startsWith(
-      `/assets/fonts/${INTERFACE_FONT_PREFIX}`,
-    );
-    if (face.status === 'unloaded' && !interfaceSubset) return [];
-    return [{face, url, interfaceSubset}];
+  return {used, remaining: used ? spans.join(',') : range};
+}
+
+function sources(sheet: CSSStyleSheet, url: string, chars: Samples): Source[] {
+  return [...sheet.cssRules].flatMap((rule) => {
+    if (!(rule instanceof CSSFontFaceRule)) return [];
+    const style = rule.style;
+    const family = style
+      .getPropertyValue('font-family')
+      .replace(/["']/g, '') as Family;
+    const sample = chars.get(family);
+    const file = style
+      .getPropertyValue('src')
+      .match(/url\(["']?([^"')]+)["']?\)/)?.[1];
+    if (!sample || !file) return [];
+    const sourceUrl = new URL(file, url);
+    if (sourceUrl.origin !== location.origin) return [];
+    const unicodeRange =
+      style.getPropertyValue('unicode-range') || 'U+0-10FFFF';
+    return [
+      {
+        family,
+        url: sourceUrl.href,
+        descriptors: {
+          weight: style.getPropertyValue('font-weight') || 'normal',
+          style: style.getPropertyValue('font-style') || 'normal',
+          unicodeRange,
+          display: 'optional' as const,
+        },
+        ...remainingRange(unicodeRange, sample),
+      },
+    ];
   });
 }
 
-/** 从已下载的二进制创建独立字体族；只有展示前确认就绪的字体才加入文档。 */
-function decodeFace(
-  source: FontSource,
-  bytes: ArrayBuffer,
-): Promise<FontFace> {
-  const original = source.face;
-  const font = new FontFace(
-    `WSQ Ready ${familyOf(original)}`,
-    bytes,
-    {
-      weight: original.weight,
-      style: original.style,
-      stretch: original.stretch,
-      unicodeRange: original.unicodeRange,
-    },
-  );
-  return font.load();
+function addRemaining(source: Source, pendingBytes?: Promise<ArrayBuffer>) {
+  if (!source.remaining) return;
+  const register = (url: string) => {
+    const face = new FontFace(
+      screenFamily(source.family),
+      'url("' + url + '")',
+      {
+        ...source.descriptors,
+        // Initial glyphs were removed from this range. New text stays readable on
+        // slow links and can use its downloaded face without changing the first screen.
+        display: 'swap',
+        unicodeRange: source.remaining,
+      },
+    );
+    document.fonts.add(face);
+    if (url !== source.url) {
+      const release = () => URL.revokeObjectURL(url);
+      void face.loaded.then(release, release);
+    }
+  };
+  if (!pendingBytes) {
+    register(source.url);
+    return;
+  }
+  // The first visit may already be fetching this file for other glyphs. Reuse
+  // those bytes lazily instead of issuing a second HTTP request for the same URL.
+  void pendingBytes
+    .then(
+      (bytes) => {
+        register(URL.createObjectURL(new Blob([bytes], {type: 'font/woff2'})));
+      },
+      () => register(source.url),
+    )
+    .catch(() => {});
+}
+
+/** Reuse a locally cached sheet even when the stylesheet request has not completed. */
+async function cachedSheet(url: string): Promise<CSSStyleSheet | null> {
+  try {
+    const cached = await caches.match(url);
+    if (cached?.ok) {
+      const sheet = new CSSStyleSheet({baseURL: url});
+      sheet.replaceSync(await cached.text());
+      return sheet;
+    }
+  } catch {
+    /* Restricted storage still permits normal stylesheet loading. */
+  }
+  return null;
+}
+
+async function downloadFont(url: string, cache?: Cache): Promise<Response> {
+  const response = await fetch(url, {cache: 'force-cache'});
+  if (
+    !response.ok ||
+    response.headers.get('Content-Type')?.includes('text/html')
+  )
+    throw new Error('Font download failed');
+  if (cache && !navigator.serviceWorker?.controller)
+    void cache.put(url, response.clone()).catch(() => {});
+  return response;
 }
 
 /**
- * 在加载遮罩下冻结本次页面的字体选择。
- * 缓存命中的字体等待本地解码，不受网络预算限制；未缓存字体继续在后台下载并保存。
- * 返回后不再向显示用字体族添加字体，避免迟到的分片使可见文字换字体、改变布局。
- * 下载、缓存或字体解码失败时回退系统字体，不向页面初始化抛出异常。
+ * Select fonts once beneath the loading screen. Cached faces finish local decoding even
+ * beyond the network budget. Cold downloads can still populate the next visit's cache.
+ * Late faces cover only unseen characters, keeping previously displayed glyphs stable.
  */
 export async function settleInitialFonts(): Promise<void> {
-  if (!('fonts' in document)) return;
-  void document.body.offsetHeight;
-  const sources = currentSources();
-  let cache: Cache | undefined;
+  const link = document.querySelector<HTMLLinkElement>('#site-fonts');
+  if (!link || !document.fonts) return;
+  let expired = false;
+  let timer = 0;
+  const deadline = new Promise<null>((resolve) => {
+    timer = window.setTimeout(() => {
+      expired = true;
+      resolve(null);
+    }, 700);
+  });
   try {
-    cache = await caches.open(FONT_CACHE);
-  } catch {
-    /* 隐私模式下仍可使用 HTTP 缓存。 */
-  }
-
-  const cached = new Map<string, Response>();
-  await Promise.all(
-    [...new Set(sources.map((source) => source.url))].map(async (url) => {
-      try {
-        const response = await cache?.match(url, {ignoreVary: true});
-        if (response?.ok) cached.set(url, response);
-      } catch {
-        /* 单个缓存读取失败不影响其他字体。 */
-      }
-    }),
-  );
-
-  // 同一字体文件可能被多个字重引用，只读取/下载一次，避免并行重复请求。
-  const downloads = new Map<string, Promise<ArrayBuffer>>();
-  const scheduledWrites = new Set<string>();
-  const bytesFor = (source: FontSource): Promise<ArrayBuffer> => {
-    let download = downloads.get(source.url);
-    if (!download) {
-      download = (async () => {
-        const hit = cached.get(source.url);
-        if (hit) return hit.arrayBuffer();
-        // 首屏分片复用 CSS 请求；界面字包优先于未使用的字体分片，
-        // 不调用原始 face.load()，避免原字体在加载遮罩外发生迟到替换。
-        if (source.face.status !== 'unloaded') await source.face.load();
-        const response = await fetch(source.url, {
-          cache: 'force-cache',
-          priority: source.interfaceSubset ? 'high' : 'low',
+    selectScreenFamilies();
+    const initial = currentCharacters();
+    const stylesheet = link.sheet
+      ? Promise.resolve(link.sheet)
+      : new Promise<CSSStyleSheet | null>((resolve) => {
+          link.addEventListener('load', () => resolve(link.sheet), {
+            once: true,
+          });
+          link.addEventListener('error', () => resolve(null), {once: true});
         });
-        if (!response.ok) throw new Error('Font download failed');
-        return response.arrayBuffer();
-      })();
-      downloads.set(source.url, download);
+    // A slow local CacheStorage read, like a slow cached font decode, is independent
+    // of the network deadline. Offline reloads must see the same font selection.
+    const sheet =
+      link.sheet ||
+      (await cachedSheet(link.href)) ||
+      (await Promise.race([stylesheet, deadline]));
+    let cache: Cache | undefined;
+    try {
+      cache = await caches.open(FONT_CACHE);
+    } catch {
+      /* HTTP cache only. */
     }
-    return download;
-  };
-
-  const ready = new Map<FontFamily, FontFace[]>();
-  const familyLoads = FAMILIES.map(async (family) => {
-    const required = sources.filter(
-      (source) => familyOf(source.face) === family,
-    );
-    if (!required.length) return;
-    const loaded = await Promise.allSettled(
-      required.map(async (source) => {
-        try {
-          const bytes = await bytesFor(source);
-          const font = await decodeFace(source, bytes);
-          // 相同文件的多个字重只需保存一次。写盘耗时不占用首屏的字体显示预算。
-          if (
-            cache &&
-            !cached.has(source.url) &&
-            !scheduledWrites.has(source.url)
-          ) {
-            scheduledWrites.add(source.url);
-            const response = new Response(bytes, {
-              headers: {'Content-Type': 'font/woff2'},
-            });
-            void cache.put(source.url, response).catch(() => {});
+    if (!sheet) {
+      // Keep the non-applying link. A slow CSS response can still serve a later route,
+      // without suddenly changing any characters visible when the sheet arrives.
+      void stylesheet
+        .then(async (late) => {
+          if (!late) return;
+          const shown = currentCharacters();
+          for (const family of FAMILIES)
+            shown.set(
+              family,
+              [
+                ...new Set([
+                  ...(shown.get(family) || []),
+                  ...(initial.get(family) || []),
+                ]),
+              ].sort((a, b) => a - b),
+            );
+          const faces = sources(late, link.href, shown);
+          // The screen uses private family names. Explicit consumers such as canvas
+          // posters can still request the original families from the regular CSS.
+          link.media = 'all';
+          const warming = new Map<string, Promise<ArrayBuffer>>();
+          for (const source of faces) {
+            if (source.used && !warming.has(source.url)) {
+              const bytes = async () => {
+                const hit = await cache
+                  ?.match(source.url, {ignoreVary: true})
+                  .catch(() => undefined);
+                const response = hit?.ok
+                  ? hit
+                  : await downloadFont(source.url, cache);
+                return response.arrayBuffer();
+              };
+              warming.set(source.url, bytes());
+            }
+            addRemaining(source, warming.get(source.url));
           }
-          return font;
-        } catch (error) {
-          // 清除损坏的缓存，以便下次访问能够重新下载。
-          try {
-            if (cached.has(source.url)) await cache?.delete(source.url);
-          } catch {
-            /* 缓存可能已被浏览器清除。 */
-          }
-          throw error;
-        }
+          await Promise.allSettled(warming.values());
+        })
+        .catch(() => {});
+      return;
+    }
+    const faces = sources(sheet, link.href, initial);
+    link.media = 'all';
+    const required = faces.filter((face) => face.used);
+    const urls = [...new Set(required.map((source) => source.url))];
+    const hits = new Map<string, Response>();
+    await Promise.all(
+      urls.map(async (url) => {
+        const hit = await cache
+          ?.match(url, {ignoreVary: true})
+          .catch(() => undefined);
+        if (hit?.ok) hits.set(url, hit);
       }),
     );
-    if (loaded.every((result) => result.status === 'fulfilled')) {
-      ready.set(
-        family,
-        loaded.map(
-          (result) => (result as PromiseFulfilledResult<FontFace>).value,
-        ),
-      );
+    const downloads = new Map<string, Promise<ArrayBuffer>>();
+    const bytesFor = (url: string) => {
+      let bytes = downloads.get(url);
+      if (!bytes) {
+        const hit = hits.get(url);
+        bytes = hit
+          ? hit.arrayBuffer()
+          : downloadFont(url, cache).then((response) => response.arrayBuffer());
+        downloads.set(url, bytes);
+      }
+      return bytes;
+    };
+    const ready = new Map<Source, FontFace>();
+    const loads = required.map(async (source) => {
+      try {
+        const bytes = await bytesFor(source.url);
+        if (expired && !hits.has(source.url)) return;
+        const face = await new FontFace(
+          screenFamily(source.family),
+          bytes,
+          source.descriptors,
+        ).load();
+        if (!expired || hits.has(source.url)) ready.set(source, face);
+      } catch {
+        if (hits.has(source.url))
+          await cache?.delete(source.url).catch(() => {});
+      }
+    });
+    await Promise.race([Promise.all(loads), deadline]);
+    await Promise.all(loads.filter((_, i) => hits.has(required[i].url)));
+    for (const source of faces) {
+      const selected = ready.get(source);
+      if (selected) document.fonts.add(selected);
+      else
+        addRemaining(
+          source,
+          hits.has(source.url) ? undefined : downloads.get(source.url),
+        );
     }
-  });
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-  await Promise.race([
-    Promise.all(familyLoads),
-    new Promise<void>((resolve) => {
-      timeout = setTimeout(resolve, NETWORK_FONT_BUDGET_MS);
-    }),
-  ]);
-  clearTimeout(timeout);
-  // 已缓存的一组不再与下载比赛，等待读取与解码完成，避免反复刷新碰时间窗口。
-  await Promise.all(
-    familyLoads.filter((_, index) => {
-      const required = sources.filter(
-        (source) => familyOf(source.face) === FAMILIES[index],
-      );
-      return (
-        required.length > 0 &&
-        required.every((source) => cached.has(source.url))
-      );
-    }),
-  );
-  for (const faces of ready.values())
-    for (const face of faces) document.fonts.add(face);
-  const stack = (family: FontFamily): string => {
-    const families = ready.has(family) ? [`"WSQ Ready ${family}"`] : [];
-    if (family !== 'Noto Sans SC' && ready.has('Noto Sans SC'))
-      families.push('"WSQ Ready Noto Sans SC"');
-    return [...families, 'system-ui', 'sans-serif'].join(',');
-  };
-  const root = document.documentElement;
-  root.style.setProperty('--fb', stack('Noto Sans SC'));
-  root.style.setProperty('--fd', stack('ZCOOL QingKe HuangYou'));
-  root.style.setProperty('--fn', stack('Saira Condensed'));
-  root.dataset.fonts = 'settled';
+  } catch {
+    // Optional font APIs or storage failures must never strand the startup screen.
+  } finally {
+    clearTimeout(timer);
+    document.documentElement.dataset.fonts = 'settled';
+  }
 }
