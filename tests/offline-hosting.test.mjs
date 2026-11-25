@@ -12,6 +12,7 @@ import {tmpdir} from 'node:os';
 import {dirname, join, resolve} from 'node:path';
 import {runInNewContext} from 'node:vm';
 import test from 'node:test';
+import {writeRouteEntries} from '../scripts/build-route-entries.ts';
 import {generateServiceWorker} from '../scripts/build-sw.mjs';
 import {checkHostingRules} from '../scripts/sync-hosting.mjs';
 import missingAssetWorker from '../workers/not-found.mjs';
@@ -79,14 +80,16 @@ function memoryCaches() {
   };
 }
 
-test('normal and file-only hosts regenerate the identical visited-resource worker', (t) => {
+test('EdgeOne publishes settings handoff entries without adding route copies to the offline cache', (t) => {
+  const edge = JSON.parse(readFileSync(join(root, 'edgeone.json'), 'utf8'));
+  assert.match(edge.buildCommand, /\bWSQ_STATIC_ROUTES=1\b/);
   const directory = createSite(t);
   const file = join(directory, 'sw.js');
   const canonical = readFileSync(file, 'utf8');
   const shell = readFileSync(join(directory, 'index.html'));
-  mkdirSync(join(directory, 'builds', 'yan'), {recursive: true});
-  writeFileSync(join(directory, 'builds', 'yan', 'index.html'), shell);
-  writeFileSync(join(directory, 'builds', 'yan.html'), shell);
+  writeRouteEntries(directory);
+  for (const path of ['settings.html', 'settings/index.html', 'overview.html', 'builds/yan/index.html'])
+    assert.deepEqual(readFileSync(join(directory, path)), shell, path);
   generateServiceWorker(directory);
   assert.equal(readFileSync(file, 'utf8'), canonical);
   assert.doesNotMatch(canonical, /builds\/yan(?:\.html|\/index\.html)/);

@@ -175,7 +175,7 @@ node scripts/release.mjs <SHA>
 
 ### 部署目标
 
-- **EdgeOne**：配置位于 [`edgeone.json`](../edgeone.json)，使用 Node.js `24.18.0`，安装命令 `npm ci`，构建命令 `npm run build`，产物目录 `dist`。
+- **EdgeOne** 使用 Node.js `24.18.0`，执行 `npm ci` 和 `WSQ_STATIC_ROUTES=1 npm run build`，发布 `dist`。大陆镜像直接打开设置页时从静态入口启动，保留存档交接链接中的查询参数与会话片段。已知页面也支持直接打开和刷新。见 [EdgeOne 配置](../edgeone.json)。
 - **Cloudflare Workers**：配置位于 [`wrangler.jsonc`](../wrangler.jsonc)，静态资源指向 `dist`。首页、深链重写和现存文件由静态服务直接返回。仅未命中的请求交给 [404 Worker](../workers/not-found.mjs)，返回自定义 404 并设置 `Cache-Control: no-store`，避免浏览器把短暂缺失的 JS 或字体缓存一年。构建完成后执行：
   ```bash
   npx wrangler@4.160.0 deploy

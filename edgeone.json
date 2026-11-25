@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm run build",
+  "buildCommand": "WSQ_STATIC_ROUTES=1 npm run build",
   "installCommand": "npm ci",
   "outputDirectory": "dist",
   "rewrites": [
