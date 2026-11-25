@@ -20,9 +20,14 @@ const headers = [
   ['/assets/fonts/*.woff2', immutable],
   ['/assets/img/*', {'Cache-Control': 'public, max-age=2592000'}],
   ['/assets/icons/*', {'Cache-Control': 'public, max-age=604800'}],
-  ['/*.webmanifest', {'Content-Type': 'application/manifest+json'}],
+  ['/sw.js', noCache],
+  ['/*.webmanifest', {...noCache, 'Content-Type': 'application/manifest+json'}],
   ['/', noCache],
-  ['/:page', noCache],
+  // 只给已发布的根路径加页面规则，避免托管端为 SW 和 manifest 拼接重复的缓存指令。
+  ...[
+    ...APP_PATHS.filter((path) => !path.slice(1).includes('/')),
+    '/guide', '/diff', '/404', '/*.html', '/LICENSE',
+  ].map((path) => [path, noCache]),
   ['/:page/', noCache],
   ...[PAGE_PATHS.bd, PAGE_PATHS.cv, PAGE_PATHS.ld].map((path) => [
     path + '/*',

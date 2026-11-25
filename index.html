@@ -18,8 +18,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>try{var s=JSON.parse(localStorage.getItem('wsq.settings.v1')||'{}');if(s.theme==='dark'||s.theme==='light')document.documentElement.dataset.theme=s.theme;if(s.fontScale==='large')document.documentElement.dataset.font='large';if(s.reducedMotion===true)document.documentElement.dataset.motion='reduce';}catch{}</script>
 <!-- boot-screen -->
-<link rel="stylesheet" data-site-style media="print" onload="this.media='all'" onerror="this.dataset.failed='true'" fetchpriority="high" href="/assets/css/base.css">
-<link rel="stylesheet" data-site-style media="print" onload="this.media='all'" onerror="this.dataset.failed='true'" fetchpriority="high" href="/assets/css/quickref.css">
+<link rel="preload" as="style" data-site-style fetchpriority="high" onerror="this.dataset.failed='true'" href="/assets/css/base.css">
+<link rel="preload" as="style" data-site-style fetchpriority="high" onerror="this.dataset.failed='true'" href="/assets/css/quickref.css">
 <!-- Discover fonts early; boot settles the current faces before revealing the mounted page. -->
 <link id="site-fonts" rel="stylesheet" media="print" href="/assets/css/fonts.css">
 </head>

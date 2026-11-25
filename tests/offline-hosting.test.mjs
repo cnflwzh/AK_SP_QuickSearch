@@ -238,6 +238,18 @@ test('hosting rules preserve custom build links, real asset misses and immutable
     )
     .map((rule) => rule.source);
   const headerFile = readFileSync(join(root, 'public/_headers'), 'utf8');
+  // SW 与两种安装清单必须自行声明重新验证，并且每个请求只收到一次 Cache-Control。
+  for (const path of ['/sw.js', '/manifest.webmanifest', '/manifest-edge.webmanifest']) {
+    const pattern = path === '/sw.js' ? path : '/*.webmanifest';
+    const declared = edge.headers.find((rule) => rule.source === pattern)?.headers;
+    assert.ok(declared?.some(({key, value}) => key === 'Cache-Control' && value === 'no-cache'), path);
+    const matchesPath = edge.headers.filter((rule) => matches(rule.source, path));
+    assert.deepEqual(matchesPath.flatMap((rule) => rule.headers)
+      .filter(({key}) => key === 'Cache-Control').map(({value}) => value), ['no-cache'], path);
+    assert.ok(headerFile.includes(pattern + '\n  Cache-Control: no-cache\n'), path);
+    if (path.endsWith('.webmanifest'))
+      assert.ok(declared.some(({key, value}) => key === 'Content-Type' && value === 'application/manifest+json'));
+  }
   const cloudImmutable = [
     ...headerFile.matchAll(/^(\/\S*)\r?\n +Cache-Control:[^\n]*immutable/gm),
   ].map((m) => m[1]);

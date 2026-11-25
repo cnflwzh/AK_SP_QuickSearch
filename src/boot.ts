@@ -48,17 +48,22 @@ const painted = () =>
     else requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
   });
 try {
-  // The system-font loading screen can paint before these high-priority sheets.
-  // Keep the app covered until its styles are ready, including on cached visits.
+  // 预加载让浏览器先取正文 CSS，内联遮罩仍能先绘制。切换为样式表后再等待解析完成。
   const styles = [...document.querySelectorAll<HTMLLinkElement>('link[data-site-style]')];
   await Promise.all(styles.map((link) => new Promise<void>((resolve, reject) => {
     const failed = () => reject(new Error('Page stylesheet unavailable: ' + link.href));
-    if (link.dataset.failed) failed();
-    else if (link.media === 'all') resolve();
-    else {
-      link.addEventListener('load', () => resolve(), {once: true});
-      link.addEventListener('error', failed, {once: true});
-    }
+    if (link.dataset.failed) return failed();
+    if (link.sheet) return resolve();
+    const onLoad = () => {
+      // 若预加载的 load 事件刚刚排入队列，此时仍可能没有可用的样式表。
+      if (!link.sheet) return;
+      link.removeEventListener('load', onLoad);
+      link.removeEventListener('error', failed);
+      resolve();
+    };
+    link.addEventListener('load', onLoad);
+    link.addEventListener('error', failed, {once: true});
+    link.rel = 'stylesheet';
   })));
   if (import.meta.env.DEV && 'serviceWorker' in navigator) {
     // An earlier production preview may have registered a worker on this localhost port.

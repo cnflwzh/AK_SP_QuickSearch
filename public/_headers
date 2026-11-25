@@ -10,11 +10,44 @@
   Cache-Control: public, max-age=2592000
 /assets/icons/*
   Cache-Control: public, max-age=604800
+/sw.js
+  Cache-Control: no-cache
 /*.webmanifest
+  Cache-Control: no-cache
   Content-Type: application/manifest+json
 /
   Cache-Control: no-cache
-/:page
+/index
+  Cache-Control: no-cache
+/overview
+  Cache-Control: no-cache
+/builds
+  Cache-Control: no-cache
+/covenants
+  Cache-Control: no-cache
+/operators
+  Cache-Control: no-cache
+/equipment
+  Cache-Control: no-cache
+/strategies
+  Cache-Control: no-cache
+/enemies
+  Cache-Control: no-cache
+/tools
+  Cache-Control: no-cache
+/settings
+  Cache-Control: no-cache
+/box
+  Cache-Control: no-cache
+/guide
+  Cache-Control: no-cache
+/diff
+  Cache-Control: no-cache
+/404
+  Cache-Control: no-cache
+/*.html
+  Cache-Control: no-cache
+/LICENSE
   Cache-Control: no-cache
 /:page/
   Cache-Control: no-cache
