@@ -4,7 +4,7 @@ import NavigationLink from './NavigationLink.vue';
 import {cardLocation} from '../../router/navigation.ts';
 import {TIER_LABELS, type Operator} from '../../../data/index.ts';
 import {avatarSrc, equipIconSrc} from '../../lib/ui/assets.ts';
-import type {PlanOp} from '../../lib/plans/index.ts';
+import type {PlanOp} from '../../lib/plans/core.ts';
 import {color} from '../format.ts';
 import {useQuickrefActions} from '../state.ts';
 import {inRun, runAltTargets, runSlotMap} from '../planStore.ts';

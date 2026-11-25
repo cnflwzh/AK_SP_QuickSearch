@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {computed, ref, watch} from 'vue';
 import type {Shared} from '../../lib/plans/sharing.ts';
-import {stageKey, stageLabel} from '../planStore.ts';
+import {stageKey, stageLabel, stageOf} from '../../lib/plans/lineup.ts';
 import PlanSummary from './PlanSummary.vue';
 import GlossaryText from './GlossaryText.vue';
 import BuildStageSwitcher from './BuildStageSwitcher.vue';
@@ -26,7 +26,7 @@ const tabs = computed(() => [
 ]);
 const lineup = computed(
   () =>
-    props.plan.stages?.find((stage) => stageKey(stage) === selected.value) ??
+    stageOf(props.plan, selected.value) ??
     props.plan,
 );
 watch(

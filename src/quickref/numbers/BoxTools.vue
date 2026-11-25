@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed, nextTick, onBeforeUnmount, ref, shallowRef, watch} from 'vue';
+import {computed, nextTick, ref, watch} from 'vue';
 import {
   ALL_COVENANTS,
   BORROW_LIMIT,
@@ -18,13 +18,10 @@ import {
   boxRankOf,
   isBorrowableSixStar,
   type BoxRank,
-  type OwnedBoxRank,
 } from '../../lib/box/model.ts';
 import {
-  applyBoxBatch,
   boxSeasonBorrowedCount,
   boxSeasonCount,
-  boxStorageWriteFailed,
   clearOperatorBox,
   hasAnyBox,
   operatorBox,
@@ -32,7 +29,6 @@ import {
   setOperatorRank,
   setOperatorRanks,
 } from '../../lib/box/store.ts';
-import type {BoxImportResult} from '../../lib/box/import.ts';
 import {prefersReducedMotion} from '../../lib/ui/dom.ts';
 import {lazyView} from '../../lib/ui/lazyView.ts';
 import {nameScore, normalize} from '../../lib/ui/match.ts';
@@ -40,6 +36,7 @@ import OperatorRosterSources, {
   type RosterSource,
 } from '../components/OperatorRosterSources.vue';
 import type {SubTabDirection} from '../components/SubTabs.vue';
+import BoxBonusRules from './BoxBonusRules.vue';
 import BoxOperatorCard from './BoxOperatorCard.vue';
 import BoxPlannerPanel from './BoxPlannerPanel.vue';
 import CovenantIcon from '../components/CovenantIcon.vue';
@@ -48,12 +45,6 @@ import SearchInput from '../components/SearchInput.vue';
 import SelectInput, {type SelectOption} from '../components/SelectInput.vue';
 import ConfirmButton from '../components/ConfirmButton.vue';
 
-const FALLBACK_RANK_OPTIONS: readonly SelectOption<OwnedBoxRank>[] = [
-  {value: 3, label: '精二 60 级（满自持加成）'},
-  {value: 2, label: '精英二'},
-  {value: 1, label: '精英一'},
-  {value: 0, label: '已持有 · 未练（精0）'},
-];
 const TIER_FILTER_OPTIONS: readonly SelectOption<number>[] = [
   {value: 0, label: '全部等阶'},
   ...TIERS.map((t) => ({value: t, label: `${TIER_LABELS[t]} 阶`})),
@@ -67,12 +58,7 @@ import SectionHeading from '../components/SectionHeading.vue';
 import EmptyState from '../components/EmptyState.vue';
 import {color} from '../format.ts';
 import {useQuickrefActions} from '../state.ts';
-import {
-  currentRoute,
-  navigate,
-  routeQuery,
-  updateQuery,
-} from '../../router/navigation.ts';
+import {currentRoute, navigate, routeQuery} from '../../router/navigation.ts';
 import './numbers.css';
 import '../workbench.css';
 
@@ -222,111 +208,43 @@ watch(rosterSource, (source) => {
   brushIndex.value = 0;
   if (source === 'substitute') editMode.value = false;
 });
-const importOpen = ref(false);
-const importText = ref('');
-const workbookName = ref('');
-const fallbackRank = ref<OwnedBoxRank>(3);
-const importPreview = shallowRef<BoxImportResult | null>(null);
-const importError = ref('');
-const notice = ref('');
-const fileInput = ref<HTMLInputElement | null>(null);
-const BoxImportGuide = lazyView(() => import('./BoxImportGuide.vue'));
+const BoxImportPanel = lazyView(() => import('./BoxImportPanel.vue'));
+const BoxIncomingShare = lazyView(() => import('./BoxIncomingShare.vue'));
 const BoxSyncPanel = lazyView(() => import('./BoxSyncPanel.vue'));
-const guideOpen = ref(false);
+const importOpen = ref(false);
+const importStarted = ref(false);
+const importButton = ref<HTMLButtonElement>();
 const syncOpen = ref(false);
-const syncIncoming = shallowRef<BoxImportResult | null>(null);
-const syncIncomingError = ref('');
-const pasteField = ref<HTMLTextAreaElement>();
-const fileButton = ref<HTMLButtonElement>();
+const notice = ref('');
 
-watch(
-  () => currentRoute.value.hash,
-  async (hash, _, onCleanup) => {
-    syncIncoming.value = null;
-    syncIncomingError.value = '';
-    if (!hash.startsWith('#b=')) return;
-    let current = true;
-    onCleanup(() => {
-      current = false;
-    });
-    try {
-      const {parseExternalBox} = await import('../../lib/box/import.ts');
-      if (current) syncIncoming.value = parseExternalBox(hash);
-    } catch (error) {
-      if (!current) return;
-      syncIncomingError.value =
-        error instanceof Error
-          ? error.message
-          : '跨端同步链接不完整或已损坏，请重新扫码。';
-    }
-  },
-  {immediate: true},
-);
-
-function clearSyncHash(): void {
-  syncIncoming.value = null;
-  syncIncomingError.value = '';
-  if (currentRoute.value.hash.startsWith('#b=')) {
-    void navigate({path: '/box', query: routeQuery.value, hash: ''}, true);
+function showImport(open: boolean): void {
+  importOpen.value = open;
+  if (open) {
+    // 首次打开才加载，收起后保留粘贴草稿及默认练度。
+    importStarted.value = true;
+    syncOpen.value = false;
   }
 }
 
-function commitIncomingSync(mode: 'merge' | 'replace'): void {
-  const preview = syncIncoming.value;
-  if (!preview || (mode === 'replace' && !preview.matchedCount)) return;
-  syncIncomingError.value = '';
-  try {
-    applyBoxBatch(preview.entries, mode);
-  } catch (cause) {
-    syncIncomingError.value =
-      cause instanceof Error ? cause.message : '同步导入失败。';
-    return;
-  }
-  // 只有写盘成功才消费链接，存储受限时可保留来源并重试。
-  if (boxStorageWriteFailed.value) return;
-  const b = preview.breakdown;
-  const extraBorrowed = b.borrowed ? ` / 已借用 ${b.borrowed}` : '';
-  notice.value = `已通过跨端同步${mode === 'replace' ? '覆盖' : '合并'}导入 ${preview.matchedCount} 名本赛季干员（精二60 ${b.e260} / 精二 ${b.e2} / 精一 ${b.e1} / 未练精0 ${b.e0}${extraBorrowed}）。`;
-  clearSyncHash();
-}
-
-async function startGuidedImport(method: 'file' | 'paste'): Promise<void> {
-  syncOpen.value = false;
-  importOpen.value = true;
-  // 手机选择文件需要用户手势。文件输入常驻，在等待 Vue 渲染面板前打开它。
-  if (method === 'file') fileInput.value?.click();
-  else if (workbookName.value) invalidateImportPreview();
+async function closeImport(): Promise<void> {
+  importOpen.value = false;
   await nextTick();
-  const target = method === 'file' ? fileButton.value : pasteField.value;
-  target?.scrollIntoView({block: 'center'});
-  target?.focus({preventScroll: true});
+  importButton.value?.focus({preventScroll: true});
 }
 
 watch(
   () => routeQuery.value.import,
   (flag) => {
-    if (flag !== '1') return;
-    syncOpen.value = false;
-    importOpen.value = true;
-    void updateQuery({import: null}, true);
-    guideOpen.value = true;
+    if (flag === '1') showImport(true);
   },
   {immediate: true},
 );
 
-let importRevision = 0;
-
-// 输入、档位或面板变化立即作废旧预览和在途读取，覆盖按钮只能提交当前内容。
-function invalidateImportPreview(): void {
-  importRevision++;
-  workbookName.value = '';
-  importPreview.value = null;
-  importError.value = '';
+function dismissIncomingShare(): void {
+  if (currentRoute.value.hash.startsWith('#b=')) {
+    void navigate({path: '/box', query: routeQuery.value, hash: ''}, true);
+  }
 }
-watch([importText, fallbackRank, importOpen], invalidateImportPreview, {
-  flush: 'sync',
-});
-onBeforeUnmount(invalidateImportPreview);
 
 const currentBrush = computed<BoxRank>(
   () => brushes.value[brushIndex.value].rank,
@@ -397,64 +315,6 @@ const rankCounts = computed(() => {
     wBorrowed: pct(borrowed),
     wPreset: pct(preset),
   };
-});
-
-const bonusRules = computed(() => {
-  const reversedOwned = [...OWN_OPERATOR_BONUS]
-    .map((row, idx) => ({
-      key: `r${idx + 1}`,
-      level: row.level,
-      state: idx === OWN_OPERATOR_BONUS.length - 1 ? '满加成' : '已激活',
-      atk: row.atk,
-      def: row.def,
-      hp: row.hp,
-      tone: `r${idx + 1}`,
-      active: true,
-    }))
-    .reverse();
-  return [
-    ...reversedOwned,
-    {
-      key: 'r0',
-      level: '已持未练 (精0)',
-      state: '未激活',
-      atk: '—',
-      def: '—',
-      hp: '—',
-      tone: 'r0',
-      active: false,
-    },
-    {
-      key: 'rborrowed',
-      level: '助战借用 6★',
-      state: '等效精0',
-      atk: '—',
-      def: '—',
-      hp: '—',
-      tone: 'rborrowed',
-      active: false,
-    },
-    {
-      key: 'rpreset',
-      level: '系统预设',
-      state: '本体0加成',
-      atk: '—',
-      def: '—',
-      hp: '—',
-      tone: 'rpreset',
-      active: false,
-    },
-    {
-      key: 'runborrowed',
-      level: '未借 6★',
-      state: '原型替补',
-      atk: '—',
-      def: '—',
-      hp: '—',
-      tone: 'runborrowed',
-      active: false,
-    },
-  ];
 });
 
 const ownedTiers = computed(() => [
@@ -703,80 +563,6 @@ function confirmClearAll(): void {
   notice.value = '已清空全部干员练度与助战借用标记。';
 }
 
-async function parseInput(): Promise<void> {
-  invalidateImportPreview();
-  const request = importRevision;
-  notice.value = '';
-  try {
-    const {parseExternalBox} = await import('../../lib/box/import.ts');
-    if (request !== importRevision) return;
-    importPreview.value = parseExternalBox(
-      importText.value,
-      fallbackRank.value,
-    );
-  } catch (cause) {
-    if (request !== importRevision) return;
-    importError.value =
-      cause instanceof Error ? cause.message : '导入解析失败，请重试。';
-  }
-}
-
-async function onSelectFile(event: Event): Promise<void> {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  input.value = '';
-  if (!file) return;
-  notice.value = '';
-  importText.value = '';
-  invalidateImportPreview();
-  const request = importRevision;
-  try {
-    if (file.size > 5 * 1024 * 1024) {
-      throw new Error('文件超过 5 MB，请检查是否选中了干员练度文件。');
-    }
-    if (
-      /\.xlsx$/i.test(file.name) ||
-      file.type ===
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    ) {
-      workbookName.value = file.name;
-      const {readYituliuWorkbook} = await import('../../lib/box/import.ts');
-      if (request !== importRevision) return;
-      const preview = await readYituliuWorkbook(file);
-      if (request === importRevision) importPreview.value = preview;
-      return;
-    }
-    const text = await file.text();
-    if (request !== importRevision) return;
-    importText.value = text;
-    await parseInput();
-  } catch (cause) {
-    if (request !== importRevision) return;
-    workbookName.value = '';
-    importError.value =
-      cause instanceof Error ? cause.message : '文件读取失败，请重试。';
-  }
-}
-
-function commitImport(mode: 'merge' | 'replace'): void {
-  const preview = importPreview.value;
-  if (!preview || (mode === 'replace' && !preview.matchedCount)) return;
-  try {
-    applyBoxBatch(preview.entries, mode);
-  } catch (cause) {
-    importError.value = cause instanceof Error ? cause.message : '导入失败。';
-    return;
-  }
-  const b = preview.breakdown;
-  const extraBorrowed = b.borrowed ? ` / 已借用 ${b.borrowed}` : '';
-  notice.value = `已${mode === 'replace' ? '覆盖' : '合并'}导入 ${preview.matchedCount} 名本赛季干员（精二60 ${b.e260} / 精二 ${b.e2} / 精一 ${b.e1} / 未练精0 ${b.e0}${extraBorrowed}）。`;
-  if (preview.otherSeasonCount) {
-    notice.value += ` 同时导入 ${preview.otherSeasonCount} 条其他赛季记录。`;
-  }
-  importText.value = '';
-  importOpen.value = false;
-}
-
 function resetFilters(): void {
   categoryFilter.value = 'all';
   search.value = '';
@@ -787,48 +573,11 @@ function resetFilters(): void {
 
 <template>
   <div :class="['bx-tool', 'workbench-controls', {'is-edit': editMode}]">
-    <section
-      v-if="syncIncoming || syncIncomingError"
-      class="nc bx-sync-incoming panel-reveal"
-      aria-label="跨端同步导入确认">
-      <template v-if="syncIncoming">
-        <div class="bx-sync-in-head">
-          <b>收到跨端同步的干员 Box</b>
-          <span>
-            共 {{ syncIncoming.matchedCount }} 名（精二60
-            {{ syncIncoming.breakdown.e260 }} / 精二
-            {{ syncIncoming.breakdown.e2 }} / 精一
-            {{ syncIncoming.breakdown.e1 }} / 精0
-            {{ syncIncoming.breakdown.e0 }}
-            <template v-if="syncIncoming.breakdown.borrowed">
-              / 已借用 {{ syncIncoming.breakdown.borrowed }}
-            </template>
-            ）
-          </span>
-        </div>
-        <div class="bx-actions">
-          <button
-            type="button"
-            class="btn p"
-            @click="commitIncomingSync('merge')">
-            合并导入（保留较高练度）
-          </button>
-          <ConfirmButton
-            label="覆盖本季练度"
-            confirm-label="确认覆盖当前 Box"
-            :disabled="!syncIncoming.matchedCount"
-            :reset-key="syncIncoming"
-            @confirm="commitIncomingSync('replace')" />
-          <button type="button" class="btn" @click="clearSyncHash">忽略</button>
-        </div>
-      </template>
-      <StatusNotice
-        v-if="syncIncomingError"
-        tone="warning"
-        :message="syncIncomingError"
-        dismissible
-        @dismiss="clearSyncHash" />
-    </section>
+    <BoxIncomingShare
+      v-if="currentRoute.hash.startsWith('#b=')"
+      :hash="currentRoute.hash"
+      @notice="notice = $event"
+      @dismiss="dismissIncomingShare" />
 
     <section class="nc bx-hero" aria-label="干员练度与助战总览">
       <div class="bx-overview">
@@ -859,13 +608,11 @@ function resetFilters(): void {
           </div>
           <div class="bx-top-actions">
             <button
+              ref="importButton"
               type="button"
               :class="['btn', {p: importOpen}]"
               :aria-expanded="importOpen"
-              @click="
-                importOpen = !importOpen;
-                if (importOpen) syncOpen = false;
-              ">
+              @click="showImport(!importOpen)">
               导入 MAA / 名单
             </button>
             <button
@@ -924,106 +671,11 @@ function resetFilters(): void {
         </div>
 
         <BoxSyncPanel v-if="syncOpen && hasAnyBox" @close="syncOpen = false" />
-        <div v-if="importOpen" class="bx-import panel-reveal">
-          <div class="bx-import-head">
-            <b>批量导入干员持有与练度</b>
-            <button
-              type="button"
-              class="btn bx-guide-link"
-              @click="guideOpen = true">
-              导入指南
-            </button>
-          </div>
-          <p v-if="workbookName" class="bx-workbook" role="status">
-            {{ importPreview ? '已读取' : '正在读取' }} {{ workbookName }}
-          </p>
-          <textarea
-            v-else
-            ref="pasteField"
-            v-model="importText"
-            class="bx-textarea"
-            aria-label="粘贴干员练度 JSON、一图流练度表、同步短码或干员名单"
-            placeholder="粘贴 MAA JSON、带列名的一图流表格、WB 跨端同步码，或干员名（如：鸿雪、仇白）"></textarea>
-          <div class="bx-import-controls">
-            <label v-if="!workbookName" class="bx-fallback-rank">
-              纯名单默认状态
-              <SelectInput
-                v-model="fallbackRank"
-                :options="FALLBACK_RANK_OPTIONS"
-                aria-label="纯名单默认状态" />
-            </label>
-            <button
-              v-if="!workbookName"
-              type="button"
-              class="btn p"
-              @click="parseInput">
-              解析预览
-            </button>
-            <button
-              v-else
-              type="button"
-              class="btn"
-              @click="startGuidedImport('paste')">
-              改用粘贴
-            </button>
-            <button
-              ref="fileButton"
-              type="button"
-              class="btn"
-              @click="fileInput?.click()">
-              选择练度文件
-            </button>
-            <button type="button" class="btn" @click="importOpen = false">
-              收起
-            </button>
-          </div>
-          <StatusNotice
-            v-if="importError"
-            tone="danger"
-            :message="importError" />
-          <div v-if="importPreview" class="bx-preview panel-reveal">
-            <p>
-              识别格式：
-              <b>{{ importPreview.formatLabel }}</b>
-              · 匹配本赛季干员
-              <b>{{ importPreview.matchedCount }}</b>
-              名（精二60 {{ importPreview.breakdown.e260 }} / 精二
-              {{ importPreview.breakdown.e2 }} / 精一
-              {{ importPreview.breakdown.e1 }} / 未练精0
-              {{ importPreview.breakdown.e0 }}
-              <template v-if="importPreview.breakdown.borrowed">
-                / 已借用 {{ importPreview.breakdown.borrowed }}
-              </template>
-              ）
-              <template v-if="importPreview.otherSeasonCount">
-                · 其他赛季记录 {{ importPreview.otherSeasonCount }} 条
-              </template>
-              <template v-if="importPreview.ignoredCount">
-                · 跳过未入池/未识别 {{ importPreview.ignoredCount }} 项
-              </template>
-            </p>
-            <div class="bx-actions">
-              <button
-                type="button"
-                class="btn p"
-                @click="commitImport('merge')">
-                合并导入（保留较高练度）
-              </button>
-              <ConfirmButton
-                label="覆盖本季练度"
-                confirm-label="确认替换（清除名单外标记）"
-                :disabled="!importPreview.matchedCount"
-                :reset-key="importPreview"
-                @confirm="commitImport('replace')" />
-              <button
-                type="button"
-                class="btn"
-                @click="invalidateImportPreview">
-                取消
-              </button>
-            </div>
-          </div>
-        </div>
+        <BoxImportPanel
+          v-if="importStarted"
+          :open="importOpen"
+          @notice="notice = $event"
+          @close="closeImport" />
 
         <div
           class="bx-pillars"
@@ -1158,44 +810,7 @@ function resetFilters(): void {
         </div>
       </div>
 
-      <div class="bx-rules" aria-label="练度与来源效果一览">
-        <div class="bx-rules-head">
-          <span class="bx-kicker">练度与来源效果一览</span>
-          <small>仅自持且达精一激活加成</small>
-        </div>
-        <div class="bx-rules-table">
-          <div class="bx-rules-row head">
-            <span>来源 / 练度</span>
-            <span>局内</span>
-            <span>攻击</span>
-            <span>防御</span>
-            <span>生命</span>
-          </div>
-          <div
-            v-for="row in bonusRules"
-            :key="row.key"
-            :class="['bx-rules-row', row.tone]">
-            <span class="bx-rule-lv">{{ row.level }}</span>
-            <span :class="['bx-rule-st', {active: row.active}]">
-              {{ row.state }}
-            </span>
-            <span class="num">{{ row.atk }}</span>
-            <span class="num">{{ row.def }}</span>
-            <span class="num">{{ row.hp }}</span>
-          </div>
-        </div>
-      </div>
-
-      <BoxImportGuide
-        v-if="guideOpen"
-        @start="startGuidedImport"
-        @close="guideOpen = false" />
-      <input
-        ref="fileInput"
-        type="file"
-        accept=".xlsx,.json,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/json,text/plain"
-        hidden
-        @change="onSelectFile" />
+      <BoxBonusRules />
     </section>
 
     <section
@@ -1477,7 +1092,7 @@ function resetFilters(): void {
   }
 }
 
-.bx-kicker {
+:deep(.bx-kicker) {
   font-size: 11.5px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -1868,199 +1483,6 @@ function resetFilters(): void {
   text-overflow: ellipsis;
 }
 
-/* ---------- 右侧：第一版练度加成对照表（回归并纳入助战/预设说明） ---------- */
-.bx-rules {
-  display: grid;
-  gap: 7px;
-  padding-left: 16px;
-  border-left: 1px solid var(--line);
-  align-content: start;
-}
-.bx-rules-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-}
-.bx-rules-head small {
-  font-size: 11px;
-  color: var(--teal);
-}
-.bx-rules-table {
-  display: grid;
-  gap: 4px;
-}
-.bx-rules-row {
-  display: grid;
-  grid-template-columns: minmax(94px, 1.35fr) 58px repeat(
-      3,
-      minmax(36px, 0.65fr)
-    );
-  align-items: center;
-  gap: 5px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 11.5px;
-  background: var(--surface2);
-  border: 1px solid var(--line);
-}
-.bx-rules-row.head {
-  padding: 1px 8px;
-  background: transparent;
-  border: 0;
-  font-size: 10.5px;
-  color: var(--ink3);
-}
-.bx-rules-row.r3 {
-  border-color: color-mix(in srgb, var(--bx-r3) 50%, var(--line));
-  border-left: 3px solid var(--bx-r3);
-  background: color-mix(in srgb, var(--bx-r3) 10%, var(--surface2));
-}
-.bx-rules-row.r2 {
-  border-color: color-mix(in srgb, var(--bx-r2) 45%, var(--line));
-  border-left: 3px solid var(--bx-r2);
-  background: color-mix(in srgb, var(--bx-r2) 8%, var(--surface2));
-}
-.bx-rules-row.r1 {
-  border-color: color-mix(in srgb, var(--bx-r1) 45%, var(--line));
-  border-left: 3px solid var(--bx-r1);
-  background: color-mix(in srgb, var(--bx-r1) 8%, var(--surface2));
-}
-.bx-rules-row.r0 {
-  border-color: color-mix(in srgb, var(--bx-r0) 45%, var(--line));
-  border-left: 3px solid var(--bx-r0);
-  background: color-mix(in srgb, var(--bx-r0) 8%, var(--surface2));
-}
-.bx-rules-row.rborrowed {
-  border-color: color-mix(in srgb, var(--bx-borrowed) 48%, var(--line));
-  border-left: 3px solid var(--bx-borrowed);
-  background: color-mix(in srgb, var(--bx-borrowed) 9%, var(--surface2));
-}
-.bx-rules-row.rpreset {
-  border-color: color-mix(in srgb, var(--bx-preset) 45%, var(--line));
-  border-left: 3px solid var(--bx-preset);
-  background: color-mix(in srgb, var(--bx-preset) 8%, var(--surface2));
-}
-.bx-rules-row.runborrowed {
-  border-style: dashed;
-  border-left: 3px dashed var(--bx-unborrowed);
-  opacity: 0.72;
-}
-.bx-rule-lv {
-  font-weight: 600;
-  color: var(--ink);
-  white-space: nowrap;
-}
-.bx-rule-st {
-  font-size: 10px;
-  font-weight: 700;
-  text-align: center;
-  padding: 1px 4px;
-  border-radius: 4px;
-  background: var(--surface);
-  color: var(--ink3);
-  white-space: nowrap;
-}
-.bx-rules-row.r3 .bx-rule-st.active {
-  background: var(--bx-r3);
-  color: var(--bx-r3-ink);
-}
-.bx-rules-row.r2 .bx-rule-st.active {
-  background: color-mix(in srgb, var(--bx-r2) 18%, var(--surface));
-  color: var(--bx-r2);
-}
-.bx-rules-row.r1 .bx-rule-st.active {
-  background: color-mix(in srgb, var(--bx-r1) 18%, var(--surface));
-  color: var(--bx-r1);
-}
-.bx-rules-row.r0 .bx-rule-st {
-  color: var(--bx-r0);
-}
-.bx-rules-row.rborrowed .bx-rule-st {
-  color: var(--bx-borrowed);
-}
-.bx-rules-row.rpreset .bx-rule-st {
-  color: var(--bx-preset);
-}
-.bx-rules-row.runborrowed .bx-rule-st {
-  color: var(--bx-unborrowed);
-}
-.bx-rules-row .num {
-  font: 600 11.5px var(--fn);
-  text-align: right;
-  color: var(--ink2);
-}
-.bx-rules-row.r3 .num {
-  color: var(--bx-r3);
-}
-.bx-rules-row.r2 .num {
-  color: var(--bx-r2);
-}
-.bx-rules-row.r1 .num {
-  color: var(--bx-r1);
-}
-
-/* ---------- 批量导入面板 ---------- */
-.bx-import {
-  min-width: 0;
-  display: grid;
-  gap: 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--line2);
-  border-radius: 8px;
-  background: var(--surface2);
-}
-.bx-import-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px 10px;
-}
-.bx-import-head b {
-  font-size: 13px;
-}
-.bx-guide-link {
-  margin-inline-start: auto;
-}
-.bx-workbook {
-  margin: 0;
-  overflow-wrap: anywhere;
-  color: var(--ink2);
-}
-.bx-textarea {
-  width: 100%;
-  min-height: 80px;
-  padding: 8px;
-  border: 1px solid var(--line2);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--ink);
-  font: 12px/1.5 var(--fn);
-  resize: vertical;
-}
-.bx-import-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-.bx-fallback-rank {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--ink2);
-}
-.bx-preview {
-  display: grid;
-  gap: 8px;
-  padding: 8px 10px;
-  border: 1px solid var(--teal);
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--teal) 8%, var(--surface));
-  font-size: 12.5px;
-}
-
 /* ---------- 可开关的编辑画笔工具栏 ---------- */
 .bx-editor-bar {
   position: sticky;
@@ -2104,13 +1526,13 @@ function resetFilters(): void {
   font: 700 13px var(--fn);
   color: var(--bx-borrowed);
 }
-.bx-actions {
+.bx-tool :deep(.bx-actions) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
 }
-.bx-actions .btn {
+.bx-tool :deep(.bx-actions .btn) {
   min-height: 34px;
   padding: 4px 10px;
   font-size: 12.5px;
@@ -2260,12 +1682,6 @@ function resetFilters(): void {
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
   }
-  .bx-rules {
-    padding-left: 0;
-    padding-top: 10px;
-    border-left: 0;
-    border-top: 1px solid var(--line);
-  }
 }
 @container box-tools (max-width: 600px) {
   .bx-owned-row {
@@ -2331,10 +1747,6 @@ function resetFilters(): void {
   .bx-cat-num {
     font-size: 15.5px;
   }
-  .bx-rules-row {
-    padding: 3px 6px;
-    font-size: 11px;
-  }
   .bx-editor-bar,
   .bx-toolbar {
     padding: 8px 10px;
@@ -2348,24 +1760,5 @@ function resetFilters(): void {
     grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
     gap: 6px;
   }
-}
-.bx-sync-incoming {
-  display: grid;
-  gap: 8px;
-  padding: 12px 14px;
-  border-color: color-mix(in srgb, var(--teal) 45%, var(--line));
-  background: color-mix(in srgb, var(--teal) 6%, var(--surface));
-}
-.bx-sync-in-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 10px;
-  font-size: 12.5px;
-  color: var(--ink2);
-}
-.bx-sync-in-head b {
-  font-size: 13.5px;
-  color: var(--teal);
 }
 </style>

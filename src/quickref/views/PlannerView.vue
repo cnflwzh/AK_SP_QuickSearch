@@ -45,7 +45,7 @@ import {
   planCost,
   type Plan,
   type PlanOp,
-} from '../../lib/plans/index.ts';
+} from '../../lib/plans/core.ts';
 import {effectivePlanIcon, MAX_STRATEGIES, type PlanIcon, type PlanStage} from '../../lib/plans/model.ts';
 import {suggestions, alternatesFor} from '../../lib/recommendation/index.ts';
 import {
@@ -65,6 +65,7 @@ import {
 import {useQuickrefActions} from '../state.ts';
 import {color, fx} from '../format.ts';
 import Segmented from '../components/Segmented.vue';
+import SubTabs from '../components/SubTabs.vue';
 import SearchInput from '../components/SearchInput.vue';
 import SelectInput, {type SelectOption} from '../components/SelectInput.vue';
 import EmptyState from '../components/EmptyState.vue';
@@ -74,9 +75,12 @@ import CovenantIcon from '../components/CovenantIcon.vue';
 import PlanCovenants from '../components/PlanCovenants.vue';
 import PlanSummary from '../components/PlanSummary.vue';
 import GlossaryText from '../components/GlossaryText.vue';
-import PlanSharePanel from '../components/PlanSharePanel.vue';
+import {lazyView} from '../../lib/ui/lazyView.ts';
+const PlanSharePanel = lazyView(() => import('../components/PlanSharePanel.vue'));
 import PlannerSheet from '../components/PlannerSheet.vue';
 import PlanIconPicker from '../components/PlanIconPicker.vue';
+import {stageOf} from '../../lib/plans/lineup.ts';
+import PlannerAlternates from '../planner/PlannerAlternates.vue';
 import PlannerStages from '../planner/PlannerStages.vue';
 import {useCompactPlanner} from '../planner/useCompactPlanner.ts';
 import '../workbench.css';
@@ -95,7 +99,7 @@ const emit = defineEmits<{done: []}>();
 const actions = useQuickrefActions();
 const stages = computed(() => plan.value.stages ?? []);
 const stage = computed(() =>
-  stages.value.find((item) => stageKey(item) === editingStageKey.value),
+  stageOf(plan.value, editingStageKey.value),
 );
 watch([editingStageKey, stage], ([key, item]) => {
   // 其他标签页更新存档后，已删除的区间应回到成型阵容并清除旧槽位的编辑状态。
@@ -556,6 +560,8 @@ const GAIN: Record<string, string> = {
 };
 
 /* ---------- 干员池 ---------- */
+const poolTierTabs = ['全部', ...TIER_LABELS.slice(1)].map((label, id) => ({id, label}));
+const strategyCategoryTabs = STRATEGY_CATEGORIES.map((label, id) => ({id, label}));
 const poolTier = computed({
   get: () => Number(queryText(routeQuery.value, 'poolTier')) || 0,
   set: (value: number) => {
@@ -602,18 +608,21 @@ function filterPoolByRole(role: CombatRole): void {
   poolRole.value = poolRole.value === role ? '' : role;
   if (compact.value && poolRole.value) void openOperators();
 }
-function isOpSub(name: string): boolean {
-  if (!hasAnyBox.value) return false;
-  const op = OPERATOR[name];
-  return !!op && isBoxSubstitute(op, operatorBox);
-}
+const substitutesInBox = computed(() => {
+  const names = new Set<string>();
+  if (hasAnyBox.value) {
+    for (const op of OPERATORS) if (isBoxSubstitute(op, operatorBox)) names.add(op.name);
+  }
+  return names;
+});
+const isOpSub = (name: string) => substitutesInBox.value.has(name);
 const pool = computed(() => {
   const raw = poolQuery.value.trim();
   const q = normalize(poolQuery.value);
   const filterSub = hasAnyBox.value && poolAvailableOnly.value;
   return OPERATORS.filter(
     (o) =>
-      (!filterSub || !isBoxSubstitute(o, operatorBox)) &&
+      (!filterSub || !isOpSub(o.name)) &&
       (!poolTier.value || o.tier === poolTier.value) &&
       (!poolCovenant.value || o.covenants.includes(poolCovenant.value)) &&
       (!poolType.value || o.type === poolType.value) &&
@@ -1102,67 +1111,12 @@ const shared = computed(() => plan.value.ops.length - onlyMine.value.size);
                     前期打工或抓不到主选时的平替，设本局后盟约页同步高亮 ·
                     也可在右侧列表点选
                   </span>
-                  <template v-if="earlyTransitionSuggest.length">
-                    <span class="pl-altpick-sub">前期打工（Ⅰ–Ⅱ 阶同盟约）</span>
-                    <div class="pl-pick-g">
-                      <button
-                        v-for="o in earlyTransitionSuggest"
-                        :key="o.name"
-                        type="button"
-                        :data-t="o.tier"
-                        :data-op="o.name"
-                        @click="addAlt(o.name)">
-                        <img
-                          :src="avatarSrc(o.name)"
-                          alt=""
-                          width="34"
-                          height="34"
-                          loading="lazy" />
-                        <small>{{ TIER_LABELS[o.tier] }} {{ o.name }}</small>
-                        <span class="dots">
-                          <u
-                            v-for="c in o.covenants"
-                            :key="c"
-                            :style="{'--c': color(c)}"></u>
-                        </span>
-                      </button>
-                    </div>
-                  </template>
-                  <template v-if="altSuggest.length">
-                    <span
-                      v-if="earlyTransitionSuggest.length"
-                      class="pl-altpick-sub">
-                      同位平替（抓不到时替换）
-                    </span>
-                    <div class="pl-pick-g">
-                      <button
-                        v-for="o in altSuggest"
-                        :key="o.name"
-                        type="button"
-                        :data-t="o.tier"
-                        :data-op="o.name"
-                        @click="addAlt(o.name)">
-                        <img
-                          :src="avatarSrc(o.name)"
-                          alt=""
-                          width="34"
-                          height="34"
-                          loading="lazy" />
-                        <small>
-                          {{ o.name }}
-                          <em v-if="isOpSub(o.name)" class="pl-sub-note">
-                            需借
-                          </em>
-                        </small>
-                        <span class="dots">
-                          <u
-                            v-for="c in o.covenants"
-                            :key="c"
-                            :style="{'--c': color(c)}"></u>
-                        </span>
-                      </button>
-                    </div>
-                  </template>
+                  <PlannerAlternates
+                    :early="earlyTransitionSuggest"
+                    :alternates="altSuggest"
+                    :disabled="poolDisabled"
+                    :borrowed="isOpSub"
+                    @pick="addAlt" />
                 </div>
                 <div class="pl-edit-actions">
                   <span class="pl-move">
@@ -1440,11 +1394,13 @@ const shared = computed(() => plan.value.ops.length - onlyMine.value.size);
                   <span v-html="fx(replacingStrategy.effect)"></span>
                 </span>
               </div>
-              <Segmented
-                :labels="STRATEGY_CATEGORIES"
-                :active="stCategory"
+              <SubTabs
+                v-model="stCategory"
+                :items="strategyCategoryTabs"
+                :level="3"
+                inline
                 attr="plsc"
-                @change="stCategory = $event" />
+                aria-label="策略分类" />
               <div class="pl-pick-g">
                 <button
                   v-for="s in stList"
@@ -1711,11 +1667,13 @@ const shared = computed(() => plan.value.ops.length - onlyMine.value.size);
               :options="POOL_ROLE_OPTIONS"
               highlight-active
               aria-label="实战职能" />
-            <Segmented
-              :labels="['全部', ...TIER_LABELS.slice(1)]"
-              :active="poolTier"
+            <SubTabs
+              v-model="poolTier"
+              :items="poolTierTabs"
+              :level="3"
+              inline
               attr="plt"
-              @change="poolTier = $event" />
+              aria-label="干员等阶" />
             <button
               v-if="hasAnyBox"
               type="button"
@@ -1742,53 +1700,13 @@ const shared = computed(() => plan.value.ops.length - onlyMine.value.size);
             "
             class="pl-pick pl-altpick">
             <h4>推荐过渡 / 备选</h4>
-            <template v-if="earlyTransitionSuggest.length">
-              <span class="pl-altpick-sub">前期打工（Ⅰ–Ⅱ 阶同盟约）</span>
-              <div class="pl-pick-g">
-                <button
-                  v-for="o in earlyTransitionSuggest"
-                  :key="o.name"
-                  type="button"
-                  :data-t="o.tier"
-                  :data-op="o.name"
-                  :disabled="poolDisabled(o.name)"
-                  @click="addAlt(o.name)">
-                  <img
-                    :src="avatarSrc(o.name)"
-                    alt=""
-                    width="34"
-                    height="34"
-                    loading="lazy" />
-                  <small>{{ TIER_LABELS[o.tier] }} {{ o.name }}</small>
-                </button>
-              </div>
-            </template>
-            <template v-if="altSuggest.length">
-              <span v-if="earlyTransitionSuggest.length" class="pl-altpick-sub">
-                同位平替（抓不到时替换）
-              </span>
-              <div class="pl-pick-g">
-                <button
-                  v-for="o in altSuggest"
-                  :key="o.name"
-                  type="button"
-                  :data-t="o.tier"
-                  :data-op="o.name"
-                  :disabled="poolDisabled(o.name)"
-                  @click="addAlt(o.name)">
-                  <img
-                    :src="avatarSrc(o.name)"
-                    alt=""
-                    width="34"
-                    height="34"
-                    loading="lazy" />
-                  <small>
-                    {{ o.name }}
-                    <em v-if="isOpSub(o.name)" class="pl-sub-note">需借</em>
-                  </small>
-                </button>
-              </div>
-            </template>
+            <PlannerAlternates
+              :early="earlyTransitionSuggest"
+              :alternates="altSuggest"
+              :disabled="poolDisabled"
+              :borrowed="isOpSub"
+              compact
+              @pick="addAlt" />
           </div>
           <template v-for="g in poolGroups" :key="g.tier">
             <div class="tierh" :data-t="g.tier">
@@ -2076,7 +1994,7 @@ const shared = computed(() => plan.value.ops.length - onlyMine.value.size);
   overflow-wrap: anywhere;
   cursor: pointer;
 }
-.pl-sub-note {
+:deep(.pl-sub-note) {
   font-style: normal;
   font-size: 10.5px;
   font-weight: 700;

@@ -6,8 +6,8 @@ import {
   isBannableCovenant,
   isCoreCovenant,
 } from '../../../data/index.ts';
-import {atLayers} from '../../lib/plans/index.ts';
-import {color, fx, bonusHeadcount, bonusText} from '../format.ts';
+import {color} from '../format.ts';
+import {covenantEffectCard} from '../covenantEffect.ts';
 import {useQuickrefActions} from '../state.ts';
 import {
   clearBans,
@@ -69,7 +69,6 @@ const cards = computed(() =>
     const cov = COVENANTS[name],
       stat = runStat.value.get(name);
     const layers = stat ? (runFormation.value?.layers[name] ?? 0) : 0;
-    const head = bonusHeadcount(cov.bonus);
     return {
       name,
       need: cov.need,
@@ -78,15 +77,7 @@ const cards = computed(() =>
       stat,
       layers,
       banned: runBans.value.includes(name),
-      effect: fx(layers ? atLayers(cov.effect, layers) : cov.effect),
-      bonus: cov.bonus
-        ? fx(
-            layers
-              ? atLayers(bonusText(cov.bonus), layers)
-              : bonusText(cov.bonus),
-          )
-        : '',
-      bonusLabel: head ? `${head} 名` : '强化',
+      ...covenantEffectCard(cov, layers),
     };
   }),
 );

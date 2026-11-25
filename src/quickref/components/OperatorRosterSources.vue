@@ -110,31 +110,27 @@ function formatTierSpan(slots: readonly Operator[]): string {
     : `${TIER_LABELS[min]}–${TIER_LABELS[max]} 阶`;
 }
 
-const substitutes: readonly SubstituteEntry[] = ADDITIONAL_OPERATORS.filter(
-  (op) => op.source !== 'operator',
-)
-  .map((op) => {
-    const slots = OPERATORS.filter((slot) => slot.backupOperator === op.name)
-      .slice()
-      .sort((a, b) => b.tier - a.tier);
-    return {
-      ...op,
-      slots,
-      tierSpan: formatTierSpan(slots),
-    };
-  })
-  .filter((op) => op.slots.length > 0);
-
-const eliteSubstitutesCount = substitutes.filter(
-  (op) => op.source === 'system',
-).length;
-const reserveSubstitutesCount = substitutes.filter(
-  (op) => op.source === 'reserve',
-).length;
-const totalCoveredSlots = substitutes.reduce(
-  (sum, op) => sum + op.slots.length,
-  0,
+// 固定干员页只显示数量，实际打开替补列表时再按等阶整理槽位。
+const coveredNames = new Set(OPERATORS.map((op) => op.backupOperator).filter(Boolean));
+const substituteOperators = ADDITIONAL_OPERATORS.filter(
+  (op) => op.source !== 'operator' && coveredNames.has(op.name),
 );
+const substitutes = computed<readonly SubstituteEntry[]>(() => {
+  const byName = new Map<string, Operator[]>();
+  for (const op of OPERATORS) {
+    if (!op.backupOperator) continue;
+    const slots = byName.get(op.backupOperator);
+    if (slots) slots.push(op);
+    else byName.set(op.backupOperator, [op]);
+  }
+  return substituteOperators.map((op) => {
+    const slots = byName.get(op.name)!.sort((a, b) => b.tier - a.tier);
+    return {...op, slots, tierSpan: formatTierSpan(slots)};
+  });
+});
+const eliteSubstitutesCount = substituteOperators.filter((op) => op.source === 'system').length;
+const reserveSubstitutesCount = substituteOperators.length - eliteSubstitutesCount;
+const totalCoveredSlots = computed(() => substitutes.value.reduce((sum, op) => sum + op.slots.length, 0));
 
 const sourceTabs = computed(() => [
   {
@@ -150,7 +146,7 @@ const sourceTabs = computed(() => [
   {
     id: 'substitute' as const,
     label: '替补干员',
-    count: substitutes.length,
+    count: substituteOperators.length,
   },
 ]);
 
@@ -201,7 +197,7 @@ const choiceGroups = computed(() => {
 });
 
 const filteredSubstitutes = computed(() =>
-  substitutes
+  substitutes.value
     .filter(
       (op) =>
         (!focusedName.value || op.name === focusedName.value) &&

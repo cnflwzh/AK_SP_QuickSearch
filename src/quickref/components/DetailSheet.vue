@@ -26,7 +26,7 @@ import {
   bonusHeadcount,
   bonusText,
 } from '../format.ts';
-import {MAX_EQ, MAX_OPS} from '../../lib/plans/index.ts';
+import {MAX_EQ, MAX_OPS} from '../../lib/plans/core.ts';
 import {useQuickrefActions, type DetailSelection} from '../state.ts';
 import {
   isRunBannedOp,

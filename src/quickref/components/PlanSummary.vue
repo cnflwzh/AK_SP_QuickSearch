@@ -2,7 +2,7 @@
 import {computed} from 'vue';
 import {OPERATOR, STRATEGY, TIER_LABELS} from '../../../data/index.ts';
 import {avatarSrc, equipIconSrc, portraitSrc} from '../../lib/ui/assets.ts';
-import {covenantStats, planCost, type PlanOp} from '../../lib/plans/index.ts';
+import {covenantStats, planCost, type PlanOp} from '../../lib/plans/core.ts';
 import PlanCovenants from './PlanCovenants.vue';
 import type {PlanIcon} from '../../lib/plans/model.ts';
 import PlanEmblem from './PlanEmblem.vue';

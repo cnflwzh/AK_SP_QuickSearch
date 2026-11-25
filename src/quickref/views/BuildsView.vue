@@ -1,13 +1,11 @@
 <script setup lang="ts">
-import {computed, nextTick, onUnmounted, ref, shallowRef, watch} from 'vue';
+import {computed, nextTick, onUnmounted, ref, watch} from 'vue';
 import {
-  BANNABLE_COVENANTS,
   BORROW_LIMIT,
   CORE_BUILDS,
   COVENANTS,
   DEFAULT_BUILD_ID,
   OPERATOR,
-  EQUIP,
   STRATEGY,
   TIER_LABELS,
   buildByName,
@@ -28,18 +26,12 @@ import {
 import {isFloatingWindow} from '../../lib/ui/windowMode.ts';
 import {prefersReducedMotion} from '../../lib/ui/dom.ts';
 import {avatarSrc} from '../../lib/ui/assets.ts';
-import {banReplace} from '../../lib/recommendation/index.ts';
 import {
-  atLayers,
-  blankPlan,
-  newId,
   covenantStats,
-  decodePlan,
   equipNotes,
   planCost,
-  type Decoded,
   type PlanOp,
-} from '../../lib/plans/index.ts';
+} from '../../lib/plans/core.ts';
 import {settings, updateSetting} from '../../lib/settings/store.ts';
 import {useQuickrefActions} from '../state.ts';
 import {useCompactPlanner} from '../planner/useCompactPlanner.ts';
@@ -68,33 +60,26 @@ import {
   startEdit,
   finishEdit,
   setRun,
-  toggleBan,
-  addPlan,
-  saveGuidePlan,
   applyGuideUpdate,
 } from '../planStore.ts';
 import {
   fetchSklandGuide,
   isCurrentGuideSeason,
 } from '../../lib/plans/skland.ts';
-import {readGuideReference} from '../../lib/plans/sklandShare.ts';
-import {isPlanShareHash, planShareSource} from '../../lib/plans/shareInput.ts';
-import type {Plan} from '../../lib/plans/model.ts';
-import {MAX_BACKUP_BYTES, parsePlanBackup} from '../../lib/plans/backup.ts';
+import {isPlanShareHash} from '../../lib/plans/shareInput.ts';
 import SklandGuideDetails from '../components/SklandGuideDetails.vue';
 import GlossaryText from '../components/GlossaryText.vue';
-import SklandImport from '../components/SklandImport.vue';
-import {color, fx, bonusHeadcount, bonusText} from '../format.ts';
+import {color, fx} from '../format.ts';
+import {lineupEquipment, stageOf} from '../../lib/plans/lineup.ts';
+import {covenantEffectCard} from '../covenantEffect.ts';
 import Chip from '../components/Chip.vue';
 import CovenantIcon from '../components/CovenantIcon.vue';
 import PlanEmblem from '../components/PlanEmblem.vue';
 import {effectivePlanIcon} from '../../lib/plans/model.ts';
 import OperatorTile from '../components/OperatorTile.vue';
-import PlanImportPreview from '../components/PlanImportPreview.vue';
 import BuildPicker from '../components/BuildPicker.vue';
 import BuildSwitchButton from '../components/BuildSwitchButton.vue';
 import BuildStageSwitcher from '../components/BuildStageSwitcher.vue';
-import PlanSharePanel from '../components/PlanSharePanel.vue';
 import OperatorRequestButton from '../components/OperatorRequestButton.vue';
 import SubTabs, {
   type SubTabDirection,
@@ -121,6 +106,11 @@ import {
 import {buildKey} from '../../router/entities.ts';
 import {queryText} from '../../router/location.ts';
 import {routeNotice} from '../../router/index.ts';
+const BuildBanPanel = lazyView(
+  () => import('../components/BuildBanPanel.vue'),
+);
+const BuildImportPanel = lazyView(() => import('../components/BuildImportPanel.vue'));
+const PlanSharePanel = lazyView(() => import('../components/PlanSharePanel.vue'));
 const PlannerView = lazyView(() => import('./PlannerView.vue'));
 const PlanBackupPanel = lazyView(
   () => import('../components/PlanBackupPanel.vue'),
@@ -371,7 +361,7 @@ const selectedStage = computed<string>({
   },
 });
 const stage = computed(() =>
-  p.value.plan.stages?.find((s) => stageKey(s) === selectedStage.value),
+  stageOf(p.value.plan, selectedStage.value),
 );
 const formation = computed(() => stage.value ?? p.value.plan);
 function toggleCurrentRun(): void {
@@ -470,7 +460,7 @@ const stats = computed(() =>
 );
 // 仅精锐计入的盟约由精锐人数产生，可以显示效果，但不是可被 ban 的原生盟约。
 const bannable = computed(() =>
-  stats.value.filter((s) => isBannableCovenant(s.name)),
+  stats.value.map((s) => s.name).filter(isBannableCovenant),
 );
 /** 这套要用的盟约：终盘阵容里激活的 */
 const needs = computed(() => stats.value.filter((s) => s.active));
@@ -487,20 +477,11 @@ const headerSummary = computed(
 const effects = computed(() =>
   needs.value.map((s) => {
     const cov = COVENANTS[s.name],
-      layers = formation.value.layers[s.name] ?? 0,
-      head = bonusHeadcount(cov.bonus);
+      layers = formation.value.layers[s.name] ?? 0;
     return {
       ...s,
       layers,
-      effect: fx(layers ? atLayers(cov.effect, layers) : cov.effect),
-      bonus: cov.bonus
-        ? fx(
-            layers
-              ? atLayers(bonusText(cov.bonus), layers)
-              : bonusText(cov.bonus),
-          )
-        : '',
-      bonusLabel: head ? `${head} 名` : '强化',
+      ...covenantEffectCard(cov, layers),
     };
   }),
 );
@@ -538,21 +519,13 @@ const coreNames = computed(() =>
 const assignedEquips = computed(() =>
   slotEntries.value.filter(({slot}) => slot.eq.length > 0),
 );
-const equipment = computed(() =>
-  [
-    ...new Set([
-      ...formation.value.ops.flatMap((o) => o.eq),
-      ...(base.value?.equipment ?? []),
-      ...((stage.value
-        ? currentGuide.value?.rounds.find(
-            (row) =>
-              row.from === stage.value!.from && row.to === stage.value!.to,
-          )
-        : currentGuide.value?.formation
-      )?.equipment ?? []),
-    ]),
-  ].filter((e) => Object.hasOwn(EQUIP, e)),
-);
+const equipment = computed(() => {
+  const selected = stage.value;
+  const guide = selected
+    ? currentGuide.value?.rounds.find((row) => row.from === selected.from && row.to === selected.to)
+    : currentGuide.value?.formation;
+  return [...lineupEquipment(formation.value.ops, base.value?.equipment, guide?.equipment)];
+});
 function remove(): void {
   removePreset(p.value.key);
   void navigate(buildLocation(current.value.key), true);
@@ -564,6 +537,7 @@ function restore(): void {
 /* ---------- 盟约被 ban：被 ban 盟约的干员不会出现，给出替代 ---------- */
 // 初次查看受禁池影响的阵容时自动展开，之后尊重用户在这套流派中的收起选择。
 const manualBanOpen = ref<boolean | null>(null);
+// 面板按需挂载，收起再打开时保留玩家展开的盟约及手选替补。
 const showAllBans = ref(false);
 const banImpact = computed(() => {
   const map = new Map<string, number>();
@@ -579,14 +553,9 @@ const banImpact = computed(() => {
 const hasRelevantBan = computed(
   () =>
     runBanSet.value.size > 0 &&
-    bannable.value.some((s) => runBanSet.value.has(s.name)),
+    bannable.value.some((name) => runBanSet.value.has(name)),
 );
 const banOpen = computed(() => manualBanOpen.value ?? hasRelevantBan.value);
-const visibleBanCovenants = computed(() =>
-  showAllBans.value
-    ? BANNABLE_COVENANTS
-    : [...new Set([...bannable.value.map((s) => s.name), ...runBans.value])],
-);
 const forced = ref<Record<string, string>>({});
 watch(
   [() => p.value.key, () => runBans.value.join(), selectedStage],
@@ -653,58 +622,6 @@ function borrowMissingFromBuild(): void {
   }
 }
 
-const ban = computed(() =>
-  hasRelevantBan.value
-    ? banReplace(
-        formation.value.ops,
-        runBans.value,
-        forced.value,
-        formation.value.layers,
-        hasAnyBox.value ? operatorBox : undefined,
-      )
-    : null,
-);
-const banAfter = computed(() =>
-  ban.value
-    ? covenantStats(
-        ban.value.ops,
-        formation.value.layers,
-        [],
-        runBanSet.value,
-      ).filter((s) => s.active)
-    : [],
-);
-function pickAlt(replaces: string, name: string): void {
-  forced.value = {
-    ...Object.fromEntries(
-      Object.entries(forced.value).filter(([, chosen]) => chosen !== name),
-    ),
-    [replaces]: name,
-  };
-}
-function saveBan(): void {
-  const result = ban.value;
-  if (!result?.ops.length) return;
-  const source = p.value.plan;
-  const [strategy = '', ...alternates] = [
-    source.strategy,
-    ...(source.strategyAlternates ?? []),
-  ].filter(
-    (name) =>
-      STRATEGY[name] && !runBans.value.includes(STRATEGY[name].category),
-  );
-  const key = addPlan({
-    ...blankPlan(`${source.name.slice(0, 13)}·替`),
-    ops: JSON.parse(JSON.stringify(result.ops)),
-    strategy,
-    note: formation.value.note,
-    layers: {...formation.value.layers},
-    ...(alternates.length ? {strategyAlternates: alternates} : {}),
-  });
-  setRun(key);
-  selectBuild(key);
-}
-
 /* ---------- 工具面板；分享链接的片段在显式导入前保留 ---------- */
 const activePanel = computed(
   () =>
@@ -743,92 +660,6 @@ function toggleShare(): void {
 
 /* ---------- 导入：分享码 / 链接 ---------- */
 const importText = ref('');
-const planFile = ref<HTMLInputElement>();
-const filePlan = shallowRef<Plan>();
-const pasteError = ref('');
-const guideReference = computed(() =>
-  imported.value ? null : readGuideReference(importText.value),
-);
-const canReadClipboard =
-  typeof navigator !== 'undefined' &&
-  typeof navigator.clipboard?.readText === 'function';
-const imported = computed<Decoded | null>(() =>
-  filePlan.value
-    ? {plan: filePlan.value}
-    : importText.value.trim() &&
-        !planShareSource(importText.value).includes('#g=')
-      ? decodePlan(importText.value)
-      : null,
-);
-let fileRequest = 0;
-function clearFileImport(): void {
-  fileRequest++;
-  filePlan.value = undefined;
-  pasteError.value = '';
-}
-async function readPlanFile(event: Event): Promise<void> {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  input.value = '';
-  if (!file) return;
-  clearFileImport();
-  importText.value = '';
-  const request = fileRequest;
-  try {
-    if (file.size > MAX_BACKUP_BYTES)
-      throw new Error('请选择 5 MB 以内的流派文件。');
-    const backup = parsePlanBackup(await file.text());
-    if (backup.plans.length !== 1)
-      throw new Error('包含多套流派的文件请在「备份与恢复」中导入。');
-    if (request === fileRequest) filePlan.value = backup.plans[0];
-  } catch (error) {
-    if (request === fileRequest)
-      pasteError.value =
-        error instanceof Error ? error.message : '无法读取流派文件。';
-  }
-}
-watch(importOpen, (open) => {
-  if (!open) clearFileImport();
-});
-async function pasteImport(): Promise<void> {
-  pasteError.value = '';
-  try {
-    const text = await navigator.clipboard.readText();
-    if (text) {
-      clearFileImport();
-      importText.value = text;
-    } else pasteError.value = '剪贴板里还没有内容。';
-  } catch {
-    pasteError.value = '浏览器未授予读取剪贴板权限，请手动粘贴。';
-  }
-}
-function saveImport(next: Plan, andRun: boolean): void {
-  let key: string;
-  try {
-    key = saveGuidePlan(next);
-  } catch {
-    return; // 存储层已显示空间不足或跨标签冲突，保留当前预览供重试。
-  }
-  if (andRun) setRun(key);
-  // Only explicit import consumes the fragment; preview survives WeChat -> browser handoff.
-  void navigate({path: buildLocation(key), query: {}, hash: ''}, true);
-  importText.value = '';
-  clearFileImport();
-  pasteError.value = '';
-}
-function acceptImport(andRun = false): void {
-  const d = imported.value;
-  if (!d || (andRun && !hasPlanOperators(d.plan))) return;
-  // 导入一份独立副本，不复用文件里的本机 ID 或覆盖同名内置流派。
-  const next: Plan = {
-    ...d.plan,
-    id: newId(),
-    updated: Date.now(),
-    name: d.plan.name || '导入的流派',
-  };
-  delete next.base;
-  saveImport(next, andRun);
-}
 const pulling = ref(false);
 const pullNotice = ref('');
 const pullFailed = ref(false);
@@ -876,7 +707,6 @@ watch(
   () => currentRoute.value.hash,
   (hash) => {
     if (isPlanShareHash(hash)) {
-      clearFileImport();
       importText.value = hash;
     }
   },
@@ -888,7 +718,7 @@ watch(
     <BuildPicker
       :collapse-presets="settings.collapsePresetBuilds"
       :open="pickerOpen"
-      :groups="pickerGroups"
+      :groups="pickerOpen ? pickerGroups : []"
       :current-key="p.key"
       :run-key="runKey"
       :has-box="hasAnyBox"
@@ -928,60 +758,7 @@ watch(
               v-if="activePanel === 'backup'"
               id="build-backup" />
 
-            <section v-if="importOpen" id="build-import" class="pl-panel bimp">
-              <div class="bimp-bar">
-                <input
-                  v-model="importText"
-                  class="pl-paste"
-                  placeholder="粘贴分享码、森空岛链接或整段分享文案"
-                  aria-label="流派分享码或链接"
-                  @input="clearFileImport" />
-                <button
-                  v-if="canReadClipboard"
-                  type="button"
-                  @click="pasteImport">
-                  粘贴
-                </button>
-                <button type="button" @click="planFile?.click()">
-                  导入文件
-                </button>
-                <input
-                  ref="planFile"
-                  hidden
-                  type="file"
-                  accept=".json,application/json"
-                  aria-label="选择流派 JSON 文件"
-                  @change="readPlanFile" />
-              </div>
-              <StatusNotice
-                v-if="pasteError"
-                tone="warning"
-                :message="pasteError" />
-              <SklandImport
-                v-if="guideReference"
-                :id="guideReference.id"
-                :patch="guideReference.patch"
-                @accept="saveImport" />
-              <template v-else-if="imported">
-                <PlanImportPreview :plan="imported.plan" />
-                <div class="pl-row">
-                  <button type="button" @click="acceptImport(false)">
-                    存为我的流派
-                  </button>
-                  <button
-                    type="button"
-                    class="pri"
-                    :disabled="!hasPlanOperators(imported.plan)"
-                    @click="acceptImport(true)">
-                    导入并设为本局
-                  </button>
-                </div>
-              </template>
-              <StatusNotice
-                v-else-if="importText.trim()"
-                tone="warning"
-                message="认不出这个分享码" />
-            </section>
+            <BuildImportPanel v-if="importOpen" v-model="importText" />
           </div>
         </div>
       </section>
@@ -1467,117 +1244,15 @@ watch(
         </button>
       </div>
 
-      <div v-if="slotEntries.length && banOpen" id="build-bans" class="bban">
-        <div class="bpick">
-          <span class="k">点选被 ban 的</span>
-          <button
-            v-for="covName in visibleBanCovenants"
-            :key="covName"
-            type="button"
-            :class="['bc', {on: runBans.includes(covName)}]"
-            :aria-pressed="runBans.includes(covName)"
-            :style="{'--c': color(covName)}"
-            @click="toggleBan(covName)">
-            <CovenantIcon :name="covName" />
-            {{ covName }}
-          </button>
-          <button
-            type="button"
-            class="bc-more"
-            :aria-expanded="showAllBans"
-            @click="showAllBans = !showAllBans">
-            {{ showAllBans ? '收起其他盟约' : '其他盟约 ▾' }}
-          </button>
-        </div>
-        <template v-if="ban">
-          <div v-for="pk in ban.picks" :key="pk.replaces" class="bpk">
-            <span
-              class="av off"
-              :data-t="OPERATOR[pk.replaces].tier"
-              :data-op="pk.replaces"
-              :title="`${pk.replaces} 不会出现`">
-              <img
-                :src="avatarSrc(pk.replaces)"
-                alt=""
-                width="36"
-                height="36" />
-              <small>{{ pk.replaces }}</small>
-            </span>
-            <b class="ar">→</b>
-            <button
-              type="button"
-              class="av to"
-              :data-t="OPERATOR[pk.name].tier"
-              :data-op="pk.name"
-              @click="actions.openDetail('op', pk.name)">
-              <img :src="avatarSrc(pk.name)" alt="" width="36" height="36" />
-              <small>{{ pk.name }}</small>
-            </button>
-            <span class="g">
-              <i v-for="c in pk.gains" :key="c" :style="{'--c': color(c)}">
-                <CovenantIcon :name="c" />
-                {{ c }}
-              </i>
-            </span>
-            <span v-if="pk.alts.length" class="alts">
-              <span class="k">或</span>
-              <button
-                v-for="a in pk.alts"
-                :key="a"
-                type="button"
-                :data-t="OPERATOR[a].tier"
-                :data-op="a"
-                :aria-label="`换成 ${a}`"
-                @click="pickAlt(pk.replaces, a)">
-                <img :src="avatarSrc(a)" alt="" width="28" height="28" />
-              </button>
-            </span>
-          </div>
-          <div
-            v-for="n in ban.removed.filter(
-              (n) => !ban!.picks.some((pk) => pk.replaces === n),
-            )"
-            :key="n"
-            class="bpk">
-            <span class="av off" :data-t="OPERATOR[n].tier" :data-op="n">
-              <img :src="avatarSrc(n)" alt="" width="36" height="36" />
-              <small>{{ n }}</small>
-            </span>
-            <span class="hint">找不到能补回盟约的替代</span>
-          </div>
-          <div class="bres">
-            <span class="k">换人后</span>
-            <span
-              v-for="s in banAfter"
-              :key="s.name"
-              :class="['c', 'on', {max: s.bonusActive}]"
-              :style="{'--c': color(s.name)}">
-              <CovenantIcon :name="s.name" />
-              {{ s.name }}
-              <small>{{ s.count }}/{{ s.need }}</small>
-            </span>
-            <span
-              v-for="l in ban.lost"
-              :key="l"
-              class="c lost"
-              :style="{'--c': color(l)}">
-              <CovenantIcon :name="l" />
-              {{ l }}
-              <small>失效</small>
-            </span>
-            <button
-              type="button"
-              class="pri"
-              :disabled="!ban.ops.length"
-              @click="saveBan">
-              存为新流派 · 本局打它
-            </button>
-          </div>
-        </template>
-        <p v-else class="hint">
-          被 ban 盟约的干员整局不会出现，点上面的盟约看替代方案
-        </p>
-      </div>
+      <BuildBanPanel
+        v-if="slotEntries.length && banOpen"
+        v-model:show-all="showAllBans"
+        v-model:forced="forced"
+        :plan="p.plan"
+        :formation="formation"
+        :bannable="bannable"
+        :has-relevant-ban="hasRelevantBan"
+        @saved="selectBuild" />
 
       <div v-if="hasBuildNotes || hasLoadout" class="bgrid">
         <div v-if="hasBuildNotes" class="bgrid-main">

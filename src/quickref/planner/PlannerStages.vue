@@ -5,7 +5,7 @@ import {
   validStageRange,
   type PlanStage,
 } from '../../lib/plans/model.ts';
-import {stageKey, stageLabel} from '../planStore.ts';
+import {stageKey, stageLabel} from '../../lib/plans/lineup.ts';
 import BuildStageSwitcher from '../components/BuildStageSwitcher.vue';
 import ConfirmButton from '../components/ConfirmButton.vue';
 import StatusNotice from '../components/StatusNotice.vue';

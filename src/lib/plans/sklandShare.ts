@@ -6,35 +6,14 @@ import {
   packSharePayload,
   unpackSharePayload,
 } from './shareCodec.ts';
-import {planShareSource} from './shareInput.ts';
 import {canShareViaQr, encodePlan, shareUrl, type Shared} from './sharing.ts';
 import {
   guidePlanFields,
-  sklandIdFromText,
   sklandUrl,
   type SklandGuide,
 } from './skland.ts';
 
-/** id 始终是原样的十进制字符串；patch 仅在分享者修改过原文时提供。 */
-export interface GuideReference {
-  id: string;
-  patch?: string;
-}
-
-/** 只在本站短链接中解析差异；官方链接和单独粘贴的十进制攻略编号读取当前原文。 */
-export function readGuideReference(input: string): GuideReference | null {
-  if (input.length > MAX_EXTENDED_PAYLOAD * 4) return null;
-  const source = planShareSource(input);
-  const compact = /#g=([^\s<>"'，。；、）】)\]]*)/.exec(source);
-  if (compact) {
-    const match = /^(\d{1,24})(?:\.([QU][A-Za-z0-9_-]+))?$/.exec(compact[1]);
-    return match ? {id: match[1], patch: match[2]} : null;
-  }
-  const id = /^\d{1,24}$/.test(source.trim())
-    ? source.trim()
-    : sklandIdFromText(source);
-  return id ? {id} : null;
-}
+export {readGuideReference, type GuideReference} from './guideReference.ts';
 
 /** v1 基准只含可编辑字段。固定排列和空值约定使本地存档、Vue 代理和新拉取的原文生成相同字节。 */
 function shareFields(plan: Shared): Shared {
