@@ -40,11 +40,15 @@ import {
   boxSeasonBorrowedCount,
   boxSeasonCount,
   boxSeasonMaxedCount,
+  boxStorageWriteFailed,
   exportOperatorBox,
 } from '../../lib/box/store.ts';
 import {PAGE_LABELS} from '../../router/location.ts';
 import {navigate} from '../../router/navigation.ts';
 import {plans, restorePlanBackup} from '../planStore.ts';
+import {compareMirrorBackup} from '../../lib/settings/mirrorBackup.ts';
+import {useMirrorBackup} from '../components/useMirrorBackup.ts';
+import SectionHeading from '../components/SectionHeading.vue';
 import Segmented from '../components/Segmented.vue';
 import SelectInput, {type SelectOption} from '../components/SelectInput.vue';
 import ConfirmButton from '../components/ConfirmButton.vue';
@@ -493,6 +497,10 @@ function openBoxTool(): void {
 const includeBoxInExport = ref(true);
 const importPlansFromBackup = ref(true);
 const importBoxFromBackup = ref(true);
+const importPageSettings = ref(true);
+const mirrorPreview = ref(false);
+const mirrorSection = ref<HTMLElement>();
+const previewSection = ref<HTMLElement>();
 const showPasteBox = ref(false);
 const pasteText = ref('');
 const exportTextFallback = ref('');
@@ -502,6 +510,61 @@ const pendingSourceName = ref('');
 const errorMessage = ref('');
 const statusMessage = ref('');
 let readRequest = 0;
+
+const mirrorChanges = computed(() => {
+  const backup = pendingBackup.value;
+  return mirrorPreview.value && backup
+    ? compareMirrorBackup(backup, settings, plans, exportOperatorBox())
+    : null;
+});
+
+const {
+  peer,
+  busy: mirrorBusy,
+  message: mirrorMessage,
+  failed: mirrorFailed,
+  start: openMirror,
+  cancel: cancelMirror,
+} = useMirrorBackup(
+  () => serializeSettingsBackup(settings, plans, exportOperatorBox()),
+  receiveMirrorBackup,
+);
+
+function startMirror(direction: 'send' | 'fetch') {
+  clearNotices();
+  openMirror(direction);
+}
+
+function receiveMirrorBackup(text: string): void {
+  if (pendingBackup.value || readingFile.value)
+    throw new Error('接收页还有待处理的配置，请先完成或取消，再重试。');
+  clearNotices();
+  loadBackupText(text, peer?.name ?? '另一站');
+  mirrorPreview.value = true;
+  const changes = mirrorChanges.value!;
+  importPageSettings.value = changes.settings > 0;
+  importPlansFromBackup.value = changes.plans > 0;
+  importBoxFromBackup.value = changes.newOperators + changes.upgrades > 0;
+  if (
+    !changes.settings &&
+    !changes.plans &&
+    !changes.newOperators &&
+    !changes.upgrades
+  ) {
+    cancelImportPreview();
+    statusMessage.value = '本站已包含另一站的设置、流派和练度。';
+  } else if (changes.empty) {
+    confirmImportBackup();
+  } else {
+    // 空白站点的默认偏好不能无声重置已有配置；其余分组可独立勾选。
+    importPageSettings.value = !!changes.settings && !changes.incomingDefault;
+  }
+  void nextTick(() =>
+    (previewSection.value ?? mirrorSection.value)?.focus({
+      preventScroll: false,
+    }),
+  );
+}
 
 onBeforeUnmount(() => {
   readRequest++;
@@ -618,6 +681,8 @@ async function copySettingsText(): Promise<void> {
 
 function loadBackupText(text: string, sourceLabel: string): void {
   pendingBackup.value = parseSettingsBackup(text);
+  mirrorPreview.value = false;
+  importPageSettings.value = true;
   pendingSourceName.value = sourceLabel;
   importPlansFromBackup.value = (pendingBackup.value.plans?.length ?? 0) > 0;
   importBoxFromBackup.value =
@@ -677,7 +742,7 @@ function confirmImportBackup(): void {
       ? pendingBackup.value.box
       : undefined;
     const commitBox = incomingBox ? prepareBoxImport(incomingBox) : undefined;
-    const messages = ['已导入并应用页面设置'];
+    const messages: string[] = [];
     if (importPlansFromBackup.value && incomingPlans?.length) {
       const merged = restorePlanBackup(incomingPlans);
       messages.push(`新增流派 ${merged.additions.length} 套`);
@@ -690,10 +755,20 @@ function confirmImportBackup(): void {
       messages.push(`合并 ${Object.keys(incomingBox).length} 名干员练度`);
     }
     // 流派落盘可能因空间或权限失败，先完成它，避免报错后界面设置已部分应用。
-    applySettings(pendingBackup.value.settings);
-    statusMessage.value = messages.join('，') + '。';
+    const savedSettings =
+      !importPageSettings.value || applySettings(pendingBackup.value.settings);
+    if (importPageSettings.value) messages.unshift('已应用页面设置');
+    if (!savedSettings || (commitBox && boxStorageWriteFailed.value)) {
+      errorMessage.value =
+        '当前页面已应用所选内容，但本机存储写入失败。请保持页面打开，导出配置或释放空间后重试。';
+      return;
+    }
+    statusMessage.value = messages.length
+      ? messages.join('，') + '。'
+      : '已保留本站存档。';
     pendingBackup.value = null;
     pendingSourceName.value = '';
+    mirrorPreview.value = false;
     pasteText.value = '';
     showPasteBox.value = false;
   } catch (cause) {
@@ -707,6 +782,7 @@ function cancelImportPreview(): void {
   readingFile.value = false;
   pendingBackup.value = null;
   pendingSourceName.value = '';
+  mirrorPreview.value = false;
 }
 
 function handleToggleTool(id: CustomizableToolId): void {
@@ -1114,10 +1190,79 @@ function handleResetAll(): void {
               正在读取配置文件…
             </p>
 
-            <div v-if="pendingBackup" class="settings-box settings-preview">
+            <section
+              ref="mirrorSection"
+              class="settings-box mirror-backup"
+              tabindex="-1"
+              aria-label="站点间存档交接">
+              <SectionHeading
+                title="站点间存档交接"
+                badge="实验功能"
+                variant="plain" />
+              <template v-if="peer">
+                <p class="settings-box-note">
+                  在本浏览器的两个站点之间传递界面设置、干员练度 Box
+                  和流派。切换或取回时会打开{{
+                    peer.name
+                  }}，请保持两页打开直到传输完成。
+                </p>
+                <div class="settings-btn-group">
+                  <button
+                    type="button"
+                    class="btn"
+                    :disabled="mirrorBusy || !!pendingBackup || readingFile"
+                    @click="startMirror('send')">
+                    携带存档切换到{{ peer.name }}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn"
+                    :disabled="mirrorBusy || !!pendingBackup || readingFile"
+                    @click="startMirror('fetch')">
+                    从{{ peer.name }}取回存档
+                  </button>
+                  <button
+                    v-if="mirrorBusy"
+                    type="button"
+                    class="btn"
+                    @click="cancelMirror">
+                    取消交接
+                  </button>
+                </div>
+              </template>
+              <p v-else class="settings-box-note">
+                请在主站 sp.enjoyacg.com 或大陆镜像 ak.cnflwzh.top
+                的独立页面中使用。
+              </p>
+              <StatusNotice
+                v-if="mirrorMessage"
+                :tone="mirrorFailed ? 'warning' : 'info'"
+                :message="mirrorMessage" />
+            </section>
+
+            <div
+              v-if="pendingBackup"
+              ref="previewSection"
+              class="settings-box settings-preview"
+              tabindex="-1">
               <b>即将应用来自「{{ pendingSourceName }}」的配置</b>
               <small>导出时间：{{ previewExportedAt }}</small>
               <p class="settings-preview-summary">{{ previewSummary }}</p>
+              <template v-if="mirrorChanges">
+                <p class="settings-note">
+                  与本站比较：{{ mirrorChanges.settings }} 项设置不同；流派新增
+                  {{ mirrorChanges.plans }} 套（含
+                  {{ mirrorChanges.conflicts }} 套冲突副本）；Box 新增
+                  {{ mirrorChanges.newOperators }} 名、提高练度
+                  {{ mirrorChanges.upgrades }} 名。
+                </p>
+                <label
+                  v-if="mirrorChanges.settings"
+                  class="settings-inline-check">
+                  <input v-model="importPageSettings" type="checkbox" />
+                  <span>采用{{ pendingSourceName }}的界面设置</span>
+                </label>
+              </template>
               <label
                 v-if="pendingBackup.plans?.length"
                 class="settings-inline-check">
@@ -1144,7 +1289,7 @@ function handleResetAll(): void {
                   type="button"
                   class="btn p"
                   @click="confirmImportBackup">
-                  确认应用设置
+                  {{ mirrorPreview ? '确认合并所选内容' : '确认应用设置' }}
                 </button>
                 <button type="button" class="btn" @click="cancelImportPreview">
                   取消

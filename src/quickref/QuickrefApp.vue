@@ -73,6 +73,7 @@ import CovenantIcon from './components/CovenantIcon.vue';
 import PrtsPanel from './components/PrtsPanel.vue';
 import {activeBreakpoints, isFloatingWindow, navigationLayout} from '../lib/ui/windowMode.ts';
 import BoxOnboardingDialog from './components/BoxOnboardingDialog.vue';
+import {mirrorEntryToken} from '../lib/settings/mirrorSite.ts';
 import {provideWikiPanel} from './wikiPanel.ts';
 import SkipLink from '../lib/ui/SkipLink.vue';
 import PwaInstallNotice from '../lib/ui/PwaInstallNotice.vue';
@@ -814,7 +815,11 @@ onUnmounted(() => {
       :selection="detail"
       :split-view="wikiPanel.isOpen.value" />
     <BoxOnboardingDialog
-      v-if="!isFloatingWindow && currentRoute.name !== 'not-found'" />
+      v-if="
+        !isFloatingWindow &&
+        currentRoute.name !== 'not-found' &&
+        !(mirrorEntryToken && currentRoute.name === 'settings')
+      " />
   </div>
 </template>
 

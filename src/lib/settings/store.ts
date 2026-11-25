@@ -23,11 +23,13 @@ function readStoredSettings(): UserSettings {
 
 export const settings = reactive<UserSettings>(readStoredSettings());
 
-function writeStoredSettings(current: UserSettings): void {
+function writeStoredSettings(current: UserSettings): boolean {
   try {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(current));
+    return true;
   } catch {
     /* 隐私模式或存储受限时保持当前会话有效。 */
+    return false;
   }
 }
 
@@ -68,7 +70,7 @@ export function applySettingsToDom(current: UserSettings = settings): void {
   updateThemeColorMeta(current.theme);
 }
 
-function replaceSettings(next: unknown, persist = true): void {
+function replaceSettings(next: unknown, persist = true): boolean {
   const clean = normalizeSettings(next);
   // 归一化会创建新数组；保留内容未变化的引用，避免切换主题也重建导航和工具列表。
   for (const key of ['tabOrder', 'hiddenTabs', 'hiddenTools'] as const) {
@@ -89,8 +91,9 @@ function replaceSettings(next: unknown, persist = true): void {
     clean.enableHoverPeek !== settings.enableHoverPeek ||
     clean.showFooter !== settings.showFooter;
   Object.assign(settings, clean);
-  if (persist) writeStoredSettings(settings);
+  const saved = !persist || writeStoredSettings(settings);
   if (domChanged) applySettingsToDom(settings);
+  return saved;
 }
 
 export function updateSetting<K extends keyof UserSettings>(
@@ -100,8 +103,9 @@ export function updateSetting<K extends keyof UserSettings>(
   replaceSettings({...settings, [key]: value});
 }
 
-export function applySettings(raw: unknown): void {
-  replaceSettings(raw);
+/** 归一化并应用整份设置，返回是否成功保存至本机。 */
+export function applySettings(raw: unknown): boolean {
+  return replaceSettings(raw);
 }
 
 export function resetAllSettings(): void {
