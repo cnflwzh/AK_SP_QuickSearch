@@ -96,8 +96,11 @@ export interface Plan {
   base?: string;
 }
 
-export const usesLayers = (name: string): boolean =>
-  /层/.test(COVENANTS[name].effect + COVENANTS[name].bonus);
+export function usesLayers(name: string): boolean {
+  if (!Object.hasOwn(COVENANTS, name)) return false;
+  const covenant = COVENANTS[name];
+  return !!(covenant.scaling.length || covenant.layerBreakpoints?.length || covenant.cycleReward);
+}
 const clampLayers = (n: unknown): number =>
   typeof n === 'number' || typeof n === 'string'
     ? Math.max(0, Math.min(MAX_LAYERS, Math.round(Number(n) || 0)))

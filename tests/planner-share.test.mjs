@@ -8,6 +8,7 @@ import {
   EQUIPMENT,
   OPERATORS,
   STRATEGIES,
+  SEASON_META,
 } from '../data/index.ts';
 import {
   MAX_NOTE,
@@ -31,7 +32,7 @@ const empty = () => ({name: '', note: '', ops: [], strategy: '', layers: {}});
 const base64 = (bytes) => Buffer.from(bytes).toString('base64url');
 function roundTrip(plan) {
   const code = encodePlan(plan);
-  assert.match(code, /^WS[ABCEFGIJKMNOQRSUVWYZacde][A-Za-z0-9_-]+$/);
+  assert.match(code, /^WS(?:D\.[A-Za-z0-9_-]+\.)?[ABCEFGIJKMNOQRSUVWYZacde][A-Za-z0-9_-]+$/);
   assert.deepEqual(decodePlan(code)?.plan, plan);
   return code;
 }
@@ -504,4 +505,50 @@ test('decompression limit and noncanonical compressed tails are enforced', () =>
     /Noncanonical/,
   );
   assert.throws(() => packSharePayload(new Uint8Array(769), 0), /large/);
+});
+
+test('新编号越过旧位宽时使用带赛季的码；换季安全拒绝旧码与异季码', async () => {
+  const strategy = STRATEGIES[0];
+  const equipment = EQUIPMENT[0];
+  const initialIds = [strategy.shareId, equipment.shareId];
+  const season = SEASON_META.id;
+  const plan = {
+    ...empty(), strategy: strategy.name, layers: {[layerNames[0]]: 80},
+    ops: [{...newSlot(OPERATORS[0].name), eq: [equipment.name]}],
+  };
+  const legacy = encodePlan(plan);
+  try {
+    // 模拟季中同一条记录尚未发布的新编号，单独的模块实例从该快照构造反查表。
+    strategy.shareId = 64000;
+    equipment.shareId = 64001;
+    const wide = await import('../src/lib/plans/sharing.ts?wide-fixture');
+    const current = wide.encodePlan(plan);
+    assert.match(current, /^WSD\.s1\./);
+    assert.deepEqual(wide.decodePlan(shareUrl(current, 'https://example.org')).plan, plan);
+    assert.equal(wide.decodePlan(current.replace('D.s1.', 'D.unknown.')), null);
+    SEASON_META.id = 'season_fixture';
+    assert.equal(wide.decodePlan(legacy), null);
+    assert.equal(wide.decodePlan(current), null);
+    const next = wide.encodePlan(plan);
+    assert.match(next, /^WSD\.season_fixture\./);
+    assert.deepEqual(wide.decodePlan(next).plan, plan);
+  } finally {
+    [strategy.shareId, equipment.shareId] = initialIds;
+    SEASON_META.id = season;
+  }
+});
+
+test('已发布 S1 的密集层数位图始终读取 22 位旧槽表', () => {
+  const writer = new BitWriter();
+  writer.write(0, 4); // 干员数
+  writer.write(0, 6); // 空策略
+  writer.write(0, 5); // 名称长度
+  writer.write(0, 8); // 备注长度
+  writer.write(1, 1); // 含层数
+  writer.write(1, 1); // 旧密集位图
+  for (let slot = 0; slot < 22; slot++) writer.write([0, 7, 20, 21].includes(slot) ? 1 : 0, 1);
+  writer.write(3, 4); // 每个层数值使用 4 位
+  for (const count of [9, 10, 11, 12]) writer.write(count, 4);
+  const result = decodePlan('WS' + packSharePayload(writer.finish(), 0));
+  assert.deepEqual(result.plan.layers, {炎: 9, 乌萨斯: 10, 聚合: 11, 奥术: 12});
 });

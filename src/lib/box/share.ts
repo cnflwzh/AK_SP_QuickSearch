@@ -4,9 +4,11 @@
  * - 自动在「稀疏列表 / 稠密位图」与「原始 / raw DEFLATE」间选最短结果；
  * - 附带 8-bit 校验字节，损坏或截断的短码直接返回 null。
  */
+import {SHORT_CODE_MARKER} from './shareInput.ts';
+export {isBoxShareInput} from './shareInput.ts';
 import {deflateSync, inflateSync} from 'fflate';
-import {SEASON_META} from '../../../data/index.ts';
-import {BitReader, BitWriter} from '../shareBits.ts';
+import {LEGACY_SEASON_ID, SEASON_META} from '../../../data/index.ts';
+import {BitReader, BitWriter, fromBase64Url, toBase64Url} from '../shareBits.ts';
 import {
   BOX_RANK_BORROWED,
   OWNABLE_OPERATORS,
@@ -19,6 +21,16 @@ import {
 export const BOX_CODE_PREFIX = 'WB';
 const {version: FORMAT_VERSION, operatorIds: BOX_SLOT_IDS} =
   SEASON_META.boxShare;
+const MAX_SLOT_COUNT = 511;
+const SEASON_FLAG = 4;
+// 未标记的 WB 永久归 S1。其他赛季使用保留位并把长度及赛季 ID 放进原校验字节覆盖的包头。
+const scoped = SEASON_META.id !== LEGACY_SEASON_ID;
+const seasonBytes = scoped ? new TextEncoder().encode(SEASON_META.id) : new Uint8Array();
+const prefixSize = scoped ? 1 + seasonBytes.length : 0;
+const validFormat = Number.isInteger(FORMAT_VERSION) && FORMAT_VERSION >= 1 && FORMAT_VERSION <= 15 &&
+  BOX_SLOT_IDS.length <= MAX_SLOT_COUNT && new Set(BOX_SLOT_IDS).size === BOX_SLOT_IDS.length &&
+  BOX_SLOT_IDS.every((id) => Number.isSafeInteger(id) && id > 0) &&
+  /^[A-Za-z0-9_-]{1,255}$/.test(SEASON_META.id);
 const MAX_DECODED_BYTES = 512;
 const COMPRESSION = {level: 9, mem: 4} as const;
 
@@ -30,13 +42,6 @@ const OWNABLE_BY_ID = new Map(
   OWNABLE_OPERATORS.map((op) => [charIdOf(op.avatar), op.avatar] as const),
 );
 const BOX_SLOT_AVATARS = BOX_SLOT_IDS.map((id) => OWNABLE_BY_ID.get(id));
-const SHORT_CODE_MARKER = /(?:^|[^A-Za-z0-9_-])WB/;
-
-/** 识别跨端同步标记，损坏的链接或短码也需要给出对应的导入错误。 */
-export function isBoxShareInput(input: string): boolean {
-  return input.includes('#b=') || SHORT_CODE_MARKER.test(input);
-}
-
 function rankToCode(rank: StoredBoxRank | -1): number {
   switch (rank) {
     case 0:
@@ -81,29 +86,6 @@ function checksum8(bytes: Uint8Array): number {
   return h;
 }
 
-const toBase64Url = (bytes: Uint8Array): string => {
-  let binary = '';
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary)
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-};
-
-function fromBase64Url(token: string): Uint8Array | null {
-  if (!token || !/^[A-Za-z0-9_-]+$/.test(token)) return null;
-  const padded =
-    token.replace(/-/g, '+').replace(/_/g, '/') +
-    '='.repeat((4 - (token.length % 4)) % 4);
-  try {
-    const binary = atob(padded);
-    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-    return toBase64Url(bytes) === token ? bytes : null;
-  } catch {
-    return null;
-  }
-}
-
 function buildDensePayload(codes: readonly number[]): Uint8Array {
   const writer = new BitWriter();
   writer.write(codes.length, 9);
@@ -127,6 +109,7 @@ function buildSparsePayload(codes: readonly number[]): Uint8Array {
 
 /** 将当前赛季 Box 编码为紧凑短码（前缀 WB）。 */
 export function encodeBox(box: Readonly<OperatorBox>): string {
+  if (!validFormat) throw new Error('本赛季 Box 同步码版本或槽位表超出协议范围。');
   const codes = BOX_SLOT_AVATARS.map((avatar) =>
     avatar ? rankToCode(boxRankOf(box, avatar)) : 0,
   );
@@ -137,16 +120,21 @@ export function encodeBox(box: Readonly<OperatorBox>): string {
 
   let best: Uint8Array | null = null;
   for (const {mode, raw} of candidates) {
+    // 大槽表的稀疏表示可能大于解码上限，密集表示在 511 个槽位时仍只需 193 字节。
+    if (raw.length > MAX_DECODED_BYTES) continue;
     const compressed = deflateSync(raw, COMPRESSION);
     const variants: {deflated: boolean; body: Uint8Array}[] = [
       {deflated: false, body: raw},
       {deflated: true, body: compressed},
     ];
     for (const {deflated, body} of variants) {
-      const header = (FORMAT_VERSION << 4) | (mode << 1) | (deflated ? 1 : 0);
-      const packet = new Uint8Array(body.length + 2);
-      packet[0] = header;
-      packet.set(body, 1);
+      const packet = new Uint8Array(prefixSize + body.length + 2);
+      packet[0] = (FORMAT_VERSION << 4) | (scoped ? SEASON_FLAG : 0) | (mode << 1) | (deflated ? 1 : 0);
+      if (scoped) {
+        packet[1] = seasonBytes.length;
+        packet.set(seasonBytes, 2);
+      }
+      packet.set(body, 1 + prefixSize);
       packet[packet.length - 1] = checksum8(
         packet.subarray(0, packet.length - 1),
       );
@@ -158,7 +146,7 @@ export function encodeBox(box: Readonly<OperatorBox>): string {
 
 /** 提取并解码 WB 短码或 #b= 链接；无效、篡改或截断返回 null。 */
 export function decodeBox(input: string): OperatorBox | null {
-  if (!input || input.length > 4096) return null;
+  if (!validFormat || !input || input.length > 4096) return null;
   const marker = input.includes('#b=') ? /#b=/ : SHORT_CODE_MARKER;
   const match = marker.exec(input);
   if (!match) return null;
@@ -168,7 +156,7 @@ export function decodeBox(input: string): OperatorBox | null {
   if (!token) return null;
 
   const packet = fromBase64Url(token);
-  if (!packet || packet.length < 3) return null;
+  if (!packet || packet.length < 3 + prefixSize) return null;
   const expectedChecksum = packet[packet.length - 1];
   if (checksum8(packet.subarray(0, packet.length - 1)) !== expectedChecksum) {
     return null;
@@ -176,10 +164,12 @@ export function decodeBox(input: string): OperatorBox | null {
 
   const header = packet[0];
   const version = header >> 4;
-  if (version !== FORMAT_VERSION || (header & 0x0c) !== 0) return null;
+  if (version !== FORMAT_VERSION || (header & 8) || !!(header & SEASON_FLAG) !== scoped) return null;
+  if (scoped && (packet[1] !== seasonBytes.length || !seasonBytes.every((byte, i) => packet[i + 2] === byte)))
+    return null;
   const mode = (header >> 1) & 1;
   const deflated = (header & 1) === 1;
-  const body = packet.subarray(1, packet.length - 1);
+  const body = packet.subarray(1 + prefixSize, packet.length - 1);
 
   let payload: Uint8Array;
   try {

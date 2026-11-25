@@ -11,7 +11,8 @@ export const esc = (value: unknown): string =>
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 
 const stringify = (value: unknown): string => {
   if (value === null || value === undefined || value === false) return '';

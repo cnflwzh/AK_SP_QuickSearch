@@ -42,12 +42,13 @@ interface ShopState {
   reward: string[] | null;
   slots: (string | null)[];
 }
-const BENCH_SIZE = 10,
-  MAX_LEVEL = 6;
+const BENCH_SIZE = 10;
+const maxTier = Math.max(...TIERS);
 const mode = ref(0),
   lowSolo = ref(false),
   shopRoll = ref(0),
   flip = ref(false);
+const maxLevel = computed(() => DISPATCH_BY_MODE[mode.value].at(-1)!.level);
 const sim = reactive<ShopState>({
   level: 1,
   cost: 5,
@@ -67,7 +68,7 @@ const eligible = computed(() => {
   );
 });
 const pools = computed(() =>
-  Array.from({length: MAX_LEVEL + 1}, (_, level) =>
+  Array.from({length: maxLevel.value + 1}, (_, level) =>
     eligible.value.filter((op) => op.tier <= level),
   ),
 );
@@ -81,7 +82,7 @@ const covenantsOf = (name: string) => OPERATOR[name].covenants.join(' · ');
 const hasBenchCopy = (name: string) =>
   sim.bench.some((card) => !card.elite && card.name === name);
 const info = computed(() => levelInfo(sim.level));
-const maxed = computed(() => sim.level >= MAX_LEVEL);
+const maxed = computed(() => sim.level >= maxLevel.value);
 const costPercent = computed(() =>
   maxed.value ? 0 : (sim.cost / (info.value.upgradeCost ?? 1)) * 100,
 );
@@ -131,7 +132,7 @@ function tryMerge(name: string) {
     sale: operatorSellPrice(name, true),
   });
   const pool = eligible.value
-    .filter((o) => o.tier === Math.min(MAX_LEVEL, sim.level + 1))
+    .filter((o) => o.tier === Math.min(maxTier, sim.level + 1))
     .map((o) => o.name);
   const picks = new Set<string>();
   while (picks.size < 3 && picks.size < pool.length)

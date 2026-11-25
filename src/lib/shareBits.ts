@@ -41,3 +41,29 @@ export class BitReader {
       throw new Error('Unexpected share data');
   }
 }
+
+/** 将字节编码为无填充 Base64URL，分段转换以兼容大型流派备份。 */
+export function toBase64Url(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 8192)
+    binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  return btoa(binary)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+/** 解码规范的无填充 Base64URL，格式或尾部填充位无效时返回 null。 */
+export function fromBase64Url(token: string): Uint8Array | null {
+  if (!token || !/^[A-Za-z0-9_-]+$/.test(token)) return null;
+  const padded =
+    token.replace(/-/g, '+').replace(/_/g, '/') +
+    '='.repeat((4 - (token.length % 4)) % 4);
+  try {
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    return toBase64Url(bytes) === token ? bytes : null;
+  } catch {
+    return null;
+  }
+}

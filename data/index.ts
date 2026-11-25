@@ -3,7 +3,7 @@
  * 页面代码只从这里 import，不直接引用单个赛季数据文件。
  */
 import {CURRENT_SEASON} from './season.ts';
-import {SEASONS, getSeason} from './seasons/registry.ts';
+export {LEGACY_SEASON_ID, REGISTERED_SEASON_IDS} from './seasons/catalog.ts';
 import type {
   Bounty,
   Build,
@@ -37,12 +37,15 @@ import type {
 } from './types.ts';
 
 export type * from './types.ts';
-export {SEASONS, getSeason};
 
 const byName = <T extends {readonly name: string}>(
   list: readonly T[],
 ): Readonly<Record<string, T>> =>
   Object.fromEntries(list.map((item) => [item.name, item]));
+
+// 公共查询允许外部名称，排除原型键并把缺失显式返回给调用方。
+const own = <T>(table: Readonly<Record<string, T>>, key: string): T | undefined =>
+  Object.hasOwn(table, key) ? table[key] : undefined;
 
 export const SEASON_META: SeasonMeta = CURRENT_SEASON.meta;
 export const PINYIN_OVERRIDES: Readonly<Record<string, readonly string[]>> =
@@ -55,7 +58,11 @@ export const OPERATORS: readonly Operator[] = CURRENT_SEASON.operators;
 export const ADDITIONAL_OPERATORS = CURRENT_SEASON.additionalOperators ?? [];
 export const SELECTION_LIMITS = CURRENT_SEASON.selectionLimits ?? [];
 export const OPERATOR_TYPES: readonly string[] =
-  CURRENT_SEASON.rules.operatorTypes;
+  CURRENT_SEASON.rules.operatorTypes.map((item) => item.label);
+export const OPERATOR_TYPE_IDS: Readonly<Record<string, string>> = Object.fromEntries(
+  CURRENT_SEASON.rules.operatorTypes.map((item) => [item.id, item.label]),
+);
+export const RECRUIT_EXAMPLES = CURRENT_SEASON.rules.recruitExamples;
 export const OPERATOR_TRIGGERS: readonly (readonly [
   label: string,
   tags: readonly string[],
@@ -126,7 +133,8 @@ export const DEPLOYMENT_BONUS_EQUIP: Equipment | undefined = EQUIPMENT.find(
 );
 
 export const STRATEGY_CATEGORIES: readonly string[] =
-  CURRENT_SEASON.strategyCategories;
+  CURRENT_SEASON.strategyCategories.map((item) => item.label);
+export const STRATEGY_CATEGORY_IDS = CURRENT_SEASON.strategyCategories.map((item) => item.id);
 export const STRATEGIES: readonly Strategy[] = CURRENT_SEASON.strategies;
 
 export const COVENANTS: Readonly<Record<string, Covenant>> =
@@ -149,20 +157,14 @@ export const COVENANT_IDS: Readonly<Record<string, string>> =
   Object.fromEntries(
     Object.entries(COVENANTS).map(([name, cov]) => [cov.id, name]),
   );
-export const DEFAULT_COVENANT_ID: string = Object.hasOwn(
-  COVENANTS,
-  SEASON_META.defaultCovenant,
-)
-  ? COVENANTS[SEASON_META.defaultCovenant].id
-  : '';
+export const DEFAULT_COVENANT_ID = own(COVENANTS, SEASON_META.defaultCovenant)?.id ?? '';
 
 export const isCoreCovenant = (name: string): boolean =>
-  Object.hasOwn(COVENANTS, name) && COVENANTS[name].kind === 'core';
+  own(COVENANTS, name)?.kind === 'core';
 
 /** 盟约主题色；附加盟约没有专属色，返回 fallback */
 export const covenantColor = (name: string, fallback: string): string =>
-  (Object.hasOwn(COVENANTS, name) ? COVENANTS[name].color : undefined) ||
-  fallback;
+  own(COVENANTS, name)?.color || fallback;
 
 export const LAYER_BREAKPOINTS: Readonly<
   Record<string, readonly LayerBreakpoint[]>
@@ -210,19 +212,19 @@ export const SCALING_CONDITIONS: Readonly<
 );
 
 export const RESTRICTED_MODE_COVENANTS: readonly string[] =
-  ALL_COVENANTS.filter((name) => COVENANTS[name].restrictedModeAbsent);
+  ALL_COVENANTS.filter((name) => COVENANTS[name]?.restrictedModeAbsent);
 
 export const RESERVE_COVENANTS: ReadonlySet<string> = new Set(
-  ALL_COVENANTS.filter((name) => COVENANTS[name].mechanics?.countsReserve),
+  ALL_COVENANTS.filter((name) => COVENANTS[name]?.mechanics?.countsReserve),
 );
 
 export const BANNABLE_COVENANTS: readonly string[] = ALL_COVENANTS.filter(
-  (name) => COVENANTS[name].mechanics?.countMode !== 'fieldElites',
+  (name) => COVENANTS[name]?.mechanics?.countMode !== 'fieldElites',
 );
 
 export const isBannableCovenant = (name: string): boolean =>
   Object.hasOwn(COVENANTS, name) &&
-  COVENANTS[name].mechanics?.countMode !== 'fieldElites';
+  COVENANTS[name]?.mechanics?.countMode !== 'fieldElites';
 
 export const CORE_BUILDS: Readonly<Record<string, CoreBuild>> =
   CURRENT_SEASON.coreBuilds;
@@ -230,9 +232,7 @@ export const MIXED_BUILDS: readonly MixedBuild[] = CURRENT_SEASON.mixedBuilds;
 export const MIXED_BUILD_IDS: Readonly<Record<string, string>> =
   Object.fromEntries(MIXED_BUILDS.map((build) => [build.id, build.name]));
 export const DEFAULT_BUILD_ID: string =
-  (Object.hasOwn(COVENANTS, SEASON_META.defaultBuild)
-    ? COVENANTS[SEASON_META.defaultBuild].id
-    : undefined) ??
+  own(COVENANTS, SEASON_META.defaultBuild)?.id ??
   MIXED_BUILDS.find((build) => build.name === SEASON_META.defaultBuild)?.id ??
   SEASON_META.defaultBuild;
 
@@ -281,54 +281,31 @@ export const EQUIP: Readonly<Record<string, Equipment>> = byName(EQUIPMENT);
 export const STRATEGY: Readonly<Record<string, Strategy>> = byName(STRATEGIES);
 export const LEADER: Readonly<Record<string, Leader>> = byName(LEADERS);
 
-/** 干员基础购买价；特质改价优先于等阶基础价。 */
+/** 干员基础购买价；特质改价优先于等阶基础价。未配置的等阶抛出 RangeError。 */
 export function operatorPrice(
   operator: Pick<Operator, 'name' | 'tier'> & {readonly price?: number},
 ): number {
-  return (
-    operator.price ??
-    (Object.hasOwn(OPERATOR, operator.name)
-      ? OPERATOR[operator.name].price
-      : undefined) ??
-    SEASON_META.tierBasePrices[operator.tier]
-  );
+  const price = operator.price ?? own(OPERATOR, operator.name)?.price ?? SEASON_META.tierBasePrices[operator.tier];
+  if (price === undefined) throw new RangeError('未配置干员等阶的基础购买价：' + operator.tier);
+  return price;
 }
 
 /** 干员晋升精锐所需张数；特质减张优先于赛季默认张数。 */
 export function operatorEliteCopies(
   nameOrOp: string | Pick<Operator, 'name' | 'eliteCopies'>,
 ): number {
-  if (typeof nameOrOp === 'string') {
-    return (
-      (Object.hasOwn(OPERATOR, nameOrOp)
-        ? OPERATOR[nameOrOp].eliteCopies
-        : undefined) ?? SEASON_META.defaultEliteCopies
-    );
-  }
-  return (
-    nameOrOp.eliteCopies ??
-    (Object.hasOwn(OPERATOR, nameOrOp.name)
-      ? OPERATOR[nameOrOp.name].eliteCopies
-      : undefined) ??
-    SEASON_META.defaultEliteCopies
-  );
+  const name = typeof nameOrOp === 'string' ? nameOrOp : nameOrOp.name;
+  const override = typeof nameOrOp === 'string' ? undefined : nameOrOp.eliteCopies;
+  return override ?? own(OPERATOR, name)?.eliteCopies ?? SEASON_META.defaultEliteCopies;
 }
 
 /** 干员特殊售出机制配置；普通干员返回 undefined（默认售出价 1）。 */
 export function operatorSellMechanics(
   nameOrOp: string | Pick<Operator, 'name' | 'sellMechanics'>,
 ): OperatorSellMechanics | undefined {
-  if (typeof nameOrOp === 'string') {
-    return Object.hasOwn(OPERATOR, nameOrOp)
-      ? OPERATOR[nameOrOp].sellMechanics
-      : undefined;
-  }
-  return (
-    nameOrOp.sellMechanics ??
-    (Object.hasOwn(OPERATOR, nameOrOp.name)
-      ? OPERATOR[nameOrOp.name].sellMechanics
-      : undefined)
-  );
+  const name = typeof nameOrOp === 'string' ? nameOrOp : nameOrOp.name;
+  const override = typeof nameOrOp === 'string' ? undefined : nameOrOp.sellMechanics;
+  return override ?? own(OPERATOR, name)?.sellMechanics;
 }
 
 /** 干员基础售出价；特殊售价优先于默认值 1。 */
@@ -343,8 +320,7 @@ export function operatorSellPrice(
 
 /** 局内推荐是否将该策略视为带有主动触发指令。 */
 export const strategyUsesAdvisorCommand = (name: string): boolean =>
-  Object.hasOwn(STRATEGY, name) &&
-  Boolean(STRATEGY[name].advisor?.commandTrigger);
+  Boolean(own(STRATEGY, name)?.advisor?.commandTrigger);
 
 // 同一赛季的名单固定；列表、速览和发牌出题可以共用索引。
 const covenantRosters = new Map<string, Operator[]>();
@@ -372,8 +348,7 @@ export const lineupCovenantCount = (
 ): number =>
   [...new Set(lineup)].filter(
     (name) =>
-      Object.hasOwn(OPERATOR, name) &&
-      OPERATOR[name].covenants.includes(covenant),
+      own(OPERATOR, name)?.covenants.includes(covenant),
   ).length;
 
 /** 全部流派名：核心盟约流派 + 混搭流派 */
@@ -383,10 +358,10 @@ export const BUILD_NAMES: readonly string[] = [
 ];
 
 /** 按名称取流派；核心流派的 name 补为盟约名 */
-export const buildByName = (name: string): Build | undefined =>
-  Object.hasOwn(CORE_BUILDS, name)
-    ? {name, ...CORE_BUILDS[name]}
-    : MIXED_BUILDS.find((b) => b.name === name);
+export function buildByName(name: string): Build | undefined {
+  const core = own(CORE_BUILDS, name);
+  return core ? {name, ...core} : MIXED_BUILDS.find((build) => build.name === name);
+}
 
 /**
  * 推荐了某干员 / 策略 / 装备的流派名。

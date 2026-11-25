@@ -8,7 +8,7 @@ import {
   watch,
   type ComponentPublicInstance,
 } from 'vue';
-import {NUMBER_TOOLS, SEASON_META, SEASONS} from '../../../data/index.ts';
+import {NUMBER_TOOLS, SEASON_META, REGISTERED_SEASON_IDS} from '../../../data/index.ts';
 import LiveStatus from '../../lib/ui/LiveStatus.vue';
 import {downloadBlob} from '../../lib/ui/download.ts';
 import {layoutReport} from '../../lib/ui/layoutDiagnostics.ts';
@@ -1378,7 +1378,7 @@ function handleResetAll(): void {
           </span>
           <span class="settings-season-ver">
             规则基线：{{ SEASON_META.ruleVersion }} · 已注册
-            {{ SEASONS.length }} 个赛季
+            {{ REGISTERED_SEASON_IDS.length }} 个赛季
           </span>
           <a
             v-if="SEASON_META.ruleSource"

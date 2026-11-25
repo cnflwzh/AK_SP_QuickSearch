@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {computed, onBeforeUnmount, onMounted, ref, useId, watch} from 'vue';
 import {
+  LEADER_MAP,
   LEADER_MOVEMENTS,
   type LayoutZone,
   type LeaderBattlefield,
@@ -106,20 +107,12 @@ const selectedTargets = computed(
 const shapes = computed(() =>
   props.scene ? [props.scene.shape, ...(props.scene.extraShapes ?? [])] : [],
 );
-const common = [
-  {
-    name: '萨卡兹枯朽前锋',
-    kind: 'ground',
-    at: [8, 4] as MapPos,
-    movement: LEADER_MOVEMENTS.ground,
-  },
-  {
-    name: '妖怪',
-    kind: 'flying',
-    at: [8, 4] as MapPos,
-    movement: LEADER_MOVEMENTS.drone,
-  },
-];
+const common = LEADER_MAP.common.map((escort) => ({
+  name: escort.name,
+  kind: escort.fly ? 'flying' : 'ground',
+  at: LEADER_MAP.spawn,
+  movement: escort.fly ? LEADER_MOVEMENTS.drone : LEADER_MOVEMENTS.ground,
+}));
 
 /** 右侧使用游戏分支而非镜像左侧；跨全场的共享路线仅绘制一次。 */
 function branches(movement: MovementBranches) {
@@ -186,8 +179,9 @@ function boxes(s: ZoneShape): Box[] {
 const planWalk = computed(() =>
   path(groundRoute(LEADER_MOVEMENTS.ground.left.legs[0].points, props.terrain)),
 );
-function linePath(points: readonly MapPos[]): string {
-  if (props.scene?.label === '巡逻路线') {
+function linePath(shape: Extract<ZoneShape, {kind: 'line'}>): string {
+  const points = shape.path;
+  if (shape.route === 'boss') {
     const movement = props.stage.marks.find((m) => m.kind === 'boss')?.movement
       ?.left;
     return path(
@@ -198,7 +192,7 @@ function linePath(points: readonly MapPos[]): string {
     );
   }
   return path(
-    props.scene?.label === '末日布道'
+    shape.route === 'ground'
       ? groundRoute(points, props.terrain)
       : points,
   );
@@ -419,7 +413,7 @@ watch(
         <path
           v-if="s.kind === 'line'"
           class="danger-path"
-          :d="linePath(s.path)"
+          :d="linePath(s)"
           :marker-end="`url(#${uid}-arrow)`" />
       </template>
     </g>

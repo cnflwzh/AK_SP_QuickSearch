@@ -1,5 +1,7 @@
 /** 第 2 章 招募与升本：调度中心、精锐、卡池、阵型、装备 */
 import {
+  CORE_COVENANTS,
+  RECRUIT_EXAMPLES,
   OPERATORS,
   OPERATOR,
   EQUIP,
@@ -13,6 +15,7 @@ import {
   operatorEliteCopies,
 } from '../../../data/index.ts';
 import {esc, html, range} from '../../lib/ui/dom.ts';
+import {tokenizeTrait, traitLabel} from '../../lib/ui/traitText.ts';
 import {glossaryHtml} from '../../lib/ui/glossaryText.ts';
 import {avatarSrc} from '../../lib/ui/assets.ts';
 import {op, eq, st, cv, avatar, tierBadge} from '../chips.ts';
@@ -45,16 +48,20 @@ function tierStatsTable(out: Record<string, string>) {
 }
 
 const highlightTrait = (text: string) =>
-  text
-    .replace(/<([^>]+)>/g, '\u0001$1\u0002')
-    .replace(/(\d+(?:\.\d+)?%?)/g, '<b>$1</b>')
-    .replace(/\u0001([^\u0002]+)\u0002/g, '<span class="tg">$1</span>');
+  tokenizeTrait(text).map(part => {
+    const label = esc(traitLabel(part));
+    if (part.kind === 'trigger') return '<span class="tg">' + label + '</span>';
+    if (part.kind === 'num') return '<b>' + label + '</b>';
+    return label;
+  }).join('');
 
 /** Format initial and elite traits for the supplied operator name. */
 export function eliteComparison(name: string) {
   const out: Record<string, string> = {};
   const o = OPERATOR[name];
-  const stats = TIER_STATS[o.tier - 1];
+  if (!o) return '';
+  const stats = TIER_STATS.find((row) => row.tier === o.tier);
+  if (!stats) return '';
   const copies = operatorEliteCopies(o);
   out.elOut = html`
     <div class="elc">
@@ -136,19 +143,20 @@ const poolAvatar = (name: string, className = '') =>
 /** Format the shared-pool example; a nonzero value enables the contested example. */
 export function poolDiagram(contested: number) {
   const out: Record<string, string> = {};
-  const SAMPLE = '乌啾';
+  const SAMPLE = RECRUIT_EXAMPLES.operator;
+  const [primary, second, third, fourth] = RECRUIT_EXAMPLES.factions;
   const PLAYERS: Record<string, [string, string, number][]> = {
     solo: [
-      ['你', '乌萨斯', 3],
-      ['队友 1', '炎', 0],
-      ['队友 2', '谢拉格', 0],
-      ['队友 3', '叙拉古', 0],
+      ['你', primary, 3],
+      ['队友 1', second, 0],
+      ['队友 2', third, 0],
+      ['队友 3', fourth, 0],
     ],
     contested: [
-      ['你', '乌萨斯', 2],
-      ['队友 1', '乌萨斯', 1],
-      ['队友 2', '谢拉格', 0],
-      ['队友 3', '叙拉古', 0],
+      ['你', primary, 2],
+      ['队友 1', primary, 1],
+      ['队友 2', third, 0],
+      ['队友 3', fourth, 0],
     ],
   };
 
@@ -186,20 +194,20 @@ export function poolDiagram(contested: number) {
 }
 
 function poolDetails(out: Record<string, string>) {
-  const KEPT = ['炎', '维多利亚', '阿戈尔', '卡西米尔', '伊比利亚'];
-  const REMOVED = ['萨尔贡', '谢拉格', '叙拉古', '乌萨斯', '莱塔尼亚'];
+  const KEPT = RECRUIT_EXAMPLES.kept;
+  const REMOVED = CORE_COVENANTS.filter((name) => !KEPT.includes(name));
   out.soloSplit = html`
     <div class="split">
       <div class="ok">
-        <b>✔ 选定保留组（5 大核心）</b>
+        <b>✔ 选定保留组（${KEPT.length} 大核心）</b>
         <div class="row">${KEPT.map(cv)}</div>
-        <div class="row">${['斯卡蒂', '玛恩纳', '黍'].map((n) => op(n))}</div>
+        <div class="row">${RECRUIT_EXAMPLES.keptOperators.map((n) => op(n))}</div>
         <span class="cnt">整局正常刷出</span>
       </div>
       <div class="no">
         <b>✕ 未选组（整局移出）</b>
         <div class="row">${REMOVED.map(cv)}</div>
-        <div class="row">${['塔露拉', '真言', '锏'].map((n) => op(n))}</div>
+        <div class="row">${RECRUIT_EXAMPLES.removedOperators.map((n) => op(n))}</div>
         <span class="cnt">不占卡池名额</span>
       </div>
     </div>
@@ -272,37 +280,17 @@ function poolDetails(out: Record<string, string>) {
 }
 
 function formation(out: Record<string, string>) {
-  const LINEUP = [
-    '折桠',
-    '烈夏',
-    '乌啾',
-    '奥尔佳',
-    '赫拉格',
-    '维伊',
-    '冻河',
-    '塔露拉',
-  ];
+  const LINEUP = RECRUIT_EXAMPLES.lineup;
   out.dgrid = range(12)
     .map((i) => {
-      if (i < 8)
+      if (i < LINEUP.length)
         return `<div style="animation-delay:${i * 0.45}s"><span class="dn">${i + 1}</span>${avatar(LINEUP[i])}</div>`;
-      if (i === 8) return '<div class="g">+9</div>';
+      if (i === LINEUP.length) return '<div class="g">+9</div>';
       return '<div class="g" style="visibility:hidden"></div>';
     })
     .join('');
 
-  const BENCH = [
-    '真理',
-    '慕斯',
-    '深靛',
-    '卡达',
-    '灰喉',
-    '夏栎',
-    '星源',
-    '淬羽赫默',
-    '焰尾',
-    '历阵锐枪芬',
-  ];
+  const BENCH = RECRUIT_EXAMPLES.bench;
   out.benchDemo = range(15)
     .map((i) => {
       const name = BENCH[i];

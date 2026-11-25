@@ -23,7 +23,7 @@ const mixedBuildIdsByName = new Map(
 export const covenantId = (name: string): string =>
   covenantIdsByName.get(name) ?? '';
 export const covenantName = (id: string): string =>
-  Object.hasOwn(COVENANT_IDS, id) ? COVENANT_IDS[id] : '';
+  Object.hasOwn(COVENANT_IDS, id) ? (COVENANT_IDS[id] ?? '') : '';
 
 /** Built-in names map to public slugs; custom IDs remain local to the user's saved plans. */
 export function buildId(key: string): string {

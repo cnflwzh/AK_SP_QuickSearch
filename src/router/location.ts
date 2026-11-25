@@ -5,10 +5,12 @@ import {
   LEADERS,
   LEADER_BATTLEFIELDS,
   NUMBER_TOOLS,
-  OPERATOR_TYPES,
-  STRATEGY_CATEGORIES,
+  OPERATOR_TYPE_IDS,
+  STRATEGY_CATEGORY_IDS,
 } from '../../data/index.ts';
 import {covenantId, covenantName, detailFromId} from './entities.ts';
+import {PAGE_PATHS} from './paths.ts';
+export {PAGE_PATHS};
 
 /** The short keys are retained for existing card data attributes and swipe order. */
 export const TAB_IDS = [
@@ -23,17 +25,6 @@ export const TAB_IDS = [
   'se',
 ] as const;
 export type TabId = (typeof TAB_IDS)[number];
-export const PAGE_PATHS: Record<TabId, string> = {
-  fx: '/overview',
-  bd: '/builds',
-  cv: '/covenants',
-  op: '/operators',
-  eq: '/equipment',
-  st: '/strategies',
-  ld: '/enemies',
-  nu: '/tools',
-  se: '/settings',
-};
 export const PAGE_LABELS: Record<TabId, string> = {
   fx: '速览',
   bd: '流派',
@@ -61,24 +52,9 @@ export const TRIGGER_IDS: Readonly<Record<string, string>> = {
   battle: '战斗中',
   end: '战斗结束',
 };
-export const TYPE_IDS: Readonly<Record<string, string>> = {
-  stacking: OPERATOR_TYPES[0],
-  once: OPERATOR_TYPES[1],
-  combat: OPERATOR_TYPES[2],
-  preparation: OPERATOR_TYPES[3],
-  specialization: OPERATOR_TYPES[4],
-};
+export const TYPE_IDS = OPERATOR_TYPE_IDS;
 export const ROLE_IDS: Readonly<Record<string, string>> = COMBAT_ROLE_IDS;
-export const CATEGORY_IDS = [
-  '',
-  'stacking',
-  'elite',
-  'recruit',
-  'economy',
-  'equipment',
-  'survival',
-  'faction',
-] as const;
+export const CATEGORY_IDS = STRATEGY_CATEGORY_IDS;
 
 /** Repeated URL parameters are interpreted consistently by taking the first value. */
 export function queryText(
@@ -155,7 +131,7 @@ export function normalizeQuery(
     else tier();
   }
   if (tab === 'st')
-    keep('category', CATEGORY_IDS.slice(1, STRATEGY_CATEGORIES.length));
+    keep('category', CATEGORY_IDS.slice(1));
   if (tab === 'ld') {
     if (!entityId) keep('kind', ['bounty', 'normal']);
     keep(

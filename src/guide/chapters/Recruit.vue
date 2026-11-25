@@ -3,7 +3,9 @@ import {ref} from 'vue';
 import {
   COMPANION_EQUIP_NAME,
   DEPLOYMENT_BONUS_EQUIP,
+  OPERATOR,
   OPERATORS,
+  RECRUIT_EXAMPLES,
   SEASON_META,
   TIERS,
   TIER_LABELS,
@@ -26,11 +28,12 @@ const advancedHammer = eq('维式重锤', '维式重锤＋').replace(
 const companionEquip = COMPANION_EQUIP_NAME || '变形同构体';
 const deployBonusEquip = DEPLOYMENT_BONUS_EQUIP?.name || '人事部文档';
 
-const eliteName = ref('乌啾');
+const sample = OPERATOR[RECRUIT_EXAMPLES.operator] ?? OPERATORS[0];
+const eliteName = ref(sample?.name ?? '');
 const poolMode = ref(0);
 const poolTabs: readonly SubTabItem<number>[] = [
-  {id: 0, label: '只有你玩乌萨斯'},
-  {id: 1, label: '队友也玩乌萨斯（撞车）'},
+  {id: 0, label: `只有你玩${RECRUIT_EXAMPLES.factions[0]}`},
+  {id: 1, label: `队友也玩${RECRUIT_EXAMPLES.factions[0]}（撞车）`},
 ];
 const eliteOperatorOptions: readonly SelectEntry<string>[] = TIERS.map(
   (tier) => ({
@@ -124,21 +127,13 @@ const eliteOperatorOptions: readonly SelectEntry<string>[] = TIERS.map(
         <div class="sbn">1</div>
         <b>凑齐 3 张同名初始卡</b>
         <div class="fstack">
-          <div class="fc" data-t="3">
-            <Markup :html="avatar('乌啾')" />
-            <i>Ⅲ</i>
-            乌啾
-          </div>
-          <div class="fc" data-t="3">
-            <Markup :html="avatar('乌啾')" />
-            <i>Ⅲ</i>
-            乌啾
-          </div>
-          <div class="fc" data-t="3">
-            <Markup :html="avatar('乌啾')" />
-            <i>Ⅲ</i>
-            乌啾
-          </div>
+          <template v-if="sample">
+            <div v-for="copy in SEASON_META.defaultEliteCopies" :key="copy" class="fc" :data-t="sample.tier">
+              <Markup :html="avatar(sample.name)" />
+              <i>{{ TIER_LABELS[sample.tier] }}</i>
+              {{ sample.name }}
+            </div>
+          </template>
         </div>
         <ul class="ul">
           <li>场上 + 整备区同名未精锐满 3 张</li>
@@ -150,10 +145,10 @@ const eliteOperatorOptions: readonly SelectEntry<string>[] = TIERS.map(
         <div class="sbn">2</div>
         <b>自动晋升为精锐</b>
         <div class="fstack">
-          <div class="fc el" data-t="3">
-            <Markup :html="avatar('乌啾')" />
-            <i>Ⅲ</i>
-            乌啾
+          <div v-if="sample" class="fc el" :data-t="sample.tier">
+            <Markup :html="avatar(sample.name)" />
+            <i>{{ TIER_LABELS[sample.tier] }}</i>
+            {{ sample.name }}
           </div>
         </div>
         <ul class="ul">

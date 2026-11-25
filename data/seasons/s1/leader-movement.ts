@@ -6,7 +6,7 @@ import type {LeaderBattlefield, MovementBranches} from '../../types.ts';
  * 截取列 2–18、从上往下第 6–11 行；仅保留初始可见的工事和高台。
  * I 源石污染区，H 高台，M 沼泽，G 草丛，V 加速地板；其他图例与 LEADER_MAP 一致。
  */
-export const S1_LEADER_BATTLEFIELDS: readonly LeaderBattlefield[] = [
+export const S1_LEADER_BATTLEFIELDS: readonly [LeaderBattlefield, ...LeaderBattlefield[]] = [
   {
     id: '01',
     name: '场地 01',

@@ -5,15 +5,11 @@ import {
   type RouteLocationNormalized,
   type RouteRecordRaw,
 } from 'vue-router';
-import {
-  DEFAULT_BUILD_ID,
-  DEFAULT_COVENANT_ID,
-  LEADERS,
-} from '../../data/index.ts';
 import {lazyView} from '../lib/ui/lazyView.ts';
 import {recordDiagnosticError} from '../lib/runtime/diagnosticErrors.ts';
 import {isPlanShareHash} from '../lib/plans/shareInput.ts';
-import {covenantName, detailFromId} from './entities.ts';
+import {canonicalRoute} from './guard.ts';
+import {BOX_PATH, BUILD_DETAIL_PATH, BUILD_EDIT_PATH, COVENANT_DETAIL_PATH, ENEMY_DETAIL_PATH} from './paths.ts';
 import {
   settings,
   visibleContentTabs,
@@ -24,9 +20,6 @@ import {
   PAGE_LABELS,
   PAGE_PATHS,
   TAB_IDS,
-  normalizeQuery,
-  queryText,
-  sameQuery,
   type TabId,
 } from './location.ts';
 
@@ -73,19 +66,19 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../quickref/views/EffectsView.vue'),
   },
   {
-    path: `${PAGE_PATHS.bd}/:id?`,
+    path: BUILD_DETAIL_PATH + '?',
     name: 'builds',
     meta: {tab: 'bd'},
     component: builds,
   },
   {
-    path: `${PAGE_PATHS.bd}/:id/edit`,
+    path: BUILD_EDIT_PATH,
     name: 'build-edit',
     meta: {tab: 'bd'},
     component: builds,
   },
   {
-    path: `${PAGE_PATHS.cv}/:id?`,
+    path: COVENANT_DETAIL_PATH + '?',
     name: 'covenants',
     meta: {tab: 'cv'},
     component: () => import('../quickref/views/CovenantsView.vue'),
@@ -112,7 +105,7 @@ const routes: RouteRecordRaw[] = [
     props: {kind: 'st'},
   },
   {
-    path: `${PAGE_PATHS.ld}/:id?`,
+    path: ENEMY_DETAIL_PATH + '?',
     name: 'enemies',
     meta: {tab: 'ld'},
     component: () => import('../quickref/views/EnemiesView.vue'),
@@ -124,7 +117,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../quickref/views/ToolsView.vue'),
   },
   {
-    path: '/box',
+    path: BOX_PATH,
     name: 'box',
     meta: {regularWindowTitle: '我的 Box'},
     component: regularWindowView,
@@ -212,60 +205,9 @@ router.beforeResolve((to, from) => {
   if (scrollY > top) pendingTabScroll = {destination: to.fullPath, top};
 });
 
-router.beforeEach((to) => {
-  if (to.name === 'box') {
-    if (
-      queryText(to.query, 'card') &&
-      !detailFromId(queryText(to.query, 'card'))
-    )
-      routeNotice.value = '未找到这张卡片。';
-    const boxQuery: Record<string, string> = {};
-    if (queryText(to.query, 'import') === '1') boxQuery.import = '1';
-    if (queryText(to.query, 'q').trim())
-      boxQuery.q = queryText(to.query, 'q').trim().slice(0, 200);
-    if (detailFromId(queryText(to.query, 'card')))
-      boxQuery.card = queryText(to.query, 'card');
-    if (!sameQuery(boxQuery, to.query))
-      return {path: to.path, query: boxQuery, hash: to.hash};
-    return;
-  }
-  const tab = to.meta.tab;
-  if (!tab) return;
-  const id = String(to.params.id ?? '');
-  if (tab === 'cv' && (!id || !covenantName(id))) {
-    if (id) routeNotice.value = '未找到这个盟约，已打开默认盟约。';
-    return {
-      path: `${PAGE_PATHS.cv}/${DEFAULT_COVENANT_ID}`,
-      query: to.query,
-      hash: to.hash,
-    };
-  }
-  if (tab === 'ld' && id && !LEADERS.some((leader) => leader.id === id)) {
-    routeNotice.value = '未找到这个 Boss，已返回敌人列表。';
-    return {path: PAGE_PATHS.ld, query: to.query, hash: to.hash};
-  }
-  if (tab === 'bd' && !id)
-    return {
-      path: `${PAGE_PATHS.bd}/${DEFAULT_BUILD_ID}`,
-      query: to.query,
-      hash: to.hash,
-    };
-  if (queryText(to.query, 'card') && !detailFromId(queryText(to.query, 'card')))
-    routeNotice.value = '未找到这张卡片。';
-  const query = normalizeQuery(tab, to.query, id, to.name === 'build-edit');
-  if (tab === 'nu') {
-    // 局内抓取成为默认工具时，保留显式的对局速查选择。
-    if (
-      advisorPreviewEnabled.value &&
-      queryText(to.query, 'tool') === 'match-reference'
-    )
-      query.tool = 'match-reference';
-    else if (!advisorPreviewEnabled.value && query.tool === 'advisor')
-      delete query.tool;
-  }
-  // Preserve the caller's push/replace intent while canonicalizing default/empty controls.
-  if (!sameQuery(query, to.query)) return {path: to.path, query, hash: to.hash};
-});
+router.beforeEach((to) => canonicalRoute(to, advisorPreviewEnabled.value, (notice) => {
+  routeNotice.value = notice;
+}));
 
 /** Most-recent locations are per-session navigation conveniences, never overrides for external links. */
 export const tabLocations = shallowRef<Partial<Record<TabId, string>>>({});

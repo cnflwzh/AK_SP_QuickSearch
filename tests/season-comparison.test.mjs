@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {SEASONS} from '../data/index.ts';
+import {SEASONS} from '../data/seasons/registry.ts';
 import {diffSeasons} from '../src/lib/season/diff.ts';
 import {buildSeasonVisualComparison} from '../src/diff/comparison.ts';
 import {buildSeasonDiffInfographic} from '../src/diff/infographic.ts';

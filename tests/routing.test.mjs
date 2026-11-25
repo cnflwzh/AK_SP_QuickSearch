@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {createMemoryHistory, createRouter} from 'vue-router';
+import {canonicalRoute} from '../src/router/guard.ts';
+import {
+  BOX_PATH,
+  BUILD_DETAIL_PATH,
+  COVENANT_DETAIL_PATH,
+} from '../src/router/paths.ts';
 import {
   ALL_COVENANTS,
+  DEFAULT_BUILD_ID,
+  DEFAULT_COVENANT_ID,
   BUILD_NAMES,
   EQUIPMENT,
   OPERATORS,
@@ -214,4 +223,70 @@ test('settings route resolves cleanly and operator filters retain explicit basel
     {q: '夜间', card: detailId('op', '凛御银灰')},
   );
   assert.deepEqual(normalizeQuery('op', {elite: '0'}), {elite: '0'});
+});
+
+test('navigation guard canonicalizes shared links without losing fragments, valid cards or explicit tool choice', async () => {
+  const component = {};
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      {path: BOX_PATH, name: 'box', component},
+      {
+        path: COVENANT_DETAIL_PATH + '?',
+        name: 'covenants',
+        meta: {tab: 'cv'},
+        component,
+      },
+      {
+        path: BUILD_DETAIL_PATH + '?',
+        name: 'builds',
+        meta: {tab: 'bd'},
+        component,
+      },
+      {path: PAGE_PATHS.nu, name: 'tools', meta: {tab: 'nu'}, component},
+    ],
+  });
+  const notices = [];
+  let advisor = false;
+  router.beforeEach((to) =>
+    canonicalRoute(to, advisor, (message) => notices.push(message)),
+  );
+  const card = detailId('op', OPERATORS[0].name);
+  await router.push({
+    path: BOX_PATH,
+    query: {q: '  查询  ', card, import: '1', junk: 'x'},
+    hash: '#b=sample',
+  });
+  assert.deepEqual(router.currentRoute.value.query, {
+    import: '1',
+    q: '查询',
+    card,
+  });
+  assert.equal(router.currentRoute.value.hash, '#b=sample');
+  assert.deepEqual(notices, []);
+
+  await router.push({
+    path: PAGE_PATHS.cv + '/missing',
+    query: {card: 'missing'},
+    hash: '#saved',
+  });
+  assert.equal(
+    router.currentRoute.value.fullPath,
+    PAGE_PATHS.cv + '/' + DEFAULT_COVENANT_ID + '#saved',
+  );
+  assert.deepEqual(notices, [
+    '未找到这个盟约，已打开默认盟约。',
+    '未找到这张卡片。',
+  ]);
+
+  await router.push(PAGE_PATHS.bd + '#p=sample');
+  assert.equal(
+    router.currentRoute.value.fullPath,
+    PAGE_PATHS.bd + '/' + DEFAULT_BUILD_ID + '#p=sample',
+  );
+  await router.push(PAGE_PATHS.nu + '?tool=advisor');
+  assert.equal(router.currentRoute.value.fullPath, PAGE_PATHS.nu);
+  advisor = true;
+  await router.push(PAGE_PATHS.nu + '?tool=match-reference');
+  assert.equal(router.currentRoute.value.query.tool, 'match-reference');
 });

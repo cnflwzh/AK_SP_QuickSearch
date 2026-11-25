@@ -77,6 +77,8 @@ export type EquipmentRoleTrigger =
   '攻击' | '伤害' | '法伤' | '地面' | '地面攻击';
 
 export interface Equipment {
+  /** 永久分享编号，独立于图标文件名。 */
+  readonly shareId: number;
   readonly name: string;
   readonly tier: number;
   readonly price: number;
@@ -149,6 +151,8 @@ export interface StrategyAdvisorRule {
 }
 
 export interface Strategy {
+  /** 永久分享编号，零保留为空策略。 */
+  readonly shareId: number;
   readonly name: string;
   readonly hp: number;
   readonly category: string;
@@ -396,7 +400,12 @@ export type ZoneShape =
     }
   | {readonly kind: 'cross'; readonly at: MapPos}
   | {readonly kind: 'col'; readonly x: number}
-  | {readonly kind: 'line'; readonly path: readonly MapPos[]}
+  | {
+      readonly kind: 'line';
+      readonly path: readonly MapPos[];
+      /** 默认直接连接标记点；boss 使用领袖移动路线，ground 沿场景检查点寻路。 */
+      readonly route?: 'boss' | 'ground';
+    }
   | {readonly kind: 'circle'; readonly at: MapPos; readonly radius: number}
   | {readonly kind: 'tiles'; readonly at: readonly MapPos[]};
 export interface LayoutZone {
@@ -595,15 +604,31 @@ export interface SeasonMeta {
   };
   readonly pinyinOverrides: Readonly<Record<string, readonly string[]>>;
   readonly shareOperatorIds: readonly number[];
+  /** 分享位流中的盟约槽索引。仅可追加，退出的盟约保留原 id。 */
+  readonly shareLayerIds: readonly string[];
   readonly boxShare: {
-    /** 1–15 的协议编号。使用不兼容槽表的新赛季须分配新编号。 */
+    /** 当前赛季 1–15 的码表版本。季内不兼容时提升版本；带赛季头的不同赛季可以各自从 1 开始。 */
     readonly version: number;
     /** 对应官方 char_ID；已发布的下标不能更换或删除。 */
     readonly operatorIds: readonly number[];
   };
 }
 
+export interface SeasonFilter {
+  readonly id: string;
+  readonly label: string;
+}
+export interface RecruitExamples {
+  readonly operator: string;
+  readonly factions: readonly string[];
+  readonly kept: readonly string[];
+  readonly keptOperators: readonly string[];
+  readonly removedOperators: readonly string[];
+  readonly lineup: readonly string[];
+  readonly bench: readonly string[];
+}
 export interface SeasonRules {
+  readonly recruitExamples: RecruitExamples;
   /** 每日练习使用固定顺序，不能随装备展示列表重排。 */
   readonly dealerDecoys: {
     readonly transmute: readonly string[];
@@ -639,7 +664,7 @@ export interface SeasonRules {
   readonly bounties: readonly Bounty[];
   /** 敌人通用名词、异常状态与元素损伤词典 */
   readonly enemyGlossary: Readonly<Record<string, EnemyTerm>>;
-  readonly operatorTypes: readonly string[];
+  readonly operatorTypes: readonly SeasonFilter[];
   readonly operatorTriggers: readonly (readonly [
     label: string,
     tags: readonly string[],
@@ -684,7 +709,7 @@ export interface SeasonDefinition {
   readonly equipment: readonly Equipment[];
   readonly equipmentCombos: readonly EquipmentCombo[];
   readonly strategies: readonly Strategy[];
-  readonly strategyCategories: readonly string[];
+  readonly strategyCategories: readonly SeasonFilter[];
   readonly coreBuilds: Readonly<Record<string, CoreBuild>>;
   readonly mixedBuilds: readonly MixedBuild[];
   readonly leaders: readonly Leader[];

@@ -5,6 +5,7 @@ import {
   LEADER,
   LEADERS,
   MODES,
+  SEASON_META,
   TRAINING,
 } from '../../../data/index.ts';
 import {patrols} from '../../lib/leaders/leader.ts';
@@ -110,7 +111,7 @@ const filteredLeaders = computed(() =>
           <template v-if="!current && traitFilter">
             {{ filteredLeaders.length }}/{{ LEADERS.length }} ·
           </template>
-          第 14 回合 · 极速第 9 回合
+          第 {{ SEASON_META.roundLimits.standard }} 回合 · 极速第 {{ SEASON_META.roundLimits.fast }} 回合
         </span>
       </div>
       <LeaderDetail v-if="current" :key="current.id" :leader="current" />

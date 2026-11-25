@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type {CovenantStat} from '../../lib/plans/index.ts';
+import type {CovenantStat} from '../../lib/plans/core.ts';
 import {color} from '../format.ts';
 import CovenantIcon from './CovenantIcon.vue';
 /**
@@ -46,7 +46,7 @@ function status(s: CovenantStat): {text: string; cls: string} {
     };
   if (s.active) {
     if (s.next) return {text: `差 ${s.next} 名强化`, cls: 'on'};
-    if (s.bonusElite) return {text: `精锐 ${s.bonusCount}/5`, cls: 'on'};
+    if (s.bonusElite) return {text: `精锐 ${s.bonusCount}/${s.bonusNeed}`, cls: 'on'};
     if (s.bonusLayers)
       return {text: `${layerOf(s)}/${s.bonusLayers} 层强化`, cls: 'on'};
     return {text: '激活', cls: 'on'};

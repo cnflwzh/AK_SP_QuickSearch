@@ -15,12 +15,11 @@ const dispatchRows = (
   costs: readonly (number | null)[],
   slots: readonly number[],
 ): DispatchLevel[] =>
-  costs.map((upgradeCost, i) => ({
-    level: i + 1,
-    upgradeCost,
-    operatorSlots: slots[i],
-    equipmentSlots: 1,
-  }));
+  costs.map((upgradeCost, i) => {
+    const operatorSlots = slots[i];
+    if (operatorSlots === undefined) throw new Error('缺少调度中心栏位：' + (i + 1));
+    return {level: i + 1, upgradeCost, operatorSlots, equipmentSlots: 1};
+  });
 
 // 来自 V3_1 的 itemMaxCount、periodicalRewards 合计及限时商店价格 × 库存合计。
 const creditCaps = {battle: 6250, objectives: 2500, limitedSpend: 8250};
@@ -891,7 +890,22 @@ export const S1_RULES: SeasonRules = {
     },
   },
   /** 教程与速查共用的特质类型，顺序与图鉴一致。 */
-  operatorTypes: ['持续叠加', '单次叠加', '作战能力', '整备能力', '特异化'],
+  operatorTypes: [
+    {id: 'stacking', label: '持续叠加'},
+    {id: 'once', label: '单次叠加'},
+    {id: 'combat', label: '作战能力'},
+    {id: 'preparation', label: '整备能力'},
+    {id: 'specialization', label: '特异化'},
+  ],
+  recruitExamples: {
+    operator: '乌啾',
+    factions: ['乌萨斯', '炎', '谢拉格', '叙拉古'],
+    kept: ['炎', '维多利亚', '阿戈尔', '卡西米尔', '伊比利亚'],
+    keptOperators: ['斯卡蒂', '玛恩纳', '黍'],
+    removedOperators: ['塔露拉', '真言', '锏'],
+    lineup: ['折桠', '烈夏', '乌啾', '奥尔佳', '赫拉格', '维伊', '冻河', '塔露拉'],
+    bench: ['真理', '慕斯', '深靛', '卡达', '灰喉', '夏栎', '星源', '淬羽赫默', '焰尾', '历阵锐枪芬'],
+  },
   /** 显示名称与原始特质标签；两种休整期开始写法归为同一时机。 */
   operatorTriggers: [
     ['进入休整期', ['<进入休整期时>', '<休整期开始时>']],

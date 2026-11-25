@@ -417,6 +417,7 @@ export const S1_LEADERS: readonly Leader[] = [
           label: '巡逻路线',
           shape: {
             kind: 'line',
+            route: 'boss',
             path: [
               [8, 2],
               [7, 1],
@@ -455,6 +456,7 @@ export const S1_LEADERS: readonly Leader[] = [
           label: '巡逻路线',
           shape: {
             kind: 'line',
+            route: 'boss',
             path: [
               [8, 2],
               [7, 1],
@@ -502,6 +504,7 @@ export const S1_LEADERS: readonly Leader[] = [
           label: '末日布道',
           shape: {
             kind: 'line',
+            route: 'ground',
             path: [
               [6, 3],
               [8, 2],
@@ -1541,6 +1544,7 @@ export const S1_LEADERS: readonly Leader[] = [
           label: '巡逻路线',
           shape: {
             kind: 'line',
+            route: 'boss',
             path: [
               [8, 2],
               [7, 1],
@@ -1574,6 +1578,7 @@ export const S1_LEADERS: readonly Leader[] = [
           label: '巡逻路线',
           shape: {
             kind: 'line',
+            route: 'boss',
             path: [
               [8, 2],
               [7, 1],
@@ -1717,6 +1722,7 @@ export const S1_LEADERS: readonly Leader[] = [
           label: '巡逻路线',
           shape: {
             kind: 'line',
+            route: 'boss',
             path: [
               [8, 2],
               [7, 1],

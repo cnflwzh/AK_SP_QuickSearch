@@ -1,7 +1,8 @@
+import {LEGACY_SEASON_ID} from '../catalog.ts';
 import type {SeasonMeta} from '../../types.ts';
 
 export const S1_META: SeasonMeta = {
-  id: 's1',
+  id: LEGACY_SEASON_ID,
   title: '卫戍协议·规程',
   guideSubtitle: '规程 · 序列Ⅰ',
   ruleVersion: 'act3autochess.V3_1 / CN 2.7.91',
@@ -40,6 +41,11 @@ export const S1_META: SeasonMeta = {
     4116, 4133, 4134, 4137, 4139, 4145, 4146, 4147, 4151, 4162, 4163, 4165,
     4166, 4177, 4179, 4193, 4198, 4202, 4203, 4204, 4207, 4211, 4221, 4222,
     4224, 4226, 4228, 4230, 4231, 4232, 4244, 4245, 4247,
+  ],
+  shareLayerIds: [
+    'yan', 'sargon', 'victoria', 'kjerag', 'aegir', 'siracusa', 'kazimierz', 'ursus',
+    'iberia', 'leithanien', 'precision', 'swift', 'dexterity', 'steadfast', 'support',
+    'foresight', 'miracle', 'investor', 'assault', 'unyielding', 'convergence', 'arcane',
   ],
   boxShare: {
     version: 1,

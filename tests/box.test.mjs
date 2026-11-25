@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {BORROW_LIMIT, BUILD_NAMES, OPERATOR, OPERATORS} from '../data/index.ts';
+import {BORROW_LIMIT, BUILD_NAMES, OPERATOR, OPERATORS, SEASON_META} from '../data/index.ts';
 import {
   BORROWABLE_SIX_STARS,
   BOX_CODE_PREFIX,
@@ -36,6 +36,7 @@ import {
   setOperatorRanks,
 } from '../src/lib/box/index.ts';
 import {builtinPlan, newSlot} from '../src/lib/plans/index.ts';
+import {isBoxShareInput} from '../src/lib/box/shareInput.ts';
 import {recommendBorrowBatch} from '../src/lib/box/insights.ts';
 
 test('box model distinguishes unowned (-1) from owned E0 (0) and trained ranks (1-3)', () => {
@@ -418,6 +419,9 @@ test('box sync keeps released slot IDs and rejects an invalid code without impor
   const legacyCode = 'WBEgEAGzoA6A';
   const expected = {char_002_amiya: 2, char_4246_dminon: 3};
   assert.deepEqual(decodeBox(legacyCode), expected);
+  assert.equal(encodeBox(expected), legacyCode);
+  assert.equal(boxShareUrl(legacyCode), '/#b=EgEAGzoA6A');
+  assert.deepEqual(decodeBox(boxShareUrl(legacyCode)), expected);
   assert.equal(decodeBox('WBEgEAGzoA6B'), null);
   assert.throws(() => parseExternalBox('WB损坏，鸿雪'), /同步码/);
   assert.throws(() => parseExternalBox('#b=作废/鸿雪'), /同步码/);
@@ -626,4 +630,44 @@ test('training priorities reflect which main lineups can field all their origina
     sources,
   );
   assert.equal(after[0].score, after[1].score);
+});
+
+test('WB 跨季同版本不同槽表不能互读，511 槽和版本 15 可往返', async () => {
+  const originalSeason = SEASON_META.id;
+  const originalFormat = SEASON_META.boxShare;
+  const sample = {char_002_amiya: 2};
+  const legacy = encodeBox(sample);
+  let sequence = 0;
+  const fixture = async (season, version, operatorIds) => {
+    SEASON_META.id = season;
+    SEASON_META.boxShare = {version, operatorIds};
+    return import(`../src/lib/box/share.ts?box-fixture=${++sequence}`);
+  };
+  try {
+    const s2 = await fixture('s2', originalFormat.version, [325, 2]);
+    const s3 = await fixture('s3', originalFormat.version, [2, 325]);
+    const newCode = s2.encodeBox(sample);
+    for (const input of [newCode, s2.boxShareUrl(newCode), '同步码：' + newCode]) {
+      assert.ok(isBoxShareInput(input));
+      assert.deepEqual(s2.decodeBox(input), sample);
+      assert.equal(s3.decodeBox(input), null);
+      assert.equal(decodeBox(input), null);
+    }
+    assert.equal(s2.decodeBox(legacy), null);
+    assert.equal(s2.decodeBox(boxShareUrl(legacy)), null);
+    assert.equal(s2.decodeBox(s3.encodeBox(sample)), null);
+
+    const slots = [...Array.from({length: 510}, (_, index) => index + 100000), 2];
+    const max = await fixture('s2', 15, slots);
+    assert.deepEqual(max.decodeBox(max.encodeBox(sample)), sample);
+    assert.equal(s2.decodeBox(max.encodeBox(sample)), null);
+    for (const [version, ids] of [[0, slots], [16, slots], [1, [...slots, 325]], [1, [2, 2]]]) {
+      const invalid = await fixture('s2', version, ids);
+      assert.throws(() => invalid.encodeBox(sample), /协议范围/);
+      assert.equal(invalid.decodeBox(newCode), null);
+    }
+  } finally {
+    SEASON_META.id = originalSeason;
+    SEASON_META.boxShare = originalFormat;
+  }
 });

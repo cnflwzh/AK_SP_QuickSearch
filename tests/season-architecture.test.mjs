@@ -22,14 +22,13 @@ import {
   OPERATOR,
   OPERATORS,
   RESERVE_COVENANTS,
-  SEASONS,
+  REGISTERED_SEASON_IDS,
   SEASON_META,
   SHARE_OPERATOR_IDS,
   STRATEGIES,
   STRATEGY,
   STRATEGY_CATEGORIES,
   TRAINING,
-  getSeason,
   isBannableCovenant,
   operatorEliteCopies,
   operatorPrice,
@@ -37,6 +36,7 @@ import {
   operatorSellPrice,
   strategyUsesAdvisorCommand,
 } from '../data/index.ts';
+import {SEASONS, getSeason} from '../data/seasons/registry.ts';
 import {CURRENT_SEASON} from '../data/season.ts';
 import {diffSeasons} from '../src/lib/season/diff.ts';
 import {
@@ -485,5 +485,41 @@ test('enemy intel integrity: leaders, bounties, training types, and glossary sta
       `Missing examples on ${training.name}`,
     );
     assert.ok(training.tags.length >= 2, `Missing tags on ${training.name}`);
+  }
+});
+
+test('可发布赛季有稳定的分享槽、筛选 slug 和与轻量清单一致的注册信息', () => {
+  assert.deepEqual(REGISTERED_SEASON_IDS, SEASONS.map((season) => season.meta.id));
+  const unique = (items) => assert.equal(new Set(items).size, items.length);
+  unique(REGISTERED_SEASON_IDS);
+  for (const season of SEASONS) {
+    const {meta} = season;
+    assert.match(meta.id, /^[A-Za-z0-9_-]+$/);
+    for (const catalog of [season.strategies, season.equipment]) {
+      unique(catalog.map((item) => item.shareId));
+      for (const item of catalog) {
+        assert.ok(Number.isInteger(item.shareId) && item.shareId > 0 && item.shareId <= 65535, item.name);
+      }
+    }
+    for (const filters of [season.rules.operatorTypes, season.strategyCategories]) {
+      unique(filters.map((entry) => entry.id));
+      unique(filters.map((entry) => entry.label));
+    }
+    assert.equal(season.strategyCategories[0].id, '');
+    assert.ok(meta.shareOperatorIds.length <= 65536);
+    unique(meta.shareOperatorIds);
+    for (const op of season.operators)
+      assert.ok(meta.shareOperatorIds.includes(Number(op.avatar.match(/^char_(\d+)_/)[1])), op.name);
+    assert.ok(meta.shareLayerIds.length <= 65535);
+    unique(meta.shareLayerIds);
+    for (const cov of Object.values(season.covenants)) {
+      if (cov.scaling.length || cov.layerBreakpoints?.length || cov.cycleReward)
+        assert.ok(meta.shareLayerIds.includes(cov.id), cov.id);
+    }
+    assert.ok(Number.isInteger(meta.boxShare.version) && meta.boxShare.version > 0 && meta.boxShare.version < 16);
+    assert.ok(meta.boxShare.operatorIds.length < 512);
+    unique(meta.boxShare.operatorIds);
+    assert.ok(meta.boxShare.operatorIds.every((id) => Number.isSafeInteger(id) && id > 0));
+    assert.ok(meta.id.length <= 255);
   }
 });

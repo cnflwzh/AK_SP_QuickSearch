@@ -1,6 +1,8 @@
 /** 既有方案分享协议。编码字段与顺序独立于推荐模块，保持旧链接兼容。 */
 import {
-  ALL_COVENANTS,
+  COVENANT_IDS,
+  SEASON_META,
+  LEGACY_SEASON_ID,
   EQUIP,
   EQUIPMENT,
   OPERATOR,
@@ -34,7 +36,6 @@ import {
   cleanStrategyAlternates,
   readPlanIcon,
   validStageRange,
-  usesLayers,
   type Layers,
   type Plan,
   type PlanIcon,
@@ -46,6 +47,7 @@ import {
  * 模式低两位选择 UTF-8 / UTF-16 / 固定 Huffman，bit2 表示 raw DEFLATE，bit3 表示包含核心标记。
  * 数值按实际范围打包；层数根据当前最大值选择位宽，盟约按稀疏列表或位图存储。
  * bit4 标记扩展格式，允许分段阵容、策略备选及长说明。bit5 标记自选图标。
+ * D.<season>.<模式和位流> 使用 16 位实体编号，层数始终按显式槽号写入。
  */
 export const CODE_PREFIX = 'WS';
 export type Shared = Pick<
@@ -64,39 +66,52 @@ export type Shared = Pick<
 const opId = (op: Operator): number =>
   +(op.avatar.match(/^char_(\d+)_/)?.[1] ?? 0);
 const OP_BY_ID = new Map(OPERATORS.map((op) => [opId(op), op]));
-const KNOWN_SHARE_IDS = new Set(SHARE_OPERATOR_IDS);
-const OP_BY_NO = [
-  ...SHARE_OPERATOR_IDS.map((id) => OP_BY_ID.get(id)),
-  ...OPERATORS.filter((op) => !KNOWN_SHARE_IDS.has(opId(op))),
-];
+const OP_BY_NO = SHARE_OPERATOR_IDS.map((id) => OP_BY_ID.get(id));
 const OP_NO = new Map(
   OP_BY_NO.flatMap((op, i) => (op ? [[op.name, i] as const] : [])),
 );
-const EQ_BY_NO = new Map(EQUIPMENT.map((e) => [+e.icon.slice(1) + 1, e]));
-const ST_BY_NO = new Map(STRATEGIES.map((s) => [+s.portrait.slice(1) + 1, s]));
-const LAYER_NAMES = ALL_COVENANTS.filter(usesLayers);
-const COV_NO = new Map(LAYER_NAMES.map((c, i) => [c, i]));
+// 缺失、越界或重复编号均不能解析成另一件装备/策略。发布前的数据校验另会指出具体条目。
+function shareIndex<T extends {readonly shareId: number}>(items: readonly T[]): Map<number, T | undefined> {
+  const index = new Map<number, T | undefined>();
+  for (const item of items) {
+    const id = item.shareId;
+    if (Number.isInteger(id) && id > 0 && id <= 65535)
+      index.set(id, index.has(id) ? undefined : item);
+  }
+  return index;
+}
+const EQ_BY_NO = shareIndex(EQUIPMENT);
+const ST_BY_NO = shareIndex(STRATEGIES);
+// 退出的盟约保留空槽。新格式逐项写入编号，旧格式的密集位图永久使用最初的 22 位。
+const LAYER_NAMES = SEASON_META.shareLayerIds.map((id) => COVENANT_IDS[id]);
+const COV_NO = new Map(LAYER_NAMES.map((name, index) => [name, index]));
+const LEGACY = {opBits: 8, eqBits: 7, strategyBits: 6, layerBits: 5, layers: LAYER_NAMES.slice(0, 22)};
+const SEASONAL = {opBits: 16, eqBits: 16, strategyBits: 16, layerBits: 16, layers: LAYER_NAMES};
+type ShareFormat = typeof LEGACY;
 
 const LEGACY_OPS = 8;
 const LEGACY_NOTE = 240;
 // 固定类别编号和条目名称一起编码，图鉴增删、重排时仍能识别原图标。
 const ICON_KINDS = ['covenant', 'operator', 'strategy', 'equipment'] as const;
 
-function writeSlot(writer: BitWriter, slot: PlanOp, hasCore: boolean): void {
-  writer.write(OP_NO.get(slot.name)!, 8);
+function writeSlot(writer: BitWriter, slot: PlanOp, hasCore: boolean, format: ShareFormat): void {
+  writer.write(OP_NO.get(slot.name)!, format.opBits);
   writer.write(+slot.elite, 1);
   if (hasCore) writer.write(+slot.core, 1);
   const sameEquip = slot.eq.length === 2 && slot.eq[0] === slot.eq[1];
   writer.write(sameEquip ? 3 : slot.eq.length, 2);
   writer.write(slot.alt.length, 2);
-  for (const eq of sameEquip ? slot.eq.slice(0, 1) : slot.eq)
-    writer.write(+EQUIP[eq].icon.slice(1) + 1, 7);
-  for (const alt of slot.alt) writer.write(OP_NO.get(alt)!, 8);
+  for (const name of sameEquip ? slot.eq.slice(0, 1) : slot.eq) {
+    const item = EQUIP[name];
+    if (EQ_BY_NO.get(item.shareId) !== item) throw new Error('Invalid equipment share ID');
+    writer.write(item.shareId, format.eqBits);
+  }
+  for (const alt of slot.alt) writer.write(OP_NO.get(alt)!, format.opBits);
 }
 
-function readSlot(reader: BitReader, hasCore: boolean): PlanOp {
+function readSlot(reader: BitReader, hasCore: boolean, format: ShareFormat): PlanOp {
   const readOp = (): string => {
-    const name = OP_BY_NO[reader.read(8)]?.name;
+    const name = OP_BY_NO[reader.read(format.opBits)]?.name;
     if (!name) throw new Error('Unknown operator');
     return name;
   };
@@ -108,7 +123,7 @@ function readSlot(reader: BitReader, hasCore: boolean): PlanOp {
   const eq: string[] = [],
     alt: string[] = [];
   for (let e = 0; e < (eqKind === 3 ? 1 : eqKind); e++) {
-    const item = EQ_BY_NO.get(reader.read(7));
+    const item = EQ_BY_NO.get(reader.read(format.eqBits));
     if (!item) throw new Error('Unknown equipment');
     eq.push(item.name);
   }
@@ -122,20 +137,20 @@ function readSlot(reader: BitReader, hasCore: boolean): PlanOp {
   return {name, elite, core, eq, alt};
 }
 
-function writeLayers(writer: BitWriter, value: Layers): void {
+function writeLayers(writer: BitWriter, value: Layers, format: ShareFormat): void {
   const layers = Object.entries(cleanLayers(value)).sort(
     ([a], [b]) => COV_NO.get(a)! - COV_NO.get(b)!,
   );
   writer.write(layers.length ? 1 : 0, 1);
   if (layers.length) {
-    const dense = 5 + layers.length * 5 > LAYER_NAMES.length;
+    const dense = format === LEGACY && 5 + layers.length * 5 > format.layers.length;
     writer.write(+dense, 1);
     if (dense) {
       const selected = new Set(layers.map(([c]) => c));
-      for (const c of LAYER_NAMES) writer.write(+selected.has(c), 1);
+      for (const c of format.layers) writer.write(+selected.has(c), 1);
     } else {
-      writer.write(layers.length, 5);
-      for (const [c] of layers) writer.write(COV_NO.get(c)!, 5);
+      writer.write(layers.length, format.layerBits);
+      for (const [c] of layers) writer.write(COV_NO.get(c)!, format.layerBits);
     }
     const width = Math.ceil(
       Math.log2(Math.max(...layers.map(([, n]) => n)) + 1),
@@ -145,17 +160,22 @@ function writeLayers(writer: BitWriter, value: Layers): void {
   }
 }
 
-function readLayers(reader: BitReader): Layers {
+function readLayers(reader: BitReader, format: ShareFormat): Layers {
   const layers: Layers = {};
   if (reader.read(1)) {
     const selected: string[] = [];
     if (reader.read(1)) {
-      for (const c of LAYER_NAMES) if (reader.read(1)) selected.push(c);
+      if (format !== LEGACY) throw new Error('Unknown layer bitmap');
+      for (const c of format.layers) {
+        if (!reader.read(1)) continue;
+        if (!c) throw new Error('Unknown layer');
+        selected.push(c);
+      }
     } else {
-      const layerCount = reader.read(5);
-      if (layerCount > LAYER_NAMES.length) throw new Error('Invalid layer');
+      const layerCount = reader.read(format.layerBits);
+      if (layerCount > format.layers.length) throw new Error('Invalid layer');
       for (let i = 0; i < layerCount; i++) {
-        const c = LAYER_NAMES[reader.read(5)];
+        const c = format.layers[reader.read(format.layerBits)];
         if (!c || selected.includes(c)) throw new Error('Invalid layer');
         selected.push(c);
       }
@@ -173,12 +193,13 @@ function readLayers(reader: BitReader): Layers {
 }
 
 function strategyNumber(name: string): number {
-  return Object.hasOwn(STRATEGY, name)
-    ? +STRATEGY[name].portrait.slice(1) + 1
-    : 0;
+  if (!Object.hasOwn(STRATEGY, name)) return 0;
+  const item = STRATEGY[name];
+  if (ST_BY_NO.get(item.shareId) !== item) throw new Error('Invalid strategy share ID');
+  return item.shareId;
 }
-function readStrategy(reader: BitReader): string {
-  const id = reader.read(6);
+function readStrategy(reader: BitReader, format: ShareFormat): string {
+  const id = reader.read(format.strategyBits);
   if (!id) return '';
   const strategy = ST_BY_NO.get(id);
   if (!strategy) throw new Error('Unknown strategy');
@@ -225,6 +246,16 @@ export function encodePlan(plan: Shared): string {
     plan.note.length > LEGACY_NOTE
   );
   const rosters = sections.map((s) => cleanOps(s.ops));
+  const fitsLegacy = SEASON_META.id === LEGACY_SEASON_ID &&
+    [plan.strategy, ...alternatives].every((name) => strategyNumber(name) < 64) &&
+    sections.every((section) => Object.keys(cleanLayers(section.layers)).every(
+      (name) => (COV_NO.get(name) ?? Infinity) < LEGACY.layers.length,
+    )) &&
+    rosters.every((ops) => ops.every((slot) =>
+      [slot.name, ...slot.alt].every((name) => (OP_NO.get(name) ?? Infinity) < 256) &&
+      slot.eq.every((name) => EQUIP[name].shareId < 128),
+    ));
+  const format = fitsLegacy ? LEGACY : SEASONAL;
   const hasCore = rosters.some((ops) => ops.some((slot) => slot.core));
   const text =
     (icon?.name ?? '') + plan.name + sections.map((s) => s.note).join('');
@@ -239,13 +270,13 @@ export function encodePlan(plan: Shared): string {
     }
     if (extended) {
       writer.write(plan.name.length, 5);
-      writer.write(strategyNumber(plan.strategy), 6);
+      writer.write(strategyNumber(plan.strategy), format.strategyBits);
       writer.write(alternatives.length, 3);
-      for (const name of alternatives) writer.write(strategyNumber(name), 6);
+      for (const name of alternatives) writer.write(strategyNumber(name), format.strategyBits);
       writer.write(stages.length, 7);
     } else {
       writer.write(rosters[0].length, 4);
-      writer.write(strategyNumber(plan.strategy), 6);
+      writer.write(strategyNumber(plan.strategy), format.strategyBits);
       writer.write(plan.name.length, 5);
       writer.write(plan.note.length, 8);
     }
@@ -270,9 +301,9 @@ export function encodePlan(plan: Shared): string {
           }
           slots.set(key, slots.size);
         }
-        writeSlot(writer, slot, hasCore);
+        writeSlot(writer, slot, hasCore, format);
       }
-      writeLayers(writer, section.layers);
+      writeLayers(writer, section.layers, format);
     }
     if (!writeShareText(writer, text, mode)) continue;
     const payload = writer.finish();
@@ -288,7 +319,9 @@ export function encodePlan(plan: Shared): string {
     if (!best || candidate.length < best.length) best = candidate;
   }
   if (!best) throw new Error('Share data too large');
-  return CODE_PREFIX + best;
+  // D 的低两位为 3，旧版解码器必定拒绝。保留 WS 与 #p= 两种已有入口。
+  const header = format === LEGACY ? '' : `D.${SEASON_META.id}.`;
+  return CODE_PREFIX + header + best;
 }
 
 export interface Decoded {
@@ -300,17 +333,21 @@ export function decodePlan(input: string): Decoded | null {
   if (input.length > MAX_EXTENDED_PAYLOAD * 4) return null;
   const source = planShareSource(input);
   const token =
-    source.match(/#p=([A-Za-z0-9_-]+)/)?.[1] ??
-    source.match(/(?:^|[^A-Za-z0-9_-])WS([A-Za-z0-9_-]+)/)?.[1];
+    source.match(/#p=(D\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|[A-Za-z0-9_-]+)/)?.[1] ??
+    source.match(/(?:^|[^A-Za-z0-9_-])WS(D\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|[A-Za-z0-9_-]+)/)?.[1];
   if (!token) return null;
+  const versioned = token.startsWith('D.');
+  const [season, body] = versioned ? token.slice(2).split('.') : [LEGACY_SEASON_ID, token];
+  if (season !== SEASON_META.id || !body) return null;
+  const format = versioned ? SEASONAL : LEGACY;
   try {
     const {reader, mode, hasCore, extended, hasIcon} =
-      unpackSharePayload(token);
+      unpackSharePayload(body);
     const iconKind = hasIcon ? ICON_KINDS[reader.read(2)] : undefined;
     const iconLength = hasIcon ? reader.read(6) : 0;
     const legacyCount = extended ? 0 : reader.read(4);
     const extendedNameLength = extended ? reader.read(5) : 0;
-    const strategy = readStrategy(reader);
+    const strategy = readStrategy(reader, format);
     const nameLength = extended ? extendedNameLength : reader.read(5);
     if (nameLength > 16) return null;
 
@@ -318,7 +355,7 @@ export function decodePlan(input: string): Decoded | null {
     const altCount = extended ? reader.read(3) : 0;
     if (altCount >= MAX_STRATEGIES || (altCount && !strategy)) return null;
     for (let i = 0; i < altCount; i++) {
-      const alt = readStrategy(reader);
+      const alt = readStrategy(reader, format);
       if (!alt || alt === strategy || alternatives.includes(alt)) return null;
       alternatives.push(alt);
     }
@@ -348,13 +385,13 @@ export function decodePlan(input: string): Decoded | null {
           if (!saved) return null;
           slot = {...saved, eq: [...saved.eq], alt: [...saved.alt]};
         } else {
-          slot = readSlot(reader, hasCore);
+          slot = readSlot(reader, hasCore, format);
           if (extended) slots.push(slot);
         }
         if (ops.some((o) => o.name === slot.name)) return null;
         ops.push(slot);
       }
-      const section = {from, to, ops, note: '', layers: readLayers(reader)};
+      const section = {from, to, ops, note: '', layers: readLayers(reader, format)};
       sections.push(section);
       if (i) stages.push(section);
     }
