@@ -1,6 +1,10 @@
 /** 单张招募的动作搜索；只选择持有、补位、替换或整备，不处理价格和展示排序。 */
 import {type Operator} from '../../../../data/index.ts';
-import {type CovenantStat} from '../../plans/covenants.ts';
+import {
+  covenantsOf,
+  RESERVE_COVENANTS,
+  type CovenantStat,
+} from '../../plans/covenants.ts';
 import {type PlanOp} from '../../plans/model.ts';
 import {
   createLineupEvaluator,
@@ -211,11 +215,7 @@ function chooseRecruitPlacement(
   }
   if (!lineup.length) return {best, bench, hasSpace};
   // 换人必须比保留场上成员有实际收益。单独校验部署改善，防止把整备区本已生效的经济盟约算给换人。
-  const evaluateDeployment = createLineupEvaluator(lineup, run.layers, {
-    goal,
-    reserve: purchasedReserve,
-    bannedCovenants: effectiveBans(run),
-  });
+  let evaluateDeployment: ReturnType<typeof createLineupEvaluator> | undefined;
   let bestSwapPreference: number | undefined;
   for (const [index, outgoing] of lineup.entries()) {
     const field = [...lineup];
@@ -232,11 +232,22 @@ function chooseRecruitPlacement(
     )
       continue;
     if (best.kind !== 'replace' && swap.score <= best.score + 0.001) continue;
-    if (
-      swap.production <= bench.production + 0.001 &&
-      !evaluateDeployment(swap.field, swap.reserve).improves
-    )
-      continue;
+    if (swap.production <= bench.production + 0.001) {
+      if (!evaluateDeployment) {
+        const {own, granted} = covenantsOf(candidate);
+        const changesReserve =
+          benchWithoutCandidate !== search.reserve ||
+          [...own, ...granted].some((name) => RESERVE_COVENANTS.has(name));
+        evaluateDeployment = changesReserve
+          ? createLineupEvaluator(lineup, run.layers, {
+              goal,
+              reserve: purchasedReserve,
+              bannedCovenants: effectiveBans(run),
+            })
+          : evaluateLineup;
+      }
+      if (!evaluateDeployment(swap.field, swap.reserve).improves) continue;
+    }
     if (swap.score === best.score) {
       bestSwapPreference ??= preference(best.field, best.reserve).preference;
       const nextPreference = preference(swap.field, swap.reserve).preference;

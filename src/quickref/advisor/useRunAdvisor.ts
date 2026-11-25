@@ -21,7 +21,7 @@ import {
   STRATEGIES,
   isCoreCovenant,
 } from '../../../data/index.ts';
-import {covenantStats, MAX_LAYERS, usesLayers} from '../../lib/plans/index.ts';
+import {covenantStats, MAX_LAYERS, usesLayers} from '../../lib/plans/core.ts';
 import {
   advisorDeploymentLimit,
   deployedLineup,

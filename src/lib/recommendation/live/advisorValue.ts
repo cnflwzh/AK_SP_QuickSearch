@@ -99,6 +99,8 @@ function restCommandTarget(
   stats: readonly CovenantStat[],
   context: ValueContext,
   hasDynamicTarget: boolean,
+  baseline: RestProduction | undefined,
+  slotValue: TraitValue | undefined,
 ): CommandOpportunity {
   const text = slot.elite
     ? OPERATOR[slot.name]?.elite
@@ -107,8 +109,10 @@ function restCommandTarget(
   const gains =
     text && isAcquisitionCountTrait(text)
       ? []
-      : (recurringValue(slot, true, stats, context, {field, reserve})
-          .endOfRestGains ?? []);
+      : ((
+          slotValue ??
+          recurringValue(slot, true, stats, context, {field, reserve})
+        ).endOfRestGains ?? []);
   const trigger: TraitValue = {
     score: 0,
     reasons: [],
@@ -128,6 +132,7 @@ function restCommandTarget(
         reserve,
         context,
         '指令触发',
+        baseline,
       );
   const immediateMilestoneScore = hasDynamicTarget
     ? 0
@@ -175,6 +180,7 @@ export function restCommandOpportunity(
   field: readonly PlanOp[],
   reserve: readonly PlanOp[],
   context: ValueContext,
+  baseline?: RestProduction,
 ): CommandOpportunity {
   const trigger = Object.hasOwn(STRATEGY, context.strategy)
     ? STRATEGY[context.strategy].advisor?.commandTrigger
@@ -182,12 +188,9 @@ export function restCommandOpportunity(
   if (trigger !== 'rest' || context.commandAvailable === false) {
     return {score: 0, reasons: []};
   }
-  const stats = covenantStats(
-    field,
-    context.layers,
-    reserve,
-    context.inactiveCovenants,
-  );
+  const stats =
+    baseline?.stats ??
+    covenantStats(field, context.layers, reserve, context.inactiveCovenants);
   // 额外触发不保证早于自然结算；动态选层目标时不推合计门槛。
   const hasDynamicTarget = [...field, ...reserve].some((slot) => {
     const text = slot.elite
@@ -196,8 +199,18 @@ export function restCommandOpportunity(
     return hasHighestLayerTarget(text ?? '');
   });
   return bestCommand(
-    field.map((slot) =>
-      restCommandTarget(slot, field, reserve, stats, context, hasDynamicTarget),
+    field.map((slot, index) =>
+      // values 首项是盟约产出，其后依次是场上和整备区干员。
+      restCommandTarget(
+        slot,
+        field,
+        reserve,
+        stats,
+        context,
+        hasDynamicTarget,
+        baseline,
+        baseline?.values[index + 1],
+      ),
     ),
   );
 }
@@ -206,6 +219,7 @@ export function acquisitionCommandOpportunity(
   field: readonly PlanOp[],
   reserve: readonly PlanOp[],
   context: ValueContext,
+  baseline?: RestProduction,
 ): CommandOpportunity {
   const trigger = Object.hasOwn(STRATEGY, context.strategy)
     ? STRATEGY[context.strategy].advisor?.commandTrigger
@@ -214,12 +228,9 @@ export function acquisitionCommandOpportunity(
     return {score: 0, reasons: []};
   }
   // 整备区计数盟约，指令触发沿用完整阵容当前激活状态。
-  const stats = covenantStats(
-    field,
-    context.layers,
-    reserve,
-    context.inactiveCovenants,
-  );
+  const stats =
+    baseline?.stats ??
+    covenantStats(field, context.layers, reserve, context.inactiveCovenants);
   const candidates = field.map((slot) => {
     const acquisition = acquisitionValue(
       OPERATOR[slot.name],
@@ -234,6 +245,7 @@ export function acquisitionCommandOpportunity(
       reserve,
       context,
       '指令触发',
+      baseline,
     );
     const score =
       (acquisition.score + milestones.score) * ACQUISITION_COMMAND_WEIGHT;
@@ -305,6 +317,7 @@ export function strategyValue(
   field: readonly PlanOp[],
   context: ValueContext,
   reserve: readonly PlanOp[] = [],
+  baseline?: RestProduction,
 ): number {
   const advisorRule = Object.hasOwn(STRATEGY, context.strategy)
     ? STRATEGY[context.strategy].advisor
@@ -317,9 +330,14 @@ export function strategyValue(
     total += evaluateScoreFormula(advisorRule.scoreFormula, field, context);
   }
   if (advisorRule.commandTrigger === 'rest') {
-    total += restCommandOpportunity(field, reserve, context).score;
+    total += restCommandOpportunity(field, reserve, context, baseline).score;
   } else if (advisorRule.commandTrigger === 'acquisition') {
-    total += acquisitionCommandOpportunity(field, reserve, context).score;
+    total += acquisitionCommandOpportunity(
+      field,
+      reserve,
+      context,
+      baseline,
+    ).score;
   }
   return total;
 }
@@ -375,10 +393,11 @@ export function purchaseMilestoneAdjustment(
   reserve: readonly PlanOp[],
   context: ValueContext,
   sourceLabel = '获得时',
+  baseline?: RestProduction,
 ): TraitValue {
   // 获得时不加层则不会改变休整产层目标，两次整队推演的门槛差恒为零。
   if (!acquisition.acquisitionGains?.length) return {score: 0, reasons: []};
-  const current = restProduction(field, reserve, context);
+  const current = baseline ?? restProduction(field, reserve, context);
   const gains = sumLayerGains(acquisition.acquisitionGains);
   // 获得先于休整结束。最高层目标可能改变，必须重算整队，而不只看获层盟约。
   const layers = layersAfterAcquisition(context.layers, gains);
@@ -435,7 +454,8 @@ export function teamValue(
   reserve: readonly PlanOp[],
   context: ValueContext,
 ): number {
-  const {stats, values, totals} = restProduction(field, reserve, context);
+  const baseline = restProduction(field, reserve, context);
+  const {stats, values, totals} = baseline;
   const milestoneValue = [...totals].reduce(
     (value, [covenant, amount]) =>
       value +
@@ -454,6 +474,6 @@ export function teamValue(
     values.reduce((sum, value) => sum + value.score, 0) +
     milestoneValue +
     retainedInvestment +
-    strategyValue(field, context, reserve)
+    strategyValue(field, context, reserve, baseline)
   );
 }

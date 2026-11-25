@@ -1,6 +1,10 @@
+<script lang="ts">
+import {LEADERS} from '../../../data/index.ts';
+const maxLeaderHp = LEADERS[0]?.hp.map((_, mode) => Math.max(...LEADERS.map((leader) => leader.hp[mode]))) ?? [];
+</script>
 <script setup lang="ts">
 import {computed} from 'vue';
-import {LEADERS, type Leader} from '../../../data/index.ts';
+import type {Leader} from '../../../data/index.ts';
 import {leaderSrc} from '../../lib/ui/assets.ts';
 import {wan} from '../../lib/ui/dom.ts';
 import {damageClass, patrols} from '../../lib/leaders/leader.ts';
@@ -13,7 +17,7 @@ import GlossaryText from './GlossaryText.vue';
 const props = defineProps<{leader: Leader; mode: number; index?: number}>();
 const {openLeader} = useQuickrefActions();
 const hp = computed(() => props.leader.hp[props.mode]);
-const max = computed(() => Math.max(...LEADERS.map((l) => l.hp[props.mode])));
+const max = computed(() => maxLeaderHp[props.mode]);
 const isRunLeader = computed(() => runLeaderKey.value === props.leader.name);
 </script>
 <template>

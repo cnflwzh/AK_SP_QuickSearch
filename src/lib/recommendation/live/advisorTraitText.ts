@@ -92,14 +92,87 @@ function adjacentLayerTargets(
   }
   return {gains, reasons};
 }
-/** 按明确记录的人、装备携带者或不同等阶计数，不推算未录副本。 */
-function rosterLayerTargets(
-  text: string,
-  roster: ValueRoster,
-): ResolvedLayerTargets | undefined {
-  const reserveCovenants = text.match(
+/** 只预解析固定文案。站位、装备、层数和阵容人数继续在每次评估时取当前值。 */
+function parseTraitText(text: string) {
+  const withoutAcquire = text.replace(/<获得时>[^<]*/g, '');
+  const restText = withoutAcquire.replace(
+    /^<休整期开始时>(?=<休整期结束时>)/,
+    '',
+  );
+  const reserveCovenants = restText.match(
     /^<休整期结束时>使整备区每名干员已激活的盟约层数\+(\d+)/,
   );
+  const equipped = restText.match(
+    /^<休整期结束时>场上每有一名携带装备的干员，使已激活的((?:【[^】]+】)+)层数\+(\d+)/,
+  );
+  const tiers = restText.match(
+    /^<休整期结束时>场上每有一名不同阶的【([^】]+)】干员，使已激活的((?:【[^】]+】)+)层数\+(\d+)/,
+  );
+  const benched = restText.match(
+    /^<休整期结束时>整备区每有一名干员，使已激活的((?:【[^】]+】)+)层数\+(\d+)/,
+  );
+  const direct = restText.match(
+    /^<休整期结束时>使已激活的((?:【[^】]+】)+)层数\+(\d+)(?:$|（)/,
+  );
+  const fixedAmount = Number(withoutAcquire.match(/层数\+(\d+)/)?.[1] ?? 0);
+  const selfAndBack = restText.match(
+    /^<进入休整期时>使自身及身后一格干员已激活的盟约层数\+(\d+)/,
+  );
+  const selfAndAdjacent = restText.match(FRONT_LAYER_PATTERN) ?? selfAndBack;
+  const acquisitionCount = restText.match(ACQUISITION_COUNT_PATTERN);
+  const allCore = /^<休整期结束时>使已激活的核心盟约层数\+/.test(restText);
+  const highest = /^<休整期结束时>使当前已激活且层数最多的盟约层数\+/.test(
+    restText,
+  );
+  const temporary = restText.match(
+    /^<战斗开始时>使已激活的((?:【[^】]+】)+)临时层数\+(\d+)$/,
+  );
+  const cap = Number(
+    withoutAcquire.match(/每(?:回合|场战斗)至多(?:叠加)?(\d+)层/)?.[1] ?? 0,
+  );
+  const conversion = restText.match(
+    /^<战斗中>【([^】]+)】每叠加(\d+)层，本干员攻击力\+(\d+)%$/,
+  );
+  const convertsLayers =
+    withoutAcquire.includes('每叠加') && /本干员|自身/.test(restText);
+  return {
+    withoutAcquire,
+    restText,
+    reserveCovenants,
+    equipped,
+    tiers,
+    benched,
+    direct,
+    fixedAmount,
+    selfAndBack,
+    selfAndAdjacent,
+    acquisitionCount,
+    allCore,
+    highest,
+    temporary,
+    cap,
+    conversion,
+    convertsLayers,
+    tags: covenantTags(withoutAcquire),
+  };
+}
+
+const knownTraits = new Map<string, ReturnType<typeof parseTraitText>>();
+function traitRules(text: string): ReturnType<typeof parseTraitText> {
+  let rules = knownTraits.get(text);
+  if (!rules) {
+    rules = parseTraitText(text);
+    if (knownTraits.size >= 512) knownTraits.clear();
+    knownTraits.set(text, rules);
+  }
+  return rules;
+}
+/** 按明确记录的人、装备携带者或不同等阶计数，不推算未录副本。 */
+function rosterLayerTargets(
+  rules: ReturnType<typeof parseTraitText>,
+  roster: ValueRoster,
+): ResolvedLayerTargets | undefined {
+  const {reserveCovenants} = rules;
   if (reserveCovenants) {
     const amounts = new Map<string, number>();
     for (const member of roster.reserve) {
@@ -115,9 +188,7 @@ function rosterLayerTargets(
       reasons: ['按已记录整备区干员各自盟约计层；未记录的同名副本不推算'],
     };
   }
-  const equipped = text.match(
-    /^<休整期结束时>场上每有一名携带装备的干员，使已激活的((?:【[^】]+】)+)层数\+(\d+)/,
-  );
+  const {equipped} = rules;
   if (equipped) {
     const count = roster.field.filter((member) => member.eq.length > 0).length;
     return {
@@ -125,9 +196,7 @@ function rosterLayerTargets(
       reasons: [`按场上${count}名装备携带者计算，不按装备件数重复计人`],
     };
   }
-  const tiers = text.match(
-    /^<休整期结束时>场上每有一名不同阶的【([^】]+)】干员，使已激活的((?:【[^】]+】)+)层数\+(\d+)/,
-  );
+  const {tiers} = rules;
   if (tiers) {
     const members = roster.field.filter((member) =>
       distinctCovenants(member).includes(tiers[1]),
@@ -139,9 +208,7 @@ function rosterLayerTargets(
       reasons: [`按场上${tiers[1]}的${count}种等阶计算`],
     };
   }
-  const benched = text.match(
-    /^<休整期结束时>整备区每有一名干员，使已激活的((?:【[^】]+】)+)层数\+(\d+)/,
-  );
+  const {benched} = rules;
   if (benched) {
     return {
       gains: layerGains(
@@ -161,15 +228,16 @@ export function resolveRestLayerEffects(
   context: ValueContext,
   roster?: ValueRoster,
 ): RestLayerEffects {
-  const withoutAcquire = text.replace(/<获得时>[^<]*/g, '');
-  const restText = withoutAcquire.replace(
-    /^<休整期开始时>(?=<休整期结束时>)/,
-    '',
-  );
+  const rules = traitRules(text);
+  const {
+    restText,
+    direct,
+    fixedAmount,
+    selfAndBack,
+    selfAndAdjacent,
+    acquisitionCount,
+  } = rules;
   const active = stats.filter((stat) => stat.active && usesLayers(stat.name));
-  const direct = restText.match(
-    /^<休整期结束时>使已激活的((?:【[^】]+】)+)层数\+(\d+)(?:$|（)/,
-  );
   const effects: RestLayerEffects = {
     gains: direct ? layerGains(covenantTags(direct[1]), Number(direct[2])) : [],
     reasons: [],
@@ -178,17 +246,14 @@ export function resolveRestLayerEffects(
     currentRoundOnly: false,
     unknownHighestTarget: false,
   };
-  const fixedAmount = Number(withoutAcquire.match(/层数\+(\d+)/)?.[1] ?? 0);
-  if (/^<休整期结束时>使已激活的核心盟约层数\+/.test(restText)) {
+
+  if (rules.allCore) {
     effects.gains = layerGains(
       active.filter((stat) => stat.core).map((stat) => stat.name),
       fixedAmount,
     );
   }
-  if (
-    /^<休整期结束时>使当前已激活且层数最多的盟约层数\+/.test(restText) &&
-    active.length
-  ) {
+  if (rules.highest && active.length) {
     const known = active.filter((stat) =>
       Object.hasOwn(context.layers, stat.name),
     );
@@ -205,10 +270,6 @@ export function resolveRestLayerEffects(
       );
     }
   }
-  const selfAndBack = restText.match(
-    /^<进入休整期时>使自身及身后一格干员已激活的盟约层数\+(\d+)/,
-  );
-  const selfAndAdjacent = restText.match(FRONT_LAYER_PATTERN) ?? selfAndBack;
   if (selfAndAdjacent) {
     effects.entersRest = restText.startsWith('<进入休整期时>');
     const adjacent = adjacentLayerTargets(
@@ -222,15 +283,13 @@ export function resolveRestLayerEffects(
     effects.gains = adjacent.gains;
     effects.reasons.push(...adjacent.reasons);
   }
-  const rosterEffects = roster
-    ? rosterLayerTargets(restText, roster)
-    : undefined;
+  const rosterEffects = roster ? rosterLayerTargets(rules, roster) : undefined;
   if (rosterEffects) {
     effects.gains = rosterEffects.gains;
     effects.reasons.push(...rosterEffects.reasons);
   }
   // 风絮、夕只按本轮确认记录结算，不外推购买频率到后续回合。
-  const acquisitionCount = restText.match(ACQUISITION_COUNT_PATTERN);
+
   effects.currentRoundOnly = Boolean(acquisitionCount);
   if (acquisitionCount) {
     if (context.acquisitionsThisRound == null) {
@@ -258,26 +317,12 @@ export interface AcquisitionEffects {
     count: number;
   };
 }
-/** 只读取保证获得的第一项装备，不将后续随机奖励并入保证收益。 */
-export function resolveAcquisitionEffects(
-  operator: Operator,
-  elite: boolean,
-  level: number,
-): AcquisitionEffects {
-  const trait = elite ? operator.elite : operator.trait;
+function parseAcquisitionText(trait: string) {
   const text = trait.match(/<获得时>([^<]*)/)?.[1] ?? '';
-  let gains = fixedLayers(text);
+  const gains = fixedLayers(text);
   const levelScaling = text.match(
     /等同于当前调度中心等级(两倍)?的【([^】]+)】层数/,
   );
-  if (levelScaling) {
-    gains = [
-      {
-        covenant: levelScaling[2],
-        amount: level * (levelScaling[1] ? 2 : 1),
-      },
-    ];
-  }
   const guaranteed = text.split(/[，；]/)[0];
   const equipment = EQUIPMENT_BY_NAME_LENGTH.find((item) =>
     guaranteed.includes(item.name),
@@ -302,11 +347,39 @@ export function resolveAcquisitionEffects(
       : 1
     : 0;
   return {
+    levelScaling,
     hasText: Boolean(text),
     gains,
     growsWithTriggers: /触发后升级|触发\d+次后升级/.test(text),
     freeRefreshes,
     equipmentReward,
+  };
+}
+const acquisitionTexts = new Map<
+  string,
+  ReturnType<typeof parseAcquisitionText>
+>();
+
+/** 缓存获得特质的固定部分；按调用时的调度中心等级计算可变层数。 */
+export function resolveAcquisitionEffects(
+  operator: Operator,
+  elite: boolean,
+  level: number,
+): AcquisitionEffects {
+  const trait = elite ? operator.elite : operator.trait;
+  let parsed = acquisitionTexts.get(trait);
+  if (!parsed) {
+    parsed = parseAcquisitionText(trait);
+    if (acquisitionTexts.size >= 512) acquisitionTexts.clear();
+    acquisitionTexts.set(trait, parsed);
+  }
+  const {levelScaling, equipmentReward, gains, ...values} = parsed;
+  return {
+    ...values,
+    gains: levelScaling
+      ? [{covenant: levelScaling[2], amount: level * (levelScaling[1] ? 2 : 1)}]
+      : gains.map((gain) => ({...gain})),
+    equipmentReward: equipmentReward && {...equipmentReward},
   };
 }
 export interface BattleEffects {
@@ -327,21 +400,9 @@ export function resolveBattleEffects(
   text: string,
   slot: PlanOp,
 ): BattleEffects {
-  const withoutAcquire = text.replace(/<获得时>[^<]*/g, '');
-  const restText = withoutAcquire.replace(
-    /^<休整期开始时>(?=<休整期结束时>)/,
-    '',
-  );
-  const temporary = restText.match(
-    /^<战斗开始时>使已激活的((?:【[^】]+】)+)临时层数\+(\d+)$/,
-  );
-  const cap = Number(
-    withoutAcquire.match(/每(?:回合|场战斗)至多(?:叠加)?(\d+)层/)?.[1] ?? 0,
-  );
+  const {withoutAcquire, temporary, cap, conversion, convertsLayers, tags} =
+    traitRules(text);
   const covenants = covenantsOf(slot);
-  const conversion = restText.match(
-    /^<战斗中>【([^】]+)】每叠加(\d+)层，本干员攻击力\+(\d+)%$/,
-  );
   return {
     temporaryGains: temporary
       ? covenantTags(temporary[1]).map((covenant) => ({
@@ -352,10 +413,9 @@ export function resolveBattleEffects(
     conditionalCap: withoutAcquire.includes('<战斗中>') ? cap : 0,
     conditionalCovenants: withoutAcquire.includes('自身已激活')
       ? [...covenants.own, ...covenants.granted]
-      : covenantTags(withoutAcquire),
-    convertsLayers:
-      withoutAcquire.includes('每叠加') && /本干员|自身/.test(restText),
-    conversionCovenants: [...new Set(covenantTags(withoutAcquire))],
+      : [...tags],
+    convertsLayers,
+    conversionCovenants: [...new Set(tags)],
     attackConversion: conversion
       ? {
           covenant: conversion[1],
@@ -364,7 +424,7 @@ export function resolveBattleEffects(
         }
       : undefined,
     tempToPermCovenants: withoutAcquire.includes('临时层数为固定层数')
-      ? [...new Set(covenantTags(withoutAcquire))]
+      ? [...new Set(tags)]
       : [],
   };
 }

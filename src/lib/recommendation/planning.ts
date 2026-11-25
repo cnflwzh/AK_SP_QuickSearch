@@ -152,6 +152,19 @@ function lineupCounts(
   return counts;
 }
 
+/** 已指定混合或主轴时跳过推断；自动模式按实际未禁用的场上干员推断。 */
+function evaluationGoal(
+  ops: readonly PlanOp[],
+  bans: ReadonlySet<string>,
+  goal?: LineupGoal | null,
+): LineupGoal | null {
+  if (goal !== undefined) return goal;
+  const inferred = inferPrimaryCovenant(
+    ops.filter((slot) => !isBanned(slot.name, bans)),
+  );
+  return inferred ? defaultLineupGoal(inferred) : null;
+}
+
 /**
  * 用整队状态评价候选：优先保住已有核心的激活/强化，再保附加盟约，
  * 尚未成型的盟约只给有限进度分，超过目标门槛的人数不继续加分。
@@ -162,24 +175,13 @@ function createCountScorer(
   layers: Layers,
   bans: ReadonlySet<string> = new Set(),
   options: LineupEvaluationOptions = {},
+  before = covenantStats(ops, layers, options.reserve, options.bannedCovenants),
 ): (counts: Uint8Array) => number {
-  const inferred = inferPrimaryCovenant(
-    ops.filter((slot) => !isBanned(slot.name, bans)),
-  );
-  const main =
-    options.goal === undefined
-      ? inferred
-        ? defaultLineupGoal(inferred)
-        : null
-      : options.goal;
+  const main = evaluationGoal(ops, bans, options.goal);
   const support = new Set(
     main ? (buildByName(main.covenant)?.addons ?? []) : [],
   );
-  const original = new Map(
-    covenantStats(ops, layers, options.reserve, options.bannedCovenants).map(
-      (stat) => [stat.name, stat],
-    ),
-  );
+  const original = new Map(before.map((stat) => [stat.name, stat]));
   const goals = COV_RULES.map((rule) => {
     const was = original.get(rule.name);
     return {
@@ -314,26 +316,16 @@ export function createLineupEvaluator(
     options.reserve,
     options.bannedCovenants,
   );
+  const bans = options.bannedCovenants ?? new Set<string>();
+  const goal = evaluationGoal(ops, bans, options.goal);
   const scoreCounts = createCountScorer(
     ops,
     layers,
-    options.bannedCovenants,
-    options,
+    bans,
+    {...options, goal},
+    before,
   );
   const initial = scoreCounts(lineupCounts(ops, options.reserve));
-  const inferred = inferPrimaryCovenant(
-    ops.filter(
-      (slot) =>
-        !options.bannedCovenants ||
-        !isBanned(slot.name, options.bannedCovenants),
-    ),
-  );
-  const goal =
-    options.goal === undefined
-      ? inferred
-        ? defaultLineupGoal(inferred)
-        : null
-      : options.goal;
   const carries = new Set(
     goal ? (buildByName(goal.covenant)?.carries ?? []) : [],
   );

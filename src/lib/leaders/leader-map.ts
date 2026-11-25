@@ -20,12 +20,18 @@ const distance = (a: MapPos, b: MapPos): number =>
 
 /** 判断线段是否触碰障碍；封住对角相接的零宽缝隙，拐角另留绘图间隙。 */
 function crosses(a: MapPos, b: MapPos, wall: Wall): boolean {
+  if (
+    Math.max(a[0], b[0]) < wall.left ||
+    Math.min(a[0], b[0]) > wall.right ||
+    Math.max(a[1], b[1]) < wall.top ||
+    Math.min(a[1], b[1]) > wall.bottom
+  )
+    return false;
   let enter = 0,
     leave = 1;
-  for (const [axis, low, high] of [
-    [0, wall.left, wall.right],
-    [1, wall.top, wall.bottom],
-  ]) {
+  for (let axis = 0; axis < 2; axis++) {
+    const low = axis === 0 ? wall.left : wall.top;
+    const high = axis === 0 ? wall.right : wall.bottom;
     const delta = b[axis] - a[axis];
     if (Math.abs(delta) < EPS) {
       if (a[axis] <= low + EPS || a[axis] >= high - EPS) return false;
@@ -104,7 +110,11 @@ function segment(from: MapPos, to: MapPos, nav: Navigation): readonly MapPos[] {
   const key = `${from.join(',')}>${to.join(',')}`;
   const cached = nav.routes.get(key);
   if (cached) return cached;
-  if (visible(from, to, nav.walls)) return [from, to];
+  if (visible(from, to, nav.walls)) {
+    const direct = [from, to];
+    nav.routes.set(key, direct);
+    return direct;
+  }
   const points = [...nav.corners, from, to],
     start = points.length - 2,
     end = start + 1;

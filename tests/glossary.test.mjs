@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {ENEMY_GLOSSARY} from '../data/index.ts';
 import {glossaryHtml} from '../src/lib/ui/glossaryText.ts';
+import {tokenizeTrait, traitLabel} from '../src/lib/ui/traitText.ts';
 import {normalize} from '../src/lib/ui/match.ts';
 import {
   findGlossaryTerm,
@@ -9,6 +10,18 @@ import {
   searchGlossary,
   splitGlossaryText,
 } from '../src/lib/glossary.ts';
+
+test('特质分词保留比较符与小数百分比，盟约名中的数字属于名称', () => {
+  const parts = tokenizeTrait('消耗 < 3 & 收益 > 2\n<入场>【第2盟约】+12.5%');
+  assert.deepEqual(parts.filter((part) => part.kind !== 'text'), [
+    {kind: 'num', text: '3'},
+    {kind: 'num', text: '2'},
+    {kind: 'trigger', text: '入场'},
+    {kind: 'covenant', text: '第2盟约'},
+    {kind: 'num', text: '12.5%'},
+  ]);
+  assert.equal(parts.map(traitLabel).join(''), '消耗 < 3 & 收益 > 2\n入场【第2盟约】+12.5%');
+});
 
 test('攻略简称与敌方词条共用正式名称，商店冻结与战斗状态分别解释', () => {
   assert.equal(findGlossaryTerm('ｄ 牌')?.term, '刷新');

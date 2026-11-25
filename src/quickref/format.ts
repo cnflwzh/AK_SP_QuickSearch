@@ -28,8 +28,21 @@ function effectHtml(
   }).join('');
 }
 
+const focusableEffects = new Map<string, string>();
+const staticEffects = new Map<string, string>();
+
 /** 将效果原文排成安全的 HTML。列表链接内传 false，Tab 仍只停在原来的链接上。 */
-export const fx = (text: string, focusable = true): string => effectHtml(text, focusable, 'effect');
+export function fx(text: string, focusable = true): string {
+  const cache = focusable ? focusableEffects : staticEffects;
+  const cached = cache.get(text);
+  if (cached !== undefined) return cached;
+  const html = effectHtml(text, focusable, 'effect');
+  if (text.length <= 512) {
+    if (cache.size >= 512) cache.delete(cache.keys().next().value!);
+    cache.set(text, html);
+  }
+  return html;
+}
 /** 将效果原文排成盟约侧栏、局内抓取详情使用的 HTML。 */
 export const peekFx = (text: string): string => effectHtml(text, true, 'peek');
 export const hpWidth = (hp: number): number => (hp - 15) / 25 * 100;
