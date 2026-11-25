@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import {copyPosterPng} from '../../lib/ui/canvasPoster.ts';
 import {computed, onBeforeUnmount, ref} from 'vue';
 import {formatPlanShareText, type Plan} from '../../lib/plans/index.ts';
 import {downloadBlob} from '../../lib/ui/download.ts';
@@ -76,11 +77,9 @@ async function copyImage(): Promise<void> {
   const snapshot: Plan = JSON.parse(JSON.stringify(props.plan));
   try {
     // 绘图会异步加载头像；在点击事件内发起写入，避免生成图片期间用户激活失效。
-    await navigator.clipboard.write([
-      new ClipboardItem({
-        'image/png': buildImageBlob(snapshot, share.value.qrLink),
-      }),
-    ]);
+    if (await copyPosterPng(buildImageBlob(snapshot, share.value.qrLink)) !== 'copied') {
+      throw new Error('Clipboard unavailable');
+    }
     markCopied('img');
   } catch {
     imageError.value = '复制图片失败，可点「保存图片」后发送。';

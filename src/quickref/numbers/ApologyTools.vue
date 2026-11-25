@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import {usePosterPreview} from './usePosterPreview.ts';
 import {
   computed,
   onActivated,
@@ -253,7 +254,7 @@ function resetTemplate(): void {
 }
 
 /* ---------- 屏幕预览与按需高清导出 ---------- */
-const poster = shallowRef<{doc: ApologyDocument; url: string}>();
+const {poster, setPreview, clearPreview} = usePosterPreview<{doc: ApologyDocument}>();
 const previewAttempt = ref(0);
 const imageError = ref('');
 const exportJob = shallowRef<AbortController>();
@@ -266,11 +267,6 @@ const copyFallback = ref('');
 const liveMessage = ref('');
 let statusTimer: ReturnType<typeof setTimeout> | undefined;
 
-function clearPreview(): void {
-  if (poster.value) URL.revokeObjectURL(poster.value.url);
-  poster.value = undefined;
-}
-
 async function renderPreview(
   doc: ApologyDocument,
   signal: AbortSignal,
@@ -278,9 +274,7 @@ async function renderPreview(
   try {
     const blob = await renderApologyPoster(doc, 'preview', signal);
     if (signal.aborted || !active.value || doc !== documentModel.value) return;
-    const url = URL.createObjectURL(blob);
-    clearPreview();
-    poster.value = {doc, url};
+    setPreview(blob, {doc});
   } catch {
     if (signal.aborted || !active.value || doc !== documentModel.value) return;
     clearPreview();
@@ -324,7 +318,6 @@ onBeforeUnmount(() => {
   stopPreview();
   exportJob.value?.abort();
   clearTimeout(statusTimer);
-  clearPreview();
 });
 
 function setImageFeedback(status: 'copied' | 'saved', message: string): void {

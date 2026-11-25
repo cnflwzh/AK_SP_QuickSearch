@@ -1,4 +1,5 @@
-import {buildDealerRound} from './rounds.ts';
+import {seasonStorageKey} from '../season/storage.ts';
+import {buildKnowledgeRound} from './knowledgeRounds.ts';
 import {
   BOUNTY_THEMES,
   EQUIP_THEMES,
@@ -20,7 +21,7 @@ import type {
   TriggerChallengeTheme,
 } from './types.ts';
 
-export const DEALER_MISTAKES_STORAGE_KEY = 'wsq.dealer.mistakes.v1';
+export const DEALER_MISTAKES_STORAGE_KEY = seasonStorageKey('wsq.dealer.mistakes.v1');
 export const MAX_MISTAKE_RECORDS = 150;
 export const MISTAKE_MASTERY_STREAK = 2;
 
@@ -278,14 +279,14 @@ function buildRoundForMistake(
   let round: DealerRound | null = null;
   if (record.roundKind === 'covenant') {
     if (!SELECTABLE_COVENANTS.includes(record.targetKey)) return null;
-    round = buildDealerRound({
+    round = buildKnowledgeRound({
       ...common,
       kind: 'covenant',
       targetCovenant: record.targetKey,
     });
   } else if (record.roundKind === 'transmute') {
     if (!TRANSMUTE_COVENANTS.includes(record.targetKey)) return null;
-    round = buildDealerRound({
+    round = buildKnowledgeRound({
       ...common,
       kind: 'transmute',
       targetCovenant: record.targetKey,
@@ -294,7 +295,7 @@ function buildRoundForMistake(
     if (!EQUIP_THEMES.includes(record.targetKey as EquipChallengeTheme)) {
       return null;
     }
-    round = buildDealerRound({
+    round = buildKnowledgeRound({
       ...common,
       kind: 'equipment',
       equipTheme: record.targetKey as EquipChallengeTheme,
@@ -303,7 +304,7 @@ function buildRoundForMistake(
     if (!TRIGGER_THEMES.includes(record.targetKey as TriggerChallengeTheme)) {
       return null;
     }
-    round = buildDealerRound({
+    round = buildKnowledgeRound({
       ...common,
       kind: 'trigger',
       triggerTheme: record.targetKey as TriggerChallengeTheme,
@@ -312,7 +313,7 @@ function buildRoundForMistake(
     if (!TIER_CHECK_THEMES.includes(record.targetKey as TierCheckTheme)) {
       return null;
     }
-    round = buildDealerRound({
+    round = buildKnowledgeRound({
       ...common,
       kind: 'tier_check',
       tierCheckTheme: record.targetKey as TierCheckTheme,
@@ -321,7 +322,7 @@ function buildRoundForMistake(
     if (!STRATEGY_THEMES.includes(record.targetKey as StrategyChallengeTheme)) {
       return null;
     }
-    round = buildDealerRound({
+    round = buildKnowledgeRound({
       ...common,
       kind: 'strategy',
       strategyTheme: record.targetKey as StrategyChallengeTheme,
@@ -330,7 +331,7 @@ function buildRoundForMistake(
     if (!BOUNTY_THEMES.includes(record.targetKey as BountyChallengeTheme)) {
       return null;
     }
-    round = buildDealerRound({
+    round = buildKnowledgeRound({
       ...common,
       kind: 'bounty',
       bountyTheme: record.targetKey as BountyChallengeTheme,

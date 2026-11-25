@@ -4,6 +4,9 @@ import type {
   Operator,
   Strategy,
 } from '../../../data/index.ts';
+import type {TraitSegment} from '../ui/traitText.ts';
+
+export type {TraitSegment};
 
 export const DEALER_SHOP_SIZE = 5;
 export const DAILY_ROUND_COUNT = 5;
@@ -41,11 +44,6 @@ export type HintBadgeTone = 'blind' | 'hinted' | 'assist';
 export type CardStatus =
   'unseen' | 'punched' | 'shielded' | 'calibrated' | 'kept';
 export type MatrixCell = '👊' | '⚡' | '🟩' | '💥';
-
-export interface TraitSegment {
-  readonly text: string;
-  readonly kind: 'text' | 'trigger' | 'covenant' | 'num';
-}
 
 export interface CardRevealTag {
   readonly label: string;

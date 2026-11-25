@@ -15,6 +15,7 @@ import {
   planIconSrc,
   portraitSrc,
 } from '../ui/assets.ts';
+import {loadPosterImage, renderCanvasPoster, sizePoster, posterPng} from '../ui/canvasPoster.ts';
 import {covenantStats} from './covenants.ts';
 import {planCost} from './costs.ts';
 import {effectivePlanIcon, type Plan} from './model.ts';
@@ -46,22 +47,6 @@ const INK = '#122220',
   ACCENT = '#b46a07',
   TEAL = '#0f766c';
 
-function load(src: string): Promise<HTMLImageElement | null> {
-  return new Promise((resolve) => {
-    if (!src) return resolve(null);
-    const img = new Image();
-    const finish = (value: HTMLImageElement | null): void => {
-      clearTimeout(timer);
-      img.onload = null;
-      img.onerror = null;
-      resolve(value);
-    };
-    const timer = setTimeout(() => finish(null), 8000);
-    img.onload = () => finish(img);
-    img.onerror = () => finish(null);
-    img.src = src;
-  });
-}
 function round(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -126,6 +111,10 @@ export async function planImage(
   plan: Plan,
   link: string,
 ): Promise<Blob | null> {
+  return renderCanvasPoster((ctx) => drawPlanImage(ctx, plan, link));
+}
+
+async function drawPlanImage(ctx: CanvasRenderingContext2D, plan: Plan, link: string): Promise<Blob | null> {
   const stats = covenantStats(plan.ops, plan.layers);
   const cost = planCost(plan.ops);
   const rows = Math.max(1, stats.length);
@@ -141,7 +130,7 @@ export async function planImage(
   const st = STRATEGY[plan.strategy];
   const cache = new Map<string, Promise<HTMLImageElement | null>>();
   const asset = (src: string): Promise<HTMLImageElement | null> => {
-    if (!cache.has(src)) cache.set(src, load(src));
+    if (!cache.has(src)) cache.set(src, loadPosterImage(src, 8000));
     return cache.get(src)!;
   };
   // 所有导出素材同时加载，同一个头像只请求一次。
@@ -161,9 +150,6 @@ export async function planImage(
       st ? asset(portraitSrc(st.name)) : Promise.resolve(null),
       icon ? asset(planIconSrc(icon)) : Promise.resolve(null),
     ]);
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return null;
   const cellsOf = (s: (typeof stats)[number]): number =>
     Math.max(s.count, s.bonusNeed && !s.bonusElite ? s.bonusNeed : 0, s.need);
   const tagOf = (s: (typeof stats)[number]): string =>
@@ -277,10 +263,7 @@ export async function planImage(
     8;
   const H =
     SECTION + Math.max(rows * 26, qr ? QR + 44 : 0) + (qr ? 8 : 28) + PAD;
-  const scale = 2;
-  canvas.width = W * scale;
-  canvas.height = H * scale;
-  ctx.scale(scale, scale);
+  const posterScale = sizePoster(ctx, W, H);
   ctx.fillStyle = '#edf1f0';
   ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = '#fff';
@@ -520,18 +503,29 @@ export async function planImage(
     round(ctx, qx, qy, QR, QR, 8);
     ctx.fill();
     ctx.stroke();
-    const n = qr.getModuleCount(),
-      cell = Math.floor((QR * scale) / (n + 8)) / scale,
-      off = (QR - cell * n) / 2;
-    ctx.fillStyle = INK;
-    for (let r = 0; r < n; r++)
-      for (let c = 0; c < n; c++)
-        if (qr.isDark(r, c))
-          ctx.fillRect(qx + off + c * cell, qy + off + r * cell, cell, cell);
+    // 海报碰到像素预算时倍率可能是小数。二维码直接在物理像素网格上绘制，四周各留至少四个模块。
+    const n = qr.getModuleCount();
+    const left = Math.ceil(qx * posterScale);
+    const top = Math.ceil(qy * posterScale);
+    const width = Math.floor((qx + QR) * posterScale) - left;
+    const height = Math.floor((qy + QR) * posterScale) - top;
+    const modulePixels = Math.floor(Math.min(width, height) / (n + 8));
+    if (modulePixels > 0) {
+      const x = left + Math.floor((width - modulePixels * n) / 2);
+      const y = top + Math.floor((height - modulePixels * n) / 2);
+      ctx.save();
+      ctx.resetTransform();
+      ctx.fillStyle = INK;
+      for (let r = 0; r < n; r++)
+        for (let c = 0; c < n; c++)
+          if (qr.isDark(r, c))
+            ctx.fillRect(x + c * modulePixels, y + r * modulePixels, modulePixels, modulePixels);
+      ctx.restore();
+    }
     ctx.textAlign = 'center';
     ctx.fillStyle = INK;
     ctx.font = `700 13px ${FONT}`;
-    ctx.fillText('扫码导入阵容', qx + QR / 2, qy + QR + 20);
+    ctx.fillText(modulePixels > 0 ? '扫码导入阵容' : '请使用配套分享码', qx + QR / 2, qy + QR + 20);
     ctx.fillStyle = ACCENT;
     ctx.font = `700 11px ${FONT}`;
     ctx.fillText('卫戍速查 · 阵容规划', qx + QR / 2, qy + QR + 37);
@@ -542,5 +536,5 @@ export async function planImage(
     ctx.fillText(fullText, PAD, H - PAD);
   }
 
-  return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  return posterPng(ctx.canvas);
 }

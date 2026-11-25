@@ -1,9 +1,10 @@
+import {seasonStorageKey} from '../../lib/season/storage.ts';
 import {computed, reactive} from 'vue';
 import {
   activeMistakes,
   BOUNTY_THEMES,
   buildDailyRounds,
-  buildDealerRound,
+  buildKnowledgeRound,
   buildMistakeRound,
   createOrderSeed,
   createSeededRandom,
@@ -43,9 +44,9 @@ import {
   type StrategyChallengeTheme,
   type TierCheckTheme,
   type TriggerChallengeTheme,
-} from '../../lib/dealer/index.ts';
+} from '../../lib/dealer/knowledge.ts';
 
-const STORAGE_KEY = 'wsq.dealer.daily.v3';
+const STORAGE_KEY = seasonStorageKey('wsq.dealer.daily.v3');
 const MATRIX_TO_STATUS: Readonly<Record<MatrixCell, CardStatus>> = {
   '👊': 'punched',
   '⚡': 'calibrated',
@@ -135,12 +136,30 @@ const FREE_ROUND_CYCLE: readonly DealerRoundKind[] = [
   'scenario',
 ];
 
+type ScenarioBuilder =
+  typeof import('../../lib/dealer/scenarioRounds.ts').buildScenarioRound;
+type DeferredScenario = (build: ScenarioBuilder) => DealerRound;
+let scenarioBuilder: ScenarioBuilder | undefined;
+
+// 综合模式的第一轮固定为盟约题，可同步创建首次会话。
+function createFreeRound(
+  roundNumber: 1,
+  focus: '',
+  prevRound: undefined,
+  mistakes: readonly DealerMistakeRecord[],
+): DealerRound;
+function createFreeRound(
+  roundNumber: number,
+  focus: string,
+  prevRound?: DealerRound,
+  mistakes?: readonly DealerMistakeRecord[],
+): DealerRound | DeferredScenario;
 function createFreeRound(
   roundNumber: number,
   focus: string,
   prevRound?: DealerRound,
   mistakes: readonly DealerMistakeRecord[] = [],
-): DealerRound {
+): DealerRound | DeferredScenario {
   const rng = createSeededRandom(
     `wsq.dealer.free:${Date.now()}:${roundNumber}:${Math.random()}`,
   );
@@ -175,12 +194,14 @@ function createFreeRound(
   }
 
   if (kind === 'scenario') {
-    return buildDealerRound({
+    const options = {
       roundNumber,
-      kind: 'scenario',
       avoidArchetype: prevRound?.scenarioContext?.archetype,
       rng,
-    });
+    };
+    return scenarioBuilder
+      ? scenarioBuilder(options)
+      : (build) => build(options);
   }
 
   if (kind === 'equipment') {
@@ -208,7 +229,7 @@ function createFreeRound(
     targetCovenant = pickAvoid(basePool, prevCov, rng);
   }
 
-  return buildDealerRound({
+  return buildKnowledgeRound({
     roundNumber,
     kind,
     targetCovenant: targetCovenant || undefined,
@@ -244,11 +265,7 @@ function createDailySession(
   };
 }
 
-function createFreeSession(
-  focusCovenant: string,
-  mistakes: readonly DealerMistakeRecord[] = [],
-): ModeSession {
-  const first = createFreeRound(1, focusCovenant, undefined, mistakes);
+function createFreeSession(first: DealerRound): ModeSession {
   return {
     orderSeed: '',
     roundIndex: 0,
@@ -411,7 +428,7 @@ const state = reactive({
   announcement: '',
   mistakes: initialMistakes,
   daily: loadDailySession(initialDate),
-  free: createFreeSession('', initialMistakes),
+  free: null as ModeSession | null,
 });
 
 function isTargetCard(round: DealerRound, card: DealerCard): boolean {
@@ -431,8 +448,39 @@ function ensureCurrentDate(): boolean {
   return true;
 }
 
+function freeSession(): ModeSession {
+  if (!state.free)
+    state.free = createFreeSession(
+      createFreeRound(1, '', undefined, state.mistakes),
+    );
+  return state.free;
+}
 function activeSession(): ModeSession {
-  return state.mode === 'daily' ? state.daily : state.free;
+  return state.mode === 'daily' ? state.daily : freeSession();
+}
+
+// 出题期间允许切换模式或题型；过期的局面题及加载错误不会覆盖玩家后来的选择。
+let freeRequest = 0;
+function applyFreeRound(
+  roundNumber: number,
+  focus: string,
+  previous: DealerRound | undefined,
+  apply: (round: DealerRound) => void,
+): void | Promise<void> {
+  const request = ++freeRequest;
+  const next = createFreeRound(roundNumber, focus, previous, state.mistakes);
+  if (typeof next !== 'function') return apply(next);
+  state.announcement = '正在加载实战局面题…';
+  return import('../../lib/dealer/scenarioRounds.ts')
+    .then(({buildScenarioRound}) => {
+      scenarioBuilder = buildScenarioRound;
+      if (request === freeRequest && state.mode === 'free')
+        apply(next(buildScenarioRound));
+    })
+    .catch(() => {
+      if (request === freeRequest && state.mode === 'free')
+        state.announcement = '实战局面题加载失败，请重试。';
+    });
 }
 
 function roundCleared(round: DealerRound): boolean {
@@ -710,7 +758,8 @@ export function useDealerGame() {
   }
 
   function announceFreeRound(message: string): void {
-    const current = state.free.rounds[state.free.roundIndex];
+    const free = freeSession();
+    const current = free.rounds[free.roundIndex];
     if (state.focusCovenant === 'mistakes' && !current.isMistakeReview) {
       state.focusCovenant = '';
       state.announcement = '现有错题已不适用于当前题库，已切换到综合特训';
@@ -719,7 +768,7 @@ export function useDealerGame() {
     }
   }
 
-  function nextRound(): void {
+  function nextRound(): void | Promise<void> {
     if (ensureCurrentDate() && state.mode === 'daily') return;
     const s = session.value;
     if (!roundCleared(round.value)) return;
@@ -738,23 +787,27 @@ export function useDealerGame() {
     }
 
     const prevRound = round.value;
-    const next = createFreeRound(
+    return applyFreeRound(
       prevRound.roundNumber + 1,
       state.focusCovenant,
       prevRound,
-      state.mistakes,
+      (next) => {
+        s.rounds = [next];
+        s.roundIndex = 0;
+        recordVisibleAssistance();
+        s.lastEvent = 'deal';
+        s.dealerLine = next.introLine;
+        announceFreeRound(
+          `刷新自由拷打第 ${next.roundNumber} 轮：${next.targetLabel}`,
+        );
+      },
     );
-    s.rounds = [next];
-    s.roundIndex = 0;
-    recordVisibleAssistance();
-    s.lastEvent = 'deal';
-    s.dealerLine = next.introLine;
-    announceFreeRound(`刷新自由拷打第 ${next.roundNumber} 轮：${next.targetLabel}`);
   }
 
   function setMode(mode: DealerMode): void {
     ensureCurrentDate();
     if (state.mode === mode) return;
+    freeRequest++;
     state.mode = mode;
     recordVisibleAssistance();
     const s = activeSession();
@@ -764,33 +817,37 @@ export function useDealerGame() {
         : `已切换到自由拷打：${round.value.targetLabel}`;
   }
 
-  function setFocusCovenant(focus: string): void {
-    state.focusCovenant = focus;
-    if (state.mode !== 'free') return;
-    const s = state.free;
-    const fresh = createFreeRound(
+  function setFocusCovenant(focus: string): void | Promise<void> {
+    if (state.mode !== 'free') {
+      state.focusCovenant = focus;
+      return;
+    }
+    const s = freeSession();
+    return applyFreeRound(
       round.value.roundNumber + 1,
       focus,
       round.value,
-      state.mistakes,
-    );
-    s.rounds = [fresh];
-    s.roundIndex = 0;
-    s.showReport = false;
-    recordVisibleAssistance();
-    s.lastEvent = 'deal';
-    s.dealerLine = fresh.introLine;
-    announceFreeRound(
-      focus === 'mistakes'
-        ? `已开启错题专攻（待复习 ${activeMistakeList.value.length} 项）`
-        : `已切换到${fresh.targetLabel}`,
+      (fresh) => {
+        state.focusCovenant = focus;
+        s.rounds = [fresh];
+        s.roundIndex = 0;
+        s.showReport = false;
+        recordVisibleAssistance();
+        s.lastEvent = 'deal';
+        s.dealerLine = fresh.introLine;
+        announceFreeRound(
+          focus === 'mistakes'
+            ? `已开启错题专攻（待复习 ${activeMistakeList.value.length} 项）`
+            : `已切换到${fresh.targetLabel}`,
+        );
+      },
     );
   }
 
   function startMistakeDrill(): void {
     if (!activeMistakeList.value.length) return;
     state.mode = 'free';
-    state.free.showReport = false;
+    freeSession().showReport = false;
     setFocusCovenant('mistakes');
   }
 
@@ -845,10 +902,12 @@ export function useDealerGame() {
     state.announcement = '已重新洗牌今日同题 5 轮（题目不变，站位已打乱）';
   }
 
-  function resetFree(): void {
-    state.free = createFreeSession(state.focusCovenant, state.mistakes);
-    recordVisibleAssistance();
-    announceFreeRound('已重置自由拷打战绩');
+  function resetFree(): void | Promise<void> {
+    return applyFreeRound(1, state.focusCovenant, undefined, (first) => {
+      state.free = createFreeSession(first);
+      recordVisibleAssistance();
+      announceFreeRound('已重置自由拷打战绩');
+    });
   }
 
   function buildShareText(shareUrl: string): string {

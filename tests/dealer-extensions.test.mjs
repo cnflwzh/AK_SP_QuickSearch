@@ -282,6 +282,7 @@ test('buildScenarioRound produces unambiguous, advisor-verified best-pick rounds
 test('useDealerGame tracks mistakes into storage, supports mistake drill, and handles scenario best-pick flow', async (t) => {
   const saved = mockStorage(t);
   const game = await loadDealerGame();
+  assert.equal(game.state.free, null);
 
   // Trigger a mistake on daily round 1.
   const firstGoodIdx = game.round.value.cards.findIndex((c) => !c.isImpostor);
@@ -320,7 +321,13 @@ test('useDealerGame tracks mistakes into storage, supports mistake drill, and ha
   assert.ok(!game.round.value.isMistakeReview);
 
   // Switch Free Play focus to practical recruit scenarios (`kind:scenario`).
-  game.setFocusCovenant('kind:scenario');
+  const pendingScenario = game.setFocusCovenant('kind:scenario');
+  game.setMode('daily');
+  await pendingScenario;
+  assert.equal(game.state.mode, 'daily');
+  assert.notEqual(game.state.focusCovenant, 'kind:scenario');
+  game.setMode('free');
+  await game.setFocusCovenant('kind:scenario');
   assert.equal(game.round.value.kind, 'scenario');
   assert.equal(game.round.value.selectionMode, 'best_pick');
   assert.equal(game.isRoundCleared.value, false);

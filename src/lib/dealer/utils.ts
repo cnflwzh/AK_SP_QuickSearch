@@ -5,6 +5,7 @@ import {
   LAYER_BREAKPOINTS,
 } from '../../../data/index.ts';
 import type {CovenantMemo, TraitSegment} from './types.ts';
+import {tokenizeTrait} from '../ui/traitText.ts';
 
 let orderNonce = 0;
 
@@ -70,22 +71,7 @@ export function shortenTraitText(trait: string): string {
 
 /** Splits an operator or equipment trait into styled segments without HTML interpolation. */
 export function splitTraitSegments(trait: string): TraitSegment[] {
-  const shortened = shortenTraitText(trait);
-  const parts = shortened.split(/(<[^>]+>|【[^】]+】|\d+(?:\.\d+)?%?)/);
-  const segments: TraitSegment[] = [];
-  for (const part of parts) {
-    if (!part) continue;
-    if (part.startsWith('<') && part.endsWith('>')) {
-      segments.push({text: part.slice(1, -1), kind: 'trigger'});
-    } else if (part.startsWith('【') && part.endsWith('】')) {
-      segments.push({text: part.slice(1, -1), kind: 'covenant'});
-    } else if (/^\d+(?:\.\d+)?%?$/.test(part)) {
-      segments.push({text: part, kind: 'num'});
-    } else {
-      segments.push({text: part, kind: 'text'});
-    }
-  }
-  return segments;
+  return tokenizeTrait(shortenTraitText(trait));
 }
 
 /** Returns concise rule-memory hints built strictly from static rules data. */

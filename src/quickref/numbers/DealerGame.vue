@@ -1,12 +1,12 @@
 <script setup lang="ts">
+import {copyPosterPng} from '../../lib/ui/canvasPoster.ts';
+import {usePosterPreview} from './usePosterPreview.ts';
 import {
   computed,
   onActivated,
   onBeforeUnmount,
   onDeactivated,
-  onMounted,
   ref,
-  shallowRef,
   watchPostEffect,
 } from 'vue';
 import {
@@ -31,7 +31,7 @@ import {
   type DealerMode,
   type DealerRoundKind,
   type HintLevel,
-} from '../../lib/dealer/index.ts';
+} from '../../lib/dealer/knowledge.ts';
 import LiveStatus from '../../lib/ui/LiveStatus.vue';
 import {downloadBlob} from '../../lib/ui/download.ts';
 import {router} from '../../router/index.ts';
@@ -46,10 +46,6 @@ import ConfirmButton from '../components/ConfirmButton.vue';
 import CopyButton from '../components/CopyButton.vue';
 import {color} from '../format.ts';
 import {useQuickrefActions} from '../state.ts';
-import {
-  copyPosterToClipboard,
-  renderDealerPoster,
-} from './dealerPoster.ts';
 import {useDealerGame} from './useDealerGame.ts';
 
 const actions = useQuickrefActions();
@@ -124,7 +120,6 @@ const focusOptions = computed<readonly SelectEntry<string>[]>(() => [
 
 const copyFallback = ref('');
 const imageStatus = ref<'idle' | 'copied' | 'saved'>('idle');
-const fontReadyTick = ref(0);
 const active = ref(true);
 const showMistakes = ref(false);
 let imageTimer: ReturnType<typeof setTimeout> | undefined;
@@ -143,13 +138,6 @@ function releaseDateListener(): void {
 onDeactivated(() => {
   active.value = false;
   releaseDateListener();
-});
-onMounted(() => {
-  if (document.fonts?.status === 'loading') {
-    void document.fonts.ready.then(() => {
-      fontReadyTick.value++;
-    });
-  }
 });
 onBeforeUnmount(() => {
   releaseDateListener();
@@ -241,31 +229,25 @@ const posterModel = computed(() =>
   }),
 );
 
-const poster = shallowRef<{
-  blob: Blob;
-  url: string;
-  fileName: string;
-} | null>(null);
+const {poster, setPreview, clearPreview} = usePosterPreview<{blob: Blob; fileName: string}>();
 const posterFailed = ref(false);
 watchPostEffect(async (onCleanup) => {
   posterFailed.value = false;
   if (!active.value || !session.value.showReport) return;
-  void fontReadyTick.value;
   const model = posterModel.value;
   let cancelled = false;
-  let url: string | undefined;
-  // 离开、切换模式或字体就绪时丢弃过期的编码结果，并释放预览图。
+  // 离开或切换模式时丢弃过期的编码结果，并释放预览图。
   onCleanup(() => {
     cancelled = true;
-    if (url) URL.revokeObjectURL(url);
-    poster.value = null;
+    clearPreview();
   });
   try {
+    const {renderDealerPoster} = await import('./dealerPoster.ts');
+    if (cancelled) return;
     const blob = await renderDealerPoster(model);
     if (cancelled) return;
     if (blob) {
-      url = URL.createObjectURL(blob);
-      poster.value = {blob, url, fileName: model.fileName};
+      setPreview(blob, {blob, fileName: model.fileName});
     } else {
       posterFailed.value = true;
     }
@@ -278,7 +260,7 @@ async function copyShareImage(): Promise<void> {
   clearTimeout(imageTimer);
   const image = poster.value;
   if (!image) return;
-  const result = await copyPosterToClipboard(image.blob);
+  const result = await copyPosterPng(image.blob);
   if (result !== 'copied') downloadBlob(image.blob, image.fileName);
   if (poster.value !== image) return;
   imageStatus.value = result === 'copied' ? 'copied' : 'saved';

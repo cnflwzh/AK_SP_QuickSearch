@@ -8,10 +8,10 @@ import type {
 } from '../../lib/apology/index.ts';
 import {avatarSrc, covenantIconSrc} from '../../lib/ui/assets.ts';
 
+import {loadPosterImage, posterPng, renderCanvasPoster, sizePoster} from '../../lib/ui/canvasPoster.ts';
+export {copyPosterPng as copyApologyImage} from '../../lib/ui/canvasPoster.ts';
+
 const POSTER_W = 680;
-// 长文降低倍率，预览最多约 6 MB 像素内存，导出最多约 16 MB。
-const PIXEL_BUDGET = {preview: 1_500_000, export: 4_000_000} as const;
-const MAX_CANVAS_EDGE = 8192;
 const OUTER_PAD = 14;
 const INNER_PAD = 28;
 const CONTENT_W = POSTER_W - (OUTER_PAD + INNER_PAD) * 2;
@@ -30,32 +30,6 @@ const INK3 = '#737f7c';
 const GRID_LINE = '#cfc6b4';
 const CELL_TINT = '#f4efe2';
 const RED_HEADER = '#b8322a';
-
-function loadImage(
-  src: string,
-  signal: AbortSignal,
-): Promise<HTMLImageElement | null> {
-  return new Promise((resolve) => {
-    if (!src) {
-      resolve(null);
-      return;
-    }
-    const img = new Image();
-    const finish = (value: HTMLImageElement | null): void => {
-      signal.removeEventListener('abort', cancel);
-      clearTimeout(timer);
-      img.onload = null;
-      img.onerror = null;
-      resolve(value);
-    };
-    const cancel = (): void => finish(null);
-    signal.addEventListener('abort', cancel, {once: true});
-    const timer = window.setTimeout(() => finish(null), 6000);
-    img.onload = () => finish(img);
-    img.onerror = () => finish(null);
-    img.src = src;
-  });
-}
 
 function tintIcon(
   img: HTMLImageElement,
@@ -376,7 +350,7 @@ function drawNumberedSection(
 /** 按文书快照生成 PNG。预览优先节省内存，导出最高 2 倍。取消或编码失败时拒绝。 */
 export async function renderApologyPoster(
   doc: ApologyDocument,
-  mode: keyof typeof PIXEL_BUDGET,
+  mode: 'preview' | 'export',
   signal: AbortSignal,
 ): Promise<Blob> {
   signal.throwIfAborted();
@@ -387,24 +361,26 @@ export async function renderApologyPoster(
       : badge?.kind === 'covenant'
         ? covenantIconSrc(badge.name)
         : '';
-  const [targetImg] = await Promise.all([
-    loadImage(src, signal),
-    document.fonts?.ready,
-  ]);
+  const targetImage = loadPosterImage(src, 6000, signal);
+  const blob = await renderCanvasPoster(async (ctx) => {
+    const targetImg = await targetImage;
+    signal.throwIfAborted();
+    drawDocument(ctx, doc, targetImg, mode);
+    return posterPng(ctx.canvas);
+  });
   signal.throwIfAborted();
+  if (!blob) throw new Error('无法生成文书 PNG');
+  return blob;
+}
 
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('无法创建文书画布');
+function drawDocument(
+  ctx: CanvasRenderingContext2D,
+  doc: ApologyDocument,
+  targetImg: HTMLImageElement | null,
+  mode: 'preview' | 'export',
+): void {
   const layout = measureLayout(ctx, doc);
-  const scale = Math.min(
-    mode === 'preview' ? 1 : 2,
-    Math.sqrt(PIXEL_BUDGET[mode] / (POSTER_W * layout.totalHeight)),
-    MAX_CANVAS_EDGE / layout.totalHeight,
-  );
-  canvas.width = Math.floor(POSTER_W * scale);
-  canvas.height = Math.floor(layout.totalHeight * scale);
-  ctx.scale(canvas.width / POSTER_W, canvas.height / layout.totalHeight);
+  sizePoster(ctx, POSTER_W, layout.totalHeight, mode);
 
   // 背景与纸张
   ctx.fillStyle = DESK_BG;
@@ -519,6 +495,7 @@ export async function renderApologyPoster(
           iconSize - 16,
           iconSize - 16,
         );
+        tinted.width = tinted.height = 0;
       }
     } else {
       fillRounded(
@@ -760,31 +737,4 @@ export async function renderApologyPoster(
   ctx.fillStyle = INK3;
   ctx.font = `500 13px ${FONT_SANS}`;
   ctx.fillText(doc.footerNote, POSTER_W / 2, footerY);
-
-  try {
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, 'image/png'),
-    );
-    signal.throwIfAborted();
-    if (!blob) throw new Error('无法生成文书 PNG');
-    return blob;
-  } finally {
-    // 编码结束后即可释放像素缓冲，无需等待下一次垃圾回收。
-    canvas.width = canvas.height = 0;
-  }
-}
-
-/** 在点击事件内交给剪贴板待编码的 PNG，保留移动浏览器所需的用户手势。 */
-export async function copyApologyImage(
-  blob: Promise<Blob>,
-): Promise<'copied' | 'unsupported'> {
-  if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) {
-    return 'unsupported';
-  }
-  try {
-    await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
-    return 'copied';
-  } catch {
-    return 'unsupported';
-  }
 }

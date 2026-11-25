@@ -1,3 +1,4 @@
+import {renderCanvasPoster, sizePoster, posterPng} from '../../lib/ui/canvasPoster.ts';
 import type {
   DealerGrade,
   DealerPosterModel,
@@ -7,7 +8,6 @@ import type {
 
 const POSTER_W = 760;
 const POSTER_H = 520;
-const POSTER_DPR = 2;
 
 const FONT_EMOJI =
   '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
@@ -599,35 +599,13 @@ function drawFooter(
 export async function renderDealerPoster(
   model: DealerPosterModel,
 ): Promise<Blob | null> {
-  const canvas = document.createElement('canvas');
-  canvas.width = POSTER_W * POSTER_DPR;
-  canvas.height = POSTER_H * POSTER_DPR;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return null;
-
-  ctx.save();
-  ctx.scale(POSTER_DPR, POSTER_DPR);
-  drawPaperCardFrame(ctx);
-  drawHeroAndDealerPanel(ctx, model);
-  drawScoreboardStrip(ctx, model);
-  drawVerdictCards(ctx, model);
-  drawFooter(ctx, model);
-  ctx.restore();
-
-  return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-}
-
-/** 将现成的 PNG 写入剪贴板，返回复制结果供界面选择下载回退。 */
-export async function copyPosterToClipboard(
-  blob: Blob,
-): Promise<'copied' | 'unsupported'> {
-  if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) {
-    return 'unsupported';
-  }
-  try {
-    await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
-    return 'copied';
-  } catch {
-    return 'unsupported';
-  }
+  return renderCanvasPoster(async (ctx) => {
+    sizePoster(ctx, POSTER_W, POSTER_H);
+    drawPaperCardFrame(ctx);
+    drawHeroAndDealerPanel(ctx, model);
+    drawScoreboardStrip(ctx, model);
+    drawVerdictCards(ctx, model);
+    drawFooter(ctx, model);
+    return posterPng(ctx.canvas);
+  });
 }
