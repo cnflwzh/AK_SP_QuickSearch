@@ -32,7 +32,7 @@ try {
 } catch (error) {
   if (error.code !== 'ENOENT') throw error;
 }
-if (existing === content) {
+if (existing?.replace(/\r\n/g, '\n') === content) {
   accessSync(hook, constants.X_OK);
   console.log('The pre-commit hook is already installed.');
 } else if (existing !== undefined) {

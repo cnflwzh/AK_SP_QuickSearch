@@ -38,7 +38,7 @@
 ├── AGENTS.md                     开发约定与必检项
 ├── edgeone.json                  EdgeOne 构建、路由与缓存配置
 ├── wrangler.jsonc                Cloudflare Workers 静态资源部署配置
-├── .github/workflows/ci.yml      GitHub Actions CI（lint → test → build）
+├── .github/workflows/ci.yml      GitHub Actions CI（lint → check:data → test → build）
 │
 ├── docs/                         详细开发文档（本目录）
 │   ├── README.md                 开发总览、脚本与部署
@@ -115,10 +115,11 @@ npm run dev             # 启动 http://127.0.0.1:5173
 | 命令 | 作用说明 |
 |---|---|
 | `npm run dev` | 启动 Vite 本地开发服务（`127.0.0.1:5173`） |
-| `npm run check` | **提交前必跑全量验收**：依次执行 `lint` → `test` → `build` |
+| `npm run check` | 提交前依次执行 `lint` → `check:data` → `test` → `build` |
+| `npm run check:data` | 核对拼音生成结果及赛季数据引用的图片 |
 | `npm run lint` | 执行 `eslint . --max-warnings 0`，任何警告都会失败 |
 | `npm test` | 运行 `tests/*.test.mjs` 全量单元测试 |
-| `npm run typecheck` | 执行 `vue-tsc --noEmit` 全量 Vue + TypeScript 类型检查 |
+| `npm run typecheck` | 分别检查浏览器应用的 Vue / TypeScript 与 Node 构建脚本 |
 | `npm run build` | 先运行 `typecheck`，再通过 Vite 构建 `dist/` 并生成 `dist/sw.js` |
 | `npm run preview` | 预览生产构建产物（`127.0.0.1:4173`） |
 | `npm run pinyin` | 重新生成 `data/pinyin.ts`（改动实体名或拼音覆写后必跑） |
@@ -137,10 +138,13 @@ npm run dev             # 启动 http://127.0.0.1:5173
    - 推送到 `develop`、`main` 或向这两个分支发起 PR 时，自动运行 `Validate site` 任务：
      1. `npm ci`
      2. `npm run lint`
-     3. `npm test`
-     4. `npm run build`（含 `vue-tsc --noEmit` 与 `sw.js` 生成）
+     3. `npm run check:data`
+     4. `npm test`
+     5. `npm run build`（含应用与构建脚本类型检查、`sw.js` 生成）
 3. **修改数据后的提交流程**：
    - 编辑 `data/seasons/<season>/*.ts` → 补充图片资源 → 运行 `npm run pinyin` → 运行 `npm run check` → 确认无误后提交。
+
+PRTS 阅读文档的 CSSOM 和 HTML 序列化需要真实浏览器。启动 `npm run dev` 后打开 [本地回归样本](http://127.0.0.1:5173/tests/browser/prts-reader.html)，页面会显示检查结果。样本自带正文与模板，无需访问 Wiki。
 
 ---
 
@@ -166,15 +170,16 @@ node scripts/release.mjs <SHA>
 `vite.config.ts` 在构建阶段会执行以下额外步骤：
 
 1. 读取当前 Git `HEAD` 提交 SHA（或环境变量 `CF_PAGES_COMMIT_SHA` / `BUILD_COMMIT_SHA`），将前 7 位注入页面页脚 `<code class="build-version">`。
-2. 为入口 `<script type="module">` 附加 `onerror` 回调，脚本下载失败时加载遮罩自动切到可重试错误态。
-3. 打包结束后复制 `LICENSE` 至 `dist/LICENSE`，并调用 `scripts/build-sw.mjs` 生成包含核心静态资源清单与内容哈希版本号的 `dist/sw.js`。
+2. 三个入口内联加载遮罩的关键样式并共用资源错误监听。公共样式压缩后与 Vite 模块一同发布到带内容哈希的 `assets/bundles/`。
+3. 打包结束后复制 `LICENSE` 至 `dist/LICENSE`，并生成 `dist/sw.js`。只访问过的资源进入离线缓存。部署到不支持重写的普通静态主机时，在构建环境设置 `WSQ_STATIC_ROUTES=1`，另生成已知路由的 HTML 文件与目录入口。
 
 ### 部署目标
 
 - **EdgeOne**：配置位于 [`edgeone.json`](../edgeone.json)，使用 Node.js `24.18.0`，安装命令 `npm ci`，构建命令 `npm run build`，产物目录 `dist`。
-- **Cloudflare Workers**：配置位于 [`wrangler.jsonc`](../wrangler.jsonc)，静态资源指向 `dist`。构建完成后执行：
+- **Cloudflare Workers**：配置位于 [`wrangler.jsonc`](../wrangler.jsonc)，静态资源指向 `dist`。首页、深链重写和现存文件由静态服务直接返回。仅未命中的请求交给 [404 Worker](../workers/not-found.mjs)，返回自定义 404 并设置 `Cache-Control: no-store`，避免浏览器把短暂缺失的 JS 或字体缓存一年。构建完成后执行：
   ```bash
   npx wrangler@4.160.0 deploy
   ```
+- **Cloudflare 验收与回滚**　在本地运行 `npx wrangler@4.160.0 dev --local`，确认流派深链返回 200、真实哈希资源返回 `immutable`、缺失的 JS 返回 404 与 `no-store`。回滚时恢复同一发布版本的 Worker、静态资源清单与托管规则。若回到旧的纯静态版本，同时恢复原版 `wrangler.jsonc` 中的 404 路由设置，以免缺失页变成空响应。
 - **Cloudflare 开发预览**　推送到 `develop` 后，Workers Builds 会运行 `npm run build` 和 `npx wrangler@4.160.0 preview`。每次成功构建都会更新同一个[开发预览地址](https://develop-ak-sp-quicksearch.cnflwzh.workers.dev)。`main` 继续用于正式部署。
-- **缓存头**：静态资源缓存策略定义在 [`public/_headers`](../public/_headers)。
+- **路由与缓存头**　公开路由定义在 [`src/router/paths.ts`](../src/router/paths.ts)。修改路由或缓存规则后运行 `node scripts/sync-hosting.mjs`，同步两个平台的配置。构建会检查配置是否同步。

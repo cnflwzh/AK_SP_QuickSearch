@@ -5,7 +5,7 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig([
-  {ignores: ['dist/**', 'node_modules/**', 'public/**']},
+  {ignores: ['dist/**', 'node_modules/**', 'public/**', '.codex-*/**', '.playwright-mcp/**']},
   js.configs.recommended,
   tseslint.configs.recommended,
   vue.configs['flat/essential'],
@@ -45,15 +45,55 @@ export default defineConfig([
     },
   },
   {
-    files: ['**/*.{ts,mts,cts,vue}'],
+    files: ['src/**/*.{ts,vue}', 'data/**/*.ts'],
     languageOptions: {
       parserOptions: {parser: tseslint.parser},
       globals: globals.browser,
     },
   },
   {
-    files: ['**/*.{js,mjs,cjs}', 'vite.config.ts'],
+    files: ['**/*.{js,mjs,cjs}', 'scripts/**/*.{ts,mts,cts}', 'vite.config.ts'],
     languageOptions: {globals: globals.node},
+  },
+  {
+    files: ['src/**/*.{ts,vue}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '(?:^|/)data/seasons/',
+              message: '请通过 data/index.ts 或比较页数据入口读取赛季数据。',
+            },
+          ],
+        },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'ImportExpression[source.value=/data\\x2fseasons\\x2f/]',
+          message: '动态加载同样须通过公共赛季数据入口。',
+        },
+      ],
+    },
+  },
+  {
+    files: ['data/index.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: './seasons/registry.ts',
+              message:
+                '完整赛季快照仅从 data/comparison 入口加载；公共入口只使用当前赛季和轻量目录。',
+            },
+          ],
+        },
+      ],
+    },
   },
   {
     files: ['scripts/sw.template.js'],
@@ -73,10 +113,5 @@ export default defineConfig([
     files: ['src/lib/runtime/analytics.ts'],
     // The Google tag queue intentionally stores Arguments, not an Array.
     rules: {'prefer-rest-params': 'off'},
-  },
-  {
-    files: ['src/guide/chapters/recruitView.ts'],
-    // These control characters delimit temporary markup placeholders.
-    rules: {'no-control-regex': 'off'},
   },
 ]);

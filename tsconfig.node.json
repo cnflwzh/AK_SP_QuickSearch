@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "noUncheckedIndexedAccess": true
+  },
+  "include": ["vite.config.ts", "scripts/**/*.ts", "scripts/**/*.mts"]
+}

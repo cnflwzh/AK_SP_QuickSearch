@@ -6,15 +6,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "typecheck": "vue-tsc --noEmit",
+    "typecheck": "vue-tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "test": "node --test tests/*.test.mjs",
     "build": "npm run typecheck && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "pinyin": "node scripts/gen_pinyin.mjs",
     "sw": "node scripts/build-sw.mjs",
     "lint": "eslint . --max-warnings 0",
-    "check": "npm run lint && npm test && npm run build",
-    "precommit": "node scripts/check-staged.mjs && npm run lint",
+    "check:data": "node scripts/gen_pinyin.mjs --check && node scripts/check-season-images.mjs",
+    "check": "npm run lint && npm run check:data && npm test && npm run build",
+    "precommit": "node scripts/check-staged.mjs",
     "hooks:install": "node scripts/install-hooks.mjs"
   },
   "devDependencies": {

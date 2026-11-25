@@ -37,6 +37,9 @@ jobs:
       - name: Lint source
         run: npm run lint
 
+      - name: Validate generated pinyin and season image references
+        run: npm run check:data
+
       - name: Test core sharing logic
         run: npm test
 

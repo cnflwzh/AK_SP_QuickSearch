@@ -8,7 +8,7 @@
  * 多音字读错、或玩家常用另一种读法时，在对应赛季 meta.ts 的 pinyinOverrides 里写出全部读法（空格分隔每个字的读音），
  * 第一种为标准读法。
  */
-import {writeFileSync} from 'node:fs';
+import {existsSync, readFileSync, writeFileSync} from 'node:fs';
 import {pinyin} from 'pinyin-pro';
 import {format, resolveConfig} from 'prettier';
 import {COMPARISON_VERSIONS} from '../data/comparison/index.ts';
@@ -135,13 +135,22 @@ export const ${exportName}: PinyinIndex = {
 ${body}
 };
 `;
-  writeFileSync(
-    destination,
-    await format(source, {
-      ...(await resolveConfig(destination)),
-      parser: 'typescript',
-    }),
-  );
+  const generated = await format(source, {
+    ...(await resolveConfig(destination)),
+    parser: 'typescript',
+  });
+  if (process.argv.includes('--check')) {
+    if (
+      !existsSync(destination) ||
+      readFileSync(destination, 'utf8').replace(/\r\n/g, '\n') !==
+        generated.replace(/\r\n/g, '\n')
+    ) {
+      console.error('拼音索引已过期，请运行 npm run pinyin：' + path);
+      process.exitCode = 1;
+    }
+    return;
+  }
+  writeFileSync(destination, generated);
   console.log(`${path}  ${entries.length} names`);
 }
 
