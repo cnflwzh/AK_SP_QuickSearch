@@ -1,4 +1,8 @@
-import {commitStorageChanges, readStoredItem, type StorageChange} from '../lib/season/storage.ts';
+import {
+  commitStorageChanges,
+  readStoredItem,
+  type StorageChange,
+} from '../lib/season/storage.ts';
 import {readBoxSnapshot, boxStorageChanges} from '../lib/box/persistence.ts';
 import {
   acceptStoredBox,
@@ -7,11 +11,20 @@ import {
   exportOperatorBox,
 } from '../lib/box/store.ts';
 import {PLANS_STORAGE_KEY} from '../lib/plans/storage.ts';
+import {SEASON_META} from '../../data/index.ts';
+import {isLegacyOrigin} from '../lib/settings/domainMigration.ts';
+import {requireLegacyDomainSeason} from '../lib/settings/legacyDomainSeason.ts';
 import {
   serializeSettingsBackup,
   type SettingsBackup,
 } from '../lib/settings/backup.ts';
 import {compareMirrorBackup} from '../lib/settings/mirrorBackup.ts';
+import {
+  compareMigrationTools,
+  migrationStorageChanges,
+  readMigrationSnapshot,
+  type MigrationToolId,
+} from '../lib/settings/migrationTools.ts';
 import {normalizeSettings} from '../lib/settings/model.ts';
 import {
   acceptStoredSettings,
@@ -35,11 +48,11 @@ function readObject(key: string, label: string) {
   }
 }
 
-function readMirrorState(carryDraft = false) {
+function readMirrorState(carryDraft = false, includeSeasonPlans = true) {
   const preferences = readObject(SETTINGS_STORAGE_KEY, '设置');
   const roster = readBoxSnapshot();
   return {
-    rawPlans: refreshMirrorPlans(carryDraft),
+    rawPlans: includeSeasonPlans ? refreshMirrorPlans(carryDraft) : null,
     rawSettings: preferences.raw,
     roster,
     settings: normalizeSettings(preferences.value),
@@ -47,23 +60,37 @@ function readMirrorState(carryDraft = false) {
   };
 }
 
-/** 发送前重读同站存档；本页因配额而尚未保存的设置和练度仍可携带到另一站。 */
-export function exportMirrorBackup(): string {
+/** 发送前重读同站存档。迁移时携带本赛季工具历史，同代镜像继续使用原备份格式。 */
+export function exportMirrorBackup(migrating = false): string {
+  if (
+    migrating &&
+    typeof location !== 'undefined' &&
+    isLegacyOrigin(location.origin)
+  )
+    requireLegacyDomainSeason(SEASON_META.id);
   const state = readMirrorState(true);
   return serializeSettingsBackup(
     settingsStorageWriteFailed ? settings : state.settings,
     plans,
     boxStorageWriteFailed.value ? exportOperatorBox() : state.box,
+    migrating ? readMigrationSnapshot().tools : undefined,
   );
 }
 
 /** 只使用已落盘的内容判定重复和空站，并保留快照供确认时检测其他标签页的更新。 */
 export function previewMirrorBackup(backup: SettingsBackup) {
-  const state = readMirrorState();
+  const state = readMirrorState(false, !backup.archive);
   const changes = compareMirrorBackup(backup, state.settings, plans, state.box);
+  const toolSnapshot =
+    backup.tools && !backup.archive ? readMigrationSnapshot() : undefined;
+  const tools =
+    backup.tools && toolSnapshot
+      ? compareMigrationTools(backup.tools, toolSnapshot.tools)
+      : [];
+  if (tools.some((group) => group.existing)) changes.empty = false;
   if (boxStorageWriteFailed.value || settingsStorageWriteFailed)
     changes.empty = false;
-  return {...state, changes};
+  return {...state, toolSnapshot, changes: {...changes, tools}};
 }
 
 type MirrorPreview = ReturnType<typeof previewMirrorBackup>;
@@ -71,6 +98,7 @@ interface Selection {
   settings: boolean;
   plans: boolean;
   box: boolean;
+  tools?: readonly MigrationToolId[];
 }
 
 /**
@@ -94,6 +122,14 @@ export function commitMirrorBackup(
         )
       : undefined;
   if (nextBox) pending.push(...boxStorageChanges(preview.roster, nextBox));
+  if (backup.tools && preview.toolSnapshot && selected.tools)
+    pending.push(
+      ...migrationStorageChanges(
+        preview.toolSnapshot,
+        backup.tools,
+        selected.tools,
+      ),
+    );
   if (selected.settings)
     pending.push({
       key: SETTINGS_STORAGE_KEY,
@@ -101,7 +137,11 @@ export function commitMirrorBackup(
       after: JSON.stringify(backup.settings),
     });
   // 包括确认时刚刚保存的本页草稿。改变预览基线后，让玩家重新查看差异。
-  if (selected.plans && refreshMirrorPlans() !== preview.rawPlans)
+  if (
+    selected.plans &&
+    !backup.archive &&
+    refreshMirrorPlans() !== preview.rawPlans
+  )
     throw new Error(
       '其他标签页已更新流派或本页草稿已改变，请取消预览后重新取回。',
     );

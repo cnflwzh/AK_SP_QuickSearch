@@ -19,6 +19,7 @@ import {iconSvg} from './icons.ts';
 import Markup from './components/Markup.ts';
 import SkipLink from '../lib/ui/SkipLink.vue';
 import PwaInstallNotice from '../lib/ui/PwaInstallNotice.vue';
+import {MigrationNotice} from '../lib/ui/migrationNotice.ts';
 import ViewportSizeBadge from '../lib/ui/ViewportSizeBadge.vue';
 import {settings} from '../lib/settings/store.ts';
 import {recordDiagnosticError, useComponentErrorDiagnostics} from '../lib/runtime/diagnosticErrors.ts';
@@ -375,6 +376,7 @@ onBeforeUnmount(() => {
   </nav>
 
   <main id="guide-content" class="wrap" tabindex="-1" aria-label="图解教程内容">
+    <component :is="MigrationNotice" v-if="MigrationNotice" />
     <PwaInstallNotice />
     <section
       v-for="id in ids"

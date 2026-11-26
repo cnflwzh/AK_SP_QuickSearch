@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {mirrorPeer} from '../src/lib/settings/mirrorSite.ts';
+import {
+  mirrorPeer,
+  mirrorTransferUrl,
+  parseMirrorEntry,
+} from '../src/lib/settings/mirrorSite.ts';
 import {compareMirrorBackup} from '../src/lib/settings/mirrorBackup.ts';
 import {createDefaultSettings} from '../src/lib/settings/model.ts';
 import {blankPlan} from '../src/lib/plans/storage.ts';
@@ -21,6 +25,107 @@ test('交接只能在两个正式站点之间或本机同端口之间进行', ()
   ]) {
     assert.equal(mirrorPeer(other), null);
   }
+});
+
+const oldGlobal = 'https://sp.enjoyacg.com';
+const oldMainland = 'https://ak.cnflwzh.top';
+const newGlobal = 'https://global.arksp.top';
+const newMainland = 'https://arksp.top';
+const token = 'b28c2aaa-00ac-4921-a068-22a262c7c0ef';
+
+test('允许的请求往返时，接收页认定的来源和动作均与发起页一致', () => {
+  for (const [origin, target] of [
+    [oldGlobal, oldMainland],
+    [newGlobal, newMainland],
+    [oldGlobal, newGlobal],
+    [oldMainland, newMainland],
+  ]) {
+    for (const [from, to] of [
+      [origin, target],
+      [target, origin],
+    ]) {
+      for (const direction of ['send', 'fetch']) {
+        const url = new URL(
+          mirrorTransferUrl(from, to, direction, token, true),
+        );
+        assert.equal(url.origin, to);
+        const entry = parseMirrorEntry(url, true);
+        assert.equal(entry.token, token);
+        assert.equal(entry.direction, direction);
+        assert.equal(entry.peer.origin, from);
+      }
+    }
+  }
+});
+
+test('默认构建与旧版互通，原链接及无方向的旧协议只匹配同代镜像', () => {
+  const url = mirrorTransferUrl(oldGlobal, oldMainland, 'fetch', token, false);
+  assert.equal(
+    url,
+    oldMainland + '/settings?mirror-action=fetch#mirror-backup=' + token,
+  );
+  const legacy = new URL(url);
+  legacy.search = '';
+  assert.equal(parseMirrorEntry(legacy, true).peer.origin, oldGlobal);
+  assert.equal(parseMirrorEntry(legacy, true).direction, null);
+  assert.equal(mirrorPeer(newGlobal, false), null);
+  for (const [from, to] of [
+    [oldGlobal, newGlobal],
+    [newGlobal, oldGlobal],
+    [newGlobal, newMainland],
+  ]) {
+    assert.equal(mirrorTransferUrl(from, to, 'send', token, false), null);
+    assert.equal(
+      parseMirrorEntry(
+        new URL(mirrorTransferUrl(from, to, 'fetch', token, true)),
+        false,
+      ),
+      null,
+    );
+  }
+});
+
+test('交接拒绝跨地区跨代、仿冒来源、含糊入口及无效会话片段', () => {
+  for (const target of [
+    newMainland,
+    oldGlobal,
+    newGlobal + ':444',
+    newGlobal + '.example',
+    'http://global.arksp.top',
+  ]) {
+    assert.equal(
+      mirrorTransferUrl(oldGlobal, target, 'send', token, true),
+      null,
+    );
+  }
+  const valid = new URL(
+    mirrorTransferUrl(oldMainland, newMainland, 'send', token, true),
+  );
+  for (const search of [
+    '?mirror-action=send',
+    '?mirror-action=send&mirror-from=',
+    '?mirror-from=' + oldMainland,
+    '?mirror-action=other&mirror-from=' + oldMainland,
+    '?mirror-action=send&mirror-from=' + oldGlobal,
+    '?mirror-action=send&mirror-from=' + newMainland,
+    '?mirror-action=send&mirror-from=' + oldMainland + '.example',
+    '?mirror-action=send&mirror-from=' + oldMainland + '/',
+    valid.search + '&mirror-from=' + oldMainland,
+    valid.search + '&mirror-action=fetch',
+  ]) {
+    const url = new URL(valid);
+    url.search = search;
+    assert.equal(parseMirrorEntry(url, true), null, search);
+  }
+  assert.equal(
+    parseMirrorEntry(new URL(valid.href.replace('/settings', '/box')), true),
+    null,
+  );
+  assert.equal(parseMirrorEntry(new URL(valid.href + '0'), true), null);
+  assert.equal(
+    mirrorTransferUrl(oldMainland, newMainland, 'send', 'invalid', true),
+    null,
+  );
 });
 
 test('交接预览识别空站、默认偏好、同名冲突及 Box 的实际增量', () => {

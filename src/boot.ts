@@ -3,6 +3,7 @@ import {prefersReducedMotion} from './lib/ui/dom.ts';
 import {finishInitialNotice} from './lib/ui/initialNotice.ts';
 import {initWindowMode} from './lib/ui/windowMode.ts';
 import {initSettingsDom} from './lib/settings/store.ts';
+import {isNewOrigin, migrationEnabled} from './lib/settings/domainMigration.ts';
 import {initInstallPrompt} from './lib/runtime/installPrompt.ts';
 import {initDiagnosticErrors, recordDiagnosticError} from './lib/runtime/diagnosticErrors.ts';
 
@@ -12,6 +13,17 @@ const disposeInstallPrompt = initInstallPrompt();
 import.meta.hot?.dispose(disposeInstallPrompt);
 initWindowMode();
 initSettingsDom();
+
+// 新站始终保留旧档入口，方便从旧书签跳转而来的玩家，包括首轮迁移期过后。
+if (migrationEnabled && isNewOrigin(location.origin) && window.top === window) {
+  const recovery = document.createElement('a');
+  recovery.className = 'foot-about';
+  recovery.href = '/settings';
+  recovery.textContent = '从旧域名取回存档';
+  recovery.style.marginInlineStart = '1em';
+  document.querySelector('footer .foot-content')?.append(recovery);
+  import.meta.hot?.dispose(() => recovery.remove());
+}
 
 // 页脚来自静态 HTML。用户可在首屏就绪前点它，让首次点击和首访公告共用一次加载。
 let aboutReady: Promise<(() => void) | undefined> | undefined;

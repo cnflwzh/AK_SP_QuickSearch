@@ -23,6 +23,7 @@ import {normalize} from '../lib/ui/match.ts';
 import {matchesComparisonName} from './search.ts';
 import SkipLink from '../lib/ui/SkipLink.vue';
 import PwaInstallNotice from '../lib/ui/PwaInstallNotice.vue';
+import {MigrationNotice} from '../lib/ui/migrationNotice.ts';
 import ViewportSizeBadge from '../lib/ui/ViewportSizeBadge.vue';
 import CopyButton from '../quickref/components/CopyButton.vue';
 import EmptyState from '../quickref/components/EmptyState.vue';
@@ -480,6 +481,7 @@ onUnmounted(() => {
     class="wrap df-main"
     tabindex="-1"
     aria-label="赛季更新对比内容">
+    <component :is="MigrationNotice" v-if="MigrationNotice" />
     <PwaInstallNotice />
     <StatusNotice
       v-if="missingVersion"

@@ -9,6 +9,8 @@
     "typecheck": "vue-tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "test": "node --test tests/*.test.mjs",
     "build": "npm run typecheck && vite build",
+    "build:retirement": "node scripts/build-retirement.mjs",
+    "build:legacy-parallel": "node scripts/build-legacy-parallel.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "pinyin": "node scripts/gen_pinyin.mjs",
     "sw": "node scripts/build-sw.mjs",

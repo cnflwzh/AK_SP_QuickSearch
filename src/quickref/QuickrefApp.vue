@@ -73,10 +73,11 @@ import CovenantIcon from './components/CovenantIcon.vue';
 import PrtsPanel from './components/PrtsPanel.vue';
 import {activeBreakpoints, isFloatingWindow, navigationLayout} from '../lib/ui/windowMode.ts';
 import BoxOnboardingDialog from './components/BoxOnboardingDialog.vue';
-import {mirrorEntryToken} from '../lib/settings/mirrorSite.ts';
+import {mirrorEntryToken, mirrorReloadNotice} from '../lib/settings/mirrorSite.ts';
 import {provideWikiPanel} from './wikiPanel.ts';
 import SkipLink from '../lib/ui/SkipLink.vue';
 import PwaInstallNotice from '../lib/ui/PwaInstallNotice.vue';
+import {MigrationNotice} from '../lib/ui/migrationNotice.ts';
 
 useComponentErrorDiagnostics();
 const wikiPanel = provideWikiPanel();
@@ -790,6 +791,7 @@ onUnmounted(() => {
           {{ routeNotice }}
           <button type="button" @click="routeNotice = ''">关闭</button>
         </div>
+        <component :is="MigrationNotice" v-if="MigrationNotice" :route-key="currentRoute.fullPath" />
         <PwaInstallNotice
           v-if="!showingRouteStatus && !renderedQuery"
           :in-settings="currentRoute.meta.tab === 'se'" />
@@ -818,7 +820,7 @@ onUnmounted(() => {
       v-if="
         !isFloatingWindow &&
         currentRoute.name !== 'not-found' &&
-        !(mirrorEntryToken && currentRoute.name === 'settings')
+        !((mirrorEntryToken || mirrorReloadNotice) && currentRoute.name === 'settings')
       " />
   </div>
 </template>

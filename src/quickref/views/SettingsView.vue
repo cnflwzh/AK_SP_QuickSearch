@@ -52,6 +52,15 @@ import {
 } from '../mirrorBackupStore.ts';
 import {useSortableTabs} from '../components/useSortableTabs.ts';
 import {useMirrorBackup} from '../components/useMirrorBackup.ts';
+import {
+  mirrorReloadNotice,
+  saveMirrorReloadNotice,
+  type MirrorDirection,
+  type MirrorPeer,
+} from '../../lib/settings/mirrorSite.ts';
+import {isNewOrigin} from '../../lib/settings/domainMigration.ts';
+import {parseMigrationBackup} from '../../lib/settings/backup.ts';
+import type {MigrationToolId} from '../../lib/settings/migrationTools.ts';
 import SectionHeading from '../components/SectionHeading.vue';
 import Segmented from '../components/Segmented.vue';
 import SelectInput, {type SelectOption} from '../components/SelectInput.vue';
@@ -200,6 +209,11 @@ const includeBoxInExport = ref(true);
 const importPlansFromBackup = ref(true);
 const importBoxFromBackup = ref(true);
 const importPageSettings = ref(true);
+const importTools = ref<MigrationToolId[]>([]);
+// 旧版文件还用于普通整站恢复。仅在玩家明确选择迁移时才提取其中的跨季数据。
+const migrateLegacyFile = ref(false);
+type SeasonArchive = NonNullable<SettingsBackup['archive']>;
+const lastSeasonArchive = shallowRef<SeasonArchive | null>(null);
 const mirrorPreview = shallowRef<ReturnType<typeof previewMirrorBackup> | null>(
   null,
 );
@@ -212,20 +226,29 @@ const readingFile = ref(false);
 const pendingBackup = shallowRef<SettingsBackup | null>(null);
 const pendingSourceName = ref('');
 const errorMessage = ref('');
-const statusMessage = ref('');
+const statusMessage = ref(mirrorReloadNotice);
 let readRequest = 0;
 
 const mirrorChanges = computed(() => mirrorPreview.value?.changes);
 
 const {
   peer,
+  migration,
   busy: mirrorBusy,
+  activeHere: mirrorActiveHere,
   message: mirrorMessage,
   failed: mirrorFailed,
   recovery: mirrorRecovery,
   start: openMirror,
   cancel: cancelMirror,
 } = useMirrorBackup(exportMirrorBackup, receiveMirrorBackup);
+const mirrorTargets = [migration, peer].filter(
+  (target): target is MirrorPeer => !!target,
+);
+const newSite = !!migration && isNewOrigin(location.origin);
+const mirrorDirections: readonly MirrorDirection[] = ['send', 'fetch'];
+// 旧网址退役后仍可响应取回，但不能再接收新站的存档。
+const migrationDirections: readonly MirrorDirection[] = [newSite ? 'fetch' : 'send'];
 
 watch(
   mirrorRecovery,
@@ -235,38 +258,58 @@ watch(
   {flush: 'post'},
 );
 
-function startMirror(direction: 'send' | 'fetch') {
+function startMirror(direction: MirrorDirection, target: MirrorPeer | null) {
+  if (!target) return;
   clearNotices();
-  openMirror(direction);
+  openMirror(direction, target);
 }
 
-function receiveMirrorBackup(text: string): void {
+function prepareMirrorPreview(backup: SettingsBackup, sourceName: string) {
+  const preview = previewMirrorBackup(backup);
+  pendingBackup.value = backup;
+  pendingSourceName.value = sourceName;
+  mirrorPreview.value = preview;
+  const {changes} = preview;
+  importPageSettings.value = changes.settings > 0 && !changes.incomingDefault;
+  importPlansFromBackup.value = changes.plans > 0;
+  importBoxFromBackup.value = changes.newOperators + changes.upgrades > 0;
+  importTools.value = changes.tools
+    .filter((group) => group.changed && !group.existing)
+    .map((group) => group.id);
+  return changes;
+}
+
+function receiveMirrorBackup(
+  text: string,
+  source: MirrorPeer,
+  sourceSeason?: string,
+): void {
   if (pendingBackup.value || readingFile.value)
     throw new Error('接收页还有待处理的配置，请先完成或取消，再重试。');
   clearNotices();
-  const backup = parseSettingsBackup(text);
-  const preview = previewMirrorBackup(backup);
-  pendingBackup.value = backup;
-  pendingSourceName.value = peer?.name ?? '另一站';
-  mirrorPreview.value = preview;
-  const {changes} = preview;
-  importPageSettings.value = changes.settings > 0;
-  importPlansFromBackup.value = changes.plans > 0;
-  importBoxFromBackup.value = changes.newOperators + changes.upgrades > 0;
+  const migrating = source.origin === migration?.origin;
+  const backup = migrating
+    ? parseMigrationBackup(text)
+    : parseSettingsBackup(text);
+  if (migrating && sourceSeason && backup.season !== sourceSeason)
+    throw new Error('备份来源赛季与发送页声明的赛季不一致，请在来源站重新导出。');
+  if (!migrating && (backup.tools || backup.archive))
+    throw new Error('请使用同地区的新旧网址交接迁移备份。');
+  const changes = prepareMirrorPreview(backup, source.name);
+  // 跨季原始备份含有不会写入本站的数据。即使目标全空或没有差异，也留给玩家确认和下载。
   if (
+    !backup.archive &&
     !changes.settings &&
     !changes.plans &&
     !changes.newOperators &&
-    !changes.upgrades
+    !changes.upgrades &&
+    !changes.tools.some((group) => group.changed)
   ) {
     cancelImportPreview();
-    statusMessage.value = '本站已包含另一站的设置、流派和练度。';
-  } else if (changes.empty) {
+    statusMessage.value = '本站已包含这份存档的全部内容。';
+  } else if (!backup.archive && changes.empty) {
     confirmImportBackup();
     if (errorMessage.value) throw new Error(errorMessage.value);
-  } else {
-    // 空白站点的默认偏好不能无声重置已有配置；其余分组可独立勾选。
-    importPageSettings.value = !!changes.settings && !changes.incomingDefault;
   }
   void nextTick(() =>
     (previewSection.value ?? mirrorSection.value)?.focus({
@@ -356,6 +399,44 @@ function exportSettingsFile(): void {
   }
 }
 
+function downloadMigrationBackup(): void {
+  clearNotices();
+  try {
+    const text = exportMirrorBackup(true);
+    downloadBlob(
+      new Blob([text], {type: 'application/json;charset=utf-8'}),
+      '卫戍速查-迁移备份.json',
+    );
+    statusMessage.value = '已导出迁移备份，可在接收站点「选择文件导入」恢复。';
+  } catch (cause) {
+    errorMessage.value =
+      cause instanceof Error ? cause.message : '迁移备份导出失败。';
+  }
+}
+
+function downloadSourceArchive(archive: SeasonArchive): void {
+  try {
+    downloadBlob(
+      new Blob([archive.text], {type: 'application/json;charset=utf-8'}),
+      `卫戍速查-${archive.season}-来源原始备份.json`,
+    );
+  } catch (cause) {
+    errorMessage.value = cause instanceof Error ? cause.message : '原始备份下载失败。';
+  }
+}
+
+function skippedSeasonItems(archive: SeasonArchive): string {
+  const items = [];
+  if (archive.plans) items.push(`${archive.plans} 套流派`);
+  if (archive.borrowed) items.push(`${archive.borrowed} 名助战`);
+  if (archive.otherBox) items.push(`${archive.otherBox} 名本站无法识别的自持练度`);
+  if (archive.mistakes) items.push(`${archive.mistakes} 条错题`);
+  if (archive.recent) items.push(`${archive.recent} 条最近查看记录`);
+  return items.length
+    ? `本次跳过${items.join('、')}。这些内容留在原赛季，可下载原始备份。`
+    : '这份备份中没有需要跳过的赛季专属内容。';
+}
+
 async function copySettingsText(): Promise<void> {
   clearNotices();
   try {
@@ -387,7 +468,14 @@ async function copySettingsText(): Promise<void> {
 }
 
 function loadBackupText(text: string, sourceLabel: string): void {
-  pendingBackup.value = parseSettingsBackup(text);
+  const backup = migrateLegacyFile.value
+    ? parseMigrationBackup(text)
+    : parseSettingsBackup(text);
+  if (backup.tools || backup.archive || migrateLegacyFile.value) {
+    prepareMirrorPreview(backup, sourceLabel);
+    return;
+  }
+  pendingBackup.value = backup;
   mirrorPreview.value = null;
   importPageSettings.value = true;
   pendingSourceName.value = sourceLabel;
@@ -409,7 +497,9 @@ async function onSelectFile(event: Event): Promise<void> {
     if (file.size > MAX_SETTINGS_BACKUP_BYTES) {
       throw new Error('配置文件超过 5 MB，请选择正确的配置备份文件。');
     }
-    const text = await file.text();
+    // 保留原始 UTF-8 BOM，跨季下载可还原玩家选择的备份。
+    const text = new TextDecoder('utf-8', {ignoreBOM: true, fatal: true})
+      .decode(await file.arrayBuffer());
     if (request !== readRequest) return;
     loadBackupText(text, file.name);
   } catch (cause) {
@@ -450,12 +540,21 @@ function confirmImportBackup(): void {
       : undefined;
     const messages: string[] = [];
     let merged;
+    let restoredTools = false;
     if (mirrorPreview.value) {
       merged = commitMirrorBackup(mirrorPreview.value, pendingBackup.value, {
         settings: importPageSettings.value,
         plans: importPlansFromBackup.value,
         box: importBoxFromBackup.value,
+        tools: importTools.value,
       });
+      if (importTools.value.length) {
+        restoredTools = true;
+        const labels = mirrorPreview.value.changes.tools
+          .filter((group) => importTools.value.includes(group.id))
+          .map((group) => group.label);
+        messages.push('已恢复' + labels.join('、'));
+      }
     } else {
       const commitBox = incomingBox ? prepareBoxImport(incomingBox) : undefined;
       if (importPlansFromBackup.value && incomingPlans?.length)
@@ -483,11 +582,19 @@ function confirmImportBackup(): void {
     statusMessage.value = messages.length
       ? messages.join('，') + '。'
       : '已保留本站存档。';
+    if (pendingBackup.value.archive) {
+      lastSeasonArchive.value = pendingBackup.value.archive;
+    }
     pendingBackup.value = null;
     pendingSourceName.value = '';
     mirrorPreview.value = null;
     pasteText.value = '';
     showPasteBox.value = false;
+    if (restoredTools) {
+      saveMirrorReloadNotice(statusMessage.value);
+      // 浏览器先排入跨窗口回执，再让错题本和最近查看重新读取已恢复的记录。
+      window.setTimeout(() => location.reload(), 0);
+    }
   } catch (cause) {
     errorMessage.value =
       cause instanceof Error ? cause.message : '导入应用失败，请重试。';
@@ -814,7 +921,7 @@ function handleResetAll(): void {
         </TransitionGroup>
       </section>
 
-      <section class="panel settings-card" :class="{'mirror-only': mirrorOnly}"
+      <section class="panel settings-card" :class="{'mirror-only': mirrorOnly, 'new-site-backup': newSite}"
         :aria-label="mirrorOnly ? '存档交接' : undefined"
         :aria-labelledby="mirrorOnly ? undefined : 'set-backup'">
         <header v-if="!mirrorOnly" class="settings-card-head">
@@ -845,7 +952,11 @@ function handleResetAll(): void {
               </label>
             </div>
 
-            <div v-if="!mirrorOnly || mirrorFailed" class="settings-btn-group">
+            <label v-if="migration" class="settings-inline-check">
+              <input v-model="migrateLegacyFile" type="checkbox" />
+              <span>按域名迁移导入旧版备份（v1–v4 可跨赛季提取设置和自持练度）</span>
+            </label>
+            <div v-if="!mirrorOnly || mirrorFailed || migration" class="settings-btn-group">
               <button type="button" class="btn p" @click="exportSettingsFile">
                 导出配置文件 (.json)
               </button>
@@ -918,43 +1029,49 @@ function handleResetAll(): void {
                 badge="实验功能"
                 variant="plain" />
               <template v-if="peer">
-                <p class="settings-box-note">
-                  在本浏览器的两个站点之间传递界面设置、干员练度 Box
-                  和流派。切换或取回时会打开{{
-                    peer.name
-                  }}，请保持两页打开直到传输完成。
+                <p v-if="migration" class="settings-box-note">
+                  两个页面需保持打开。跨赛季可以带走界面设置和可按干员标识识别的自持练度。
                 </p>
-                <div class="settings-btn-group">
-                  <button
-                    type="button"
-                    class="btn"
-                    :disabled="mirrorBusy || !!pendingBackup || readingFile"
-                    @click="startMirror('send')">
-                    携带存档切换到{{ peer.name }}
-                  </button>
-                  <button
-                    v-if="mirrorRecovery !== 'fetch'"
-                    type="button"
-                    class="btn"
-                    :disabled="mirrorBusy || !!pendingBackup || readingFile"
-                    @click="startMirror('fetch')">
-                    从{{ peer.name }}取回存档
-                  </button>
-                  <button
-                    v-if="mirrorBusy"
-                    type="button"
-                    class="btn"
-                    @click="cancelMirror">
-                    取消交接
-                  </button>
+                <p v-else class="settings-box-note">
+                  在本浏览器的两个站点之间传递界面设置、干员练度 Box 和流派。切换或取回时会打开{{ peer.name }}，请保持两页打开直到传输完成。
+                </p>
+                <div v-for="target in mirrorTargets" :key="target.origin">
+                  <p v-if="migration" class="settings-box-note">
+                    {{ target.name }}（{{ target.origin.split('://')[1] }}） ·
+                    {{ target === migration ? '同赛季还可迁移流派、助战、错题本和最近查看' : '设置、Box 和流派' }}
+                  </p>
+                  <div class="settings-btn-group">
+                    <template
+                      v-for="direction in target === migration ? migrationDirections : mirrorDirections"
+                      :key="direction">
+                      <button
+                        v-if="direction !== 'fetch' || mirrorRecovery?.origin !== target.origin"
+                        type="button"
+                        class="btn"
+                        :class="{p: direction === 'fetch' && target === migration && newSite}"
+                        :disabled="mirrorBusy || !!pendingBackup || readingFile"
+                        @click="startMirror(direction, target)">
+                        {{ direction === 'fetch' ? '从' + target.name + '取回存档' : '携带存档切换到' + target.name }}
+                      </button>
+                    </template>
+                    <button
+                      v-if="target === migration && !newSite"
+                      type="button"
+                      class="btn"
+                      @click="downloadMigrationBackup">
+                      下载迁移备份
+                    </button>
+                  </div>
+                </div>
+                <div v-if="mirrorActiveHere" class="settings-btn-group">
+                  <button type="button" class="btn" @click="cancelMirror">取消交接</button>
                 </div>
               </template>
               <p v-else class="settings-box-note">
-                请在主站 sp.enjoyacg.com 或大陆镜像 ak.cnflwzh.top
-                的独立页面中使用。
+                请在主站或大陆镜像的独立页面中使用。
               </p>
               <StatusNotice
-                v-if="peer && mirrorRecovery === 'fetch'"
+                v-if="mirrorRecovery"
                 tone="warning">
                 <span class="mirror-recovery">
                   <span>{{ mirrorMessage }}</span>
@@ -962,13 +1079,13 @@ function handleResetAll(): void {
                     type="button"
                     class="btn p"
                     :disabled="mirrorBusy || !!pendingBackup || readingFile"
-                    @click="startMirror('fetch')">
-                    从{{ peer.name }}取回存档
+                    @click="startMirror('fetch', mirrorRecovery)">
+                    从{{ mirrorRecovery.name }}取回存档
                   </button>
                   <span class="settings-box-note">
-                    若仍无法连接，可在{{
-                      peer.name
-                    }}点「复制配置文本」，再回这里点「粘贴文本导入」。大存档也可用配置文件。
+                    若仍无法连接，请在{{ mirrorRecovery.name }}点「{{
+                      mirrorRecovery.origin === migration?.origin ? '下载迁移备份' : '导出配置文件 (.json)'
+                    }}」，再回这里点「选择文件导入」。
                   </span>
                 </span>
               </StatusNotice>
@@ -985,6 +1102,17 @@ function handleResetAll(): void {
               tabindex="-1">
               <b>即将应用来自「{{ pendingSourceName }}」的配置</b>
               <small>导出时间：{{ previewExportedAt }}</small>
+              <div v-if="pendingBackup.archive" class="season-archive">
+                <b>跨赛季迁移 · 来源 {{ pendingBackup.archive.season.toUpperCase() }} → 本站 {{ SEASON_META.id.toUpperCase() }}</b>
+                <p>本次可应用界面设置，并合并可按干员标识识别的自持练度。</p>
+                <p>{{ skippedSeasonItems(pendingBackup.archive) }}</p>
+                <div class="settings-btn-group">
+                  <button type="button" class="btn" @click="downloadSourceArchive(pendingBackup.archive)">下载来源原始备份</button>
+                </div>
+              </div>
+              <small v-else-if="pendingBackup.tools && pendingBackup.season">
+                来源 {{ pendingBackup.season.toUpperCase() }} · 本站 {{ SEASON_META.id.toUpperCase() }}
+              </small>
               <p class="settings-preview-summary">{{ previewSummary }}</p>
               <template v-if="mirrorChanges">
                 <p class="settings-note">
@@ -1022,6 +1150,15 @@ function handleResetAll(): void {
                   Box（同一干员保留较高自持练度）
                 </span>
               </label>
+              <label
+                v-for="group in mirrorChanges?.tools.filter((item) => item.changed)"
+                :key="group.id"
+                class="settings-inline-check">
+                <input v-model="importTools" type="checkbox" :value="group.id" />
+                <span>
+                  采用来源的{{ group.label }}（{{ group.incoming }} 条）<template v-if="group.existing">，替换本站此组 {{ group.existing }} 条记录</template>
+                </span>
+              </label>
               <div class="settings-btn-group">
                 <button
                   type="button"
@@ -1043,6 +1180,14 @@ function handleResetAll(): void {
               v-if="statusMessage"
               tone="success"
               :message="statusMessage" />
+            <div v-if="lastSeasonArchive && !pendingBackup" class="settings-box season-archive">
+              <b>已确认跨赛季迁移 · 来源 {{ lastSeasonArchive.season.toUpperCase() }} → 本站 {{ SEASON_META.id.toUpperCase() }}</b>
+              <p>{{ skippedSeasonItems(lastSeasonArchive) }}</p>
+              <p>离开或刷新本页前可下载原始备份，留待对应赛季恢复。</p>
+              <div class="settings-btn-group">
+                <button type="button" class="btn" @click="downloadSourceArchive(lastSeasonArchive)">下载来源原始备份</button>
+              </div>
+            </div>
           </div>
 
           <div v-if="!mirrorOnly" class="settings-reset-card">
@@ -1167,6 +1312,9 @@ function handleResetAll(): void {
 }
 .mirror-only {
   grid-column: 1 / -1;
+}
+.new-site-backup {
+  order: -1;
 }
 .mirror-only .settings-backup-grid {
   grid-template-columns: minmax(0, 1fr);
@@ -1572,6 +1720,15 @@ function handleResetAll(): void {
 }
 .settings-preview {
   border-color: color-mix(in srgb, var(--teal) 55%, var(--line));
+}
+.season-archive {
+  display: grid;
+  gap: 6px;
+}
+.season-archive p {
+  margin: 0;
+  color: var(--ink2);
+  font-size: 13px;
 }
 .mirror-recovery {
   display: grid;

@@ -1,6 +1,13 @@
-import {SEASON_META} from '../../../data/index.ts';
+import {LEGACY_SEASON_ID, SEASON_META} from '../../../data/index.ts';
 import {checkBackupSeason} from '../season/storage.ts';
-import {BOX_RANK_BORROWED, normalizeOperatorBox, type OperatorBox} from '../box/model.ts';
+import {
+  BOX_RANK_BORROWED,
+  isValidOwnedBoxRank,
+  mergeBoxRank,
+  normalizeOperatorBox,
+  resolveStoredBoxKey,
+  type OperatorBox,
+} from '../box/model.ts';
 import {
   MAX_BACKUP_BYTES,
   planBackupVersion,
@@ -10,19 +17,36 @@ import {
 } from '../plans/backup.ts';
 import type {Plan} from '../plans/model.ts';
 import {normalizeSettings, type UserSettings} from './model.ts';
+import {
+  countMigrationTools,
+  readMigrationTools,
+  type MigrationTools,
+} from './migrationTools.ts';
 
 export const SETTINGS_BACKUP_FORMAT = 'weishu-quickref-settings';
-export const SETTINGS_BACKUP_VERSION = 4;
+export const SETTINGS_BACKUP_VERSION = 5;
 export const MAX_SETTINGS_BACKUP_BYTES = MAX_BACKUP_BYTES;
 
 export interface SettingsBackup {
   format: typeof SETTINGS_BACKUP_FORMAT;
-  version: 1 | 2 | 3 | typeof SETTINGS_BACKUP_VERSION;
+  version: 1 | 2 | 3 | 4 | typeof SETTINGS_BACKUP_VERSION;
   season?: string;
   exportedAt: string;
   settings: UserSettings;
   plans?: Plan[];
   box?: OperatorBox;
+  tools?: MigrationTools;
+  /** 只在跨季预览中出现；原文供玩家下载后在来源赛季恢复，不写入目标站。 */
+  archive?: {
+    season: string;
+    exportedAt: string;
+    plans: number;
+    borrowed: number;
+    otherBox: number;
+    mistakes: number;
+    recent: number;
+    text: string;
+  };
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -33,28 +57,44 @@ export function serializeSettingsBackup(
   settings: UserSettings,
   plans?: readonly Plan[],
   box?: Readonly<OperatorBox>,
+  tools?: MigrationTools,
 ): string {
   const cleanSettings = normalizeSettings(settings);
   const cleanBox = box ? normalizeOperatorBox(box) : undefined;
   const backup: SettingsBackup = {
     format: SETTINGS_BACKUP_FORMAT,
-    version: plans?.length || (cleanBox && Object.values(cleanBox).includes(BOX_RANK_BORROWED))
-      ? planBackupVersion(plans)
-      : 1,
+    version: tools
+      ? SETTINGS_BACKUP_VERSION
+      : plans?.length ||
+          (cleanBox && Object.values(cleanBox).includes(BOX_RANK_BORROWED))
+        ? planBackupVersion(plans)
+        : 1,
     season: SEASON_META.id,
     exportedAt: new Date().toISOString(),
     settings: cleanSettings,
     ...(plans ? {plans: writeBackupPlans(plans)} : {}),
     ...(cleanBox && Object.keys(cleanBox).length ? {box: cleanBox} : {}),
+    ...(tools ? {tools} : {}),
   };
   return serializeBackupDocument(
     backup,
-    '配置文件超过 5 MB，请取消打包流派后重试。',
+    tools
+      ? '迁移存档超过 5 MB，请检查流派和工具记录后重试。'
+      : '配置文件超过 5 MB，请取消打包流派后重试。',
   );
 }
 
-/** 解析并校验导出的设置文件或配置文本；无效时抛出可直接展示的错误说明。 */
+/** 读取设置文件或文本。普通 v1–4 保持其原赛季限制，新的 v5 迁移文件支持跨季预览。 */
 export function parseSettingsBackup(text: string): SettingsBackup {
+  return parseBackup(text, false);
+}
+
+/** 显式域名迁移入口也接受旧站 v1–4 的输出；跨季仅提取通用设置及可识别的账号自持练度。 */
+export function parseMigrationBackup(text: string): SettingsBackup {
+  return parseBackup(text, true);
+}
+
+function parseBackup(text: string, migration: boolean): SettingsBackup {
   if (new TextEncoder().encode(text).length > MAX_SETTINGS_BACKUP_BYTES) {
     throw new Error('配置文件超过 5 MB，请重新选择设置备份文件。');
   }
@@ -77,6 +117,7 @@ export function parseSettingsBackup(text: string): SettingsBackup {
     value.version !== 1 &&
     value.version !== 2 &&
     value.version !== 3 &&
+    value.version !== 4 &&
     value.version !== SETTINGS_BACKUP_VERSION
   ) {
     throw new Error('此配置版本暂不支持，请更新页面后重新导出。');
@@ -88,12 +129,75 @@ export function parseSettingsBackup(text: string): SettingsBackup {
   ) {
     throw new Error('配置文件数据不完整，请重新导出。');
   }
-  // 空流派列表和账号自持练度可跨季交接。只有实际的阵容或助战选择需要同季。
-  if ((Array.isArray(value.plans) && value.plans.length) ||
-      (isRecord(value.box) && Object.values(value.box).includes(BOX_RANK_BORROWED)))
-    checkBackupSeason(value.version === 4 ? value.season ?? null : value.season);
+  if ((value.version === 5) !== (value.tools !== undefined))
+    throw new Error('此配置的版本与工具备份格式不一致，请重新导出。');
+  const migrating = migration || value.version === 5;
+  const season =
+    value.season ??
+    (value.version < 4 && value.season === undefined ? LEGACY_SEASON_ID : null);
+  const common = {
+    format: SETTINGS_BACKUP_FORMAT,
+    version: value.version,
+    exportedAt: value.exportedAt,
+    settings: normalizeSettings(value.settings),
+  } as const;
+  if (migrating) {
+    if (
+      typeof season !== 'string' ||
+      !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/.test(season)
+    )
+      throw new Error('无法识别迁移备份的来源赛季，请重新导出。');
+    if (season !== SEASON_META.id) {
+      if (
+        value.plans !== undefined &&
+        (!Array.isArray(value.plans) || !value.plans.every(isRecord))
+      )
+        throw new Error('迁移备份中的流派列表无效。');
+      if (value.box !== undefined && !isRecord(value.box))
+        throw new Error('迁移备份中的干员练度 Box 格式无效。');
+      const box: OperatorBox = {};
+      let borrowed = 0,
+        otherBox = 0;
+      for (const [label, rank] of Object.entries(value.box ?? {})) {
+        if (rank === BOX_RANK_BORROWED) borrowed++;
+        else if (isValidOwnedBoxRank(rank)) {
+          // 此解析器保留不在当季图鉴的规范 charId，也识别已有的干员名称和形态别名。
+          const key = label.length <= 128 ? resolveStoredBoxKey(label) : '';
+          if (key) mergeBoxRank(box, key, rank);
+          else otherBox++;
+        } else if (rank !== -1) throw new Error('迁移备份中的干员练度值无效。');
+      }
+      return {
+        ...common,
+        season,
+        ...(Object.keys(box).length ? {box} : {}),
+        tools: {},
+        archive: {
+          season,
+          exportedAt: common.exportedAt,
+          text,
+          plans: value.plans?.length ?? 0,
+          borrowed,
+          otherBox,
+          ...countMigrationTools(value.version === 5 ? value.tools : {}),
+        },
+      };
+    }
+  }
+  // 普通旧文件仍要求实际的阵容或助战选择与当前赛季一致。
+  if (
+    (Array.isArray(value.plans) && value.plans.length) ||
+    (isRecord(value.box) &&
+      Object.values(value.box).includes(BOX_RANK_BORROWED))
+  )
+    checkBackupSeason(
+      value.version >= 4 ? (value.season ?? null) : value.season,
+    );
   const plans =
     value.plans !== undefined ? readBackupPlans(value.plans) : undefined;
+  const tools = migrating
+    ? readMigrationTools(value.version === 5 ? value.tools : {})
+    : undefined;
   let box: OperatorBox | undefined;
   if (value.box !== undefined) {
     if (!isRecord(value.box)) {
@@ -102,12 +206,10 @@ export function parseSettingsBackup(text: string): SettingsBackup {
     box = normalizeOperatorBox(value.box);
   }
   return {
-    format: SETTINGS_BACKUP_FORMAT,
-    version: value.version,
+    ...common,
     season: SEASON_META.id,
-    exportedAt: value.exportedAt,
-    settings: normalizeSettings(value.settings),
     ...(plans ? {plans} : {}),
     ...(box && Object.keys(box).length ? {box} : {}),
+    ...(tools ? {tools} : {}),
   };
 }

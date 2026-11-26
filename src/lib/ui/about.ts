@@ -2,7 +2,7 @@
 import {createApp} from 'vue';
 import AboutDialog from './AboutDialog.vue';
 import {ABOUT_VERSION} from '../../../data/credits.ts';
-import {mirrorEntryToken} from '../settings/mirrorSite.ts';
+import {mirrorEntryToken, mirrorReloadNotice} from '../settings/mirrorSite.ts';
 
 const STORAGE_KEY = 'wsq.about';
 const seenVersion = () => {
@@ -40,7 +40,7 @@ export function initAbout(onInitialNoticeComplete: () => void) {
     }
     instance.show();
   }
-  if (!mirrorEntryToken && seenVersion() !== String(ABOUT_VERSION)) show();
+  if (!mirrorEntryToken && !mirrorReloadNotice && seenVersion() !== String(ABOUT_VERSION)) show();
   else onInitialNoticeComplete();
   return {
     show,

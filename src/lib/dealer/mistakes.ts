@@ -1,4 +1,4 @@
-import {seasonStorageKey} from '../season/storage.ts';
+import {toolStorageKeys} from '../season/toolKeys.ts';
 import {buildKnowledgeRound} from './knowledgeRounds.ts';
 import {
   BOUNTY_THEMES,
@@ -21,7 +21,7 @@ import type {
   TriggerChallengeTheme,
 } from './types.ts';
 
-export const DEALER_MISTAKES_STORAGE_KEY = seasonStorageKey('wsq.dealer.mistakes.v1');
+export const DEALER_MISTAKES_STORAGE_KEY = toolStorageKeys.mistakes;
 export const MAX_MISTAKE_RECORDS = 150;
 export const MISTAKE_MASTERY_STREAK = 2;
 
