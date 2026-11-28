@@ -82,6 +82,7 @@ import BuildSwitchButton from '../components/BuildSwitchButton.vue';
 import BuildStageSwitcher from '../components/BuildStageSwitcher.vue';
 import OperatorRequestButton from '../components/OperatorRequestButton.vue';
 import SubTabs, {
+  subTabPanelAttrs,
   type SubTabDirection,
   type SubTabItem,
 } from '../components/SubTabs.vue';
@@ -1053,12 +1054,14 @@ watch(
             :level="3"
             inline
             aria-label="阵容视图"
+            panel-id="build-lineup-panel"
             attr="bdl"
             @change="(_, dir) => (lineupDir = dir)" />
         </div>
         <div
           v-if="slotEntries.length"
           :key="`${p.key}/${selectedStage}/${lineupMode}`"
+          v-bind="subTabPanelAttrs('build-lineup-panel', lineupMode)"
           :class="{'subtab-panel': !!lineupDir}"
           :data-dir="lineupDir || undefined">
           <template v-if="lineupMode === 0">
@@ -1778,7 +1781,7 @@ watch(
 .build-name,
 .build-panel-heading h2,
 .build-page-in :deep(.pl-bar) {
-  scroll-margin-top: calc(var(--qbar-height, 90px) + 10px);
+  scroll-margin-top: 6px;
 }
 @media (prefers-reduced-motion: no-preference) {
   :global(:root:not([data-motion='reduce']) .build-tool-enter-active),

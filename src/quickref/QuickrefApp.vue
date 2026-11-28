@@ -574,10 +574,10 @@ onMounted(() => {
       for (const entry of entries) {
         if (entry.target === searchBar.value) {
           navigationWidth.value = entry.contentRect.width;
-          // 搜索框在小窗里可以展开，页内吸顶工具栏要跟随整条导航的实际高度。
+          // 吸顶工具栏和文档滚动区域共用顶栏实测高度，避免键盘焦点被遮住。
           const height =
             entry.borderBoxSize?.[0]?.blockSize ?? searchBar.value.offsetHeight;
-          view.value?.style.setProperty('--qbar-height', `${height}px`);
+          document.documentElement.style.setProperty('--qbar-height', `${height}px`);
         } else if (entry.target === tabBar.value) {
           updateTabOverflow();
           scheduleTabScroll();
@@ -595,6 +595,7 @@ onUnmounted(() => {
   cancelAnimationFrame(tabScrollFrame);
   clearTimeout(searchTimer);
   navigationResizeObserver?.disconnect();
+  document.documentElement.style.removeProperty('--qbar-height');
   document.removeEventListener('keydown', keydown);
   document.removeEventListener('click', outsidePicker);
 });

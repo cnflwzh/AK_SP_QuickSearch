@@ -110,6 +110,10 @@
 }
 
 /* sticky bar */
+:root {
+  scroll-padding-block-start: calc(var(--qbar-height, 0px) + 4px);
+}
+
 .qbar {
   position: sticky;
   top: 0;
