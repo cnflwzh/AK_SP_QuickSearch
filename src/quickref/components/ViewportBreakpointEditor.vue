@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed, ref, watch} from 'vue';
+import {computed, ref, useId, watch} from 'vue';
 import {settings, updateSetting} from '../../lib/settings/store.ts';
 import {isFloatingWindow, viewportSize} from '../../lib/ui/windowMode.ts';
 import {
@@ -49,6 +49,7 @@ const samples = [
 const draft = ref<ViewportBreakpoints>({...settings.viewportBreakpoints});
 const sample = ref('');
 const message = ref('');
+const fieldPrefix = useId();
 const savedKey = computed(() =>
   breakpointKeys.map((k) => settings.viewportBreakpoints[k]).join(','),
 );
@@ -116,20 +117,35 @@ function reset() {
         <output>{{ preview || '请输入有效的断点以预览。' }}</output>
       </div>
       <div class="thresholds">
-        <label v-for="key in breakpointKeys" :key="key">
-          <span>{{ fields[key] }}</span>
-          <span class="value">
+        <div v-for="key in breakpointKeys" :key="key" class="threshold">
+          <label :for="`${fieldPrefix}-${key}`">{{ fields[key] }}</label>
+          <div class="value">
             <input
+              :id="`${fieldPrefix}-${key}`"
               v-model.number="draft[key]"
               type="number"
               :min="key === 'squareRatioPercent' ? 0 : 1"
               :max="key === 'squareRatioPercent' ? 100 : 8192"
               :step="key === 'squareRatioPercent' ? 'any' : 1"
-              :aria-label="fields[key]"
-              :aria-invalid="!validBreakpoint(key, draft[key])" />
+              :aria-invalid="!validBreakpoint(key, draft[key]) || undefined"
+              :aria-describedby="
+                !validBreakpoint(key, draft[key])
+                  ? `${fieldPrefix}-${key}-error`
+                  : undefined
+              " />
             <small>{{ key === 'squareRatioPercent' ? '%' : 'px' }}</small>
-          </span>
-        </label>
+          </div>
+          <p
+            v-if="!validBreakpoint(key, draft[key])"
+            :id="`${fieldPrefix}-${key}-error`"
+            class="field-error">
+            {{
+              key === 'squareRatioPercent'
+                ? '请输入大于 0 且不超过 100 的数值。'
+                : '请输入 1–8192 的整数。'
+            }}
+          </p>
+        </div>
       </div>
       <div class="buttons">
         <button type="submit" class="btn p" :disabled="!valid || !dirty">
@@ -143,11 +159,7 @@ function reset() {
           恢复默认断点
         </button>
       </div>
-      <StatusNotice
-        v-if="!valid"
-        tone="warning"
-        message="尺寸须为 1–8192 的整数，宽高比须大于 0 且不超过 100%。" />
-      <StatusNotice v-else-if="message" tone="success" :message="message" />
+      <StatusNotice v-if="message" tone="success" :message="message" />
     </form>
   </details>
 </template>
@@ -192,12 +204,16 @@ output {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 235px), 1fr));
   gap: 8px 16px;
 }
-label {
-  display: flex;
+.threshold {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 4px 8px;
   font-size: 13px;
+}
+.field-error {
+  grid-column: 1 / -1;
+  color: var(--red);
 }
 .value {
   display: flex;

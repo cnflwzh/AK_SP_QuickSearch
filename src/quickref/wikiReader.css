@@ -38,6 +38,7 @@ body.mediawiki {
 .mw-parser-output .wikitable > tbody > tr > :is(th, td) { border: 1px solid #cdd8d6; padding: 8px 10px; }
 .mw-parser-output .wikitable > tbody > tr > th { background: #edf2f1; font-weight: 600; }
 .reader-table-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
+.reader-table-scroll:focus-visible { outline: 2px solid Highlight; outline-offset: -2px; }
 .reader-contents { margin: 0 0 20px; padding: 8px 12px; border: 1px solid #d6dfdc; border-radius: 8px; background: #f5f8f7; }
 .reader-contents summary { font-weight: 600; cursor: pointer; }
 .reader-contents ul { padding-left: 22px; }

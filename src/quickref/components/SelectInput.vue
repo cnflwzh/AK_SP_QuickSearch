@@ -813,12 +813,14 @@ defineExpose({focus});
   color: var(--accent);
 }
 
-.q-select.is-open .q-select-trigger,
+.q-select.is-open .q-select-trigger {
+  border-color: var(--accent);
+}
 .q-select-trigger:focus-visible,
 .q-select:has(.q-select-native:focus-visible) .q-select-trigger {
-  outline: none;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
   border-color: var(--accent);
-  box-shadow: 0 0 0 2.5px var(--accent-soft);
 }
 
 .q-select.is-open .q-select-chev {
@@ -1017,6 +1019,12 @@ defineExpose({focus});
 }
 
 /* 矮窗口（安卓横屏小窗）：收紧到 36px，不低于 34px 底线 */
+@media (pointer: coarse) and (min-height: 601px) {
+  .q-select-trigger {
+    min-height: 44px;
+  }
+}
+
 @media (max-height: 600px) {
   .q-select-trigger {
     min-height: 36px;
@@ -1046,6 +1054,11 @@ defineExpose({focus});
 }
 
 @media (forced-colors: active) {
+  .q-select-trigger:focus-visible,
+  .q-select-native:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
   .q-select .q-select-native {
     opacity: 1;
     appearance: auto;

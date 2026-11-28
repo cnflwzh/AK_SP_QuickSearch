@@ -54,7 +54,7 @@ onBeforeUnmount(() => toolbarObserver?.disconnect());
         target="_blank"
         rel="noopener noreferrer"
         data-prts-link
-        :aria-label="`在新标签页打开${operatorName}的 PRTS Wiki`">
+        :aria-label="`独立打开${operatorName}的 PRTS Wiki（新标签页）`">
         独立打开 ↗
       </a>
       <button

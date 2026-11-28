@@ -172,14 +172,40 @@ function onFrameLoaded(): void {
   );
   document.fonts.addEventListener('loadingdone', alignPinnedSection, options);
   // 宽表仅在自己的容器内横向滚动，不撑开整页；逐个包裹不会重建表内节点。
-  for (const table of document.querySelectorAll<HTMLTableElement>(
-    '.mw-parser-output > table',
-  )) {
+  const tables = Array.from(
+    document.querySelectorAll<HTMLTableElement>('.mw-parser-output > table'),
+  );
+  const updateTableAccess = new ResizeObserver(() => {
+    for (const [index, table] of tables.entries()) {
+      const wrapper = table.parentElement;
+      if (!wrapper) continue;
+      if (wrapper.scrollWidth > wrapper.clientWidth) {
+        wrapper.tabIndex = 0;
+        wrapper.setAttribute('role', 'region');
+        wrapper.setAttribute(
+          'aria-label',
+          table.caption?.textContent?.trim() || `PRTS 资料表格 ${index + 1}`,
+        );
+      } else {
+        wrapper.removeAttribute('tabindex');
+        wrapper.removeAttribute('role');
+        wrapper.removeAttribute('aria-label');
+      }
+    }
+  });
+  for (const table of tables) {
     const wrapper = document.createElement('div');
     wrapper.className = 'reader-table-scroll';
     table.replaceWith(wrapper);
     wrapper.append(table);
+    updateTableAccess.observe(wrapper);
+    updateTableAccess.observe(table);
   }
+  options.signal.addEventListener(
+    'abort',
+    () => updateTableAccess.disconnect(),
+    {once: true},
+  );
   cancelAnimationFrame(layoutFrame);
   layoutFrame = requestAnimationFrame(() => {
     scrollToSection(document, '特性');

@@ -80,6 +80,8 @@ defineExpose({focus, inputRef});
 
 <style scoped>
 .q-search {
+  --search-control-height: 36px;
+  --search-clear-size: 28px;
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -102,8 +104,8 @@ defineExpose({focus, inputRef});
 .q-search-input {
   width: 100%;
   min-width: 0;
-  min-height: 36px;
-  padding: 6px 34px 6px 31px;
+  min-height: var(--search-control-height);
+  padding: 6px calc(var(--search-clear-size) + 5px) 6px 31px;
   border: 1px solid var(--line2);
   border-radius: 6px;
   background: var(--surface2);
@@ -120,18 +122,21 @@ defineExpose({focus, inputRef});
   display: none;
 }
 .q-search-input:focus {
-  outline: none;
   border-color: var(--accent);
   background: var(--surface);
   box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.q-search-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .q-search-clear {
   position: absolute;
   right: 3px;
   top: 50%;
   transform: translateY(-50%);
-  width: 28px;
-  height: 28px;
+  width: var(--search-clear-size);
+  height: var(--search-clear-size);
   padding: 0;
   border: 0;
   border-radius: 5px;
@@ -164,27 +169,38 @@ defineExpose({focus, inputRef});
 }
 
 @media (max-width: 800px), (pointer: coarse) {
+  .q-search {
+    --search-control-height: 40px;
+    --search-clear-size: 34px;
+  }
   .q-search-input {
-    min-height: 40px;
-    padding-right: 38px;
     font-size: 16px;
   }
   .q-search-clear {
-    width: 34px;
-    height: 34px;
     right: 2px;
   }
 }
+@media (pointer: coarse) and (min-height: 601px) {
+  .q-search {
+    --search-control-height: 44px;
+    --search-clear-size: 44px;
+  }
+}
 @media (max-height: 600px) {
+  .q-search {
+    --search-control-height: 36px;
+    --search-clear-size: 34px;
+  }
   .q-search-input {
-    min-height: 36px;
     padding-block: 5px;
-    padding-right: 38px;
   }
   .q-search-clear {
-    width: 34px;
-    height: 34px;
     right: 2px;
+  }
+}
+@media (forced-colors: active) {
+  .q-search-input:focus-visible {
+    outline-color: Highlight;
   }
 }
 @media (prefers-reduced-motion: reduce) {
