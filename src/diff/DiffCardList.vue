@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed, onBeforeUnmount, ref, shallowReactive, watch} from 'vue';
+import {computed, onBeforeUnmount, onMounted, shallowReactive, watch} from 'vue';
 import type {ObjectDirective} from 'vue';
 import type {Covenant} from '../../data/index.ts';
 import type {VisualDiffEntry} from './comparison.ts';
@@ -13,87 +13,94 @@ const props = defineProps<{
   covenants: Readonly<Record<string, Covenant>>;
 }>();
 
-// 卡片高度随文字、窗宽和展开状态变化。保留离屏分块的实测高度，使滚动条能跨过整份结果。
 const chunkSize = 4;
 const overscan = 320;
-const near = shallowReactive(new Set<string>());
+const mountedChunks = shallowReactive(new Set<string>());
 const expanded = shallowReactive(new Set<string>());
-const focused = ref<string>();
-const heights = new Map<string, number>();
 const chunks = computed(() => {
   const result = [];
   for (let i = 0; i < props.entries.length; i += chunkSize) {
     const items = props.entries.slice(i, i + chunkSize);
-    result.push({key: items[0].key, start: i, items});
+    const estimatedHeight = items.reduce((height, item) => {
+      let fields = item.rows.length;
+      if (item.status === 'unchanged') fields = 0;
+      if (item.status === 'modified') fields = item.changedCount;
+      return height + 102 + fields * 52;
+    }, 0);
+    result.push({key: items[0].key, items, estimatedHeight});
   }
   return result;
 });
-const windowed = computed(
-  () =>
-    props.entries.length > chunkSize &&
-    typeof IntersectionObserver !== 'undefined',
-);
 
-function showChunk(key: string): boolean {
-  return !windowed.value || near.has(key) || focused.value === key;
-}
-
-function placeholderHeight(
-  key: string,
-  items: readonly VisualDiffEntry[],
-): number {
-  const measured = heights.get(key);
-  if (measured !== undefined) return measured;
-  return items.reduce((height, item) => {
-    let fields = item.rows.length;
-    if (item.status === 'unchanged') fields = 0;
-    if (item.status === 'modified') fields = item.changedCount;
-    return height + 102 + fields * 52;
-  }, 0);
+function mountChunk(key: string): void {
+  mountedChunks.add(key);
 }
 
 let observer: IntersectionObserver | undefined;
 const vObserveChunk: ObjectDirective<HTMLElement, string> = {
-  mounted(el, {value: key}) {
-    if (typeof IntersectionObserver === 'undefined') return;
+  mounted(element, {value: key}) {
+    if (typeof IntersectionObserver === 'undefined') {
+      mountChunk(key);
+      return;
+    }
     observer ??= new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (!entry.target.isConnected) continue;
-          const id = (entry.target as HTMLElement).dataset.chunk!;
-          if (entry.isIntersecting) near.add(id);
-          else if (near.has(id)) {
-            heights.set(id, entry.boundingClientRect.height);
-            near.delete(id);
-          }
+          if (entry.isIntersecting && entry.target.isConnected)
+            mountChunk((entry.target as HTMLElement).dataset.chunk!);
         }
       },
       {rootMargin: `${overscan}px 0px`},
     );
-    // 第一次绘制就挂载视口附近的卡片，无需等到观察器的首次异步通知。
-    const rect = el.getBoundingClientRect();
-    if (rect.top < window.innerHeight + overscan && rect.bottom > -overscan)
-      near.add(key);
-    observer.observe(el);
+    const bounds = element.getBoundingClientRect();
+    if (bounds.top < window.innerHeight + overscan && bounds.bottom > -overscan)
+      mountChunk(key);
+    observer.observe(element);
   },
-  beforeUnmount(el, {value: key}) {
-    observer?.unobserve(el);
-    near.delete(key);
-    heights.delete(key);
+  beforeUnmount(element, {value: key}) {
+    observer?.unobserve(element);
+    mountedChunks.delete(key);
   },
 };
 
-function leaveChunk(event: FocusEvent, key: string): void {
-  const chunk = event.currentTarget as HTMLElement;
+let cancelFill: (() => void) | undefined;
+let scrollIdleTimer = 0;
+function waitForScrollIdle(): void {
+  if (!cancelFill && !scrollIdleTimer) return;
+  cancelFill?.();
+  cancelFill = undefined;
+  window.clearTimeout(scrollIdleTimer);
+  scrollIdleTimer = window.setTimeout(() => {
+    scrollIdleTimer = 0;
+    fillInBackground();
+  }, 120);
+}
+
+function fillInBackground(): void {
   if (
-    focused.value === key &&
-    !(
-      event.relatedTarget instanceof Node && chunk.contains(event.relatedTarget)
-    )
-  ) {
-    // 焦点可能在滚出视口后才离开；此时仍能读到展开后的实际高度。
-    heights.set(key, chunk.getBoundingClientRect().height);
-    focused.value = undefined;
+    cancelFill ||
+    scrollIdleTimer ||
+    chunks.value.every(({key}) => mountedChunks.has(key))
+  )
+    return;
+  const fill = () => {
+    cancelFill = undefined;
+    if (!document.body.classList.contains('is-loading')) {
+      const next = chunks.value.find(({key}) => !mountedChunks.has(key));
+      if (next) mountChunk(next.key);
+    }
+    fillInBackground();
+  };
+  if (document.body.classList.contains('is-loading')) {
+    // 首屏已经挂载附近卡片。等遮罩撤掉后再逐批补齐可供浏览器查找的正文。
+    const frame = requestAnimationFrame(fill);
+    cancelFill = () => cancelAnimationFrame(frame);
+  } else if (typeof window.requestIdleCallback === 'function') {
+    const idle = window.requestIdleCallback(fill);
+    cancelFill = () => window.cancelIdleCallback(idle);
+  } else {
+    const timer = window.setTimeout(fill, 16);
+    cancelFill = () => window.clearTimeout(timer);
   }
 }
 
@@ -102,29 +109,40 @@ function setExpanded(key: string, open: boolean): void {
   else expanded.delete(key);
 }
 
-watch([() => props.entries, () => props.viewMode], () => heights.clear());
-onBeforeUnmount(() => observer?.disconnect());
+onMounted(() => {
+  fillInBackground();
+  // 离屏补齐让位给正在滚动的页面，靠近视口的卡片仍由观察器立即挂载。
+  window.addEventListener('scroll', waitForScrollIdle, {passive: true});
+});
+watch(chunks, fillInBackground, {flush: 'post'});
+onBeforeUnmount(() => {
+  cancelFill?.();
+  window.clearTimeout(scrollIdleTimer);
+  window.removeEventListener('scroll', waitForScrollIdle);
+  observer?.disconnect();
+});
 </script>
 
 <template>
   <div class="df-list">
     <div
-      v-for="chunk in chunks"
+      v-for="(chunk, index) in chunks"
       :key="chunk.key"
       v-observe-chunk="chunk.key"
-      class="df-list"
       :data-chunk="chunk.key"
-      :style="
-        showChunk(chunk.key)
-          ? undefined
-          : {height: placeholderHeight(chunk.key, chunk.items) + 'px'}
+      class="df-list"
+      :class="{
+        'df-deferred-chunk': index > 0,
+        'df-chunk-pending': !mountedChunks.has(chunk.key),
+      }"
+      :style="{'--df-chunk-height': chunk.estimatedHeight + 'px'}"
+      :tabindex="mountedChunks.has(chunk.key) ? undefined : 0"
+      :aria-label="
+        mountedChunks.has(chunk.key) ? undefined : `第 ${index * chunkSize + 1} 项起的比较结果`
       "
-      :tabindex="showChunk(chunk.key) ? -1 : 0"
-      role="group"
-      :aria-label="`第 ${chunk.start + 1} 至 ${chunk.start + chunk.items.length} 项`"
-      @focusin="focused = chunk.key"
-      @focusout="leaveChunk($event, chunk.key)">
-      <template v-if="showChunk(chunk.key)">
+      :role="mountedChunks.has(chunk.key) ? undefined : 'group'"
+      @focus="mountChunk(chunk.key)">
+      <template v-if="mountedChunks.has(chunk.key)">
         <DiffCard
           v-for="entry in chunk.items"
           :key="entry.key"
@@ -139,3 +157,13 @@ onBeforeUnmount(() => observer?.disconnect());
     </div>
   </div>
 </template>
+
+<style scoped>
+.df-deferred-chunk {
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto var(--df-chunk-height);
+}
+.df-chunk-pending {
+  min-block-size: var(--df-chunk-height);
+}
+</style>

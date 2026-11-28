@@ -65,17 +65,21 @@ const activeCurveDatasets = computed<readonly LineChartDataset[]>(() => {
   ];
 });
 
-const curveSnapshots = computed(() => {
+const curveRows = computed(() => {
   const c = activeCurve.value;
   if (!c) return [];
-  return [0, 100, 200].map((layer) => {
-    const idx = Math.round(layer / 10);
-    const before = c.beforeValues[idx] ?? 0;
-    const after = c.afterValues[idx] ?? 0;
+  return c.layers.map((layer, index) => {
+    const before = c.beforeValues[index];
+    const after = c.afterValues[index];
     const delta = round1(after - before);
     return {layer, before, after, delta};
   });
 });
+const curveSnapshots = computed(() =>
+  curveRows.value.filter(
+    ({layer}) => layer === 0 || layer === 100 || layer === 200,
+  ),
+);
 
 const curveMilestoneNotes = computed<readonly string[]>(() => {
   const c = activeCurve.value;
@@ -173,6 +177,32 @@ const curveMilestoneNotes = computed<readonly string[]>(() => {
       x-suffix="层"
       :y-suffix="activeCurve.unit"
       :aria-label="`${activeCurve.name} 0至200层${activeCurve.metricLabel}更新前后折线对比图`" />
+    <details class="ig-curve-data">
+      <summary>查看折线数据</summary>
+      <table>
+        <caption class="sr-only">
+          {{ activeCurve.name }} · {{ activeCurve.metricLabel }}
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">层数</th>
+            <th scope="col">{{ fromLabel }}（原来）</th>
+            <th scope="col">{{ toLabel }}（更新后）</th>
+            <th scope="col">差值</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="row in curveRows" :key="row.layer">
+            <th scope="row">{{ row.layer }} 层</th>
+            <td>{{ row.before }}{{ activeCurve.unit }}</td>
+            <td>{{ row.after }}{{ activeCurve.unit }}</td>
+            <td>
+              {{ row.delta > 0 ? '+' : '' }}{{ row.delta }}{{ activeCurve.unit }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </details>
   </div>
 </template>
 
@@ -294,5 +324,27 @@ const curveMilestoneNotes = computed<readonly string[]>(() => {
   background: var(--accent-soft);
   border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
   color: var(--ink);
+}
+.ig-curve-data {
+  border-top: 1px solid var(--line);
+}
+.ig-curve-data > summary {
+  min-height: 34px;
+  padding-block: 8px;
+  cursor: pointer;
+}
+.ig-curve-data table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.ig-curve-data :is(th, td) {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--line);
+  text-align: end;
+}
+.ig-curve-data :is(th, td):first-child {
+  text-align: start;
 }
 </style>
