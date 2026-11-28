@@ -8,6 +8,24 @@ export interface SubTabItem<T extends string | number = string> {
 }
 
 export type SubTabDirection = 'next' | 'prev' | '';
+
+function subTabId(panelId: string, value: string | number): string {
+  return `${panelId}-tab-${encodeURIComponent(String(value))}`;
+}
+
+/** Names a panel after the selected tab. Keep it in the tab order when it starts with content. */
+export function subTabPanelAttrs(
+  id: string,
+  value: string | number,
+  focusable = true,
+) {
+  return {
+    id,
+    role: 'tabpanel',
+    'aria-labelledby': subTabId(id, value),
+    tabindex: focusable ? 0 : undefined,
+  } as const;
+}
 </script>
 
 <script setup lang="ts" generic="T extends string | number = string">
@@ -24,7 +42,7 @@ const props = withDefaults(
     items: readonly SubTabItem<T>[];
     level?: 2 | 3;
     label?: string;
-    /** 所有选项共用的内容面板 ID，供读屏关联。 */
+    /** 内容面板 ID。缺省时用单选组表达筛选和行内选项。 */
     panelId?: string;
     attr?: string;
     inline?: boolean;
@@ -144,13 +162,19 @@ function onKeydown(event: KeyboardEvent): void {
   const current = buttons
     ? Array.from(buttons).indexOf(event.target as HTMLButtonElement)
     : activeIndex.value;
-  if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+  if (
+    event.key === 'ArrowRight' ||
+    (!props.panelId && event.key === 'ArrowDown')
+  ) {
     const next = findEnabledIndex(current < 0 ? -1 : current, 1);
     if (next >= 0) {
       event.preventDefault();
       void moveFocus(next);
     }
-  } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+  } else if (
+    event.key === 'ArrowLeft' ||
+    (!props.panelId && event.key === 'ArrowUp')
+  ) {
     const prev = findEnabledIndex(current < 0 ? 0 : current, -1);
     if (prev >= 0) {
       event.preventDefault();
@@ -190,7 +214,7 @@ function onKeydown(event: KeyboardEvent): void {
       <div
         ref="trackRef"
         class="subtabs-track"
-        role="tablist"
+        :role="panelId ? 'tablist' : 'radiogroup'"
         :id="id"
         :aria-label="resolvedLabel"
         @scroll.passive="updateScrollHints"
@@ -204,10 +228,12 @@ function onKeydown(event: KeyboardEvent): void {
           v-for="(item, index) in items"
           :key="String(item.id)"
           type="button"
-          role="tab"
+          :id="panelId ? subTabId(panelId, item.id) : undefined"
+          :role="panelId ? 'tab' : 'radio'"
           :disabled="item.disabled"
           :title="item.title"
-          :aria-selected="item.id === model"
+          :aria-selected="panelId ? item.id === model : undefined"
+          :aria-checked="panelId ? undefined : item.id === model"
           :aria-controls="panelId"
           :tabindex="index === tabStopIndex ? 0 : -1"
           :class="[

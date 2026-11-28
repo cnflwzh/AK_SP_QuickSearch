@@ -20,6 +20,7 @@ import PlanEmblem from '../components/PlanEmblem.vue';
 import EmptyState from '../components/EmptyState.vue';
 import StatusNotice from '../components/StatusNotice.vue';
 import SubTabs, {
+  subTabPanelAttrs,
   type SubTabDirection,
   type SubTabItem,
 } from '../components/SubTabs.vue';
@@ -182,6 +183,7 @@ function markTrainedE1(name: string): void {
         :level="3"
         inline
         aria-label="备战规划视角"
+        panel-id="box-planner-panel"
         attr="bxp-tab"
         @change="(_, dir) => (tabDir = dir)" />
       <div
@@ -239,6 +241,7 @@ function markTrainedE1(name: string): void {
 
     <div
       :key="activeTab"
+      v-bind="subTabPanelAttrs('box-planner-panel', activeTab)"
       :class="{'subtab-panel': !!tabDir}"
       :data-dir="tabDir || undefined">
       <template v-if="activeTab === 'borrow'">

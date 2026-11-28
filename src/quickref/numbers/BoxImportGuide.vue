@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {onMounted, ref} from 'vue';
 import SubTabs, {
+  subTabPanelAttrs,
   type SubTabDirection,
   type SubTabItem,
 } from '../components/SubTabs.vue';
@@ -52,78 +53,81 @@ function start(method: 'file' | 'paste'): void {
         :items="sourceTabs"
         :level="3"
         aria-label="选择名单来源"
+        panel-id="box-import-source-panel"
         attr="box-import-source"
         @change="(_, dir) => (stepDir = dir)" />
-      <ol :key="source" class="subtab-panel" :data-dir="stepDir || undefined">
-        <template v-if="source === 0">
+      <div v-bind="subTabPanelAttrs('box-import-source-panel', source)">
+        <ol :key="source" class="subtab-panel" :data-dir="stepDir || undefined">
+          <template v-if="source === 0">
+            <li>
+              <b>让 MAA 看一遍你的干员</b>
+              <p>
+                在模拟器里登录明日方舟。打开电脑上的 MAA，进入「小工具 →
+                干员识别」，点「开始识别」。
+              </p>
+            </li>
+            <li>
+              <b>把识别结果存下来</b>
+              <p>
+                识别结束后，在「导出到」选
+                JSON，再点「导出」。把文件存到桌面，默认文件名是
+                <code>Arknights_OperBox_Export.json</code>
+                。在手机上使用时，把它发到手机即可。
+              </p>
+              <p>在同一台电脑上，也可以导出到剪贴板，回来点「粘贴数据」。</p>
+            </li>
+          </template>
+          <template v-else-if="source === 1">
+            <li>
+              <b>打开一图流的「我的干员」</b>
+              <p>
+                登录一图流，点「导入干员数据」，选「森空岛扫码登录」，再点「开始导入」。如果已经看得到自己的练度，可以直接去第
+                3 步。
+              </p>
+              <a
+                href="https://ark.yituliu.cn/survey/operators/"
+                target="_blank"
+                rel="noopener noreferrer">
+                打开一图流 · 我的干员 ↗
+              </a>
+            </li>
+            <li>
+              <b>用森空岛 App 扫码</b>
+              <p>
+                可以在电脑上显示二维码，用手机扫码并确认授权。回到一图流，点你要导入的游戏昵称，等页面显示你的干员。
+              </p>
+            </li>
+            <li>
+              <b>下载练度表，回到这里选文件</b>
+              <p>
+                在一图流点「导出为
+                Excel」。下载完成后，回到这里点「选择练度文件」，从手机的「下载」或「最近使用」中选「干员练度表.xlsx」，就会看到预览。
+              </p>
+            </li>
+          </template>
+          <template v-else>
+            <li>
+              <b>把同一练度的干员写在一起</b>
+              <p>例如「鸿雪、仇白」。用顿号隔开，或每行写一人。</p>
+            </li>
+            <li>
+              <b>告诉练度箱他们练到了哪里</b>
+              <p>
+                点下方「填写干员名单」，贴上名字，在「纯名单默认状态」选这一批的练度，再点「解析预览」。不同练度可以分批导入。
+              </p>
+            </li>
+          </template>
           <li>
-            <b>让 MAA 看一遍你的干员</b>
+            <b>核对人数和练度，再保存</b>
             <p>
-              在模拟器里登录明日方舟。打开电脑上的 MAA，进入「小工具 →
-              干员识别」，点「开始识别」。
+              <template v-if="source === 0">
+                点「选择 JSON 文件」选刚才保存的文件，或粘贴后点「解析预览」。
+              </template>
+              核对预览里本赛季的人数和练度，然后点「合并导入」。同一干员会保留较高练度。
             </p>
           </li>
-          <li>
-            <b>把识别结果存下来</b>
-            <p>
-              识别结束后，在「导出到」选
-              JSON，再点「导出」。把文件存到桌面，默认文件名是
-              <code>Arknights_OperBox_Export.json</code>
-              。在手机上使用时，把它发到手机即可。
-            </p>
-            <p>在同一台电脑上，也可以导出到剪贴板，回来点「粘贴数据」。</p>
-          </li>
-        </template>
-        <template v-else-if="source === 1">
-          <li>
-            <b>打开一图流的「我的干员」</b>
-            <p>
-              登录一图流，点「导入干员数据」，选「森空岛扫码登录」，再点「开始导入」。如果已经看得到自己的练度，可以直接去第
-              3 步。
-            </p>
-            <a
-              href="https://ark.yituliu.cn/survey/operators/"
-              target="_blank"
-              rel="noopener noreferrer">
-              打开一图流 · 我的干员 ↗
-            </a>
-          </li>
-          <li>
-            <b>用森空岛 App 扫码</b>
-            <p>
-              可以在电脑上显示二维码，用手机扫码并确认授权。回到一图流，点你要导入的游戏昵称，等页面显示你的干员。
-            </p>
-          </li>
-          <li>
-            <b>下载练度表，回到这里选文件</b>
-            <p>
-              在一图流点「导出为
-              Excel」。下载完成后，回到这里点「选择练度文件」，从手机的「下载」或「最近使用」中选「干员练度表.xlsx」，就会看到预览。
-            </p>
-          </li>
-        </template>
-        <template v-else>
-          <li>
-            <b>把同一练度的干员写在一起</b>
-            <p>例如「鸿雪、仇白」。用顿号隔开，或每行写一人。</p>
-          </li>
-          <li>
-            <b>告诉练度箱他们练到了哪里</b>
-            <p>
-              点下方「填写干员名单」，贴上名字，在「纯名单默认状态」选这一批的练度，再点「解析预览」。不同练度可以分批导入。
-            </p>
-          </li>
-        </template>
-        <li>
-          <b>核对人数和练度，再保存</b>
-          <p>
-            <template v-if="source === 0">
-              点「选择 JSON 文件」选刚才保存的文件，或粘贴后点「解析预览」。
-            </template>
-            核对预览里本赛季的人数和练度，然后点「合并导入」。同一干员会保留较高练度。
-          </p>
-        </li>
-      </ol>
+        </ol>
+      </div>
       <details v-if="source === 1" class="guide-alternative">
         <summary>用 iPhone 的「罗德岛助理」或已有 JSON？</summary>
         <p>

@@ -2,7 +2,7 @@
 import {ref} from 'vue';
 import {CORE_COVENANTS, SEASON_META} from '../../../data/index.ts';
 import CovenantIcon from '../../quickref/components/CovenantIcon.vue';
-import SubTabs from '../../quickref/components/SubTabs.vue';
+import SubTabs, {subTabPanelAttrs} from '../../quickref/components/SubTabs.vue';
 import {color, emblem} from '../chips.ts';
 import Markup from '../components/Markup.ts';
 import {iconSvg} from '../icons.ts';
@@ -86,7 +86,10 @@ const buildTabs = CORE_COVENANTS.map((name) => ({id: name, label: name}));
       <CovenantIcon :name="item.label" :style="{'--cv-ink': color(item.label)}" />
     </template>
   </SubTabs>
-  <Markup as="div" id="bpanel" :html="drawBuild(selected)" />
+  <Markup
+    as="div"
+    v-bind="subTabPanelAttrs('bpanel', selected)"
+    :html="drawBuild(selected)" />
 
   <h3 class="bh">
     <span>5.2</span>

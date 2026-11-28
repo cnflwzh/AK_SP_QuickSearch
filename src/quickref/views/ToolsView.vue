@@ -5,6 +5,7 @@ import {queryText} from '../../router/location.ts';
 import {routeQuery, updateQuery} from '../../router/navigation.ts';
 import RunBanner from '../components/RunBanner.vue';
 import SubTabs, {
+  subTabPanelAttrs,
   type SubTabDirection,
   type SubTabItem,
 } from '../components/SubTabs.vue';
@@ -85,20 +86,23 @@ watch(advisorPreviewEnabled, (enabled) => {
   <RunBanner v-if="activeTool === 'match-reference'" />
   <div class="numbers-tools workbench-controls">
     <!-- 工具标题沿用现有 h4 样式，由 aria-level 表达页面与卡片的标题层级。 -->
-    <nav class="bar numbers-subtabs" aria-label="小工具">
+    <div class="bar numbers-subtabs">
       <SubTabs
         v-model="selectedTool"
         :items="toolItems"
         :level="2"
+        panel-id="number-tool-panel"
         aria-label="小工具"
         attr="number-tool"
         @change="onToolChange" />
-    </nav>
+    </div>
     <!-- 仅工具切换产生过渡；临时输入和详情弹窗更新不重建面板。 -->
-    <Transition :name="panelTransition" mode="out-in">
-      <KeepAlive :max="7">
-        <component :is="panels[activeTool]" :key="activeTool" />
-      </KeepAlive>
-    </Transition>
+    <div v-bind="subTabPanelAttrs('number-tool-panel', activeTool)">
+      <Transition :name="panelTransition" mode="out-in">
+        <KeepAlive :max="7">
+          <component :is="panels[activeTool]" :key="activeTool" />
+        </KeepAlive>
+      </Transition>
+    </div>
   </div>
 </template>

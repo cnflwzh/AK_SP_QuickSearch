@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {computed, nextTick, ref, watch} from 'vue';
 import {
+  ADDITIONAL_OPERATORS,
   ALL_COVENANTS,
   BORROW_LIMIT,
   OWN_OPERATOR_BONUS,
@@ -35,7 +36,7 @@ import {nameScore, normalize} from '../../lib/ui/match.ts';
 import OperatorRosterSources, {
   type RosterSource,
 } from '../components/OperatorRosterSources.vue';
-import type {SubTabDirection} from '../components/SubTabs.vue';
+import {subTabPanelAttrs, type SubTabDirection} from '../components/SubTabs.vue';
 import BoxBonusRules from './BoxBonusRules.vue';
 import BoxOperatorCard from './BoxOperatorCard.vue';
 import BoxPlannerPanel from './BoxPlannerPanel.vue';
@@ -874,6 +875,7 @@ function resetFilters(): void {
     <OperatorRosterSources
       ref="roster"
       v-model="rosterSource"
+      panel-id="box-roster-panel"
       :tab-level="2"
       show-ranks
       :brush="editMode ? currentBrush : undefined"
@@ -887,6 +889,11 @@ function resetFilters(): void {
       @dismiss="notice = ''" />
     <div
       v-if="rosterSource === 'fixed'"
+      v-bind="
+        ADDITIONAL_OPERATORS.length
+          ? subTabPanelAttrs('box-roster-panel', rosterSource)
+          : undefined
+      "
       :class="['bx-fixed-pane', {'subtab-panel': !!rosterDir}]"
       :data-dir="rosterDir || undefined">
       <BoxPlannerPanel />

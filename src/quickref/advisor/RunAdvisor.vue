@@ -35,6 +35,7 @@ import AdvisorDeployments from './AdvisorDeployments.vue';
 import AdvisorPoolSettings from './AdvisorPoolSettings.vue';
 import ConfirmButton from '../components/ConfirmButton.vue';
 import SubTabs, {
+  subTabPanelAttrs,
   type SubTabDirection,
   type SubTabItem,
 } from '../components/SubTabs.vue';
@@ -622,6 +623,7 @@ function startNewRun(): void {
             :level="3"
             inline
             aria-label="整备区和装备"
+            panel-id="advisor-storage-panel"
             attr="advisor-storage"
             @change="(_, dir) => (storageDir = dir)" />
           <button
@@ -635,6 +637,7 @@ function startNewRun(): void {
         <div
           v-if="storageView === 'reserve'"
           key="reserve"
+          v-bind="subTabPanelAttrs('advisor-storage-panel', 'reserve')"
           :class="['ra-storage-strip', {'subtab-panel': !!storageDir}]"
           :data-dir="storageDir || undefined"
           aria-label="整备区">
@@ -666,6 +669,7 @@ function startNewRun(): void {
         <div
           v-else
           key="equipment"
+          v-bind="subTabPanelAttrs('advisor-storage-panel', 'equipment')"
           :class="['ra-storage-strip', {'subtab-panel': !!storageDir}]"
           :data-dir="storageDir || undefined"
           aria-label="装备仓库">

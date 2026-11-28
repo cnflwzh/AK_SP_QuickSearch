@@ -32,6 +32,7 @@ import SelectInput, {
   type SelectOption,
 } from '../components/SelectInput.vue';
 import SubTabs, {
+  subTabPanelAttrs,
   type SubTabDirection,
   type SubTabItem,
 } from '../components/SubTabs.vue';
@@ -192,6 +193,7 @@ const decisions = computed(
         :level="3"
         inline
         aria-label="对局速查分区"
+        panel-id="match-section-panel"
         attr="match-section"
         @change="(_, dir) => (sectionDir = dir)" />
       <SelectInput
@@ -204,6 +206,7 @@ const decisions = computed(
 
     <div
       :key="viewSection"
+      v-bind="subTabPanelAttrs('match-section-panel', viewSection)"
       :class="['nt-match-body', {'subtab-panel': !!sectionDir}]"
       :data-dir="sectionDir || undefined">
       <!-- 分区一：盟约层数与强化 -->

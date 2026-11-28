@@ -27,7 +27,11 @@ import {useQuickrefActions} from '../state.ts';
 import Chip from './Chip.vue';
 import NavigationLink from './NavigationLink.vue';
 import PrtsLink from './PrtsLink.vue';
-import SubTabs, {type SubTabDirection, type SubTabItem} from './SubTabs.vue';
+import SubTabs, {
+  subTabPanelAttrs,
+  type SubTabDirection,
+  type SubTabItem,
+} from './SubTabs.vue';
 import SearchInput from './SearchInput.vue';
 import SelectInput, {type SelectOption} from './SelectInput.vue';
 import SectionHeading from './SectionHeading.vue';
@@ -41,6 +45,7 @@ const props = withDefaults(
     brush?: BoxRank;
     tabLevel?: 2 | 3;
     focusName?: string;
+    panelId: string;
   }>(),
   {tabLevel: 2},
 );
@@ -338,6 +343,7 @@ defineExpose({visibleOwnable, rosterFilters});
       :items="sourceTabs"
       :level="tabLevel"
       aria-label="干员来源"
+      :panel-id="panelId"
       attr="roster-source"
       @change="onSourceChange" />
 
@@ -346,7 +352,7 @@ defineExpose({visibleOwnable, rosterFilters});
       :key="source"
       class="rs-panel subtab-panel"
       :data-dir="panelDir || undefined"
-      :aria-label="source === 'selectable' ? '自选干员名单' : '替补对应表'">
+      v-bind="subTabPanelAttrs(panelId, source)">
       <header ref="rosterFilters" class="nc rs-hero">
         <div class="rs-hero-main">
           <div class="rs-hero-title">

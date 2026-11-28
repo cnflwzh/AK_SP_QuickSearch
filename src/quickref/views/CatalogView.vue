@@ -2,6 +2,7 @@
 import {computed, ref, watch} from 'vue';
 import LiveStatus from '../../lib/ui/LiveStatus.vue';
 import {
+  ADDITIONAL_OPERATORS,
   OPERATORS,
   OPERATOR_TYPES,
   OPERATOR_TRIGGERS,
@@ -37,6 +38,7 @@ import RunBanner from '../components/RunBanner.vue';
 import Segmented from '../components/Segmented.vue';
 import SelectInput, {type SelectOption} from '../components/SelectInput.vue';
 import SubTabs, {
+  subTabPanelAttrs,
   type SubTabDirection,
   type SubTabItem,
 } from '../components/SubTabs.vue';
@@ -267,10 +269,16 @@ const equipmentGroups = computed(() =>
   <OperatorRosterSources
     v-if="kind === 'op'"
     v-model="rosterSource"
+    panel-id="catalog-roster-panel"
     :focus-name="rosterTarget?.name"
     @switch="switchRoster" />
   <div
     v-if="kind === 'op' && rosterSource === 'fixed'"
+    v-bind="
+      ADDITIONAL_OPERATORS.length
+        ? subTabPanelAttrs('catalog-roster-panel', rosterSource, false)
+        : undefined
+    "
     :class="{'subtab-panel': !!rosterDir}"
     :data-dir="rosterDir || undefined">
     <div class="bar" data-key="filters">

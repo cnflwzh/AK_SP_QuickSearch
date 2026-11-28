@@ -39,9 +39,13 @@
     {id: 'substitute', label: '替补干员', count: 13},
   ]"
   :level="2"
+  panel-id="roster-panel"
   aria-label="干员来源"
   attr="roster-source"
   @change="(_, dir) => (panelDir = dir)" />
+<div v-bind="subTabPanelAttrs('roster-panel', activeTab)">
+  <!-- 当前来源的内容 -->
+</div>
 ```
 
 - **Props**：
@@ -50,8 +54,9 @@
   - `inline?: boolean`（默认 `false`）：独立成行时保持 `false`（启用 `@container subtabs`）；与 `<select>` / 按钮共处 `.bar` 工具栏时传 `inline`（避免独占一整行）
   - `overflow?: 'auto' | 'scroll' | 'wrap'`（默认 `'auto'`）：自动根据总宽估算值在窄屏启用均衡网格拆行，矮窗下强制单行滚动
   - `attr?: string`：为每个 Tab 按钮挂载 `data-${attr}` 属性（兼容样式或测试选择器）
-  - `label?: string` 或原生 `aria-label`：透传绑定到内部 `role="tablist"` 元素
-  - 所有选项共用同一内容面板时，传 `panelId` 设置按钮的 `aria-controls`。使用 `#icon="{item}"` 在标签前展示对应图标。
+  - `label?: string` 或原生 `aria-label`：为内部页签组或单选组命名。
+  - 切换内容面板时传 `panelId`，并在内容容器绑定 `subTabPanelAttrs(panelId, activeTab)`。该函数从 `SubTabs.vue` 导出，生成面板的 ID、角色和指向当前页签的名称。若面板一开始就有可聚焦控件，可以传第三个参数 `false`，省去面板自身的 Tab 停靠点。
+  - 筛选同一列表或选择参数值时省略 `panelId`，以单选组表达当前选项。使用 `#icon="{item}"` 在选项文字前展示图标。
 - **配合内容区过渡**：
   - 静态/条件区块：给内容容器加 `:key="activeTab" :class="{'subtab-panel': !!panelDir}" :data-dir="panelDir || undefined"`（样式定义在 `public/assets/css/quickref.css`）
   - `KeepAlive` 动态组件（如 `ToolsView.vue`）：使用 `<Transition :name="dir === 'prev' ? 'subtab-prev' : 'subtab-next'" mode="out-in">`

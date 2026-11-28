@@ -34,6 +34,7 @@ import SelectInput, {
 } from '../quickref/components/SelectInput.vue';
 import StatusNotice from '../quickref/components/StatusNotice.vue';
 import SubTabs, {
+  subTabPanelAttrs,
   type SubTabDirection,
   type SubTabItem,
 } from '../quickref/components/SubTabs.vue';
@@ -121,6 +122,11 @@ const fromId = ref(initial.fromId);
 const toId = ref(initial.toId);
 const missingVersion = ref(initial.missingVersion);
 const activeTab = ref<DiffTab>(initial.tab);
+const diffPanelAttrs = computed(() =>
+  hasVersionPair || activeTab.value !== 'infographic'
+    ? subTabPanelAttrs('diff-category-panel', activeTab.value)
+    : undefined,
+);
 const statusFilter = ref<StatusFilter>(initial.status);
 const viewMode = ref<ViewMode>(initial.viewMode);
 const searchQuery = ref(initial.query);
@@ -588,6 +594,7 @@ onUnmounted(() => {
         v-model="activeTab"
         :items="categoryTabs"
         :level="2"
+        panel-id="diff-category-panel"
         aria-label="图解与分类切换"
         attr="diff-cat"
         @change="(_, dir) => (panelDir = dir)" />
@@ -636,32 +643,36 @@ onUnmounted(() => {
     </div>
 
     <!-- 同赛季对比空态 -->
-    <EmptyState
+    <div
       v-if="
         fromId === toId &&
         (activeTab === 'infographic' || statusFilter !== 'all')
       "
-      card
-      :message="
-        hasVersionPair
-          ? '两侧选择了同一版本，没有变动'
-          : '目前只收录了一个正式版本'
-      "
-      :hint="
-        hasVersionPair
-          ? '选择另一个版本即可对比，也可以查看当前版本的条目。'
-          : `${defaultTo.label} · ${defaultTo.season.meta.ruleVersion}。收录下一次更新后，即可查看前后差异。`
-      "
-      action-label="浏览当前版本条目"
-      @action="
-        activeTab = 'all';
-        statusFilter = 'all';
-      " />
+      v-bind="diffPanelAttrs">
+      <EmptyState
+        card
+        :message="
+          hasVersionPair
+            ? '两侧选择了同一版本，没有变动'
+            : '目前只收录了一个正式版本'
+        "
+        :hint="
+          hasVersionPair
+            ? '选择另一个版本即可对比，也可以查看当前版本的条目。'
+            : `${defaultTo.label} · ${defaultTo.season.meta.ruleVersion}。收录下一次更新后，即可查看前后差异。`
+        "
+        action-label="浏览当前版本条目"
+        @action="
+          activeTab = 'all';
+          statusFilter = 'all';
+        " />
+    </div>
 
     <!-- 视图 A：可视化更新图解看板 -->
     <div
       v-else-if="activeTab === 'infographic'"
       :key="`infographic:${fromId}:${toId}`"
+      v-bind="diffPanelAttrs"
       :class="{'subtab-panel': !!panelDir}"
       :data-dir="panelDir || undefined">
       <SeasonDiffInfographic
@@ -674,7 +685,7 @@ onUnmounted(() => {
     </div>
 
     <!-- 视图 B：图形化 Git 左右双栏 / 上下合并明细 -->
-    <template v-else>
+    <div v-else v-bind="diffPanelAttrs">
       <div
         v-if="viewMode === 'split' && filteredEntries.length > 0"
         class="df-col-banner"
@@ -748,6 +759,6 @@ onUnmounted(() => {
         :to-label="toVersion.label"
         :view-mode="viewMode"
         :covenants="comparison.mergedCovenants" />
-    </template>
+    </div>
   </main>
 </template>

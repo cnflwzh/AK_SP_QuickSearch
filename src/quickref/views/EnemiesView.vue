@@ -14,6 +14,7 @@ import {routeQuery, updateQuery} from '../../router/navigation.ts';
 import {state} from '../state.ts';
 import RunBanner from '../components/RunBanner.vue';
 import SubTabs, {
+  subTabPanelAttrs,
   type SubTabDirection,
   type SubTabItem,
 } from '../components/SubTabs.vue';
@@ -81,12 +82,14 @@ const filteredLeaders = computed(() =>
       :items="kindTabs"
       :level="2"
       aria-label="敌人分类"
+      panel-id="enemy-kind-panel"
       attr="enemy-kind"
       @change="(_, dir) => (kindDir = dir)" />
   </div>
 
   <div
     :key="current ? `boss:${current.id}` : enemyKind"
+    v-bind="subTabPanelAttrs('enemy-kind-panel', enemyKind)"
     :class="{'subtab-panel': !current && !!kindDir}"
     :data-dir="!current ? kindDir || undefined : undefined">
     <template v-if="enemyKind === 'boss'">
